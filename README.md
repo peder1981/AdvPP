@@ -1,4 +1,4 @@
-# AdvPL/TLPP Compiler in Go
+# AdvPP - AdvPL/TLPP Compiler in Go
 
 A fully functional compiler and interpreter for the AdvPL and TLPP programming languages, built in Go.
 
