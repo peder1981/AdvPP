@@ -43,9 +43,11 @@ oBrowse := FWFormBrowse("CustomerBrowse", oModel)
 ### Features
 - Field validation (required, length, range, custom)
 - Event handling (onChange, onClick, onGotFocus, onLostFocus)
-- Component-based UI (TButton, TGet, TComboBox, TCheckBox, etc.)
+- Component data structures (TButton, TGet, TComboBox, TCheckBox, etc.)
 - Dialog support (dialogs, menus, toolbars, status bars)
 - Browse events (onLineChange, onDbClick, onHeaderClick)
+
+**Note**: MVC components are data structures only. Visual rendering requires additional Fyne integration.
 
 ### Example
 ```advpl
@@ -129,7 +131,10 @@ The GUI IDE provides:
 - Try/Catch/EndTry error handling
 - Namespace declarations
 - Access modifiers (Public, Private, Protected)
-- REST annotations (@Get, @Post, @Put, @Delete)
-- JSON inline support
+- REST annotations (@Get, @Post, @Put, @Delete) - parsed only
+- JSON inline support with JsonObject methods
 - Long identifiers (with namespace)
 - Integer, Double, Decimal, Variant, Variadic types
+- WSRESTFUL/WSSERVICE syntax parsing
+
+**Note**: REST annotations and WSRESTFUL syntax are parsed but not executed. HTTP server integration required for REST endpoint execution.
