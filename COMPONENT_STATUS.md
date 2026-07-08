@@ -1,144 +1,144 @@
-# Component Status Report
+# Relatório de Status dos Componentes
 
-## UI Components
+## Componentes UI
 
-### Current Status: Visual Rendering Implemented
+### Status Atual: Renderização Visual Implementada
 
-The AdvPP compiler now includes full Fyne widget rendering for all UI components.
+O compilador AdvPP agora inclui renderização completa de widgets Fyne para todos os componentes UI.
 
-### What Works:
-- ✅ Component data structures (TButton, TGet, TComboBox, TCheckBox, etc.)
-- ✅ Dialog structures (Dialog, MenuBar, ToolBar, StatusBar)
-- ✅ Component properties (X, Y, Width, Height, Label, Value, etc.)
-- ✅ Event handling framework (onChange, onClick, onGotFocus, onLostFocus)
-- ✅ **Fyne widget rendering for all components**
-- ✅ **TButton rendering**
-- ✅ **TGet (text input) rendering**
-- ✅ **TComboBox rendering**
-- ✅ **TCheckBox rendering**
-- ✅ **TLabel rendering**
-- ✅ **MenuBar rendering**
-- ✅ **ToolBar rendering**
-- ✅ **StatusBar rendering**
-- ✅ **Form view rendering with scrollable content**
-- ✅ Basic Fyne dialogs (MsgInfo, MsgStop, MsgAlert, MsgYesNo)
-- ✅ IDE UI components (CodeEditor, OutputConsole, FileTree)
+### O Que Funciona:
+- ✅ Estruturas de dados de componentes (TButton, TGet, TComboBox, TCheckBox, etc.)
+- ✅ Estruturas de diálogo (Dialog, MenuBar, ToolBar, StatusBar)
+- ✅ Propriedades de componentes (X, Y, Width, Height, Label, Value, etc.)
+- ✅ Framework de tratamento de eventos (onChange, onClick, onGotFocus, onLostFocus)
+- ✅ **Renderização de widgets Fyne para todos os componentes**
+- ✅ **Renderização de TButton**
+- ✅ **Renderização de TGet (entrada de texto)**
+- ✅ **Renderização de TComboBox**
+- ✅ **Renderização de TCheckBox**
+- ✅ **Renderização de TLabel**
+- ✅ **Renderização de MenuBar**
+- ✅ **Renderização de ToolBar**
+- ✅ **Renderização de StatusBar**
+- ✅ **Renderização de view de formulário com conteúdo scrollable**
+- ✅ Diálogos Fyne básicos (MsgInfo, MsgStop, MsgAlert, MsgYesNo)
+- ✅ Componentes UI da IDE (CodeEditor, OutputConsole, FileTree)
 
-### What Does NOT Work:
-- ❌ Component event execution (handlers defined but not connected)
-- ❌ Dynamic component updates (no two-way binding)
+### O Que NÃO Funciona:
+- ❌ Execução de eventos de componentes (manipuladores definidos mas não conectados)
+- ❌ Atualizações dinâmicas de componentes (sem two-way binding)
 
-### Implementation Notes:
-- Components are defined as Go structs in `pkg/mvc/view.go`
-- Fyne rendering implemented in `pkg/ui/renderer.go`
-- Visual test executable: `./ui-test` (in `cmd/ui-test/`)
-- Full component rendering now functional
+### Notas de Implementação:
+- Componentes são definidos como structs Go em `pkg/mvc/view.go`
+- Renderização Fyne implementada em `pkg/ui/renderer.go`
+- Executável de teste visual: `./ui-test` (em `cmd/ui-test/`)
+- Renderização completa de componentes agora funcional
 
-## REST 2.0 Features
+## Recursos REST 2.0
 
-### Current Status: Parsing Only
+### Status Atual: Apenas Parsing
 
-The AdvPP compiler parses REST 2.0 syntax but **HTTP server integration is not implemented**.
+O compilador AdvPP faz parsing da sintaxe REST 2.0 mas **integração de servidor HTTP não está implementada**.
 
-### What Works:
-- ✅ REST keyword recognition (GET, POST, PUT, DELETE, PATCH)
-- ✅ WSRESTFUL/WSSERVICE parsing
-- ✅ WSMETHOD with HTTP verb syntax
-- ✅ WSDATA field definitions
-- ✅ Annotation syntax (@Get, @Post, @Put, @Delete)
-- ✅ JSON inline syntax
-- ✅ JsonObject methods (toJson, hasProperty, getJsonText)
-- ✅ JSON serialization/deserialization
+### O Que Funciona:
+- ✅ Reconhecimento de palavras-chave REST (GET, POST, PUT, DELETE, PATCH)
+- ✅ Parsing de WSRESTFUL/WSSERVICE
+- ✅ WSMETHOD com sintaxe de verbo HTTP
+- ✅ Definições de campos WSDATA
+- ✅ Sintaxe de anotação (@Get, @Post, @Put, @Delete)
+- ✅ Sintaxe JSON inline
+- ✅ Métodos JsonObject (toJson, hasProperty, getJsonText)
+- ✅ Serialização/deserialização JSON
 
-### What Does NOT Work:
-- ❌ HTTP server execution
-- ❌ REST endpoint registration
-- ❌ HTTP request handling
-- ❌ REST response generation
-- ❌ @Get/@Post annotation execution
-- ❌ WSService HTTP dispatch
+### O Que NÃO Funciona:
+- ❌ Execução de servidor HTTP
+- ❌ Registro de endpoints REST
+- ❌ Tratamento de requisições HTTP
+- ❌ Geração de respostas REST
+- ❌ Execução de anotações @Get/@Post
+- ❌ Dispatch HTTP WSService
 
-### Implementation Notes:
-- REST syntax is parsed in `pkg/parser/parser.go` (parseWSClient function)
-- HTTP verbs are recognized but not executed
-- Annotations are stored in AST but not processed at runtime
-- Full REST server would require HTTP server integration (e.g., net/http)
+### Notas de Implementação:
+- Sintaxe REST é parseada em `pkg/parser/parser.go` (função parseWSClient)
+- Verbos HTTP são reconhecidos mas não executados
+- Anotações são armazenadas na AST mas não processadas em runtime
+- Servidor REST completo requereria integração de servidor HTTP (ex: net/http)
 
-## Service Construction
+## Construção de Serviços
 
-### Current Status: Partial
+### Status Atual: Parcial
 
-### What Works:
-- ✅ WSCLIENT/WSSTRUCT/WSRESTFUL syntax parsing
-- ✅ WSMETHOD prototype definitions
-- ✅ WSDATA field definitions
-- ✅ Service metadata (DESCRIPTION, NAMESPACE)
-- ✅ JSON object creation and manipulation
+### O Que Funciona:
+- ✅ Parsing de sintaxe WSCLIENT/WSSTRUCT/WSRESTFUL
+- ✅ Definições de protótipo WSMETHOD
+- ✅ Definições de campos WSDATA
+- ✅ Metadados de serviço (DESCRIPTION, NAMESPACE)
+- ✅ Criação e manipulação de objetos JSON
 
-### What Does NOT Work:
-- ❌ WSDL code generation
-- ❌ REST client code generation
-- ❌ Service invocation
-- ❌ HTTP client integration
+### O Que NÃO Funciona:
+- ❌ Geração de código WSDL
+- ❌ Geração de código de cliente REST
+- ❌ Invocação de serviço
+- ❌ Integração de cliente HTTP
 
-## Summary
+## Resumo
 
-| Feature | Status | Notes |
+| Recurso | Status | Notas |
 |---------|--------|-------|
-| UI Components | ✅ Complete | Full Fyne rendering implemented |
-| UI Dialogs | ✅ Complete | MsgInfo, MsgStop, MsgAlert, MsgYesNo work |
-| REST Parsing | ✅ Complete | Syntax fully parsed |
-| REST Execution | ❌ None | No HTTP server |
-| Annotations | ✅ Parsed | Stored in AST, not executed |
-| JSON Support | ✅ Complete | Inline syntax and JsonObject work |
-| Service Construction | ⚠️ Partial | Parsed, not generated |
+| Componentes UI | ✅ Completo | Renderização Fyne completa implementada |
+| Diálogos UI | ✅ Completo | MsgInfo, MsgStop, MsgAlert, MsgYesNo funcionam |
+| Parsing REST | ✅ Completo | Sintaxe totalmente parseada |
+| Execução REST | ❌ Nenhum | Sem servidor HTTP |
+| Anotações | ✅ Parseadas | Armazenadas na AST, não executadas |
+| Suporte JSON | ✅ Completo | Sintaxe inline e JsonObject funcionam |
+| Construção de Serviços | ⚠️ Parcial | Parseado, não gerado |
 
-## IDE Compatibility
+## Compatibilidade com IDE
 
-### Current Status: 100% Compatible
+### Status Atual: 100% Compatível
 
-The AdvPP compiler and all UI components are fully compatible with the AdvPP IDE.
+O compilador AdvPP e todos os componentes UI são totalmente compatíveis com a IDE AdvPP.
 
-### Test Results
-- ✅ All 8 existing test files pass
-- ✅ MVC components work in IDE context
-- ✅ UI provider integration works
-- ✅ Compiler output with UI components works
-- ✅ VM execution with UI rendering works
-- ✅ Dialog functions (MsgInfo, MsgStop, MsgAlert, MsgYesNo) work
-- ✅ JSON support works
-- ✅ Native functions work
-- ✅ Control structures work
-- ✅ Arrays work
-- ✅ String functions work
+### Resultados de Testes
+- ✅ Todos os 8 arquivos de teste existentes passam
+- ✅ Componentes MVC funcionam no contexto da IDE
+- ✅ Integração de provider UI funciona
+- ✅ Saída do compilador com componentes UI funciona
+- ✅ Execução da VM com renderização UI funciona
+- ✅ Funções de diálogo (MsgInfo, MsgStop, MsgAlert, MsgYesNo) funcionam
+- ✅ Suporte JSON funciona
+- ✅ Funções nativas funcionam
+- ✅ Estruturas de controle funcionam
+- ✅ Arrays funcionam
+- ✅ Funções de string funcionam
 
-### IDE Integration Test
+### Teste de Integração IDE
 ```bash
 ./advplc run tests/ide_integration_test.prw
 ```
 
-All tests passed - 100% IDE compatibility verified.
+Todos os testes passaram - 100% de compatibilidade com IDE verificada.
 
-## UI Rendering Test
+## Teste de Renderização UI
 
-To test the UI rendering:
+Para testar a renderização UI:
 ```bash
 go build -o ui-test ./cmd/ui-test
 ./ui-test
 ```
 
-This will display a window with:
-- TLabel (title)
-- TGet (text input)
+Isso exibirá uma janela com:
+- TLabel (título)
+- TGet (entrada de texto)
 - TComboBox (dropdown)
 - TCheckBox (checkbox)
-- TButton (buttons)
-- ToolBar (top)
-- StatusBar (bottom)
+- TButton (botões)
+- ToolBar (topo)
+- StatusBar (fundo)
 
-## Recommendations
+## Recomendações
 
-1. **For UI Components**: Implement Fyne widget rendering system or document as data-only
-2. **For REST**: Add HTTP server integration (net/http) or document as parsing-only
-3. **For Services**: Add code generation or HTTP client integration
-4. **Documentation**: Update README to clearly separate "parsed" from "executed" features
+1. **Para Componentes UI**: Implementar sistema de renderização de widgets Fyne ou documentar como apenas dados
+2. **Para REST**: Adicionar integração de servidor HTTP (net/http) ou documentar como apenas parsing
+3. **Para Serviços**: Adicionar geração de código ou integração de cliente HTTP
+4. **Documentação**: Atualizar README para separar claramente recursos "parseados" de "executados"

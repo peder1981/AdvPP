@@ -1,142 +1,142 @@
-# AdvPP - AdvPL/TLPP Compiler in Go
+# AdvPP - Compilador AdvPL/TLPP em Go
 
-A fully functional compiler and interpreter for the AdvPL and TLPP programming languages, built in Go.
+Um compilador e interpretador totalmente funcional para as linguagens de programação AdvPL e TLPP, construído em Go.
 
-## Features
+## Recursos
 
-- **Lexer**: Complete tokenizer for AdvPL/TLPP syntax including keywords, operators, code blocks, and preprocessor directives
-- **Preprocessor**: Handles `#include`, `#define`, `#ifdef`/`#ifndef`/`#else`/`#endif`, `#xCommand`, `#xTranslate`
-- **Parser**: Full recursive descent parser producing an AST
-- **Compiler**: Generates optimized bytecode with 88 opcodes
-- **Bytecode Serialization**: Save compiled bytecode to disk for later execution
-- **Standalone Executables**: Build self-contained executables with embedded bytecode using go:embed
-- **Virtual Machine**: Complete VM with all opcodes implemented
-- **Runtime**: Built-in functions (ConOut, MsgInfo, AllTrim, Str, Val, aAdd, aScan, Len, etc.)
-- **GUI IDE**: Graphical Development Environment using Fyne with code editor, file browser, and integrated compiler
-- **UI Framework**: Graphical applications using Fyne (dialogs, forms, grids, buttons, menus)
-- **Database**: Workarea-based database operations (DbSelectArea, DbSeek, DbSkip, RecLock, etc.)
-- **Classes**: Full class system with Data/Method/Constructor, inheritance via `from`
-- **Code Blocks**: Executable code blocks `{|| ... }`
-- **MVC**: FWFormModel, FWFormView, FWFormBrowse support with field validation and event handling
+- **Lexer**: Tokenizador completo para sintaxe AdvPL/TLPP incluindo palavras-chave, operadores, blocos de código e diretivas de pré-processador
+- **Pré-processador**: Trata `#include`, `#define`, `#ifdef`/`#ifndef`/`#else`/`#endif`, `#xCommand`, `#xTranslate`
+- **Parser**: Parser recursivo descendente completo gerando uma AST
+- **Compilador**: Gera bytecode otimizado com 88 opcodes
+- **Serialização de Bytecode**: Salva bytecode compilado em disco para execução posterior
+- **Executáveis Standalone**: Constrói executáveis autossuficientes com bytecode embutido usando go:embed
+- **Máquina Virtual**: VM completa com todos os opcodes implementados
+- **Runtime**: Funções nativas (ConOut, MsgInfo, AllTrim, Str, Val, aAdd, aScan, Len, etc.)
+- **IDE Gráfica**: Ambiente de Desenvolvimento Gráfico usando Fyne com editor de código, navegador de arquivos e compilador integrado
+- **Framework UI**: Aplicações gráficas usando Fyne (diálogos, formulários, grids, botões, menus)
+- **Banco de Dados**: Operações de banco de dados baseadas em Workarea (DbSelectArea, DbSeek, DbSkip, RecLock, etc.)
+- **Classes**: Sistema de classes completo com Data/Method/Constructor, herança via `from`
+- **Blocos de Código**: Blocos de código executáveis `{|| ... }`
+- **MVC**: Suporte FWFormModel, FWFormView, FWFormBrowse com validação de campos e tratamento de eventos
 
-## MVC Framework
+## Framework MVC
 
-The AdvPP compiler includes a complete MVC (Model-View-Controller) framework for building structured applications:
+O compilador AdvPP inclui um framework MVC (Model-View-Controller) completo para construir aplicações estruturadas:
 
-### MVC Components
+### Componentes MVC
 
-**FWFormModel** - Data model with field definitions and validation:
+**FWFormModel** - Modelo de dados com definições de campos e validação:
 ```advpl
 oModel := FWFormModel("CustomerModel")
 ```
 
-**FWFormView** - Form view with components and event handling:
+**FWFormView** - View de formulário com componentes e tratamento de eventos:
 ```advpl
 oView := FWFormView("CustomerView", oModel)
 ```
 
-**FWFormBrowse** - Grid/browse component for data display:
+**FWFormBrowse** - Componente grid/browse para exibição de dados:
 ```advpl
 oBrowse := FWFormBrowse("CustomerBrowse", oModel)
 ```
 
-### Features
-- Field validation (required, length, range, custom)
-- Event handling (onChange, onClick, onGotFocus, onLostFocus)
-- **Full Fyne widget rendering** (TButton, TGet, TComboBox, TCheckBox, TLabel)
-- Component data structures with visual rendering
-- Dialog support (dialogs, menus, toolbars, status bars)
-- Browse events (onLineChange, onDbClick, onHeaderClick)
+### Recursos
+- Validação de campos (obrigatório, tamanho, intervalo, personalizado)
+- Tratamento de eventos (onChange, onClick, onGotFocus, onLostFocus)
+- **Renderização completa de widgets Fyne** (TButton, TGet, TComboBox, TCheckBox, TLabel)
+- Estruturas de dados de componentes com renderização visual
+- Suporte a diálogos (diálogos, menus, barras de ferramentas, barras de status)
+- Eventos de browse (onLineChange, onDbClick, onHeaderClick)
 
-**Note**: UI components now render visually using Fyne. Event handlers are defined but not yet connected to user actions.
+**Nota**: Componentes UI agora renderizam visualmente usando Fyne. Manipuladores de eventos são definidos mas ainda não conectados às ações do usuário.
 
-### Example
+### Exemplo
 ```advpl
 User Function MVCTest()
     Local oModel := FWFormModel("CustomerModel")
     Local oView := FWFormView("CustomerView", oModel)
     Local oBrowse := FWFormBrowse("CustomerBrowse", oModel)
     
-    // Use MVC components...
+    // Usar componentes MVC...
 Return .T.
 ```
 
-## Building
+## Compilação
 
 ```bash
-# Build command-line compiler
+# Compilar compilador de linha de comando
 go build -o advplc ./cmd/advplc
 
-# Build GUI IDE
+# Compilar IDE gráfica
 go build -o advpp-ide ./cmd/advpp-ide
 ```
 
-## Usage
+## Uso
 
-### Command-Line Compiler
+### Compilador de Linha de Comando
 
 ```bash
-# Run an AdvPL/TLPP source file (compile in memory and execute)
+# Executar arquivo fonte AdvPL/TLPP (compila em memória e executa)
 ./advplc run program.prw
 
-# Compile source to bytecode file
+# Compilar fonte para arquivo de bytecode
 ./advplc compile program.prw -o program.bytecode
 
-# Execute a compiled bytecode file
+# Executar arquivo de bytecode compilado
 ./advplc exec program.bytecode
 
-# Build standalone executable (embeds bytecode and runtime)
+# Construir executável standalone (embute bytecode e runtime)
 ./advplc build program.prw -o program
 
-# Check syntax only
+# Verificar apenas sintaxe
 ./advplc check program.prw
 
-# Print AST structure
+# Imprimir estrutura AST
 ./advplc ast program.prw
 
-# Print bytecode
+# Imprimir bytecode
 ./advplc bytecode program.prw
 ```
 
-### GUI IDE
+### IDE Gráfica
 
 ```bash
-# Launch the graphical development environment
+# Iniciar ambiente de desenvolvimento gráfico
 ./advpp-ide
 ```
 
-The GUI IDE provides:
-- **Code Editor**: Multi-line text editor with support for .prw, .tlpp, and .prg files
-- **File Operations**: New, Open, Save, Save As functionality
-- **Project Explorer**: File browser showing current directory with source file highlighting
-- **Build Integration**: Compile, Run, and Compile & Run commands
-- **Output Console**: Shows compilation results and program output
-- **Dialog Support**: MsgInfo, MsgStop, MsgAlert, and MsgYesNo functions display Fyne dialogs
-- **100% Compatibility**: All MVC components, UI rendering, and features work seamlessly in the IDE
+A IDE gráfica fornece:
+- **Editor de Código**: Editor de texto multi-linha com suporte para arquivos .prw, .tlpp e .prg
+- **Operações de Arquivo**: Funcionalidades Novo, Abrir, Salvar, Salvar Como
+- **Explorador de Projeto**: Navegador de arquivos mostrando diretório atual com destaque de arquivos fonte
+- **Integração de Build**: Comandos Compilar, Executar e Compilar & Executar
+- **Console de Saída**: Mostra resultados de compilação e saída do programa
+- **Suporte a Diálogos**: Funções MsgInfo, MsgStop, MsgAlert e MsgYesNo exibem diálogos Fyne
+- **100% de Compatibilidade**: Todos os componentes MVC, renderização UI e recursos funcionam perfeitamente na IDE
 
-## Language Support
+## Suporte de Linguagem
 
-### AdvPL Features
+### Recursos AdvPL
 - User Function, Static Function, Function declarations
-- Local, Private, Public, Static variable scopes
+- Escopos de variável Local, Private, Public, Static
 - If/ElseIf/Else/EndIf, For/Next, While/EndDo, Do Case/EndCase
-- Begin Sequence/Recover/End Sequence error handling
-- Code blocks `{|| expr }`
-- Class/EndClass with Data, Method, Constructor
-- Method implementation outside class block
-- Alias field access `SA1->A1_NOME`
-- Self-reference `::property`
-- All AdvPL data types: Character, Numeric, Logical, Date, Array, Code Block, Nil, Object
+- Tratamento de erro Begin Sequence/Recover/End Sequence
+- Blocos de código `{|| expr }`
+- Class/EndClass com Data, Method, Constructor
+- Implementação de método fora do bloco de classe
+- Acesso a campo de alias `SA1->A1_NOME`
+- Auto-referência `::property`
+- Todos os tipos de dados AdvPL: Character, Numeric, Logical, Date, Array, Code Block, Nil, Object
 
-### TLPP Additional Features
-- Static typing with `as` keyword
-- Try/Catch/EndTry error handling
-- Namespace declarations
-- Access modifiers (Public, Private, Protected)
-- REST annotations (@Get, @Post, @Put, @Delete) - parsed only
-- JSON inline support with JsonObject methods
-- Long identifiers (with namespace)
-- Integer, Double, Decimal, Variant, Variadic types
-- WSRESTFUL/WSSERVICE syntax parsing
+### Recursos Adicionais TLPP
+- Tipagem estática com palavra-chave `as`
+- Tratamento de erro Try/Catch/EndTry
+- Declarações de namespace
+- Modificadores de acesso (Public, Private, Protected)
+- Anotações REST (@Get, @Post, @Put, @Delete) - apenas parsing
+- Suporte JSON inline com métodos JsonObject
+- Identificadores longos (com namespace)
+- Tipos Integer, Double, Decimal, Variant, Variadic
+- Parsing de sintaxe WSRESTFUL/WSSERVICE
 
-**Note**: REST annotations and WSRESTFUL syntax are parsed but not executed. HTTP server integration required for REST endpoint execution.
+**Nota**: Anotações REST e sintaxe WSRESTFUL são parseadas mas não executadas. Integração de servidor HTTP necessária para execução de endpoints REST.
