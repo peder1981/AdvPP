@@ -9,6 +9,7 @@ A fully functional compiler and interpreter for the AdvPL and TLPP programming l
 - **Parser**: Full recursive descent parser producing an AST
 - **Compiler**: Generates optimized bytecode with 88 opcodes
 - **Bytecode Serialization**: Save compiled bytecode to disk for later execution
+- **Standalone Executables**: Build self-contained executables with embedded bytecode using go:embed
 - **Virtual Machine**: Complete VM with all opcodes implemented
 - **Runtime**: Built-in functions (ConOut, MsgInfo, AllTrim, Str, Val, aAdd, aScan, Len, etc.)
 - **GUI IDE**: Graphical Development Environment using Fyne with code editor, file browser, and integrated compiler
@@ -41,6 +42,9 @@ go build -o advpp-ide ./cmd/advpp-ide
 
 # Execute a compiled bytecode file
 ./advplc exec program.bytecode
+
+# Build standalone executable (embeds bytecode and runtime)
+./advplc build program.prw -o program
 
 # Check syntax only
 ./advplc check program.prw
