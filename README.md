@@ -7,7 +7,9 @@ A fully functional compiler and interpreter for the AdvPL and TLPP programming l
 - **Lexer**: Complete tokenizer for AdvPL/TLPP syntax including keywords, operators, code blocks, and preprocessor directives
 - **Preprocessor**: Handles `#include`, `#define`, `#ifdef`/`#ifndef`/`#else`/`#endif`, `#xCommand`, `#xTranslate`
 - **Parser**: Full recursive descent parser producing an AST
-- **Interpreter**: Tree-walking interpreter with full scope management
+- **Compiler**: Generates optimized bytecode with 88 opcodes
+- **Bytecode Serialization**: Save compiled bytecode to disk for later execution
+- **Virtual Machine**: Complete VM with all opcodes implemented
 - **Runtime**: Built-in functions (ConOut, MsgInfo, AllTrim, Str, Val, aAdd, aScan, Len, etc.)
 - **GUI IDE**: Graphical Development Environment using Fyne with code editor, file browser, and integrated compiler
 - **UI Framework**: Graphical applications using Fyne (dialogs, forms, grids, buttons, menus)
@@ -31,11 +33,14 @@ go build -o advpp-ide ./cmd/advpp-ide
 ### Command-Line Compiler
 
 ```bash
-# Run an AdvPL/TLPP source file
+# Run an AdvPL/TLPP source file (compile in memory and execute)
 ./advplc run program.prw
 
-# Compile to standalone executable
-./advplc compile program.prw -o program
+# Compile source to bytecode file
+./advplc compile program.prw -o program.bytecode
+
+# Execute a compiled bytecode file
+./advplc exec program.bytecode
 
 # Check syntax only
 ./advplc check program.prw
