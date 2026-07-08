@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
 // Dictionary representa o dicionário de dados
 type Dictionary struct {
-	db        *sql.DB
-	dbPath    string
-	loaded    bool
+	db     *sql.DB
+	dbPath string
+	loaded bool
 }
 
 // NewDictionary cria um novo dicionário
@@ -23,33 +23,39 @@ func NewDictionary(dbPath string) (*Dictionary, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("erro ao criar diretório: %w", err)
 	}
-	
+
 	// Abre ou cria o banco de dados
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao abrir banco de dados: %w", err)
 	}
-	
+
+	// Verifica conexão
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("erro ao conectar ao banco de dados: %w", err)
+	}
+
 	dict := &Dictionary{
 		db:     db,
 		dbPath: dbPath,
 		loaded: false,
 	}
-	
+
 	// Cria tabelas se não existirem
 	if err := dict.createTables(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("erro ao criar tabelas: %w", err)
 	}
-	
+
 	// Popula dados iniciais se necessário
 	if err := dict.populateInitialData(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("erro ao popular dados iniciais: %w", err)
 	}
-	
+
 	dict.loaded = true
-	
+
 	return dict, nil
 }
 
@@ -272,7 +278,7 @@ func (d *Dictionary) createTables() error {
 	`); err != nil {
 		return err
 	}
-	
+
 	// Tabela SX3 - Campos
 	if _, err := d.db.Exec(`
 		CREATE TABLE IF NOT EXISTS SX3 (
@@ -368,7 +374,7 @@ func (d *Dictionary) createTables() error {
 	`); err != nil {
 		return err
 	}
-	
+
 	// Tabela SIX - Índices
 	if _, err := d.db.Exec(`
 		CREATE TABLE IF NOT EXISTS SIX (
@@ -409,7 +415,7 @@ func (d *Dictionary) createTables() error {
 	`); err != nil {
 		return err
 	}
-	
+
 	// Tabela SX7 - Triggers
 	if _, err := d.db.Exec(`
 		CREATE TABLE IF NOT EXISTS SX7 (
@@ -435,7 +441,7 @@ func (d *Dictionary) createTables() error {
 	`); err != nil {
 		return err
 	}
-	
+
 	// Tabela SX5 - Genéricas
 	if _, err := d.db.Exec(`
 		CREATE TABLE IF NOT EXISTS SX5 (
@@ -531,7 +537,7 @@ func (d *Dictionary) createTables() error {
 	`); err != nil {
 		return err
 	}
-	
+
 	// Tabela SX6 - Parâmetros
 	if _, err := d.db.Exec(`
 		CREATE TABLE IF NOT EXISTS SX6 (
@@ -626,7 +632,7 @@ func (d *Dictionary) createTables() error {
 	`); err != nil {
 		return err
 	}
-	
+
 	// Tabela SXB - Perguntas
 	if _, err := d.db.Exec(`
 		CREATE TABLE IF NOT EXISTS SXB (
@@ -721,7 +727,7 @@ func (d *Dictionary) createTables() error {
 	`); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -732,11 +738,11 @@ func (d *Dictionary) populateInitialData() error {
 	if err := d.db.QueryRow("SELECT COUNT(*) FROM SX2").Scan(&count); err != nil {
 		return err
 	}
-	
+
 	if count > 0 {
 		return nil // Já tem dados
 	}
-	
+
 	// Adiciona tabelas comuns do Protheus
 	tables := []struct {
 		chave, alias, nome, nomeusr, modulo, tipo, descricao string
@@ -752,7 +758,7 @@ func (d *Dictionary) populateInitialData() error {
 		{"ZZ1", "ZZ1", "ZZ1", "Usuários", "SIGACFG", "C", "Cadastro de Usuários"},
 		{"ZZ2", "ZZ2", "ZZ2", "Grupos de Acesso", "SIGACFG", "C", "Grupos de Acesso"},
 	}
-	
+
 	for _, table := range tables {
 		if _, err := d.db.Exec(`
 			INSERT INTO SX2 (X2_CHAVE, X2_ALIAS, X2_NOME, X2_NOMEUSR, X2_MODULO, X2_TIPO, X2_DESCRIC)
@@ -761,7 +767,7 @@ func (d *Dictionary) populateInitialData() error {
 			return err
 		}
 	}
-	
+
 	// Adiciona campos para SA1 (Clientes)
 	sa1Fields := []struct {
 		arquivo string
@@ -789,7 +795,7 @@ func (d *Dictionary) populateInitialData() error {
 		{"SA1", 14, "A1_MSBLQ", "L", 1, 0, "Bloqueado", "Cliente Bloqueado"},
 		{"SA1", 15, "A1_VEND", "C", 6, 0, "Vendedor", "Vendedor do Cliente"},
 	}
-	
+
 	for _, field := range sa1Fields {
 		if _, err := d.db.Exec(`
 			INSERT INTO SX3 (X3_ARQUIVO, X3_ORDEM, X3_CAMPO, X3_TIPO, X3_TAMANHO, X3_DECIMAL, X3_TITULO, X3_DESCRIC)
@@ -798,7 +804,7 @@ func (d *Dictionary) populateInitialData() error {
 			return err
 		}
 	}
-	
+
 	// Adiciona índices para SA1
 	sa1Indexes := []struct {
 		arquivo string
@@ -812,7 +818,7 @@ func (d *Dictionary) populateInitialData() error {
 		{"SA1", 3, 1, "A1_CGC", "CGC/CPF do Cliente"},
 		{"SA1", 4, 1, "A1_VEND", "Vendedor do Cliente"},
 	}
-	
+
 	for _, idx := range sa1Indexes {
 		if _, err := d.db.Exec(`
 			INSERT INTO SIX (IX_ARQUIVO, IX_INDICE, IX_ORDEM, IX_CHAVE, IX_DESCRIC)
@@ -821,11 +827,11 @@ func (d *Dictionary) populateInitialData() error {
 			return err
 		}
 	}
-	
+
 	// Adiciona genéricas (SX5)
 	genericas := []struct {
 		tabela, chave, descr, tipo string
-		tamanho, decimal int
+		tamanho, decimal           int
 	}{
 		{"X3_TIPO", "C", "Caracter", "C", 0, 0},
 		{"X3_TIPO", "N", "Numérico", "N", 0, 0},
@@ -835,7 +841,7 @@ func (d *Dictionary) populateInitialData() error {
 		{"A1_TIPO", "F", "Física", "C", 0, 0},
 		{"A1_TIPO", "J", "Jurídica", "C", 0, 0},
 	}
-	
+
 	for _, gen := range genericas {
 		if _, err := d.db.Exec(`
 			INSERT INTO SX5 (X5_TABELA, X5_CHAVE, X5_DESCRIC, X5_TIPO, X5_TAMANHO, X5_DECIMAL)
@@ -844,7 +850,7 @@ func (d *Dictionary) populateInitialData() error {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -855,21 +861,21 @@ func (d *Dictionary) GetTables() ([]map[string]interface{}, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var tables []map[string]interface{}
 	columns, _ := rows.Columns()
-	
+
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
 		for i := range columns {
 			valuePtrs[i] = &values[i]
 		}
-		
+
 		if err := rows.Scan(valuePtrs...); err != nil {
 			return nil, err
 		}
-		
+
 		row := make(map[string]interface{})
 		for i, col := range columns {
 			val := values[i]
@@ -882,7 +888,7 @@ func (d *Dictionary) GetTables() ([]map[string]interface{}, error) {
 		}
 		tables = append(tables, row)
 	}
-	
+
 	return tables, nil
 }
 
@@ -893,21 +899,21 @@ func (d *Dictionary) GetFields(table string) ([]map[string]interface{}, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var fields []map[string]interface{}
 	columns, _ := rows.Columns()
-	
+
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
 		for i := range columns {
 			valuePtrs[i] = &values[i]
 		}
-		
+
 		if err := rows.Scan(valuePtrs...); err != nil {
 			return nil, err
 		}
-		
+
 		row := make(map[string]interface{})
 		for i, col := range columns {
 			val := values[i]
@@ -920,7 +926,7 @@ func (d *Dictionary) GetFields(table string) ([]map[string]interface{}, error) {
 		}
 		fields = append(fields, row)
 	}
-	
+
 	return fields, nil
 }
 
@@ -931,21 +937,21 @@ func (d *Dictionary) GetIndexes(table string) ([]map[string]interface{}, error) 
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var indexes []map[string]interface{}
 	columns, _ := rows.Columns()
-	
+
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
 		for i := range columns {
 			valuePtrs[i] = &values[i]
 		}
-		
+
 		if err := rows.Scan(valuePtrs...); err != nil {
 			return nil, err
 		}
-		
+
 		row := make(map[string]interface{})
 		for i, col := range columns {
 			val := values[i]
@@ -958,7 +964,7 @@ func (d *Dictionary) GetIndexes(table string) ([]map[string]interface{}, error) 
 		}
 		indexes = append(indexes, row)
 	}
-	
+
 	return indexes, nil
 }
 
@@ -969,21 +975,21 @@ func (d *Dictionary) GetGenericas(table string) ([]map[string]interface{}, error
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var genericas []map[string]interface{}
 	columns, _ := rows.Columns()
-	
+
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
 		for i := range columns {
 			valuePtrs[i] = &values[i]
 		}
-		
+
 		if err := rows.Scan(valuePtrs...); err != nil {
 			return nil, err
 		}
-		
+
 		row := make(map[string]interface{})
 		for i, col := range columns {
 			val := values[i]
@@ -996,7 +1002,7 @@ func (d *Dictionary) GetGenericas(table string) ([]map[string]interface{}, error
 		}
 		genericas = append(genericas, row)
 	}
-	
+
 	return genericas, nil
 }
 

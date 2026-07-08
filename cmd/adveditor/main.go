@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -217,7 +218,7 @@ func (ae *AdvEditorWindow) selectFile(driver string, shared, readonly bool) {
 		// Abre banco de dados
 		tableInfo, err := ae.tableManager.OpenTable(filePath, driverCode, readonly, shared)
 		if err != nil {
-			dialog.ShowError(err, ae.window)
+			dialog.ShowError(fmt.Errorf("Erro ao abrir banco de dados: %w", err), ae.window)
 			return
 		}
 
@@ -231,7 +232,7 @@ func (ae *AdvEditorWindow) selectFile(driver string, shared, readonly bool) {
 			ae.selectTable()
 		}
 
-		ae.statusBar.SetText("Banco de dados aberto: " + filePath)
+		ae.statusBar.SetText("Banco de dados aberto: " + filePath + " (" + driver + ")")
 	}, ae.window)
 }
 

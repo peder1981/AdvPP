@@ -710,44 +710,39 @@ func (s *SQLiteDriver) Open(file string, readOnly, shared bool) error {
 	s.readOnly = readOnly
 	s.shared = shared
 
-	// Se o arquivo for um banco de dados, abre o banco
-	// Se for uma tabela específica (ex: database.db/table), extrai o nome da tabela
-	if strings.Contains(file, "/") {
-		parts := strings.Split(file, "/")
-		if len(parts) > 1 {
-			s.table = parts[len(parts)-1]
-			dbPath := strings.Join(parts[:len(parts)-1], "/")
-			var err error
-			s.db, err = sql.Open("sqlite3", dbPath)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		var err error
-		s.db, err = sql.Open("sqlite3", file)
-		if err != nil {
-			return err
-		}
+	// Abre o banco de dados SQLite
+	var err error
+	s.db, err = sql.Open("sqlite3", file)
+	if err != nil {
+		return fmt.Errorf("erro ao abrir banco SQLite: %w", err)
 	}
 
 	// Verifica conexão
 	if err := s.db.Ping(); err != nil {
-		return err
+		return fmt.Errorf("erro ao conectar ao banco SQLite: %w", err)
+	}
+
+	// Se o arquivo contiver "/", assume que é tabela específica
+	// Ex: database.db/table_name
+	if strings.Contains(file, "/") {
+		parts := strings.Split(file, "/")
+		if len(parts) > 1 {
+			s.table = parts[len(parts)-1]
+		}
 	}
 
 	// Se não especificou tabela, obtém a primeira tabela
 	if s.table == "" {
 		rows, err := s.db.Query("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1")
 		if err != nil {
-			return err
+			return fmt.Errorf("erro ao listar tabelas: %w", err)
 		}
 		defer rows.Close()
 
 		if rows.Next() {
 			var tableName string
 			if err := rows.Scan(&tableName); err != nil {
-				return err
+				return fmt.Errorf("erro ao ler nome da tabela: %w", err)
 			}
 			s.table = tableName
 		} else {
@@ -757,12 +752,12 @@ func (s *SQLiteDriver) Open(file string, readOnly, shared bool) error {
 
 	// Obtém estrutura da tabela
 	if err := s.loadStructure(); err != nil {
-		return err
+		return fmt.Errorf("erro ao carregar estrutura: %w", err)
 	}
 
 	// Obtém índices
 	if err := s.loadIndexes(); err != nil {
-		return err
+		return fmt.Errorf("erro ao carregar índices: %w", err)
 	}
 
 	return nil
