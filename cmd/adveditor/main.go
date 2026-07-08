@@ -147,6 +147,43 @@ func (ae *AdvEditorWindow) setupMenu() {
 
 // onOpenTable abre uma tabela
 func (ae *AdvEditorWindow) onOpenTable() {
+	// Primeiro, seleciona o driver
+	ae.selectDriver()
+}
+
+// selectDriver seleciona o driver de banco de dados
+func (ae *AdvEditorWindow) selectDriver() {
+	driverOptions := []string{"SQLite", "DBF", "TopConnect", "Ctree", "BTrieve"}
+
+	driverSelect := widget.NewSelect(driverOptions, func(selected string) {
+		// Driver selecionado
+	})
+	driverSelect.SetSelectedIndex(0)
+
+	sharedCheck := widget.NewCheck("Compartilhado", func(checked bool) {
+		// Implementar lógica de compartilhado
+	})
+	sharedCheck.Checked = true
+
+	readonlyCheck := widget.NewCheck("Somente leitura", func(checked bool) {
+		// Implementar lógica de somente leitura
+	})
+
+	dialog.ShowForm("Selecionar Driver", "Cancelar", "OK", []*widget.FormItem{
+		widget.NewFormItem("Driver", driverSelect),
+		widget.NewFormItem("Compartilhado", sharedCheck),
+		widget.NewFormItem("Somente Leitura", readonlyCheck),
+	}, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		selectedDriver := driverSelect.Selected
+		ae.selectFile(selectedDriver, sharedCheck.Checked, readonlyCheck.Checked)
+	}, ae.window)
+}
+
+// selectFile seleciona o arquivo de acordo com o driver
+func (ae *AdvEditorWindow) selectFile(driver string, shared, readonly bool) {
 	dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
 		if err != nil || reader == nil {
 			return
@@ -157,25 +194,72 @@ func (ae *AdvEditorWindow) onOpenTable() {
 		uri := reader.URI()
 		filePath := uri.Path()
 
-		// Detecta tipo de arquivo automaticamente
-		driver := "DBF"
-		if strings.HasSuffix(strings.ToLower(filePath), ".db") ||
-			strings.HasSuffix(strings.ToLower(filePath), ".sqlite") ||
-			strings.HasSuffix(strings.ToLower(filePath), ".sqlite3") {
-			driver = "SQLITE"
+		// Mapeia driver para código interno
+		driverCode := "DBF"
+		switch driver {
+		case "SQLite":
+			driverCode = "SQLITE"
+		case "DBF":
+			driverCode = "DBF"
+		case "TopConnect":
+			driverCode = "TOPCONNECT"
+		case "Ctree":
+			driverCode = "CTREECDX"
+		case "BTrieve":
+			driverCode = "BTVCDX"
 		}
 
-		// Abre tabela
-		tableInfo, err := ae.tableManager.OpenTable(filePath, driver, false, true)
+		// Fecha tabela atual se existir
+		if ae.currentTable != nil {
+			ae.tableManager.CloseTable(ae.currentTable.Alias)
+		}
+
+		// Abre banco de dados
+		tableInfo, err := ae.tableManager.OpenTable(filePath, driverCode, readonly, shared)
 		if err != nil {
 			dialog.ShowError(err, ae.window)
 			return
 		}
 
 		ae.currentTable = tableInfo
-		ae.updateTreeView()
-		ae.updateDataGrid()
-		ae.statusBar.SetText("Tabela aberta: " + tableInfo.Alias)
+
+		// Carrega tabelas do banco
+		ae.loadTablesFromDatabase()
+
+		// Se for SQLite, mostra diálogo para selecionar tabela
+		if driverCode == "SQLITE" {
+			ae.selectTable()
+		}
+
+		ae.statusBar.SetText("Banco de dados aberto: " + filePath)
+	}, ae.window)
+}
+
+// selectTable seleciona uma tabela do banco de dados
+func (ae *AdvEditorWindow) selectTable() {
+	if ae.currentTable == nil {
+		return
+	}
+
+	tables := ae.listTablesFromDB()
+	if len(tables) == 0 {
+		dialog.ShowInformation("Aviso", "Nenhuma tabela encontrada no banco de dados", ae.window)
+		return
+	}
+
+	tableSelect := widget.NewSelect(tables, func(selected string) {
+		// Tabela selecionada
+	})
+	tableSelect.SetSelectedIndex(0)
+
+	dialog.ShowForm("Selecionar Tabela", "Cancelar", "OK", []*widget.FormItem{
+		widget.NewFormItem("Tabela", tableSelect),
+	}, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		selectedTable := tableSelect.Selected
+		ae.loadTableData(selectedTable)
 	}, ae.window)
 }
 
