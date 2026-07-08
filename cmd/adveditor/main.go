@@ -171,7 +171,7 @@ func (ae *AdvEditorWindow) selectDriver() {
 		// Implementar lógica de somente leitura
 	})
 
-	dialog.ShowForm("Selecionar Driver", "Cancelar", "OK", []*widget.FormItem{
+	dialog.ShowForm("Selecionar Driver", "OK", "Cancelar", []*widget.FormItem{
 		widget.NewFormItem("Driver", driverSelect),
 		widget.NewFormItem("Compartilhado", sharedCheck),
 		widget.NewFormItem("Somente Leitura", readonlyCheck),
@@ -274,7 +274,7 @@ func (ae *AdvEditorWindow) selectTable() {
 	})
 	tableSelect.SetSelectedIndex(0)
 
-	dialog.ShowForm("Selecionar Tabela", "Cancelar", "OK", []*widget.FormItem{
+	dialog.ShowForm("Selecionar Tabela", "OK", "Cancelar", []*widget.FormItem{
 		widget.NewFormItem("Tabela", tableSelect),
 	}, func(confirmed bool) {
 		if !confirmed {
