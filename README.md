@@ -43,11 +43,12 @@ oBrowse := FWFormBrowse("CustomerBrowse", oModel)
 ### Features
 - Field validation (required, length, range, custom)
 - Event handling (onChange, onClick, onGotFocus, onLostFocus)
-- Component data structures (TButton, TGet, TComboBox, TCheckBox, etc.)
+- **Full Fyne widget rendering** (TButton, TGet, TComboBox, TCheckBox, TLabel)
+- Component data structures with visual rendering
 - Dialog support (dialogs, menus, toolbars, status bars)
 - Browse events (onLineChange, onDbClick, onHeaderClick)
 
-**Note**: MVC components are data structures only. Visual rendering requires additional Fyne integration.
+**Note**: UI components now render visually using Fyne. Event handlers are defined but not yet connected to user actions.
 
 ### Example
 ```advpl
