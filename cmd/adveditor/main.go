@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -185,6 +186,18 @@ func (ae *AdvEditorWindow) selectDriver() {
 
 // selectFile seleciona o arquivo de acordo com o driver
 func (ae *AdvEditorWindow) selectFile(driver string, shared, readonly bool) {
+	// Se for SQLite, tenta usar o banco padrão
+	if driver == "SQLite" {
+		defaultDB := "./data/advpl_dictionary.db"
+		// Verifica se o arquivo existe
+		if _, err := os.Stat(defaultDB); err == nil {
+			// Usa o banco padrão automaticamente
+			ae.openDatabasePath(defaultDB, "SQLITE", shared, readonly, driver)
+			return
+		}
+	}
+
+	// Se não for SQLite ou não encontrou banco padrão, mostra diálogo de seleção
 	dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
 		if err != nil || reader == nil {
 			return
@@ -195,45 +208,53 @@ func (ae *AdvEditorWindow) selectFile(driver string, shared, readonly bool) {
 		uri := reader.URI()
 		filePath := uri.Path()
 
-		// Mapeia driver para código interno
-		driverCode := "DBF"
-		switch driver {
-		case "SQLite":
-			driverCode = "SQLITE"
-		case "DBF":
-			driverCode = "DBF"
-		case "TopConnect":
-			driverCode = "TOPCONNECT"
-		case "Ctree":
-			driverCode = "CTREECDX"
-		case "BTrieve":
-			driverCode = "BTVCDX"
-		}
-
-		// Fecha tabela atual se existir
-		if ae.currentTable != nil {
-			ae.tableManager.CloseTable(ae.currentTable.Alias)
-		}
-
-		// Abre banco de dados
-		tableInfo, err := ae.tableManager.OpenTable(filePath, driverCode, readonly, shared)
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("Erro ao abrir banco de dados: %w", err), ae.window)
-			return
-		}
-
-		ae.currentTable = tableInfo
-
-		// Carrega tabelas do banco
-		ae.loadTablesFromDatabase()
-
-		// Se for SQLite, mostra diálogo para selecionar tabela
-		if driverCode == "SQLITE" {
-			ae.selectTable()
-		}
-
-		ae.statusBar.SetText("Banco de dados aberto: " + filePath + " (" + driver + ")")
+		ae.openDatabasePath(filePath, ae.getDriverCode(driver), shared, readonly, driver)
 	}, ae.window)
+}
+
+// openDatabasePath abre o banco de dados no caminho especificado
+func (ae *AdvEditorWindow) openDatabasePath(filePath, driverCode string, shared, readonly bool, driverName string) {
+	// Fecha tabela atual se existir
+	if ae.currentTable != nil {
+		ae.tableManager.CloseTable(ae.currentTable.Alias)
+	}
+
+	// Abre banco de dados
+	tableInfo, err := ae.tableManager.OpenTable(filePath, driverCode, readonly, shared)
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("Erro ao abrir banco de dados: %w", err), ae.window)
+		return
+	}
+
+	ae.currentTable = tableInfo
+
+	// Carrega tabelas do banco
+	ae.loadTablesFromDatabase()
+
+	// Se for SQLite, mostra diálogo para selecionar tabela
+	if driverCode == "SQLITE" {
+		ae.selectTable()
+	}
+
+	ae.statusBar.SetText("Banco de dados aberto: " + filePath + " (" + driverName + ")")
+}
+
+// getDriverCode converte nome do driver para código interno
+func (ae *AdvEditorWindow) getDriverCode(driver string) string {
+	switch driver {
+	case "SQLite":
+		return "SQLITE"
+	case "DBF":
+		return "DBF"
+	case "TopConnect":
+		return "TOPCONNECT"
+	case "Ctree":
+		return "CTREECDX"
+	case "BTrieve":
+		return "BTVCDX"
+	default:
+		return "DBF"
+	}
 }
 
 // selectTable seleciona uma tabela do banco de dados

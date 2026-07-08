@@ -56,6 +56,12 @@ func NewDictionary(dbPath string) (*Dictionary, error) {
 
 	dict.loaded = true
 
+	// Salva o caminho do banco como padrão na configuração
+	if err := SetDefaultDatabase(dbPath); err != nil {
+		// Não falha se não conseguir salvar a configuração
+		fmt.Printf("Aviso: não foi possível salvar configuração: %v\n", err)
+	}
+
 	return dict, nil
 }
 
