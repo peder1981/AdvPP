@@ -18,6 +18,7 @@ Um compilador e interpretador totalmente funcional para as linguagens de program
 - **Classes**: Sistema de classes completo com Data/Method/Constructor, herança via `from`
 - **Blocos de Código**: Blocos de código executáveis `{|| ... }`
 - **MVC**: Suporte FWFormModel, FWFormView, FWFormBrowse com validação de campos e tratamento de eventos
+- **Multi-thread**: `StartJob()` (execução em VM isolado, semântica de work process) e `FWGridProcess` (pool de threads com `SetThreadGrid`, `CallExecute`, `StopExecute`, `IsFinished`, meters e log); `advplc check arq1 arq2 ...` verifica N arquivos em paralelo
 
 ## Framework MVC
 

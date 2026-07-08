@@ -931,12 +931,13 @@ func (c *Compiler) compileMethodCall(e *ast.MethodCall) error {
 }
 
 var builtinClasses = map[string]bool{
-	"ERRORCLASS":   true,
-	"JSONOBJECT":   true,
-	"JSONARRAY":    true,
-	"FWFORMVIEW":   true,
-	"FWFORMMODEL":  true,
-	"FWFORMBROWSE": true,
+	"ERRORCLASS":    true,
+	"JSONOBJECT":    true,
+	"JSONARRAY":     true,
+	"FWFORMVIEW":    true,
+	"FWFORMMODEL":   true,
+	"FWFORMBROWSE":  true,
+	"FWGRIDPROCESS": true,
 }
 
 func isBuiltinClass(name string) bool {

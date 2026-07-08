@@ -1111,6 +1111,8 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callErrorClassMethod(obj, upperMethod, args)
 	case "JsonObject":
 		return v.callJsonObjectMethod(obj, upperMethod, args)
+	case "FWGridProcess":
+		return v.callGridProcessMethod(obj, upperMethod, args)
 	default:
 		return fmt.Errorf("unknown method %s on object %s", method, obj.ClassName)
 	}
@@ -1230,6 +1232,9 @@ func (v *VM) newInstance(className string, args []advplrt.Value) error {
 		case "JSONOBJECT":
 			obj := advplrt.NewObject("JsonObject", nil)
 			v.push(obj)
+			return nil
+		case "FWGRIDPROCESS":
+			v.push(newGridObject())
 			return nil
 		case "ERRORCLASS":
 			obj := advplrt.NewObject("ErrorClass", cls)
