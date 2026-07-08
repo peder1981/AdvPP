@@ -138,6 +138,7 @@ func (ac *AdvCfgWindow) setupUI() {
 func (ac *AdvCfgWindow) setupMenu() {
 	fileMenu := fyne.NewMenu("Arquivo",
 		fyne.NewMenuItem("Nova Tabela", ac.onNewTable),
+		fyne.NewMenuItem("Trocar Dicionário", ac.onChangeDictionary),
 		fyne.NewMenuItem("Importar Dicionário", ac.onImportDictionary),
 		fyne.NewMenuItem("Exportar Dicionário", ac.onExportDictionary),
 		fyne.NewMenuItem("Sair", func() {
@@ -213,6 +214,37 @@ func (ac *AdvCfgWindow) onGenerateCode() {
 // onAbout exibe informações sobre
 func (ac *AdvCfgWindow) onAbout() {
 	dialog.ShowInformation("Sobre", "AdvCfg v1.0\nConfigurador de Tabelas AdvPL\nInspirado em SIGACFG", ac.window)
+}
+
+// onChangeDictionary troca o dicionário
+func (ac *AdvCfgWindow) onChangeDictionary() {
+	dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if err != nil || reader == nil {
+			return
+		}
+		defer reader.Close()
+
+		// Obtém nome do arquivo
+		uri := reader.URI()
+		filePath := uri.Path()
+
+		// Fecha dicionário atual se existir
+		if ac.dictionary != nil {
+			ac.dictionary.Close()
+		}
+
+		// Abre novo dicionário
+		dict, err := shared.NewDictionary(filePath)
+		if err != nil {
+			dialog.ShowError(err, ac.window)
+			return
+		}
+		ac.dictionary = dict
+
+		// Recarrega dados
+		ac.loadDictionaryData()
+		ac.statusBar.SetText("Dicionário alterado: " + filePath)
+	}, ac.window)
 }
 
 // loadDictionaryData carrega dados do dicionário e popula a tree view

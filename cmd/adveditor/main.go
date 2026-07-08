@@ -35,6 +35,9 @@ func NewAdvEditorWindow(a fyne.App) *AdvEditorWindow {
 	ae.setupUI()
 	ae.setupMenu()
 
+	// Abre automaticamente o banco de dados padrão
+	ae.openDefaultDatabase()
+
 	return ae
 }
 
@@ -108,6 +111,7 @@ func (ae *AdvEditorWindow) setupUI() {
 func (ae *AdvEditorWindow) setupMenu() {
 	fileMenu := fyne.NewMenu("Arquivo",
 		fyne.NewMenuItem("Abrir (Ctrl+B)", ae.onOpenTable),
+		fyne.NewMenuItem("Trocar Banco de Dados", ae.onChangeDatabase),
 		fyne.NewMenuItem("Fechar", ae.onCloseTable),
 		fyne.NewMenuItem("Estrutura", ae.onViewStructure),
 		fyne.NewMenuItem("Sair", func() {
@@ -262,9 +266,42 @@ func (ae *AdvEditorWindow) onAbout() {
 	dialog.ShowInformation("Sobre", "AdvEditor v1.0\nEditor de Banco de Dados AdvPL\nInspirado em APSDU", ae.window)
 }
 
-// onTableSelected callback quando tabela é selecionada
-func (ae *AdvEditorWindow) onTableSelected(node *shared.TreeNode) {
-	// Implementar seleção de tabela
+// onChangeDatabase troca o banco de dados
+func (ae *AdvEditorWindow) onChangeDatabase() {
+	dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if err != nil || reader == nil {
+			return
+		}
+		defer reader.Close()
+
+		// Obtém nome do arquivo
+		uri := reader.URI()
+		filePath := uri.Path()
+
+		// Detecta tipo de arquivo automaticamente
+		driver := "DBF"
+		if strings.HasSuffix(strings.ToLower(filePath), ".db") ||
+			strings.HasSuffix(strings.ToLower(filePath), ".sqlite") ||
+			strings.HasSuffix(strings.ToLower(filePath), ".sqlite3") {
+			driver = "SQLITE"
+		}
+
+		// Fecha tabela atual se existir
+		if ae.currentTable != nil {
+			ae.tableManager.CloseTable(ae.currentTable.Alias)
+		}
+
+		// Abre novo banco de dados
+		tableInfo, err := ae.tableManager.OpenTable(filePath, driver, false, true)
+		if err != nil {
+			dialog.ShowError(err, ae.window)
+			return
+		}
+
+		ae.currentTable = tableInfo
+		ae.loadTablesFromDatabase()
+		ae.statusBar.SetText("Banco de dados alterado: " + filePath)
+	}, ae.window)
 }
 
 // updateTreeView atualiza a tree view
@@ -294,6 +331,127 @@ func (ae *AdvEditorWindow) updateTreeView() {
 // updateDataGrid atualiza o grid de dados
 func (ae *AdvEditorWindow) updateDataGrid() {
 	ae.dataGrid.Refresh()
+}
+
+// openDefaultDatabase abre o banco de dados padrão
+func (ae *AdvEditorWindow) openDefaultDatabase() {
+	defaultDB := "./data/advpl_dictionary.db"
+
+	// Tenta abrir o banco de dados padrão
+	tableInfo, err := ae.tableManager.OpenTable(defaultDB, "SQLITE", false, true)
+	if err != nil {
+		ae.statusBar.SetText("Erro ao abrir banco padrão: " + err.Error())
+		return
+	}
+
+	ae.currentTable = tableInfo
+	ae.loadTablesFromDatabase()
+	ae.statusBar.SetText("Banco padrão aberto: " + defaultDB)
+}
+
+// loadTablesFromDatabase carrega as tabelas do banco de dados
+func (ae *AdvEditorWindow) loadTablesFromDatabase() {
+	if ae.currentTable == nil {
+		return
+	}
+
+	// Obtém todas as tabelas do banco de dados
+	tables := ae.listTablesFromDB()
+
+	// Cria nós para cada tabela
+	root := &shared.TreeNode{
+		ID:       "root",
+		Text:     "Tabelas",
+		Children: make([]*shared.TreeNode, len(tables)),
+	}
+
+	for i, tableName := range tables {
+		root.Children[i] = &shared.TreeNode{
+			ID:   tableName,
+			Text: tableName,
+			Data: tableName,
+		}
+	}
+
+	ae.treeView = shared.NewTreeView(root)
+	ae.treeView.SetOnSelect(func(node *shared.TreeNode) {
+		ae.onTableSelected(node)
+	})
+
+	// Atualiza a UI
+	ae.updateUIWithNewTreeView()
+}
+
+// listTablesFromDB lista as tabelas do banco de dados
+func (ae *AdvEditorWindow) listTablesFromDB() []string {
+	if ae.currentTable == nil {
+		return []string{}
+	}
+
+	// Para SQLite, precisamos consultar o banco diretamente
+	// Tenta obter o driver SQLite
+	if sqliteDriver, ok := ae.currentTable.DriverObj.(*shared.SQLiteDriver); ok {
+		tables, err := sqliteDriver.ListTables()
+		if err != nil {
+			ae.statusBar.SetText("Erro ao listar tabelas: " + err.Error())
+			return []string{}
+		}
+		return tables
+	}
+
+	// Fallback para tabelas conhecidas
+	return []string{"SX2", "SX3", "SIX", "SX7", "SX5", "SX6", "SXB"}
+}
+
+// updateUIWithNewTreeView atualiza a UI com a nova tree view
+func (ae *AdvEditorWindow) updateUIWithNewTreeView() {
+	// Recria o layout com a nova tree view
+	split := container.NewHSplit(
+		container.NewVBox(
+			widget.NewLabel("Tabelas"),
+			ae.treeView,
+		),
+		container.NewBorder(
+			nil,
+			ae.statusBar,
+			nil,
+			nil,
+			ae.dataGrid,
+		),
+	)
+	split.SetOffset(0.2)
+
+	ae.window.SetContent(split)
+}
+
+// onTableSelected callback quando tabela é selecionada
+func (ae *AdvEditorWindow) onTableSelected(node *shared.TreeNode) {
+	if node.Data == nil {
+		return
+	}
+
+	tableName := node.Data.(string)
+	ae.statusBar.SetText("Tabela selecionada: " + tableName)
+	ae.loadTableData(tableName)
+}
+
+// loadTableData carrega os dados da tabela
+func (ae *AdvEditorWindow) loadTableData(tableName string) {
+	if ae.currentTable == nil {
+		return
+	}
+
+	// Abre a tabela específica
+	tablePath := ae.currentTable.File + "/" + tableName
+	tableInfo, err := ae.tableManager.OpenTable(tablePath, "SQLITE", false, true)
+	if err != nil {
+		ae.statusBar.SetText("Erro ao abrir tabela: " + err.Error())
+		return
+	}
+
+	ae.currentTable = tableInfo
+	ae.updateDataGrid()
+	ae.statusBar.SetText("Tabela carregada: " + tableName)
 }
 
 // Show exibe a janela

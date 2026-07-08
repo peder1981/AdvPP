@@ -85,6 +85,7 @@ type TableInfo struct {
 	File      string
 	Alias     string
 	Driver    string
+	DriverObj DatabaseDriver
 	ReadOnly  bool
 	Shared    bool
 	Structure []Field
@@ -175,6 +176,7 @@ func (tm *TableManager) OpenTable(file, driver string, readOnly, shared bool) (*
 		File:      file,
 		Alias:     alias,
 		Driver:    driver,
+		DriverObj: dbDriver,
 		ReadOnly:  readOnly,
 		Shared:    shared,
 		Structure: structure,
@@ -1173,6 +1175,33 @@ func (s *SQLiteDriver) IsReadOnly() bool {
 // IsShared retorna se é compartilhado
 func (s *SQLiteDriver) IsShared() bool {
 	return s.shared
+}
+
+// ListTables lista todas as tabelas do banco de dados
+func (s *SQLiteDriver) ListTables() ([]string, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("banco de dados não está aberto")
+	}
+
+	rows, err := s.db.Query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			return nil, err
+		}
+		// Ignora tabelas do sistema SQLite
+		if !strings.HasPrefix(tableName, "sqlite_") {
+			tables = append(tables, tableName)
+		}
+	}
+
+	return tables, nil
 }
 
 // CopyFile copia um arquivo
