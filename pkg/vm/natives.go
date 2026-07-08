@@ -349,6 +349,134 @@ func (v *VM) registerNatives() {
 			}
 			return advplrt.NewArray(elems), nil
 		},
+		"LEFT": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			count := int(advplrt.ToFloat(getArg(args, 1)))
+			if count < 0 {
+				count = 0
+			}
+			if count > len(s) {
+				count = len(s)
+			}
+			return advplrt.NewString(s[:count]), nil
+		},
+		"RIGHT": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			count := int(advplrt.ToFloat(getArg(args, 1)))
+			if count < 0 {
+				count = 0
+			}
+			if count > len(s) {
+				count = len(s)
+			}
+			return advplrt.NewString(s[len(s)-count:]), nil
+		},
+		"REPLICA": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			n := int(advplrt.ToFloat(getArg(args, 1)))
+			return advplrt.NewString(strings.Repeat(s, n)), nil
+		},
+		"CAPSLOCK": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			if len(s) == 0 {
+				return advplrt.NewString(""), nil
+			}
+			return advplrt.NewString(strings.ToUpper(string(s[0])) + strings.ToLower(s[1:])), nil
+		},
+		"PROPER": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			words := strings.Fields(s)
+			for i, word := range words {
+				if len(word) > 0 {
+					words[i] = strings.ToUpper(string(word[0])) + strings.ToLower(word[1:])
+				}
+			}
+			return advplrt.NewString(strings.Join(words, " ")), nil
+		},
+		"ATC": func(args []advplrt.Value) (advplrt.Value, error) {
+			search := strings.ToLower(advplrt.ToString(getArg(args, 0)))
+			s := strings.ToLower(advplrt.ToString(getArg(args, 1)))
+			idx := strings.Index(s, search)
+			if idx == -1 {
+				return advplrt.NewNumber(0), nil
+			}
+			return advplrt.NewNumber(float64(idx + 1)), nil
+		},
+		"RATC": func(args []advplrt.Value) (advplrt.Value, error) {
+			search := strings.ToLower(advplrt.ToString(getArg(args, 0)))
+			s := strings.ToLower(advplrt.ToString(getArg(args, 1)))
+			idx := strings.LastIndex(s, search)
+			if idx == -1 {
+				return advplrt.NewNumber(0), nil
+			}
+			return advplrt.NewNumber(float64(idx + 1)), nil
+		},
+		"GETWORDNUM": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			wordNum := int(advplrt.ToFloat(getArg(args, 1)))
+			delim := " "
+			if len(args) >= 3 {
+				delim = advplrt.ToString(getArg(args, 2))
+			}
+			words := strings.Split(s, delim)
+			if wordNum < 1 || wordNum > len(words) {
+				return advplrt.NewString(""), nil
+			}
+			return advplrt.NewString(words[wordNum-1]), nil
+		},
+		"WORDS": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			delim := " "
+			if len(args) >= 2 {
+				delim = advplrt.ToString(getArg(args, 1))
+			}
+			words := strings.Split(s, delim)
+			return advplrt.NewNumber(float64(len(words))), nil
+		},
+		"FILENOEXT": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			if idx := strings.LastIndex(s, "."); idx != -1 {
+				return advplrt.NewString(s[:idx]), nil
+			}
+			return advplrt.NewString(s), nil
+		},
+		"FILEEXT": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			if idx := strings.LastIndex(s, "."); idx != -1 {
+				return advplrt.NewString(s[idx+1:]), nil
+			}
+			return advplrt.NewString(""), nil
+		},
+		"FILENAME": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			if idx := strings.LastIndex(s, "/"); idx != -1 {
+				return advplrt.NewString(s[idx+1:]), nil
+			}
+			if idx := strings.LastIndex(s, "\\"); idx != -1 {
+				return advplrt.NewString(s[idx+1:]), nil
+			}
+			return advplrt.NewString(s), nil
+		},
+		"FILEPATH": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			if idx := strings.LastIndex(s, "/"); idx != -1 {
+				return advplrt.NewString(s[:idx+1]), nil
+			}
+			if idx := strings.LastIndex(s, "\\"); idx != -1 {
+				return advplrt.NewString(s[:idx+1]), nil
+			}
+			return advplrt.NewString(""), nil
+		},
+		"FILEDIR": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			if idx := strings.LastIndex(s, "/"); idx != -1 {
+				return advplrt.NewString(s[:idx]), nil
+			}
+			if idx := strings.LastIndex(s, "\\"); idx != -1 {
+				return advplrt.NewString(s[:idx]), nil
+			}
+			return advplrt.NewString(""), nil
+		},
 
 		// --- Numeric functions ---
 		"ABS": func(args []advplrt.Value) (advplrt.Value, error) {
@@ -423,6 +551,47 @@ func (v *VM) registerNatives() {
 			}
 			return advplrt.NewNumber(float64(rand.Intn(max) + 1)), nil
 		},
+		"SIGN": func(args []advplrt.Value) (advplrt.Value, error) {
+			val := advplrt.ToFloat(getArg(args, 0))
+			if val > 0 {
+				return advplrt.NewNumber(1), nil
+			} else if val < 0 {
+				return advplrt.NewNumber(-1), nil
+			}
+			return advplrt.NewNumber(0), nil
+		},
+		"POWER": func(args []advplrt.Value) (advplrt.Value, error) {
+			base := advplrt.ToFloat(getArg(args, 0))
+			exp := advplrt.ToFloat(getArg(args, 1))
+			return advplrt.NewNumber(math.Pow(base, exp)), nil
+		},
+		"PI": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(math.Pi), nil
+		},
+		"SIN": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(math.Sin(advplrt.ToFloat(getArg(args, 0)))), nil
+		},
+		"COS": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(math.Cos(advplrt.ToFloat(getArg(args, 0)))), nil
+		},
+		"TAN": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(math.Tan(advplrt.ToFloat(getArg(args, 0)))), nil
+		},
+		"ASIN": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(math.Asin(advplrt.ToFloat(getArg(args, 0)))), nil
+		},
+		"ACOS": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(math.Acos(advplrt.ToFloat(getArg(args, 0)))), nil
+		},
+		"ATAN": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(math.Atan(advplrt.ToFloat(getArg(args, 0)))), nil
+		},
+		"DEG2RAD": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(advplrt.ToFloat(getArg(args, 0)) * math.Pi / 180), nil
+		},
+		"RAD2DEG": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(advplrt.ToFloat(getArg(args, 0)) * 180 / math.Pi), nil
+		},
 
 		// --- Date functions ---
 		"DATE": func(args []advplrt.Value) (advplrt.Value, error) {
@@ -477,6 +646,34 @@ func (v *VM) registerNatives() {
 		},
 		"SECONDS": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewNumber(float64(time.Now().UnixNano()) / 1e9), nil
+		},
+		"STOD": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			t, err := time.Parse("20060102", s)
+			if err != nil {
+				return advplrt.Nil, nil
+			}
+			return advplrt.NewDate(t), nil
+		},
+		"ELAPTIME": func(args []advplrt.Value) (advplrt.Value, error) {
+			t1 := advplrt.ToFloat(getArg(args, 0))
+			t2 := advplrt.ToFloat(getArg(args, 1))
+			return advplrt.NewNumber(t2 - t1), nil
+		},
+		"CTOT": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			t, err := time.Parse("15:04:05", s)
+			if err != nil {
+				return advplrt.Nil, nil
+			}
+			return advplrt.NewNumber(float64(t.Hour()*3600 + t.Minute()*60 + t.Second())), nil
+		},
+		"TTOC": func(args []advplrt.Value) (advplrt.Value, error) {
+			seconds := advplrt.ToFloat(getArg(args, 0))
+			hours := int(seconds) / 3600
+			minutes := (int(seconds) % 3600) / 60
+			secs := int(seconds) % 60
+			return advplrt.NewString(fmt.Sprintf("%02d:%02d:%02d", hours, minutes, secs)), nil
 		},
 
 		// --- Array functions ---
