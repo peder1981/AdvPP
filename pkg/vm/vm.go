@@ -1167,6 +1167,53 @@ func (v *VM) newInstance(className string, args []advplrt.Value) error {
 			obj.Props["_BROWSEID"] = advplrt.NewNumber(0)
 			v.push(obj)
 			return nil
+		case "FWWIZARDCONTROL":
+			obj := advplrt.NewObject("FWWizardControl", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			obj.Props["TITLE"] = advplrt.NewString("")
+			obj.Props["CURRENTSTEP"] = advplrt.NewNumber(0)
+			v.push(obj)
+			return nil
+		case "FWDYNDIALOG":
+			obj := advplrt.NewObject("FWDynDialog", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			obj.Props["TITLE"] = advplrt.NewString("")
+			v.push(obj)
+			return nil
+		case "FWPANEL":
+			obj := advplrt.NewObject("FWPanel", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			v.push(obj)
+			return nil
+		case "FWGROUPBOX":
+			obj := advplrt.NewObject("FWGroupBox", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			obj.Props["TITLE"] = advplrt.NewString("")
+			v.push(obj)
+			return nil
+		case "FWTABS":
+			obj := advplrt.NewObject("FWTabs", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			obj.Props["ACTIVETAB"] = advplrt.NewNumber(0)
+			v.push(obj)
+			return nil
+		case "FWSPLITTER":
+			obj := advplrt.NewObject("FWSplitter", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			obj.Props["ORIENTATION"] = advplrt.NewString("")
+			v.push(obj)
+			return nil
+		case "FWTREEVIEW":
+			obj := advplrt.NewObject("FWTreeView", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			v.push(obj)
+			return nil
+		case "FWLISTVIEW":
+			obj := advplrt.NewObject("FWListView", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			obj.Props["VIEWSTYLE"] = advplrt.NewString("REPORT")
+			v.push(obj)
+			return nil
 		default:
 			return fmt.Errorf("unknown class: %s", className)
 		}
