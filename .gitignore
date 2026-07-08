@@ -1,9 +1,12 @@
 # Binaries
 advplc
 advpp-ide
+advcfg
+adveditor
 *.exe
 *.out
 *.app
+*.deb
 
 # Go
 *.sum
@@ -23,3 +26,5 @@ Thumbs.db
 # Build
 build/
 dist/
+debian/
+data/
