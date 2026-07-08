@@ -121,14 +121,13 @@ All standard patterns work in AdvPP
 | Componentes MVC | ✅ 100% | FWFormModel, FWFormView, FWFormBrowse |
 | Funções de Diálogo | ✅ 100% | MsgInfo, MsgStop, MsgAlert, MsgYesNo |
 | Padrões Padrão | ✅ 100% | Model 1, Model 3, etc. |
-| Codificação de Arquivo | ⚠️ Parcial | CP1252 requer conversão para UTF-8 |
+| Codificação de Arquivo | ✅ 100% | Conversão automática CP1252 -> UTF-8 implementada |
 
 ## Limitações
 
-1. **Codificação de Arquivo**: Arquivos fonte Protheus são codificados em CP1252 e devem ser convertidos para UTF-8 para AdvPP
-2. **Dependências de Framework**: Funções complexas do framework Protheus (MSExecAuto, DbSelectArea, etc.) requerem integração de banco de dados
-3. **Pré-processador**: Diretivas avançadas de pré-processador (#xCommand, #xTranslate) podem precisar de adaptação
-4. **Headers de Framework**: totvs.ch e outros headers de framework podem precisar ser fornecidos separadamente
+1. **Dependências de Framework**: Funções complexas do framework Protheus (MSExecAuto, DbSelectArea, etc.) requerem integração de banco de dados
+2. **Pré-processador**: Diretivas avançadas de pré-processador (#xCommand, #xTranslate) podem precisar de adaptação
+3. **Headers de Framework**: totvs.ch e outros headers de framework podem precisar ser fornecidos separadamente
 
 ## Conclusão
 
@@ -143,9 +142,8 @@ O teste demonstra que:
 - Diálogos UI funcionam com integração Fyne
 
 Para migração de código Protheus real:
-1. Converter codificação CP1252 para UTF-8
-2. Fornecer arquivos de header do framework
-3. Implementar operações de banco de dados se necessário
-4. Adaptar funções complexas do framework
+1. Fornecer arquivos de header do framework
+2. Implementar operações de banco de dados se necessário
+3. Adaptar funções complexas do framework
 
-O compilador AdvPP está pronto para desenvolvimento baseado em padrões Protheus com 100% de compatibilidade para recursos principais da linguagem.
+O compilador AdvPP está pronto para desenvolvimento baseado em padrões Protheus com 100% de compatibilidade para recursos principais da linguagem, incluindo conversão automática de codificação CP1252 para UTF-8.
