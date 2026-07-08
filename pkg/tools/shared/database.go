@@ -777,9 +777,11 @@ func (s *SQLiteDriver) loadStructure() error {
 		return fmt.Errorf("tabela não especificada")
 	}
 
-	rows, err := s.db.Query("PRAGMA table_info(" + s.table + ")")
+	// Usa aspas ao redor do nome da tabela para evitar erros de sintaxe
+	query := fmt.Sprintf("PRAGMA table_info(\"%s\")", s.table)
+	rows, err := s.db.Query(query)
 	if err != nil {
-		return err
+		return fmt.Errorf("erro ao executar PRAGMA table_info: %w", err)
 	}
 	defer rows.Close()
 
@@ -833,9 +835,11 @@ func (s *SQLiteDriver) loadIndexes() error {
 		return fmt.Errorf("tabela não especificada")
 	}
 
-	rows, err := s.db.Query("PRAGMA index_list(" + s.table + ")")
+	// Usa aspas ao redor do nome da tabela para evitar erros de sintaxe
+	query := fmt.Sprintf("PRAGMA index_list(\"%s\")", s.table)
+	rows, err := s.db.Query(query)
 	if err != nil {
-		return err
+		return fmt.Errorf("erro ao executar PRAGMA index_list: %w", err)
 	}
 	defer rows.Close()
 
@@ -851,7 +855,8 @@ func (s *SQLiteDriver) loadIndexes() error {
 		}
 
 		// Obtém colunas do índice
-		indexRows, err := s.db.Query("PRAGMA index_info(" + name + ")")
+		indexQuery := fmt.Sprintf("PRAGMA index_info(\"%s\")", name)
+		indexRows, err := s.db.Query(indexQuery)
 		if err != nil {
 			continue
 		}
