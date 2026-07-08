@@ -1,8 +1,8 @@
-# Binaries
-advplc
-advpp-ide
-advcfg
-adveditor
+# Binaries (ancorados na raiz para não casar com cmd/<nome>/)
+/advplc
+/advpp-ide
+/advcfg
+/adveditor
 *.exe
 *.out
 *.app
@@ -30,6 +30,6 @@ debian/
 data/
 
 # Artefatos de exemplo
-demo1.bytecode
-hello_exec
-ui-test
+/demo1.bytecode
+/hello_exec
+/ui-test

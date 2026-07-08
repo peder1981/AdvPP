@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/advpl/compiler/pkg/compiler"
@@ -62,6 +63,8 @@ type VM struct {
 	mvcViews     map[int]*mvc.FWFormView
 	mvcBrowses   map[int]*mvc.FWFormBrowse
 	mvcNextID    int
+	dbFactory    func() DBEngine // cria um engine próprio por job (StartJob)
+	jobs         sync.WaitGroup  // jobs em background pendentes
 }
 
 type namedArgInfo struct {
@@ -113,6 +116,16 @@ func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 
 func (v *VM) SetDBEngine(engine DBEngine) {
 	v.dbEngine = engine
+}
+
+// SetDBFactory registra como abrir uma nova conexão de banco. Cada job
+// disparado via StartJob() recebe seu próprio engine (o SQLite em WAL
+// suporta leitores concorrentes), evitando corrida no engine principal.
+func (v *VM) SetDBFactory(factory func() DBEngine) {
+	v.dbFactory = factory
+	if v.dbEngine == nil && factory != nil {
+		v.dbEngine = factory()
+	}
 }
 
 func (v *VM) SetUIProvider(provider UIProvider) {
@@ -216,8 +229,83 @@ func (v *VM) Run() (advplrt.Value, error) {
 	v.frames = append(v.frames, frame)
 	v.current = frame
 
+	result, err := v.runLoop()
+
+	// Espera jobs em background (StartJob lWait=.F.) antes de encerrar —
+	// num processo CLI, sair da main mataria os jobs silenciosamente.
+	v.jobs.Wait()
+
+	return result, err
+}
+
+// RunFunction executa uma função específica do bytecode (busca
+// case-insensitive) num VM já inicializado. Usada por StartJob.
+func (v *VM) RunFunction(name string, args []advplrt.Value) (advplrt.Value, error) {
+	info, ok := v.bc.Functions[name]
+	if !ok {
+		// Busca case-insensitive; o prefixo U_ de User Function é aceito
+		// (o bytecode guarda o nome declarado, sem o prefixo)
+		upper := strings.ToUpper(name)
+		trimmed := strings.TrimPrefix(upper, "U_")
+		for fname, finfo := range v.bc.Functions {
+			fupper := strings.ToUpper(fname)
+			if fupper == upper || fupper == trimmed {
+				info, ok = finfo, true
+				break
+			}
+		}
+	}
+	if !ok {
+		return advplrt.Nil, fmt.Errorf("function %s not found", name)
+	}
+
+	locals := make([]advplrt.Value, info.NumLocals)
+	for i := 0; i < len(args) && i < info.NumParams; i++ {
+		locals[i] = args[i]
+	}
+	frame := &CallFrame{
+		FuncName:  name,
+		Code:      v.bc.Code,
+		IP:        info.Offset,
+		Locals:    locals,
+		StackBase: len(v.stack),
+	}
+	v.frames = append(v.frames, frame)
+	v.current = frame
+
+	return v.runLoop()
+}
+
+// StartJob dispara a execução de uma função em um VM isolado (memória
+// própria, como um work process do Protheus). Com wait=true o chamador
+// bloqueia até o término; com wait=false roda em goroutine e o Run()
+// principal espera a conclusão antes de encerrar o processo.
+func (v *VM) StartJob(funcName string, wait bool, args []advplrt.Value) error {
+	job := NewVM(v.bc, false)
+	job.dbFactory = v.dbFactory
+	if v.dbFactory != nil {
+		job.dbEngine = v.dbFactory()
+	}
+
+	if wait {
+		_, err := job.RunFunction(funcName, args)
+		return err
+	}
+
+	v.jobs.Add(1)
+	go func() {
+		defer v.jobs.Done()
+		if _, err := job.RunFunction(funcName, args); err != nil {
+			fmt.Printf("StartJob(%s) error: %v\n", funcName, err)
+		}
+	}()
+	return nil
+}
+
+func (v *VM) runLoop() (advplrt.Value, error) {
 	for {
-		if v.current.IP >= len(v.current.Code) {
+		// v.current fica nil quando o último frame retorna (RunFunction)
+		if v.current == nil || v.current.IP >= len(v.current.Code) {
 			break
 		}
 

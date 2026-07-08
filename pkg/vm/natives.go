@@ -808,6 +808,24 @@ func (v *VM) registerNatives() {
 		},
 
 		// --- Misc ---
+		// StartJob(cFunc, cEnv, lWait, params...) — executa a função em um
+		// VM isolado (semântica de work process do Protheus). cEnv é aceito
+		// e ignorado (não há multi-ambiente neste runtime).
+		"STARTJOB": func(args []advplrt.Value) (advplrt.Value, error) {
+			funcName := advplrt.ToString(getArg(args, 0))
+			if funcName == "" {
+				return advplrt.False, fmt.Errorf("StartJob: missing function name")
+			}
+			wait := advplrt.ToBool(getArg(args, 2))
+			var params []advplrt.Value
+			if len(args) > 3 {
+				params = args[3:]
+			}
+			if err := v.StartJob(funcName, wait, params); err != nil {
+				return advplrt.False, err
+			}
+			return advplrt.True, nil
+		},
 		"SLEEP": func(args []advplrt.Value) (advplrt.Value, error) {
 			ms := int(advplrt.ToFloat(getArg(args, 0)))
 			time.Sleep(time.Duration(ms) * time.Millisecond)
