@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
@@ -151,8 +153,16 @@ func (ae *AdvEditorWindow) onOpenTable() {
 		uri := reader.URI()
 		filePath := uri.Path()
 
-		// Abre tabela (usando DBF por padrão)
-		tableInfo, err := ae.tableManager.OpenTable(filePath, "DBF", false, true)
+		// Detecta tipo de arquivo automaticamente
+		driver := "DBF"
+		if strings.HasSuffix(strings.ToLower(filePath), ".db") ||
+			strings.HasSuffix(strings.ToLower(filePath), ".sqlite") ||
+			strings.HasSuffix(strings.ToLower(filePath), ".sqlite3") {
+			driver = "SQLITE"
+		}
+
+		// Abre tabela
+		tableInfo, err := ae.tableManager.OpenTable(filePath, driver, false, true)
 		if err != nil {
 			dialog.ShowError(err, ae.window)
 			return

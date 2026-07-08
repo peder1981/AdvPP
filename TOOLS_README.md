@@ -9,12 +9,76 @@ O AdvPP agora inclui duas ferramentas poderosas para gerenciamento de banco de d
 
 Ambas as ferramentas são executáveis independentemente e podem ser integradas ao IDE advpp-ide.
 
+## Compatibilidade SQLite
+
+**IMPORTANTE:** Tanto o AdvEditor quanto o AdvCfg são **100% compatíveis com SQLite**.
+
+### AdvEditor - Suporte SQLite Completo
+
+O AdvEditor suporta nativamente bancos de dados SQLite com todas as funcionalidades:
+
+**Funcionalidades SQLite:**
+- Abertura automática de arquivos `.db`, `.sqlite`, `.sqlite3`
+- Detecção automática de tipo de arquivo
+- Leitura de estrutura de tabelas via `PRAGMA table_info`
+- Leitura de índices via `PRAGMA index_list` e `PRAGMA index_info`
+- Operações CRUD completas (INSERT, UPDATE, DELETE)
+- Navegação por paginação (LIMIT/OFFSET)
+- Contagem de registros (COUNT)
+- Soma de campos (SUM)
+- Criação de índices (CREATE INDEX)
+- Remoção de índices (DROP INDEX)
+- Compactação (VACUUM)
+- Limpeza de tabela (DELETE)
+
+**Conversão de Tipos:**
+- SQLite INTEGER → AdvPL Numérico (N, 10)
+- SQLite REAL/FLOAT/DOUBLE → AdvPL Numérico (N, 14, 4)
+- SQLite TEXT/VARCHAR/CHAR → AdvPL Caracter (C, 50)
+- SQLite BLOB → AdvPL Memo (M)
+
+**Uso com SQLite:**
+```bash
+# Criar banco de dados SQLite
+sqlite3 data/meu_banco.db "CREATE TABLE clientes (id INTEGER PRIMARY KEY, nome TEXT, email TEXT);"
+
+# Abrir com AdvEditor (detecção automática)
+./adveditor
+# Menu Arquivo → Abrir → selecionar data/meu_banco.db
+```
+
+### AdvCfg - Dicionário SQLite
+
+O AdvCfg utiliza SQLite como backend para o dicionário de dados:
+
+**Localização do Dicionário:**
+```
+./data/advpl_dictionary.db
+```
+
+**Tabelas do Dicionário:**
+- SX2 - Tabelas
+- SX3 - Campos
+- SIX - Índices
+- SX7 - Triggers
+- SX5 - Genéricas
+- SX6 - Parâmetros
+- SXB - Perguntas
+
+**Vantagens do SQLite:**
+- Performance superior a DBF
+- Suporte a transações ACID
+- Índices automáticos
+- Compactação automática
+- Portabilidade (arquivo único)
+- Backup simples (copia do arquivo)
+
 ## AdvEditor - Editor de Banco de Dados
 
 ### Funcionalidades
 
 **Menu Arquivo:**
-- **Abrir (Ctrl+B)** - Abrir tabela (DBF, TopConnect, Ctree, BTrieve)
+- **Abrir (Ctrl+B)** - Abrir tabela (DBF, SQLite, TopConnect, Ctree, BTrieve)
 - **Fechar** - Fechar tabela atual
 - **Estrutura** - Visualizar estrutura da tabela
 - **Sair** - Sair do aplicativo
@@ -40,10 +104,16 @@ Ambas as ferramentas são executáveis independentemente e podem ser integradas 
 
 ### Drivers Suportados
 
+- **SQLite** - Arquivos SQLite (.db, .sqlite, .sqlite3) - **100% compatível**
 - **DBF** - Arquivos DBF com índices CDX
 - **TopConnect** - Conexão SQL via TopConnect
 - **Ctree** - Banco de dados Ctree
 - **BTrieve** - Banco de dados BTrieve
+
+**Detecção Automática:**
+- Arquivos `.db`, `.sqlite`, `.sqlite3` → SQLite
+- Arquivos `.dbf` → DBF
+- Outros → DBF (padrão)
 
 ### Uso
 
@@ -54,9 +124,11 @@ Ambas as ferramentas são executáveis independentemente e podem ser integradas 
 
 ### Arquitetura
 
-- **pkg/tools/shared/database.go** - Abstração de banco de dados
+- **pkg/tools/shared/database.go** - Abstração de banco de dados com SQLiteDriver completo
 - **pkg/tools/shared/treeview.go** - Componente de tree view
-- **cmd/adveditor/main.go** - Aplicação principal
+- **pkg/tools/shared/dictionary.go** - Dicionário de dados SQLite
+- **cmd/adveditor/main.go** - Aplicação principal AdvEditor
+- **cmd/advcfg/main.go** - Aplicação principal AdvCfg
 
 ## AdvCfg - Configurador de Tabelas
 

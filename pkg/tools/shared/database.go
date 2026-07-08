@@ -1,11 +1,14 @@
 package shared
 
 import (
+	"database/sql"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // FieldType representa os tipos de campos AdvPL
@@ -131,14 +134,21 @@ func (tm *TableManager) OpenTable(file, driver string, readOnly, shared bool) (*
 	switch strings.ToUpper(driver) {
 	case "DBF", "DBFCDXADS", "DBFCDXAX":
 		dbDriver = NewDBFDriver()
-	case "TOPCONN":
+	case "TOPCONN", "TOPCONNECT":
 		dbDriver = NewTopConnectDriver()
 	case "CTREECDX":
 		dbDriver = NewCtreeDriver()
-	case "BTVCDX":
+	case "BTVCDX", "BTREIVE":
 		dbDriver = NewBTrieveDriver()
+	case "SQLITE", "DB":
+		dbDriver = NewSQLiteDriver()
 	default:
-		return nil, fmt.Errorf("driver não suportado: %s", driver)
+		// Detecta automaticamente se for arquivo .db ou .sqlite
+		if strings.HasSuffix(strings.ToLower(file), ".db") || strings.HasSuffix(strings.ToLower(file), ".sqlite") || strings.HasSuffix(strings.ToLower(file), ".sqlite3") {
+			dbDriver = NewSQLiteDriver()
+		} else {
+			return nil, fmt.Errorf("driver não suportado: %s", driver)
+		}
 	}
 
 	// Abre tabela
@@ -672,6 +682,497 @@ type BTrieveDriver struct {
 // NewBTrieveDriver cria um novo driver BTrieve
 func NewBTrieveDriver() *BTrieveDriver {
 	return &BTrieveDriver{}
+}
+
+// SQLiteDriver implementa DatabaseDriver para SQLite
+type SQLiteDriver struct {
+	db        *sql.DB
+	file      string
+	alias     string
+	table     string
+	readOnly  bool
+	shared    bool
+	structure []Field
+	indexes   []Index
+}
+
+// NewSQLiteDriver cria um novo driver SQLite
+func NewSQLiteDriver() *SQLiteDriver {
+	return &SQLiteDriver{}
+}
+
+// Open abre um arquivo SQLite
+func (s *SQLiteDriver) Open(file string, readOnly, shared bool) error {
+	s.file = file
+	s.alias = filepath.Base(file)
+	s.readOnly = readOnly
+	s.shared = shared
+
+	// Se o arquivo for um banco de dados, abre o banco
+	// Se for uma tabela específica (ex: database.db/table), extrai o nome da tabela
+	if strings.Contains(file, "/") {
+		parts := strings.Split(file, "/")
+		if len(parts) > 1 {
+			s.table = parts[len(parts)-1]
+			dbPath := strings.Join(parts[:len(parts)-1], "/")
+			var err error
+			s.db, err = sql.Open("sqlite3", dbPath)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		var err error
+		s.db, err = sql.Open("sqlite3", file)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Verifica conexão
+	if err := s.db.Ping(); err != nil {
+		return err
+	}
+
+	// Se não especificou tabela, obtém a primeira tabela
+	if s.table == "" {
+		rows, err := s.db.Query("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1")
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		if rows.Next() {
+			var tableName string
+			if err := rows.Scan(&tableName); err != nil {
+				return err
+			}
+			s.table = tableName
+		} else {
+			return fmt.Errorf("nenhuma tabela encontrada no banco de dados")
+		}
+	}
+
+	// Obtém estrutura da tabela
+	if err := s.loadStructure(); err != nil {
+		return err
+	}
+
+	// Obtém índices
+	if err := s.loadIndexes(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Close fecha o arquivo SQLite
+func (s *SQLiteDriver) Close() error {
+	if s.db != nil {
+		return s.db.Close()
+	}
+	return nil
+}
+
+// loadStructure carrega a estrutura da tabela
+func (s *SQLiteDriver) loadStructure() error {
+	if s.table == "" {
+		return fmt.Errorf("tabela não especificada")
+	}
+
+	rows, err := s.db.Query("PRAGMA table_info(" + s.table + ")")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	s.structure = []Field{}
+	for rows.Next() {
+		var cid int
+		var name, dataType string
+		var notNull int
+		var dfltValue sql.NullString
+		var pk int
+
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &dfltValue, &pk); err != nil {
+			return err
+		}
+
+		// Converte tipo SQLite para tipo AdvPL
+		fieldType := FieldTypeChar
+		size := 0
+		decimal := 0
+
+		dataType = strings.ToUpper(dataType)
+		if strings.Contains(dataType, "INT") {
+			fieldType = FieldTypeNum
+			size = 10
+		} else if strings.Contains(dataType, "REAL") || strings.Contains(dataType, "FLOAT") || strings.Contains(dataType, "DOUBLE") {
+			fieldType = FieldTypeNum
+			size = 14
+			decimal = 4
+		} else if strings.Contains(dataType, "TEXT") || strings.Contains(dataType, "VARCHAR") || strings.Contains(dataType, "CHAR") {
+			fieldType = FieldTypeChar
+			size = 50
+		} else if strings.Contains(dataType, "BLOB") {
+			fieldType = FieldTypeMemo
+		}
+
+		s.structure = append(s.structure, Field{
+			Name:     name,
+			Type:     fieldType,
+			Size:     size,
+			Decimal:  decimal,
+			Required: notNull == 1,
+		})
+	}
+
+	return nil
+}
+
+// loadIndexes carrega os índices da tabela
+func (s *SQLiteDriver) loadIndexes() error {
+	if s.table == "" {
+		return fmt.Errorf("tabela não especificada")
+	}
+
+	rows, err := s.db.Query("PRAGMA index_list(" + s.table + ")")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	s.indexes = []Index{}
+	for rows.Next() {
+		var seq int
+		var name, origin string
+		var partial int
+		var unique int
+
+		if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
+			return err
+		}
+
+		// Obtém colunas do índice
+		indexRows, err := s.db.Query("PRAGMA index_info(" + name + ")")
+		if err != nil {
+			continue
+		}
+
+		var expression string
+		for indexRows.Next() {
+			var seqNo, cid int
+			var name sql.NullString
+			if err := indexRows.Scan(&seqNo, &cid, &name); err != nil {
+				continue
+			}
+			if cid < len(s.structure) {
+				if expression != "" {
+					expression += "+"
+				}
+				expression += s.structure[cid].Name
+			}
+		}
+		indexRows.Close()
+
+		s.indexes = append(s.indexes, Index{
+			Name:       name,
+			Expression: expression,
+			Unique:     unique == 1,
+			Descending: false,
+		})
+	}
+
+	return nil
+}
+
+// GetStructure retorna a estrutura da tabela
+func (s *SQLiteDriver) GetStructure() ([]Field, error) {
+	return s.structure, nil
+}
+
+// GetData retorna dados da tabela
+func (s *SQLiteDriver) GetData(offset, limit int) ([]Record, error) {
+	if s.table == "" {
+		return nil, fmt.Errorf("tabela não especificada")
+	}
+
+	query := "SELECT * FROM " + s.table
+	if limit > 0 {
+		query += " LIMIT " + fmt.Sprintf("%d", limit)
+		if offset > 0 {
+			query += " OFFSET " + fmt.Sprintf("%d", offset)
+		}
+	}
+
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	var records []Record
+	recno := offset + 1
+
+	for rows.Next() {
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range columns {
+			valuePtrs[i] = &values[i]
+		}
+
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return nil, err
+		}
+
+		fields := make(map[string]interface{})
+		for i, col := range columns {
+			val := values[i]
+			b, ok := val.([]byte)
+			if ok {
+				fields[col] = string(b)
+			} else {
+				fields[col] = val
+			}
+		}
+
+		records = append(records, Record{
+			Recno:   recno,
+			Fields:  fields,
+			Deleted: false,
+		})
+		recno++
+	}
+
+	return records, nil
+}
+
+// GetRecord retorna um registro específico
+func (s *SQLiteDriver) GetRecord(recno int) (*Record, error) {
+	records, err := s.GetData(recno-1, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(records) == 0 {
+		return nil, fmt.Errorf("recno inválido: %d", recno)
+	}
+	return &records[0], nil
+}
+
+// AddRecord adiciona um registro
+func (s *SQLiteDriver) AddRecord(record Record) (int, error) {
+	if s.readOnly {
+		return 0, fmt.Errorf("tabela é somente leitura")
+	}
+
+	if s.table == "" {
+		return 0, fmt.Errorf("tabela não especificada")
+	}
+
+	// Constrói query INSERT
+	columns := make([]string, 0, len(record.Fields))
+	placeholders := make([]string, 0, len(record.Fields))
+	values := make([]interface{}, 0, len(record.Fields))
+
+	for col, val := range record.Fields {
+		columns = append(columns, col)
+		placeholders = append(placeholders, "?")
+		values = append(values, val)
+	}
+
+	query := "INSERT INTO " + s.table + " (" + strings.Join(columns, ", ") + ") VALUES (" + strings.Join(placeholders, ", ") + ")"
+
+	result, err := s.db.Exec(query, values...)
+	if err != nil {
+		return 0, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	return int(id), nil
+}
+
+// UpdateRecord atualiza um registro
+func (s *SQLiteDriver) UpdateRecord(recno int, record Record) error {
+	if s.readOnly {
+		return fmt.Errorf("tabela é somente leitura")
+	}
+
+	if s.table == "" {
+		return fmt.Errorf("tabela não especificada")
+	}
+
+	// Constrói query UPDATE
+	updates := make([]string, 0, len(record.Fields))
+	values := make([]interface{}, 0, len(record.Fields))
+
+	for col, val := range record.Fields {
+		updates = append(updates, col+" = ?")
+		values = append(values, val)
+	}
+
+	query := "UPDATE " + s.table + " SET " + strings.Join(updates, ", ") + " WHERE rowid = ?"
+	values = append(values, recno)
+
+	_, err := s.db.Exec(query, values...)
+	return err
+}
+
+// DeleteRecord deleta um registro
+func (s *SQLiteDriver) DeleteRecord(recno int) error {
+	if s.readOnly {
+		return fmt.Errorf("tabela é somente leitura")
+	}
+
+	if s.table == "" {
+		return fmt.Errorf("tabela não especificada")
+	}
+
+	_, err := s.db.Exec("DELETE FROM "+s.table+" WHERE rowid = ?", recno)
+	return err
+}
+
+// RecallRecord recupera um registro deletado
+func (s *SQLiteDriver) RecallRecord(recno int) error {
+	return fmt.Errorf("recall não suportado em SQLite")
+}
+
+// Pack compacta a tabela
+func (s *SQLiteDriver) Pack() error {
+	if s.readOnly {
+		return fmt.Errorf("tabela é somente leitura")
+	}
+
+	if s.table == "" {
+		return fmt.Errorf("tabela não especificada")
+	}
+
+	_, err := s.db.Exec("VACUUM")
+	return err
+}
+
+// Zap limpa a tabela
+func (s *SQLiteDriver) Zap() error {
+	if s.readOnly {
+		return fmt.Errorf("tabela é somente leitura")
+	}
+
+	if s.table == "" {
+		return fmt.Errorf("tabela não especificada")
+	}
+
+	_, err := s.db.Exec("DELETE FROM " + s.table)
+	return err
+}
+
+// GetIndexes retorna os índices
+func (s *SQLiteDriver) GetIndexes() ([]Index, error) {
+	return s.indexes, nil
+}
+
+// CreateIndex cria um índice
+func (s *SQLiteDriver) CreateIndex(name string, expression string) error {
+	if s.readOnly {
+		return fmt.Errorf("tabela é somente leitura")
+	}
+
+	if s.table == "" {
+		return fmt.Errorf("tabela não especificada")
+	}
+
+	query := "CREATE INDEX IF NOT EXISTS " + name + " ON " + s.table + " (" + expression + ")"
+	_, err := s.db.Exec(query)
+	return err
+}
+
+// DropIndex remove um índice
+func (s *SQLiteDriver) DropIndex(name string) error {
+	if s.readOnly {
+		return fmt.Errorf("tabela é somente leitura")
+	}
+
+	_, err := s.db.Exec("DROP INDEX IF EXISTS " + name)
+	return err
+}
+
+// SetOrder define o índice ativo
+func (s *SQLiteDriver) SetOrder(indexName string) error {
+	return nil
+}
+
+// GoTop vai para o topo
+func (s *SQLiteDriver) GoTop() error {
+	return nil
+}
+
+// GoBottom vai para o final
+func (s *SQLiteDriver) GoBottom() error {
+	return nil
+}
+
+// Skip pula n registros
+func (s *SQLiteDriver) Skip(n int) error {
+	return nil
+}
+
+// Seek busca por chave
+func (s *SQLiteDriver) Seek(key interface{}) (bool, error) {
+	return false, nil
+}
+
+// Locate localiza por filtro
+func (s *SQLiteDriver) Locate(filter string) (bool, error) {
+	return false, nil
+}
+
+// Count conta registros
+func (s *SQLiteDriver) Count() (int, error) {
+	if s.table == "" {
+		return 0, fmt.Errorf("tabela não especificada")
+	}
+
+	var count int
+	err := s.db.QueryRow("SELECT COUNT(*) FROM " + s.table).Scan(&count)
+	return count, err
+}
+
+// Sum soma campo
+func (s *SQLiteDriver) Sum(fieldName string) (float64, error) {
+	if s.table == "" {
+		return 0, fmt.Errorf("tabela não especificada")
+	}
+
+	var sum float64
+	err := s.db.QueryRow("SELECT SUM(" + fieldName + ") FROM " + s.table).Scan(&sum)
+	return sum, err
+}
+
+// GetFileName retorna o nome do arquivo
+func (s *SQLiteDriver) GetFileName() string {
+	return s.file
+}
+
+// GetAlias retorna o alias
+func (s *SQLiteDriver) GetAlias() string {
+	return s.alias
+}
+
+// IsReadOnly retorna se é somente leitura
+func (s *SQLiteDriver) IsReadOnly() bool {
+	return s.readOnly
+}
+
+// IsShared retorna se é compartilhado
+func (s *SQLiteDriver) IsShared() bool {
+	return s.shared
 }
 
 // CopyFile copia um arquivo
