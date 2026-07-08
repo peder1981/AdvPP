@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/advpl/compiler/pkg/compiler"
@@ -93,13 +95,28 @@ func main() {
 			fmt.Fprintln(os.Stderr, "Error: missing source file")
 			os.Exit(1)
 		}
-		sourceFile := os.Args[2]
-		opts := parseOptions(os.Args[3:])
-		if err := checkFile(sourceFile, opts); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		// Aceita múltiplos arquivos: verificação paralela (1 worker por CPU)
+		rest := os.Args[2:]
+		files := make([]string, 0, len(rest))
+		i := 0
+		for i < len(rest) && !strings.HasPrefix(rest[i], "-") {
+			files = append(files, rest[i])
+			i++
+		}
+		if len(files) == 0 {
+			fmt.Fprintln(os.Stderr, "Error: missing source file")
 			os.Exit(1)
 		}
-		fmt.Println("OK: syntax check passed")
+		opts := parseOptions(rest[i:])
+		if len(files) == 1 {
+			if err := checkFile(files[0], opts); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK: syntax check passed")
+		} else {
+			os.Exit(checkFilesParallel(files, opts))
+		}
 
 	case "ast":
 		if len(os.Args) < 3 {
@@ -361,17 +378,73 @@ func attachDatabase(v *vm.VM, opts *Options) {
 		}
 		return
 	}
-	engine, err := db.NewSQLiteEngine(dbPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: cannot open database %s: %v\n", dbPath, err)
-		return
-	}
-	v.SetDBEngine(engine)
+	// Fábrica: o VM principal e cada job do StartJob() abrem a própria
+	// conexão sobre o mesmo arquivo (WAL permite leitura concorrente).
+	v.SetDBFactory(func() vm.DBEngine {
+		engine, err := db.NewSQLiteEngine(dbPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: cannot open database %s: %v\n", dbPath, err)
+			return nil
+		}
+		return engine
+	})
 }
 
 func checkFile(sourceFile string, opts *Options) error {
 	_, err := loadAndCompile(sourceFile, opts)
 	return err
+}
+
+// checkFilesParallel verifica N arquivos com um pool de workers (1 por CPU).
+// Cada arquivo é compilado de forma independente — o pipeline
+// preprocessador→lexer→parser→codegen não compartilha estado entre arquivos.
+func checkFilesParallel(files []string, opts *Options) int {
+	type result struct {
+		file string
+		err  error
+	}
+	jobs := make(chan string)
+	results := make(chan result)
+
+	workers := runtime.NumCPU()
+	if workers > len(files) {
+		workers = len(files)
+	}
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for f := range jobs {
+				results <- result{f, checkFile(f, opts)}
+			}
+		}()
+	}
+	go func() {
+		for _, f := range files {
+			jobs <- f
+		}
+		close(jobs)
+		wg.Wait()
+		close(results)
+	}()
+
+	pass, fail := 0, 0
+	for r := range results {
+		if r.err != nil {
+			fail++
+			fmt.Fprintf(os.Stderr, "FAIL %s: %v\n", r.file, r.err)
+		} else {
+			pass++
+			fmt.Printf("OK   %s\n", r.file)
+		}
+	}
+	fmt.Printf("checked %d files: %d ok, %d failed (%d workers)\n",
+		len(files), pass, fail, workers)
+	if fail > 0 {
+		return 1
+	}
+	return 0
 }
 
 func compileFile(sourceFile, outputFile string, opts *Options) error {

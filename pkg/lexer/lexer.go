@@ -323,8 +323,13 @@ func (l *Lexer) tokenizeString(line, col int, quote byte) error {
 }
 
 func (l *Lexer) tryDotLiteral(line, col int) bool {
-	remaining := l.source[l.pos:]
-	upper := strings.ToUpper(remaining)
+	// Só os próximos bytes importam (maior literal: ".NULL." = 6) —
+	// uppercase do fonte inteiro aqui tornava o lexer O(n²) em arquivos grandes
+	end := l.pos + 6
+	if end > len(l.source) {
+		end = len(l.source)
+	}
+	upper := strings.ToUpper(l.source[l.pos:end])
 
 	literals := []struct {
 		text string
@@ -575,6 +580,13 @@ func (l *Lexer) tokenizeOperator(line, col int) error {
 		// legacy not-equal operator.
 		l.advance()
 		l.tokens = append(l.tokens, Token{Type: TOKEN_NEQ, Value: "#", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	}
+
+	// Backtick não tem significado em AdvPL; fontes reais da TOTVS contêm
+	// backticks soltos (typos) que o compilador Protheus tolera — ignora.
+	if ch == '`' {
+		l.advance()
 		return nil
 	}
 
