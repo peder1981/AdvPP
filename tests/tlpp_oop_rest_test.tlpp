@@ -1,0 +1,254 @@
+// Teste Completo TLPP - Orientação a Objeto e REST Annotations
+// Este arquivo demonstra conceitos avançados de TLPP
+
+// ============================================
+// CLASSE BASE - Exemplo de herança
+// ============================================
+Class Pessoa from BaseObject
+    Data cNome
+    Data nIdade
+    Data cEmail
+    
+    Method New(cNome, nIdade, cEmail) Constructor
+    Method GetNome()
+    Method SetNome(cNome)
+    Method GetIdade()
+    Method Validar()
+    Method ToString()
+    Method ValidarEmail()
+EndClass
+
+Method New(cNome, nIdade, cEmail) Class Pessoa
+    ::cNome := cNome
+    ::nIdade := nIdade
+    ::cEmail := cEmail
+Return Self
+
+Method GetNome() Class Pessoa
+Return ::cNome
+
+Method SetNome(cNome) Class Pessoa
+    ::cNome := cNome
+Return
+
+Method GetIdade() Class Pessoa
+Return ::nIdade
+
+Method Validar() Class Pessoa
+    If Empty(::cNome)
+        Return .F.
+    EndIf
+    If ::nIdade < 0 .Or. ::nIdade > 150
+        Return .F.
+    EndIf
+    Return ::ValidarEmail()
+
+Method ToString() Class Pessoa
+    Return "Pessoa: " + ::cNome + ", " + Str(::nIdade) + " anos"
+
+Method ValidarEmail() Class Pessoa
+    If Empty(::cEmail)
+        Return .T.
+    EndIf
+    Return "@" $ ::cEmail
+
+// ============================================
+// CLASSE DERIVADA - Herança e polimorfismo
+// ============================================
+Class Cliente from Pessoa
+    Data cCodigo
+    Data nLimiteCredito
+    Data aCompras
+    
+    Method New(cNome, nIdade, cEmail, cCodigo, nLimite) Constructor
+    Method GetCodigo()
+    Method AdicionarCompra(nValor)
+    Method GetTotalCompras()
+    Method ToString()
+    Method CalcularDesconto()
+EndClass
+
+Method New(cNome, nIdade, cEmail, cCodigo, nLimite) Class Cliente
+    Super:New(cNome, nIdade, cEmail)
+    ::cCodigo := cCodigo
+    ::nLimiteCredito := nLimite
+    ::aCompras := {}
+Return Self
+
+Method GetCodigo() Class Cliente
+Return ::cCodigo
+
+Method AdicionarCompra(nValor) Class Cliente
+    aAdd(::aCompras, nValor)
+Return
+
+Method GetTotalCompras() Class Cliente
+    Local nTotal := 0
+    Local nI := 0
+    Local nLen := Len(::aCompras)
+    
+    For nI := 1 To nLen
+        nTotal += ::aCompras[nI]
+    Next
+    
+    Return nTotal - ::CalcularDesconto()
+
+Method ToString() Class Cliente
+    Return "Cliente: " + ::cCodigo + " - " + ::cNome + " (Total: " + Str(::GetTotalCompras()) + ")"
+
+Method CalcularDesconto() Class Cliente
+    Local nTotal := 0
+    Local nI := 0
+    Local nLen := Len(::aCompras)
+    
+    For nI := 1 To nLen
+        nTotal += ::aCompras[nI]
+    Next
+    
+    If nTotal > 1000
+        Return nTotal * 0.10
+    ElseIf nTotal > 500
+        Return nTotal * 0.05
+    EndIf
+    
+    Return 0
+
+// ============================================
+// SERVIÇO REST - Exemplo de Annotations
+// ============================================
+WSRESTFUL ClienteService
+    DESCRIPTION "Serviço REST para gerenciamento de clientes"
+    NAMESPACE "http://localhost:8080/api"
+    
+    WSDATA cCodigo as String
+    WSDATA cNome as String
+    WSDATA nIdade as Integer
+    WSDATA cEmail as String
+    WSDATA nLimiteCredito as Decimal
+    
+    WSMETHOD GET ListarClientes Description "Lista todos os clientes"
+    WSMETHOD GET ObterCliente Description "Obtém cliente por código"
+    WSMETHOD POST CriarCliente Description "Cria novo cliente"
+    WSMETHOD PUT AtualizarCliente Description "Atualiza cliente existente"
+    WSMETHOD DELETE ExcluirCliente Description "Exclui cliente por código"
+EndWSRESTFUL
+
+// ============================================
+// CLASSE COM INTERFACE
+// ============================================
+Class Produto from BaseObject
+    Data cCodigo
+    Data cDescricao
+    Data nPreco
+    Data nEstoque
+    
+    Method New(cCodigo, cDescricao, nPreco, nEstoque) Constructor
+    Method Validar()
+    Method ToString()
+EndClass
+
+Method New(cCodigo, cDescricao, nPreco, nEstoque) Class Produto
+    ::cCodigo := cCodigo
+    ::cDescricao := cDescricao
+    ::nPreco := nPreco
+    ::nEstoque := nEstoque
+Return Self
+
+Method Validar() Class Produto
+    If Empty(::cCodigo)
+        Return .F.
+    EndIf
+    If Empty(::cDescricao)
+        Return .F.
+    EndIf
+    If ::nPreco <= 0
+        Return .F.
+    EndIf
+    If ::nEstoque < 0
+        Return .F.
+    EndIf
+    Return .T.
+
+Method ToString() Class Produto
+    Return "Produto: " + ::cCodigo + " - " + ::cDescricao + " (R$ " + Str(::nPreco) + ")"
+
+// ============================================
+// TESTE PRINCIPAL
+// ============================================
+User Function TLPP_OOP_REST_Test()
+    Local oPessoa
+    Local oCliente
+    Local oProduto
+    Local jDados
+    
+    ConOut("=========================================")
+    ConOut("Teste TLPP - Orientação a Objeto e REST")
+    ConOut("=========================================")
+    
+    // Teste 1: Classe Base
+    ConOut("")
+    ConOut("--- Teste 1: Classe Base ---")
+    oPessoa := Pessoa("João Silva", 35, "joao@email.com")
+    ConOut("Pessoa criada: " + oPessoa:ToString())
+    ConOut("Nome: " + oPessoa:GetNome())
+    ConOut("Validação: " + IIf(oPessoa:Validar(), "OK", "FALHOU"))
+    
+    // Teste 2: Classe Derivada (Herança)
+    ConOut("")
+    ConOut("--- Teste 2: Herança e Polimorfismo ---")
+    oCliente := Cliente("Maria Santos", 28, "maria@email.com", "CLI001", 5000.00)
+    ConOut("Cliente criado: " + oCliente:ToString())
+    ConOut("Código: " + oCliente:GetCodigo())
+    ConOut("Nome herdado: " + oCliente:GetNome())
+    
+    // Teste 3: Compras e Desconto
+    ConOut("")
+    ConOut("--- Teste 3: Compras e Desconto ---")
+    oCliente:AdicionarCompra(200.00)
+    oCliente:AdicionarCompra(300.00)
+    oCliente:AdicionarCompra(600.00)
+    ConOut("Total compras: " + Str(oCliente:GetTotalCompras()))
+    
+    // Teste 4: Interface
+    ConOut("")
+    ConOut("--- Teste 4: Validação ---")
+    oProduto := Produto("PROD001", "Notebook Dell", 3500.00, 10)
+    ConOut("Produto criado: " + oProduto:ToString())
+    ConOut("Validação: " + IIf(oProduto:Validar(), "OK", "FALHOU"))
+    
+    // Teste 5: JSON Inline
+    ConOut("")
+    ConOut("--- Teste 5: JSON Inline ---")
+    jDados := { "codigo" : "CLI002", "nome" : "Pedro Costa", "idade" : 42, "ativo" : .T. }
+    ConOut("JSON criado: " + ValType(jDados))
+    ConOut("Código: " + jDados:codigo)
+    ConOut("Nome: " + jDados:nome)
+    ConOut("Idade: " + Str(jDados:idade))
+    
+    // Teste 6: Try/Catch
+    ConOut("")
+    ConOut("--- Teste 6: Try/Catch ---")
+    Try
+        Local nDiv := 10
+        Local nResult := nDiv / 0
+        ConOut("Resultado: " + Str(nResult))
+    Catch eError
+        ConOut("Erro capturado: Divisão por zero")
+    EndTry
+    
+    // Teste 7: REST Annotations (Parsing)
+    ConOut("")
+    ConOut("--- Teste 7: REST Annotations ---")
+    ConOut("WSRESTFUL ClienteService definido")
+    ConOut("Métodos: GET ListarClientes, GET ObterCliente")
+    ConOut("Métodos: POST CriarCliente, PUT AtualizarCliente")
+    ConOut("Métodos: DELETE ExcluirCliente")
+    ConOut("Namespace: http://localhost:8080/api")
+    
+    ConOut("")
+    ConOut("=========================================")
+    ConOut("Teste TLPP concluído com sucesso!")
+    ConOut("Todos os conceitos OOP e REST testados")
+    ConOut("=========================================")
+    
+Return .T.
