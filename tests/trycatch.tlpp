@@ -1,0 +1,56 @@
+// Test Try/Catch/Finally, Throw, ErrorClass, IIF, nested If
+User Function TestTryCatch()
+    Local cMsg := ""
+    Local e
+
+    // Test 1: Simple try/catch with no error
+    Try
+        cMsg := "In try block"
+        ConOut(cMsg)
+    Catch e
+        ConOut("Should not catch: " + e:description)
+    EndTry
+    ConOut("After try/catch")
+
+    // Test 2: Try/catch with throw
+    Try
+        ConOut("Before throw")
+        Throw("Test error!")
+        ConOut("Should not reach here")
+    Catch e
+        ConOut("Caught error: " + e:description)
+    EndTry
+    ConOut("After second try/catch")
+
+    // Test 3: IIF function
+    Local nVal := 10
+    ConOut("IIF test: " + IIF(nVal > 5, "big", "small"))
+
+    // Test 4: Nested if
+    Local nLevel := 2
+    If nLevel == 1
+        ConOut("Level 1")
+    ElseIf nLevel == 2
+        ConOut("Level 2")
+    Else
+        ConOut("Other level")
+    EndIf
+
+    // Test 5: ErrorClass
+    Local oErr := ErrorClass():New()
+    oErr:description := "Custom error from ErrorClass"
+    oErr:genCode := 123
+    ConOut("ErrorClass description: " + oErr:description)
+    ConOut("ErrorClass genCode: " + Str(oErr:genCode))
+
+    // Test 6: Try/catch with ErrorClass throw
+    Try
+        Local oErr2 := ErrorClass():New()
+        oErr2:description := "ErrorClass throw test"
+        Throw(oErr2)
+    Catch e
+        ConOut("Caught ErrorClass: " + e:description)
+    EndTry
+
+    ConOut("All tests passed!")
+Return

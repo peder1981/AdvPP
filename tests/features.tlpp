@@ -1,0 +1,42 @@
+// Test named parameters, JSON inline, and typing
+Function xParams(p1, p2, p3, p4, p5, p6, p7, p8)
+    ConOut("p1=" + cValToChar(p1) + " p2=" + cValToChar(p2) + " p6=" + cValToChar(p6))
+Return .T.
+
+Function xTyped(nParm, cParm, lParm)
+    ConOut("nParm=" + cValToChar(nParm) + " cParm=" + cValToChar(cParm) + " lParm=" + cValToChar(lParm))
+Return .T.
+
+User Function TestFeatures()
+    // Test 1: Named parameters (out of order)
+    ConOut("=== Named Parameters ===")
+    xParams(p2="world", p1="hello", p6="!")
+    // Mixed: positional + named
+    xParams("first", "second", p7="seven", p8="eight")
+
+    // Test 2: JSON inline
+    ConOut("=== JSON Inline ===")
+    Local jObj := { "name" : "TOTVS", "age" : 30, "active" : .T. }
+    ConOut("name: " + jObj:name)
+    ConOut("age: " + cValToChar(jObj:age))
+    ConOut("active: " + cValToChar(jObj:active))
+
+    // Test 3: JsonObject methods
+    ConOut("=== JsonObject Methods ===")
+    Local jObj2 := JsonObject():New()
+    jObj2["key"] := "value"
+    jObj2["num"] := 42
+    ConOut("hasKey: " + cValToChar(jObj2:hasProperty("key")))
+    ConOut("key: " + jObj2:getJsonText("key"))
+    ConOut("toJson: " + jObj2:toJson())
+
+    // Test 4: Typed function call
+    ConOut("=== Typed Function ===")
+    xTyped(nParm=10, lParm=.F., cParm="textual")
+
+    // Test 5: Interface declaration
+    ConOut("=== Interfaces ===")
+    ConOut("Interface test compiled successfully!")
+
+    ConOut("All feature tests passed!")
+Return

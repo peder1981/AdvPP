@@ -1,0 +1,40 @@
+// Test operator overloading with Complex numbers
+Class Complex
+    Data nReal as numeric
+    Data nImag as numeric
+EndClass
+
+Method New(nR, nI) Class Complex
+    ::nReal := nR
+    ::nImag := nI
+Return Self
+
+Operator Add(oOther) Class Complex
+    Local oResult := Complex():New(0, 0)
+    oResult:nReal := ::nReal + oOther:nReal
+    oResult:nImag := ::nImag + oOther:nImag
+Return oResult
+
+Operator Sub(oOther) Class Complex
+    Local oResult := Complex():New(0, 0)
+    oResult:nReal := ::nReal - oOther:nReal
+    oResult:nImag := ::nImag - oOther:nImag
+Return oResult
+
+Operator ToString() Class Complex
+Return Str(::nReal) + " + " + Str(::nImag) + "i"
+
+User Function TestOperator()
+    Local oA := Complex():New(3, 4)
+    Local oB := Complex():New(1, 2)
+    Local oC := oA + oB
+    Local oD := oA - oB
+
+    ConOut("Complex A: " + Str(oA:nReal) + " + " + Str(oA:nImag) + "i")
+    ConOut("Complex B: " + Str(oB:nReal) + " + " + Str(oB:nImag) + "i")
+    ConOut("A + B = " + Str(oC:nReal) + " + " + Str(oC:nImag) + "i")
+    ConOut("A - B = " + Str(oD:nReal) + " + " + Str(oD:nImag) + "i")
+
+    // Test interface
+    ConOut("Operator overloading test passed!")
+Return

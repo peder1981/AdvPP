@@ -1,0 +1,598 @@
+package lexer
+
+import (
+	"fmt"
+	"strings"
+)
+
+type Lexer struct {
+	source   string
+	pos      int
+	line     int
+	col      int
+	fileName string
+	tokens   []Token
+}
+
+func NewLexer(source, fileName string) *Lexer {
+	return &Lexer{
+		source:   source,
+		pos:      0,
+		line:     1,
+		col:      1,
+		fileName: fileName,
+		tokens:   make([]Token, 0),
+	}
+}
+
+func (l *Lexer) peek() byte {
+	if l.pos >= len(l.source) {
+		return 0
+	}
+	return l.source[l.pos]
+}
+
+func (l *Lexer) peekAt(offset int) byte {
+	idx := l.pos + offset
+	if idx >= len(l.source) {
+		return 0
+	}
+	return l.source[idx]
+}
+
+func (l *Lexer) advance() byte {
+	if l.pos >= len(l.source) {
+		return 0
+	}
+	ch := l.source[l.pos]
+	l.pos++
+	if ch == '\n' {
+		l.line++
+		l.col = 1
+	} else {
+		l.col++
+	}
+	return ch
+}
+
+func (l *Lexer) skipWhitespace() {
+	for l.pos < len(l.source) {
+		ch := l.peek()
+		if ch == ' ' || ch == '\t' || ch == '\r' {
+			l.advance()
+		} else if ch == '\n' {
+			l.tokens = append(l.tokens, Token{
+				Type: TOKEN_NEWLINE, Value: "\n",
+				Line: l.line, Col: l.col, FileName: l.fileName,
+			})
+			l.advance()
+		} else {
+			break
+		}
+	}
+}
+
+func (l *Lexer) skipLineComment() {
+	for l.pos < len(l.source) && l.peek() != '\n' {
+		l.advance()
+	}
+}
+
+func (l *Lexer) skipBlockComment() {
+	for l.pos < len(l.source) {
+		if l.peek() == '*' && l.peekAt(1) == '/' {
+			l.advance()
+			l.advance()
+			return
+		}
+		l.advance()
+	}
+}
+
+func (l *Lexer) isAlpha(ch byte) bool {
+	// >= 0x80 covers CP-1252 accented letters (á, ã, ç, ...) — real source
+	// is CP-1252, not UTF-8, and occasionally has them in identifiers/const
+	// names outside comments/strings.
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_' || ch >= 0x80
+}
+
+func (l *Lexer) isDigit(ch byte) bool {
+	return ch >= '0' && ch <= '9'
+}
+
+func (l *Lexer) isAlphaNum(ch byte) bool {
+	return l.isAlpha(ch) || l.isDigit(ch)
+}
+
+func (l *Lexer) lastTokenIsNewlineOrEOF() bool {
+	if len(l.tokens) == 0 {
+		return true
+	}
+	last := l.tokens[len(l.tokens)-1]
+	return last.Type == TOKEN_NEWLINE || last.Type == TOKEN_EOF || last.Type == TOKEN_SEMICOLON
+}
+
+func (l *Lexer) Tokenize() ([]Token, error) {
+	for l.pos < len(l.source) {
+		l.skipWhitespace()
+		if l.pos >= len(l.source) {
+			break
+		}
+
+		line, col := l.line, l.col
+		ch := l.peek()
+
+		// Comments
+		if ch == '/' && l.peekAt(1) == '/' {
+			l.skipLineComment()
+			continue
+		}
+		if ch == '&' && l.peekAt(1) == '&' {
+			// `&&` is a legacy end-of-line comment marker in older Clipper
+			// code, same as `//`. A single '&' (macro expansion) is always
+			// followed by an identifier or '(', never another '&'.
+			l.skipLineComment()
+			continue
+		}
+		if ch == '/' && l.peekAt(1) == '*' {
+			l.advance()
+			l.advance()
+			l.skipBlockComment()
+			continue
+		}
+		if ch == '*' && l.lastTokenIsNewlineOrEOF() {
+			l.skipLineComment()
+			continue
+		}
+
+		// Preprocessor directives — only when '#' starts a line; mid-line
+		// '#' is Clipper's legacy "not equal" operator (`SA1->FIELD # 0`,
+		// same as `<>`/`!=`).
+		if ch == '#' && l.lastTokenIsNewlineOrEOF() {
+			if err := l.tokenizeDirective(line, col); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		// Numbers
+		if l.isDigit(ch) {
+			l.tokenizeNumber(line, col)
+			continue
+		}
+
+		// Strings - double quote
+		if ch == '"' {
+			if err := l.tokenizeString(line, col, '"'); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		// Strings - single quote
+		if ch == '\'' {
+			if err := l.tokenizeString(line, col, '\''); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		// Dot-prefixed literals and operators
+		if ch == '.' {
+			if l.tryDotLiteral(line, col) {
+				continue
+			}
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_DOT, Value: ".", Line: line, Col: col, FileName: l.fileName})
+			continue
+		}
+
+		// Identifiers and keywords
+		if l.isAlpha(ch) {
+			l.tokenizeIdentifier(line, col)
+			continue
+		}
+
+		// Operators and punctuation
+		if err := l.tokenizeOperator(line, col); err != nil {
+			return nil, err
+		}
+	}
+
+	l.tokens = append(l.tokens, Token{
+		Type: TOKEN_EOF, Value: "",
+		Line: l.line, Col: l.col, FileName: l.fileName,
+	})
+
+	return l.tokens, nil
+}
+
+func (l *Lexer) tokenizeDirective(line, col int) error {
+	l.advance() // consume #
+
+	start := l.pos
+	for l.pos < len(l.source) && l.peek() != '\n' && l.peek() != ' ' && l.peek() != '\t' {
+		l.advance()
+	}
+	directive := strings.ToUpper(l.source[start:l.pos])
+
+	for l.pos < len(l.source) && (l.peek() == ' ' || l.peek() == '\t') {
+		l.advance()
+	}
+
+	contentStart := l.pos
+	for l.pos < len(l.source) && l.peek() != '\n' {
+		l.advance()
+	}
+	content := strings.TrimSpace(l.source[contentStart:l.pos])
+
+	var tt TokenType
+	switch directive {
+	case "INCLUDE":
+		tt = TOKEN_PREPROC_INCLUDE
+	case "DEFINE":
+		tt = TOKEN_PREPROC_DEFINE
+	case "UNDEFINE", "UNDEF":
+		tt = TOKEN_PREPROC_UNDEFINE
+	case "IFDEF":
+		tt = TOKEN_PREPROC_IFDEF
+	case "IFNDEF":
+		tt = TOKEN_PREPROC_IFNDEF
+	case "ENDIF":
+		tt = TOKEN_PREPROC_ENDIF
+	case "ELSE":
+		tt = TOKEN_PREPROC_ELSE
+	case "XCOMMAND":
+		tt = TOKEN_PREPROC_XCOMMAND
+	case "XTRANSLATE":
+		tt = TOKEN_PREPROC_XTRANSLATE
+	case "COMMAND":
+		tt = TOKEN_PREPROC_COMMAND
+	case "TRANSLATE":
+		tt = TOKEN_PREPROC_TRANSLATE
+	default:
+		tt = TOKEN_DIRECTIVE
+	}
+
+	l.tokens = append(l.tokens, Token{
+		Type: tt, Value: content,
+		Line: line, Col: col, FileName: l.fileName,
+	})
+	return nil
+}
+
+func (l *Lexer) tokenizeNumber(line, col int) {
+	start := l.pos
+	hasDot := false
+	hasExp := false
+
+	for l.pos < len(l.source) {
+		ch := l.peek()
+		if l.isDigit(ch) {
+			l.advance()
+		} else if ch == '.' && !hasDot && !hasExp {
+			if l.peekAt(1) >= '0' && l.peekAt(1) <= '9' {
+				hasDot = true
+				l.advance()
+			} else {
+				break
+			}
+		} else if (ch == 'e' || ch == 'E') && !hasExp {
+			hasExp = true
+			l.advance()
+			if l.peek() == '+' || l.peek() == '-' {
+				l.advance()
+			}
+		} else {
+			break
+		}
+	}
+
+	l.tokens = append(l.tokens, Token{
+		Type: TOKEN_NUMBER, Value: l.source[start:l.pos],
+		Line: line, Col: col, FileName: l.fileName,
+	})
+}
+
+func (l *Lexer) tokenizeString(line, col int, quote byte) error {
+	l.advance() // consume opening quote
+	var sb strings.Builder
+	for l.pos < len(l.source) {
+		ch := l.peek()
+		if ch == quote {
+			l.advance()
+			// Doubled quote = escaped quote
+			if l.peek() == quote {
+				sb.WriteByte(quote)
+				l.advance()
+				continue
+			}
+			break
+		}
+		// AdvPL/Clipper string literals have no backslash escapes — '\' is
+		// always a literal character (common in paths: "C:\Temp\").
+		sb.WriteByte(ch)
+		l.advance()
+	}
+
+	l.tokens = append(l.tokens, Token{
+		Type: TOKEN_STRING, Value: sb.String(),
+		Line: line, Col: col, FileName: l.fileName,
+	})
+	return nil
+}
+
+func (l *Lexer) tryDotLiteral(line, col int) bool {
+	remaining := l.source[l.pos:]
+	upper := strings.ToUpper(remaining)
+
+	literals := []struct {
+		text string
+		tt   TokenType
+	}{
+		{".AND.", TOKEN_DOT_AND},
+		{".OR.", TOKEN_DOT_OR},
+		{".NOT.", TOKEN_DOT_NOT},
+		{".NULL.", TOKEN_NIL},
+		{".NIL.", TOKEN_NIL},
+		{".T.", TOKEN_TRUE},
+		{".Y.", TOKEN_TRUE},
+		{".F.", TOKEN_FALSE},
+		{".N.", TOKEN_FALSE},
+	}
+
+	for _, lit := range literals {
+		if strings.HasPrefix(upper, lit.text) {
+			for i := 0; i < len(lit.text); i++ {
+				l.advance()
+			}
+			l.tokens = append(l.tokens, Token{
+				Type: lit.tt, Value: lit.text,
+				Line: line, Col: col, FileName: l.fileName,
+			})
+			return true
+		}
+	}
+	return false
+}
+
+func (l *Lexer) tokenizeIdentifier(line, col int) {
+	start := l.pos
+	for l.pos < len(l.source) {
+		ch := l.peek()
+		if l.isAlphaNum(ch) || ch == '_' {
+			l.advance()
+		} else {
+			break
+		}
+	}
+
+	word := l.source[start:l.pos]
+	upper := strings.ToUpper(word)
+
+	if Keywords[upper] {
+		l.tokens = append(l.tokens, Token{
+			Type: TOKEN_KEYWORD, Value: word,
+			Line: line, Col: col, FileName: l.fileName,
+		})
+	} else {
+		l.tokens = append(l.tokens, Token{
+			Type: TOKEN_IDENT, Value: word,
+			Line: line, Col: col, FileName: l.fileName,
+		})
+	}
+}
+
+func (l *Lexer) tokenizeOperator(line, col int) error {
+	ch := l.peek()
+
+	switch ch {
+	case '-':
+		if l.peekAt(1) == '>' {
+			l.advance()
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_ARROW, Value: "->", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
+		if l.peekAt(1) == '-' {
+			l.advance()
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_DECREMENT, Value: "--", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_MINUS, Value: "-", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '+':
+		if l.peekAt(1) == '+' {
+			l.advance()
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_INCREMENT, Value: "++", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_PLUS, Value: "+", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case ':':
+		if l.peekAt(1) == ':' {
+			l.advance()
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_DOUBLECOLON, Value: "::", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
+		if l.peekAt(1) == '=' {
+			l.advance()
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_ASSIGN, Value: ":=", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_COLON, Value: ":", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '=':
+		if l.peekAt(1) == '=' {
+			l.advance()
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_EQ, Value: "==", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_ASSIGN, Value: "=", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '!':
+		if l.peekAt(1) == '=' {
+			l.advance()
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_NEQ, Value: "!=", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_DOT_NOT, Value: "!", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '<':
+		if l.peekAt(1) == '=' {
+			l.advance()
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_LTE, Value: "<=", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
+		if l.peekAt(1) == '>' {
+			l.advance()
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_NEQ, Value: "<>", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_LT, Value: "<", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '>':
+		if l.peekAt(1) == '=' {
+			l.advance()
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_GTE, Value: ">=", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_GT, Value: ">", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '*':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_STAR, Value: "*", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '/':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_SLASH, Value: "/", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '%':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_PERCENT, Value: "%", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '(':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_LPAREN, Value: "(", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case ')':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_RPAREN, Value: ")", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '[':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_LBRACKET, Value: "[", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case ']':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_RBRACKET, Value: "]", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '{':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_LBRACE, Value: "{", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '}':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_RBRACE, Value: "}", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case ';':
+		l.advance()
+		// A ';' with only whitespace before the next newline is Clipper/AdvPL
+		// line continuation: join with the next physical line instead of
+		// emitting a statement separator.
+		lookahead := l.pos
+		for lookahead < len(l.source) && (l.source[lookahead] == ' ' || l.source[lookahead] == '\t' || l.source[lookahead] == '\r') {
+			lookahead++
+		}
+		// A trailing `// comment` still counts as end-of-line for continuation.
+		if lookahead+1 < len(l.source) && l.source[lookahead] == '/' && l.source[lookahead+1] == '/' {
+			for lookahead < len(l.source) && l.source[lookahead] != '\n' {
+				lookahead++
+			}
+		}
+		if lookahead >= len(l.source) || l.source[lookahead] == '\n' {
+			for l.pos < lookahead {
+				l.advance()
+			}
+			if l.pos < len(l.source) {
+				l.advance() // consume the newline itself
+			}
+			return nil
+		}
+		l.tokens = append(l.tokens, Token{Type: TOKEN_SEMICOLON, Value: ";", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case ',':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_COMMA, Value: ",", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '@':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_AT, Value: "@", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '&':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_AMPERSAND, Value: "&", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '|':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_PIPE, Value: "|", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '^':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_CARET, Value: "^", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '~':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_TILDE, Value: "~", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '$':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_DOLLAR, Value: "$", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '?':
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_QUESTION, Value: "?", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	case '#':
+		// Mid-line '#' (a directive-line '#' never reaches here, see the
+		// Tokenize loop's lastTokenIsNewlineOrEOF guard) is Clipper's
+		// legacy not-equal operator.
+		l.advance()
+		l.tokens = append(l.tokens, Token{Type: TOKEN_NEQ, Value: "#", Line: line, Col: col, FileName: l.fileName})
+		return nil
+	}
+
+	return fmt.Errorf("unexpected character %q at %s:%d:%d", ch, l.fileName, line, col)
+}
+
+func Tokenize(source, fileName string) ([]Token, error) {
+	l := NewLexer(source, fileName)
+	return l.Tokenize()
+}
+
+func FilterTokens(tokens []Token) []Token {
+	result := make([]Token, 0, len(tokens))
+	for _, t := range tokens {
+		if t.Type == TOKEN_NEWLINE || t.Type == TOKEN_LINECOMMENT || t.Type == TOKEN_BLOCKCOMMENT {
+			continue
+		}
+		result = append(result, t)
+	}
+	return result
+}

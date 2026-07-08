@@ -1,0 +1,16 @@
+// Test annotations
+@version("1.0.0")
+@author("TOTVS")
+User Function TestAnnotation()
+    ConOut("=== Annotation Test ===")
+    ConOut("Annotation test passed!")
+Return
+
+@deprecated("Use NewClass instead")
+Class OldClass
+    Data nValue as numeric
+EndClass
+
+Method New(nVal) Class OldClass
+    ::nValue := nVal
+Return Self

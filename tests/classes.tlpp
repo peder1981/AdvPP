@@ -1,0 +1,33 @@
+// Test classes and methods - correct AdvPL syntax
+Class Calculator
+    Data nResult as numeric
+EndClass
+
+Method New() Class Calculator
+    ::nResult := 0
+Return Self
+
+Method Add(nA, nB) Class Calculator
+    ::nResult := nA + nB
+Return ::nResult
+
+Method Sub(nA, nB) Class Calculator
+    ::nResult := nA - nB
+Return ::nResult
+
+Method Mul(nA, nB) Class Calculator
+    ::nResult := nA * nB
+Return ::nResult
+
+Method GetResult() Class Calculator
+Return ::nResult
+
+User Function TestClass()
+    Local oCalc := Calculator():New()
+
+    ConOut("Calculator test:")
+    ConOut("Add(10, 5) = " + Str(oCalc:Add(10, 5)))
+    ConOut("Sub(10, 5) = " + Str(oCalc:Sub(10, 5)))
+    ConOut("Mul(10, 5) = " + Str(oCalc:Mul(10, 5)))
+    ConOut("Result = " + Str(oCalc:GetResult()))
+Return

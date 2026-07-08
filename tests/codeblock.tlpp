@@ -1,0 +1,36 @@
+// Test code blocks and Eval
+User Function TestCodeBlock()
+    Local bBlock
+    Local nResult
+
+    // Test 1: Simple code block with no params
+    ConOut("=== Code Block Test 1 ===")
+    bBlock := {|| 42}
+    nResult := Eval(bBlock)
+    ConOut("Result: " + cValToChar(nResult))
+
+    // Test 2: Code block with one param
+    ConOut("=== Code Block Test 2 ===")
+    bBlock := {|x| x * 2}
+    nResult := Eval(bBlock, 21)
+    ConOut("21 * 2 = " + cValToChar(nResult))
+
+    // Test 3: Code block with two params
+    ConOut("=== Code Block Test 3 ===")
+    bBlock := {|a, b| a + b}
+    nResult := Eval(bBlock, 10, 20)
+    ConOut("10 + 20 = " + cValToChar(nResult))
+
+    // Test 4: Code block with string concat
+    ConOut("=== Code Block Test 4 ===")
+    bBlock := {|s| "Hello, " + s + "!"}
+    ConOut(Eval(bBlock, "World"))
+
+    // Test 5: Code block with body statements
+    ConOut("=== Code Block Test 5 ===")
+    bBlock := {|x| (x * 2) + 1}
+    nResult := Eval(bBlock, 5)
+    ConOut("(5*2)+1 = " + cValToChar(nResult))
+
+    ConOut("All code block tests passed!")
+Return

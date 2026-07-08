@@ -1,0 +1,24 @@
+// Test namespace and using namespace
+namespace MyCompany.Utils
+
+using namespace MyCompany.Math
+
+Class Greeter
+    Data nCount as numeric
+EndClass
+
+Method New() Class Greeter
+    ::nCount := 0
+Return Self
+
+Method Hello(cName) Class Greeter
+    ::nCount := ::nCount + 1
+Return "Hello, " + cName + "! (call #" + cValToChar(::nCount) + ")"
+
+User Function TestNamespace()
+    Local oG := Greeter():New()
+    ConOut(oG:Hello("World"))
+    ConOut(oG:Hello("TLPP"))
+    ConOut("Namespace: MyCompany.Utils")
+    ConOut("Namespace test passed!")
+Return

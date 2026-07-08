@@ -1,0 +1,25 @@
+# Binaries
+advplc
+advpp-ide
+*.exe
+*.out
+*.app
+
+# Go
+*.sum
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+build/
+dist/

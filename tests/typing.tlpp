@@ -1,0 +1,55 @@
+// Test typing system - default initialization and typed declarations
+User Function TestTyping()
+    // Test 1: Typed variables with default initialization
+    Local nNum as numeric
+    Local cStr as character
+    Local lBool as logical
+    Local dDate as date
+    Local aArr as array
+
+    ConOut("=== Default Initialization ===")
+    ConOut("nNum (numeric): " + cValToChar(nNum))
+    ConOut("cStr (character): [" + cStr + "]")
+    ConOut("lBool (logical): " + cValToChar(lBool))
+    ConOut("aArr (array): len=" + cValToChar(Len(aArr)))
+
+    // Test 2: Typed variables with initializers
+    Local nVal as numeric := 42
+    Local cName as character := "TOTVS"
+    Local lActive as logical := .T.
+
+    ConOut("=== Typed with Initializers ===")
+    ConOut("nVal: " + cValToChar(nVal))
+    ConOut("cName: " + cName)
+    ConOut("lActive: " + cValToChar(lActive))
+
+    // Test 3: Typed function parameters
+    ConOut("=== Typed Parameters ===")
+    Local nResult := xAddTyped(10, 20)
+    ConOut("xAddTyped(10, 20) = " + cValToChar(nResult))
+
+    // Test 4: Typed class properties
+    ConOut("=== Typed Properties ===")
+    Local oPt := Point():New(3, 4)
+    ConOut("Point x=" + cValToChar(oPt:x) + " y=" + cValToChar(oPt:y))
+    ConOut("Distance = " + cValToChar(oPt:Distance()))
+
+    ConOut("All typing tests passed!")
+Return
+
+Function xAddTyped(nA as numeric, nB as numeric) as numeric
+Return nA + nB
+
+Class Point
+    Data x as numeric
+    Data y as numeric
+EndClass
+
+Method New(nX, nY) Class Point
+    ::x := nX
+    ::y := nY
+Return Self
+
+Method Distance() Class Point
+    Local nSq := (::x * ::x) + (::y * ::y)
+Return Sqrt(nSq)
