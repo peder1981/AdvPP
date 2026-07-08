@@ -34,7 +34,7 @@ func NewAdvCfgWindow(a fyne.App) *AdvCfgWindow {
 	}
 
 	// Carrega dicionário
-	dict, err := shared.NewDictionary("./data/advpl_dictionary.db")
+	dict, err := shared.NewDictionary(shared.ResolveDatabasePath(""))
 	if err != nil {
 		dialog.ShowError(err, w)
 		return nil

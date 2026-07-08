@@ -80,7 +80,7 @@ O dicionário de dados é organizado nas seguintes tabelas principais:
 
 #### Banco de Dados Padrão
 
-Por padrão, o AdvCfg utiliza o banco de dados `./data/advpl_dictionary.db`. Este banco é criado automaticamente na primeira execução e populado com dados iniciais.
+Por padrão, o AdvCfg utiliza o banco de dados `~/.advpp/ADVPP.db`. Este banco é criado automaticamente na primeira execução e populado com dados iniciais.
 
 ### Gerenciamento de Tabelas (SX2)
 

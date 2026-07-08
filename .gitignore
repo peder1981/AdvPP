@@ -9,7 +9,7 @@ adveditor
 *.deb
 
 # Go
-*.sum
+
 vendor/
 
 # IDE
@@ -28,3 +28,8 @@ build/
 dist/
 debian/
 data/
+
+# Artefatos de exemplo
+demo1.bytecode
+hello_exec
+ui-test

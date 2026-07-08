@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // FieldType representa os tipos de campos AdvPL
@@ -703,32 +702,32 @@ func NewSQLiteDriver() *SQLiteDriver {
 	return &SQLiteDriver{}
 }
 
-// Open abre um arquivo SQLite
+// Open abre um arquivo SQLite. Aceita a sintaxe "banco.db/tabela" para
+// abrir uma tabela específica — detectada apenas quando o caminho completo
+// NÃO existe em disco (um caminho absoluto normal contém separadores e não
+// pode ser confundido com essa sintaxe).
 func (s *SQLiteDriver) Open(file string, readOnly, shared bool) error {
 	s.file = file
-	s.alias = filepath.Base(file)
 	s.readOnly = readOnly
 	s.shared = shared
 
-	// Abre o banco de dados SQLite
+	if _, err := os.Stat(file); err != nil {
+		// Talvez seja "banco.db/tabela" (ou "banco.db\tabela" no Windows)
+		if i := strings.LastIndexAny(file, `/\`); i > 0 {
+			base, table := file[:i], file[i+1:]
+			if _, err := os.Stat(base); err == nil {
+				s.file = base
+				s.table = table
+			}
+		}
+	}
+	s.alias = filepath.Base(s.file)
+
+	// Abre o banco de dados SQLite (opener compartilhado, com pragmas)
 	var err error
-	s.db, err = sql.Open("sqlite3", file)
+	s.db, err = OpenSQLite(s.file)
 	if err != nil {
 		return fmt.Errorf("erro ao abrir banco SQLite: %w", err)
-	}
-
-	// Verifica conexão
-	if err := s.db.Ping(); err != nil {
-		return fmt.Errorf("erro ao conectar ao banco SQLite: %w", err)
-	}
-
-	// Se o arquivo contiver "/", assume que é tabela específica
-	// Ex: database.db/table_name
-	if strings.Contains(file, "/") {
-		parts := strings.Split(file, "/")
-		if len(parts) > 1 {
-			s.table = parts[len(parts)-1]
-		}
 	}
 
 	// Se não especificou tabela, obtém a primeira tabela

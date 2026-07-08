@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // Dictionary representa o dicionário de dados
@@ -24,16 +22,10 @@ func NewDictionary(dbPath string) (*Dictionary, error) {
 		return nil, fmt.Errorf("erro ao criar diretório: %w", err)
 	}
 
-	// Abre ou cria o banco de dados
-	db, err := sql.Open("sqlite3", dbPath)
+	// Abre ou cria o banco de dados (opener compartilhado, com pragmas)
+	db, err := OpenSQLite(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao abrir banco de dados: %w", err)
-	}
-
-	// Verifica conexão
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("erro ao conectar ao banco de dados: %w", err)
 	}
 
 	dict := &Dictionary{
@@ -82,7 +74,11 @@ func (d *Dictionary) createTables() error {
 		CREATE TABLE IF NOT EXISTS SX2 (
 			X2_CHAVE TEXT PRIMARY KEY,
 			X2_ALIAS TEXT NOT NULL,
-			X2_NOME TEXT NOT NULL
+			X2_NOME TEXT NOT NULL,
+			X2_NOMEUSR TEXT,
+			X2_MODULO TEXT,
+			X2_TIPO TEXT,
+			X2_DESCRIC TEXT
 		)
 	`); err != nil {
 		fmt.Printf("Erro ao criar tabela SX2: %v\n", err)
@@ -222,6 +218,9 @@ func (d *Dictionary) createTables() error {
 			X5_DESCRIC TEXT,
 			X5_DESCSPA TEXT,
 			X5_DESCENG TEXT,
+			X5_TIPO TEXT,
+			X5_TAMANHO INTEGER,
+			X5_DECIMAL INTEGER,
 			PRIMARY KEY (X5_TABELA, X5_CHAVE)
 		)
 	`); err != nil {

@@ -185,14 +185,14 @@ func (ae *AdvEditorWindow) selectDriver() {
 }
 
 // selectFile seleciona o arquivo de acordo com o driver
-func (ae *AdvEditorWindow) selectFile(driver string, shared, readonly bool) {
+func (ae *AdvEditorWindow) selectFile(driver string, sharedMode, readonly bool) {
 	// Se for SQLite, tenta usar o banco padrão
 	if driver == "SQLite" {
-		defaultDB := "./data/advpl_dictionary.db"
+		defaultDB := shared.ResolveDatabasePath("")
 		// Verifica se o arquivo existe
 		if _, err := os.Stat(defaultDB); err == nil {
 			// Usa o banco padrão automaticamente
-			ae.openDatabasePath(defaultDB, "SQLITE", shared, readonly, driver)
+			ae.openDatabasePath(defaultDB, "SQLITE", sharedMode, readonly, driver)
 			return
 		}
 	}
@@ -208,7 +208,7 @@ func (ae *AdvEditorWindow) selectFile(driver string, shared, readonly bool) {
 		uri := reader.URI()
 		filePath := uri.Path()
 
-		ae.openDatabasePath(filePath, ae.getDriverCode(driver), shared, readonly, driver)
+		ae.openDatabasePath(filePath, ae.getDriverCode(driver), sharedMode, readonly, driver)
 	}, ae.window)
 }
 
@@ -441,7 +441,11 @@ func (ae *AdvEditorWindow) updateDataGrid() {
 
 // openDefaultDatabase abre o banco de dados padrão
 func (ae *AdvEditorWindow) openDefaultDatabase() {
-	defaultDB := "./data/advpl_dictionary.db"
+	defaultDB := shared.ResolveDatabasePath("")
+	if _, err := os.Stat(defaultDB); err != nil {
+		ae.statusBar.SetText("Banco padrão ainda não existe: " + defaultDB)
+		return
+	}
 
 	// Tenta abrir o banco de dados padrão
 	tableInfo, err := ae.tableManager.OpenTable(defaultDB, "SQLITE", false, true)

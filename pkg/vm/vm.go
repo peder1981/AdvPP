@@ -230,7 +230,7 @@ func (v *VM) Run() (advplrt.Value, error) {
 				if v.handleCatch(advErr) {
 					continue
 				}
-				return advplrt.Nil, fmt.Errorf(advErr.String())
+				return advplrt.Nil, fmt.Errorf("%s", advErr.String())
 			}
 			return advplrt.Nil, err
 		}

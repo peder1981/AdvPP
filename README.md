@@ -64,12 +64,41 @@ Return .T.
 ## Compilação
 
 ```bash
-# Compilar compilador de linha de comando
-go build -o advplc ./cmd/advplc
+# Compilar todas as ferramentas (advplc, advcfg, adveditor, advpp-ide)
+make build
 
-# Compilar IDE gráfica
-go build -o advpp-ide ./cmd/advpp-ide
+# Rodar os testes (build + verificação de todos os fixtures em tests/)
+make test
+
+# Cross-compilar o CLI para Linux/Windows/macOS (amd64 e arm64) em dist/
+make cross
+
+# Gerar pacotes versionados (.tar.gz/.zip) em dist/
+make package VERSION=1.1.0
 ```
+
+### Publicar uma nova versão no GitHub
+
+```bash
+make release VERSION=1.1.0
+```
+
+Isso cria e publica a tag `v1.1.0`. O GitHub Actions então compila
+**nativamente** em Linux, Windows e macOS (incluindo as GUIs Fyne), gera os
+pacotes (`.tar.gz`, `.zip`, `.deb`) e anexa tudo à Release automaticamente.
+
+## Banco de dados compartilhado
+
+Todas as ferramentas (advplc, advcfg, adveditor, advpp-ide) enxergam o
+**mesmo** banco SQLite, resolvido nesta ordem:
+
+1. Flag explícita (`advplc run prog.prw --db-path /caminho/banco.db`)
+2. Variável de ambiente `ADVPP_DB`
+3. Banco configurado em `~/.advpp/advpp_config.json`
+4. Padrão: `~/.advpp/ADVPP.db` (criado automaticamente pelo advcfg)
+
+O driver SQLite é 100% Go (modernc.org/sqlite) — sem CGO, sem dependências
+externas, idêntico em Linux, Windows e macOS.
 
 ## Uso
 
