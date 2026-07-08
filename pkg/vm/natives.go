@@ -1051,6 +1051,245 @@ func (v *VM) registerNatives() {
 		"FREEOBJ": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.Nil, nil
 		},
+		"FWFREEOBJ": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"FWFREEARRAY": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"FWFREEVAR": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"FWINPUTBOX": func(args []advplrt.Value) (advplrt.Value, error) {
+			defaultValue := getArgString(args, 2, "")
+			return advplrt.NewString(defaultValue), nil
+		},
+		"FWHTTPENCODE": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			// Basic URL encoding
+			encoded := ""
+			for _, c := range s {
+				if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~' {
+					encoded += string(c)
+				} else {
+					encoded += fmt.Sprintf("%%%02X", c)
+				}
+			}
+			return advplrt.NewString(encoded), nil
+		},
+		"FW8601TODATE": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			t, err := time.Parse(time.RFC3339, s)
+			if err != nil {
+				return advplrt.Nil, nil
+			}
+			return advplrt.NewDate(t), nil
+		},
+		"FWDATETO8601": func(args []advplrt.Value) (advplrt.Value, error) {
+			if d, ok := getArg(args, 0).(*advplrt.DateValue); ok {
+				return advplrt.NewString(d.Val.Format(time.RFC3339)), nil
+			}
+			return advplrt.NewString(""), nil
+		},
+		"FWGETUSERNAME": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString("USER"), nil
+		},
+		"FWRETIDIOM": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString("PORTUGUESE"), nil
+		},
+		"MSRETPATH": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString("./"), nil
+		},
+		"USRRETNAME": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString("USER"), nil
+		},
+		"FWALIASINDIC": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(false), nil
+		},
+		"FWMODEACCESS": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(1), nil
+		},
+		"FWHASACCMODE": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"FWURIDECODE": func(args []advplrt.Value) (advplrt.Value, error) {
+			s := advplrt.ToString(getArg(args, 0))
+			return advplrt.NewString(s), nil
+		},
+		"FWLOADSM0": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"FWJOINFILIAL": func(args []advplrt.Value) (advplrt.Value, error) {
+			field := advplrt.ToString(getArg(args, 0))
+			alias := advplrt.ToString(getArg(args, 1))
+			return advplrt.NewString(field + "_" + alias), nil
+		},
+		"FWRESTAREA": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"FWGETAREA": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(""), nil
+		},
+		"FWAPPSTACK": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(""), nil
+		},
+		"FWCALLAPP": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"FWLIBVERSION": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString("1.0.0"), nil
+		},
+		"FWLISTBRANCHES": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewArray([]advplrt.Value{}), nil
+		},
+		"FWCLEARHLP": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"FWMSGRUN": func(args []advplrt.Value) (advplrt.Value, error) {
+			msg := getArgString(args, 0, "")
+			fmt.Printf("[MSGRUN] %s\n", msg)
+			return advplrt.Nil, nil
+		},
+		"FWMONITORMSG": func(args []advplrt.Value) (advplrt.Value, error) {
+			msg := getArgString(args, 0, "")
+			fmt.Printf("[MONITOR] %s\n", msg)
+			return advplrt.Nil, nil
+		},
+		"AMIONRESTENV": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(false), nil
+		},
+		"AMIIIN": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(false), nil
+		},
+		"CANUSEWEBUI": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"MPISSMART": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(false), nil
+		},
+		"MPUSERHASACCESS": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"MPCRIANUMS": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString("000001"), nil
+		},
+		"MPDOCPATH": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString("./"), nil
+		},
+		"MPDOCVIEW": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"MPBINVIEW": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"MPEXPCHK": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"MSDOCUMENT": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"MSMULTDIR": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewArray([]advplrt.Value{}), nil
+		},
+		"CHANGEQUERY": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"CHKADVPLSYNTAX": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"FILLGETDADOS": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"FWEXECLOCALIZ": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"FWEXISTLOCALIZ": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(false), nil
+		},
+		"FWQTTOCHR": func(args []advplrt.Value) (advplrt.Value, error) {
+			qt := advplrt.ToString(getArg(args, 0))
+			return advplrt.NewString(qt), nil
+		},
+		"FWREBUILDINDEX": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"FWRULESDB": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"FWGRPPRIVDB": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"FWSCHDAVAILABLE": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(false), nil
+		},
+		"FWSCHDBYFUNCTION": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewArray([]advplrt.Value{}), nil
+		},
+		"FWSCHDEMPFIL": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewArray([]advplrt.Value{}), nil
+		},
+		"FWPDCANUSE": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"FWPDLOGUSER": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"FWPUTSX5": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"FWX2CHAVE": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(""), nil
+		},
+		"FWX2UNICO": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(""), nil
+		},
+		"FWX3TITULO": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(""), nil
+		},
+		"FWUSREMP": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString("01"), nil
+		},
+		"FWVLDVINC": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"PESQBRW": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"MARKBROW": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"MAKESQLEXPR": func(args []advplrt.Value) (advplrt.Value, error) {
+			expr := advplrt.ToString(getArg(args, 0))
+			return advplrt.NewString(expr), nil
+		},
+		"MAYIUSECODE": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewBool(true), nil
+		},
+		"RESTINTER": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"SAVEINTER": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"PUTSX1HELP": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"OLE_CREATELINK": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"PROCESSA": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"MENUDEF": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.Nil, nil
+		},
+		"I18N": func(args []advplrt.Value) (advplrt.Value, error) {
+			key := advplrt.ToString(getArg(args, 0))
+			return advplrt.NewString(key), nil
+		},
+		"WSADVVALUE": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(""), nil
+		},
 	}
 
 	for name, fn := range natives {
