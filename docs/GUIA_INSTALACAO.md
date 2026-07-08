@@ -229,7 +229,7 @@ source ~/.bashrc
 advcfg
 ```
 
-O AdvCfg criará automaticamente o arquivo `~/advpp/data/advpl_dictionary.db` com as tabelas do dicionário.
+O AdvCfg criará automaticamente o arquivo `~/.advpp/ADVPP.db` com as tabelas do dicionário.
 
 #### Configurar Caminho do Dicionário
 
@@ -238,7 +238,7 @@ O AdvCfg criará automaticamente o arquivo `~/advpp/data/advpl_dictionary.db` co
 mkdir -p ~/.advpp
 cat > ~/.advpp/advpp_config.json << EOF
 {
-  "default_database": "$HOME/advpp/data/advpl_dictionary.db",
+  "default_database": "~/.advpp/ADVPP.db",
   "recent_files": [],
   "editor_settings": {
     "theme": "dark",
@@ -348,7 +348,7 @@ ls -la test.bytecode
 advcfg
 
 # Verificar se o dicionário foi criado
-ls -la ~/advpp/data/advpl_dictionary.db
+ls -la ~/.advpp/ADVPP.db
 ```
 
 #### Testar AdvEditor
@@ -358,7 +358,7 @@ ls -la ~/advpp/data/advpl_dictionary.db
 adveditor
 
 # Abrir o dicionário
-# Arquivo → Abrir → ~/advpp/data/advpl_dictionary.db
+# Arquivo → Abrir → ~/.advpp/ADVPP.db
 ```
 
 ## Desinstalação

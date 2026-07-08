@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  GO_VERSION: "1.24"
+
+jobs:
+  # CLI advplc: puro Go (CGO_ENABLED=0), cross-compilado de um único runner
+  cli-cross:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Cross-compile advplc
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          make package VERSION="$VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-packages
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+  # Suite completa (inclui GUIs Fyne): build nativo em cada plataforma
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-amd64
+          - os: windows-latest
+            platform: windows-amd64
+          - os: macos-latest
+            platform: darwin-arm64
+          - os: macos-13
+            platform: darwin-amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install Fyne dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+      - name: Build all tools
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          EXT=""
+          [ "${{ runner.os }}" = "Windows" ] && EXT=".exe"
+          mkdir -p out
+          for t in advplc advcfg adveditor advpp-ide; do
+            go build -trimpath -ldflags "-s -w -X main.version=v$VERSION" -o "out/$t$EXT" "./cmd/$t"
+          done
+      - name: Package (tar.gz / zip)
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NAME="advpp-$VERSION-${{ matrix.platform }}"
+          mkdir -p dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            (cd out && 7z a "../dist/$NAME.zip" .) > /dev/null
+          else
+            tar czf "dist/$NAME.tar.gz" -C out .
+          fi
+      - name: Package .deb (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PKG=pkgroot
+          mkdir -p $PKG/DEBIAN $PKG/usr/bin
+          cp out/advplc out/advcfg out/adveditor out/advpp-ide $PKG/usr/bin/
+          cat > $PKG/DEBIAN/control <<EOF
+          Package: advpp
+          Version: $VERSION
+          Section: devel
+          Priority: optional
+          Architecture: amd64
+          Maintainer: AdvPP Team <peder1981@gmail.com>
+          Depends: libc6, libgl1, libx11-6
+          Description: AdvPL/TLPP Development Tools
+           Compiler (advplc), IDE (advpp-ide), dictionary manager (advcfg)
+           and database editor (adveditor) for the AdvPL/TLPP language.
+           All tools share the same SQLite database (~/.advpp/ADVPP.db).
+          EOF
+          dpkg-deb --build --root-owner-group $PKG "dist/advpp_${VERSION}_amd64.deb"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.platform }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.deb
+
+  release:
+    needs: [cli-cross, native]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "AdvPP $GITHUB_REF_NAME" \
+            --generate-notes \
+            artifacts/*

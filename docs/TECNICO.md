@@ -255,7 +255,7 @@ AdvCfg → Dictionary → AdvEditor → IDE
 
 As ferramentas se comunicam através de:
 
-1. **Banco de Dados Compartilhado**: `./data/advpl_dictionary.db`
+1. **Banco de Dados Compartilhado**: `~/.advpp/ADVPP.db`
 2. **Arquivo de Configuração**: `~/.advpp/advpp_config.json`
 3. **API Interna**: Chamadas diretas entre pacotes
 

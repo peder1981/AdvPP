@@ -53,7 +53,7 @@ O AdvCfg utiliza SQLite como backend para o dicionário de dados:
 
 **Localização do Dicionário:**
 ```
-./data/advpl_dictionary.db
+~/.advpp/ADVPP.db
 ```
 
 **Tabelas do Dicionário:**

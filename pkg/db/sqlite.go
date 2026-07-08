@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/advpl/compiler/pkg/tools/shared"
 )
 
 type SQLiteEngine struct {
@@ -17,7 +17,7 @@ type SQLiteEngine struct {
 }
 
 func NewSQLiteEngine(dbPath string) (*SQLiteEngine, error) {
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := shared.OpenSQLite(dbPath)
 	if err != nil {
 		return nil, err
 	}

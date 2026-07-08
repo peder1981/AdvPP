@@ -10,11 +10,16 @@ import (
 	"unicode/utf8"
 
 	"github.com/advpl/compiler/pkg/compiler"
+	"github.com/advpl/compiler/pkg/db"
 	"github.com/advpl/compiler/pkg/lexer"
 	"github.com/advpl/compiler/pkg/parser"
 	"github.com/advpl/compiler/pkg/preprocessor"
+	"github.com/advpl/compiler/pkg/tools/shared"
 	"github.com/advpl/compiler/pkg/vm"
 )
+
+// version é injetada no build via -ldflags "-X main.version=v1.2.3"
+var version = "dev"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -119,6 +124,9 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+
+	case "version", "--version", "-v":
+		fmt.Printf("advplc %s\n", version)
 
 	case "help", "--help", "-h":
 		printUsage()
@@ -241,15 +249,9 @@ func convertToUTF8(source []byte) (string, error) {
 		return string(source), nil
 	}
 
-	// If not valid UTF-8, assume CP1252 and convert using iconv
-	// Try to use iconv command-line tool
-	converted, err := convertWithIconv(source)
-	if err == nil {
-		return converted, nil
-	}
-
-	// If iconv fails, try golang.org/x/text/encoding
-	converted, err = convertWithGoEncoding(source)
+	// If not valid UTF-8, assume CP1252 and convert (pure Go: portável e
+	// determinístico em Linux/Windows/macOS — sem depender do iconv externo)
+	converted, err := convertWithGoEncoding(source)
 	if err == nil {
 		return converted, nil
 	}
@@ -257,37 +259,6 @@ func convertToUTF8(source []byte) (string, error) {
 	// If all conversions fail, return the original string
 	// This allows the lexer to handle any encoding issues
 	return string(source), nil
-}
-
-// convertWithIconv uses the iconv command-line tool to convert CP1252 to UTF-8
-func convertWithIconv(source []byte) (string, error) {
-	// Check if iconv is available
-	if _, err := exec.LookPath("iconv"); err != nil {
-		return "", err
-	}
-
-	// Create a temporary file for input
-	tmpFile, err := os.CreateTemp("", "advpp-convert-*.tmp")
-	if err != nil {
-		return "", err
-	}
-	defer os.Remove(tmpFile.Name())
-
-	// Write source to temp file
-	if _, err := tmpFile.Write(source); err != nil {
-		tmpFile.Close()
-		return "", err
-	}
-	tmpFile.Close()
-
-	// Run iconv to convert CP1252 to UTF-8
-	cmd := exec.Command("iconv", "-f", "CP1252", "-t", "UTF-8", tmpFile.Name())
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-
-	return string(output), nil
 }
 
 // convertWithGoEncoding uses golang.org/x/text/encoding for conversion
@@ -374,8 +345,28 @@ func runFile(sourceFile string, opts *Options) error {
 	}
 
 	v := vm.NewVM(bc, opts.uiEnabled)
+	attachDatabase(v, opts)
 	_, err = v.Run()
 	return err
+}
+
+// attachDatabase conecta o VM ao banco SQLite compartilhado entre todas as
+// ferramentas AdvPP (mesmo resolver usado por advcfg/adveditor/advpp-ide).
+// Sem banco existente, o VM roda com os stubs — comportamento anterior.
+func attachDatabase(v *vm.VM, opts *Options) {
+	dbPath := shared.ResolveDatabasePath(opts.dbPath)
+	if _, err := os.Stat(dbPath); err != nil {
+		if opts.dbPath != "" {
+			fmt.Fprintf(os.Stderr, "Warning: database not found: %s\n", dbPath)
+		}
+		return
+	}
+	engine, err := db.NewSQLiteEngine(dbPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: cannot open database %s: %v\n", dbPath, err)
+		return
+	}
+	v.SetDBEngine(engine)
 }
 
 func checkFile(sourceFile string, opts *Options) error {
@@ -399,6 +390,7 @@ func execBytecode(bytecodeFile string, opts *Options) error {
 	}
 
 	v := vm.NewVM(bc, opts.uiEnabled)
+	attachDatabase(v, opts)
 	_, err = v.Run()
 	return err
 }
@@ -588,6 +580,9 @@ Options:
   --headless                    Disable UI (default)
   --db <backend>                Database backend: sqlite (default) or odbc
   --db-path <path>              Path to SQLite database file
+                                (default: $ADVPP_DB, or the shared AdvPP
+                                database configured in ~/.advpp — the same
+                                database used by advcfg/adveditor/advpp-ide)
   -o <file>                     Output file for compile command
 
 Examples:

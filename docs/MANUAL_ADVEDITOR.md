@@ -89,7 +89,7 @@ A interface do AdvEditor é composta por:
 
 #### Banco de Dados Padrão
 
-O AdvEditor abre automaticamente o banco de dados padrão `./data/advpl_dictionary.db` ao iniciar, se ele existir.
+O AdvEditor abre automaticamente o banco de dados padrão `~/.advpp/ADVPP.db` ao iniciar, se ele existir.
 
 #### Fechar Banco de Dados
 
