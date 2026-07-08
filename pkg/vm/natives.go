@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/advpl/compiler/pkg/mvc"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
@@ -767,7 +768,48 @@ func (v *VM) registerNatives() {
 			return advplrt.NewString(""), nil
 		},
 
-		// --- MVC stubs ---
+		// --- MVC ---
+		"FWFORMMODEL": func(args []advplrt.Value) (advplrt.Value, error) {
+			name := advplrt.ToString(getArg(args, 0))
+			model := mvc.NewFWFormModel(name)
+			modelID := v.registerMVCModel(model)
+			obj := advplrt.NewObject("FWFormModel", nil)
+			obj.Props["name"] = advplrt.NewString(name)
+			obj.Props["_modelId"] = advplrt.NewNumber(float64(modelID))
+			return obj, nil
+		},
+		"FWFORMVIEW": func(args []advplrt.Value) (advplrt.Value, error) {
+			name := advplrt.ToString(getArg(args, 0))
+			modelArg := getArg(args, 1)
+			var model *mvc.FWFormModel
+			if modelObj, ok := modelArg.(*advplrt.ObjectValue); ok {
+				if id, ok := modelObj.Props["_modelId"].(*advplrt.NumberValue); ok {
+					model = v.getMVCModel(int(id.Val))
+				}
+			}
+			view := mvc.NewFWFormView(name, model)
+			viewID := v.registerMVCView(view)
+			obj := advplrt.NewObject("FWFormView", nil)
+			obj.Props["name"] = advplrt.NewString(name)
+			obj.Props["_viewId"] = advplrt.NewNumber(float64(viewID))
+			return obj, nil
+		},
+		"FWFORMBROWSE": func(args []advplrt.Value) (advplrt.Value, error) {
+			name := advplrt.ToString(getArg(args, 0))
+			modelArg := getArg(args, 1)
+			var model *mvc.FWFormModel
+			if modelObj, ok := modelArg.(*advplrt.ObjectValue); ok {
+				if id, ok := modelObj.Props["_modelId"].(*advplrt.NumberValue); ok {
+					model = v.getMVCModel(int(id.Val))
+				}
+			}
+			browse := mvc.NewFWFormBrowse(name, model)
+			browseID := v.registerMVCBrowse(browse)
+			obj := advplrt.NewObject("FWFormBrowse", nil)
+			obj.Props["name"] = advplrt.NewString(name)
+			obj.Props["_browseId"] = advplrt.NewNumber(float64(browseID))
+			return obj, nil
+		},
 		"FWFORMSTRUCT": func(args []advplrt.Value) (advplrt.Value, error) {
 			obj := advplrt.NewObject("FWFormStruct", nil)
 			return obj, nil

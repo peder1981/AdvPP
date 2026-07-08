@@ -17,7 +17,46 @@ A fully functional compiler and interpreter for the AdvPL and TLPP programming l
 - **Database**: Workarea-based database operations (DbSelectArea, DbSeek, DbSkip, RecLock, etc.)
 - **Classes**: Full class system with Data/Method/Constructor, inheritance via `from`
 - **Code Blocks**: Executable code blocks `{|| ... }`
-- **MVC**: FWFormModel, FWFormView, FWFormBrowse support
+- **MVC**: FWFormModel, FWFormView, FWFormBrowse support with field validation and event handling
+
+## MVC Framework
+
+The AdvPP compiler includes a complete MVC (Model-View-Controller) framework for building structured applications:
+
+### MVC Components
+
+**FWFormModel** - Data model with field definitions and validation:
+```advpl
+oModel := FWFormModel("CustomerModel")
+```
+
+**FWFormView** - Form view with components and event handling:
+```advpl
+oView := FWFormView("CustomerView", oModel)
+```
+
+**FWFormBrowse** - Grid/browse component for data display:
+```advpl
+oBrowse := FWFormBrowse("CustomerBrowse", oModel)
+```
+
+### Features
+- Field validation (required, length, range, custom)
+- Event handling (onChange, onClick, onGotFocus, onLostFocus)
+- Component-based UI (TButton, TGet, TComboBox, TCheckBox, etc.)
+- Dialog support (dialogs, menus, toolbars, status bars)
+- Browse events (onLineChange, onDbClick, onHeaderClick)
+
+### Example
+```advpl
+User Function MVCTest()
+    Local oModel := FWFormModel("CustomerModel")
+    Local oView := FWFormView("CustomerView", oModel)
+    Local oBrowse := FWFormBrowse("CustomerBrowse", oModel)
+    
+    // Use MVC components...
+Return .T.
+```
 
 ## Building
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/advpl/compiler/pkg/compiler"
+	"github.com/advpl/compiler/pkg/mvc"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
@@ -57,6 +58,10 @@ type VM struct {
 	output       strings.Builder
 	namedArgs    []namedArgInfo // tracks named parameter info for current call
 	argCounter   int            // counts args pushed for current call
+	mvcModels    map[int]*mvc.FWFormModel
+	mvcViews     map[int]*mvc.FWFormView
+	mvcBrowses   map[int]*mvc.FWFormBrowse
+	mvcNextID    int
 }
 
 type namedArgInfo struct {
@@ -96,6 +101,10 @@ func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 		classes:      make(map[string]*advplrt.ClassDef),
 		methodBodies: make(map[string]interface{}),
 		uiEnabled:    uiEnabled,
+		mvcModels:    make(map[int]*mvc.FWFormModel),
+		mvcViews:     make(map[int]*mvc.FWFormView),
+		mvcBrowses:   make(map[int]*mvc.FWFormBrowse),
+		mvcNextID:    1,
 	}
 	v.registerClasses()
 	v.registerNatives()
@@ -138,6 +147,31 @@ func (v *VM) registerClasses() {
 		Properties: map[string]string{"description": "character", "genCode": "numeric"},
 		Methods: map[string]*advplrt.MethodDef{
 			"NEW": {Name: "NEW", ClassName: "ErrorClass"},
+		},
+	}
+
+	// Register MVC classes as built-in classes
+	v.classes["FWFORMMODEL"] = &advplrt.ClassDef{
+		Name:       "FWFormModel",
+		Properties: map[string]string{"name": "character", "_modelId": "numeric"},
+		Methods: map[string]*advplrt.MethodDef{
+			"NEW": {Name: "NEW", ClassName: "FWFormModel"},
+		},
+	}
+
+	v.classes["FWFORMVIEW"] = &advplrt.ClassDef{
+		Name:       "FWFormView",
+		Properties: map[string]string{"name": "character", "_viewId": "numeric"},
+		Methods: map[string]*advplrt.MethodDef{
+			"NEW": {Name: "NEW", ClassName: "FWFormView"},
+		},
+	}
+
+	v.classes["FWFORMBROWSE"] = &advplrt.ClassDef{
+		Name:       "FWFormBrowse",
+		Properties: map[string]string{"name": "character", "_browseId": "numeric"},
+		Methods: map[string]*advplrt.MethodDef{
+			"NEW": {Name: "NEW", ClassName: "FWFormBrowse"},
 		},
 	}
 }
@@ -568,6 +602,62 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		if v.dbEngine != nil {
 			v.dbEngine.MsUnlock()
 		}
+	case compiler.OP_MVC_NEW_MODEL:
+		name := v.pop()
+		if s, ok := name.(*advplrt.StringValue); ok {
+			obj := advplrt.NewObject("FWFormModel", nil)
+			obj.Props["name"] = s
+			v.push(obj)
+		}
+	case compiler.OP_MVC_NEW_VIEW:
+		name := v.pop()
+		model := v.pop()
+		if s, ok := name.(*advplrt.StringValue); ok {
+			obj := advplrt.NewObject("FWFormView", nil)
+			obj.Props["name"] = s
+			obj.Props["model"] = model
+			v.push(obj)
+		}
+	case compiler.OP_MVC_NEW_BROWSE:
+		name := v.pop()
+		model := v.pop()
+		if s, ok := name.(*advplrt.StringValue); ok {
+			obj := advplrt.NewObject("FWFormBrowse", nil)
+			obj.Props["name"] = s
+			obj.Props["model"] = model
+			v.push(obj)
+		}
+	case compiler.OP_MVC_ADD_FIELD:
+		v.pop()
+	case compiler.OP_MVC_ADD_COMPONENT:
+		v.pop()
+	case compiler.OP_MVC_ADD_COLUMN:
+		v.pop()
+	case compiler.OP_MVC_SET_PROPERTY:
+		value := v.pop()
+		prop := v.pop()
+		obj := v.pop()
+		if o, ok := obj.(*advplrt.ObjectValue); ok {
+			if p, ok := prop.(*advplrt.StringValue); ok {
+				o.Props[p.Val] = value
+			}
+		}
+	case compiler.OP_MVC_GET_PROPERTY:
+		prop := v.pop()
+		obj := v.pop()
+		if o, ok := obj.(*advplrt.ObjectValue); ok {
+			if p, ok := prop.(*advplrt.StringValue); ok {
+				if val, exists := o.Props[p.Val]; exists {
+					v.push(val)
+				} else {
+					v.push(advplrt.Nil)
+				}
+			}
+		}
+	case compiler.OP_MVC_VALIDATE:
+		v.push(advplrt.True)
+	case compiler.OP_MVC_SHOW:
+		fmt.Println("[MVC] Show called")
 	case compiler.OP_HALT:
 		// Stop execution
 	case compiler.OP_NAMED_ARG:
@@ -1059,6 +1149,24 @@ func (v *VM) newInstance(className string, args []advplrt.Value) error {
 			obj.Props["GENCODE"] = advplrt.NewNumber(0)
 			v.push(obj)
 			return nil
+		case "FWFORMMODEL":
+			obj := advplrt.NewObject("FWFormModel", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			obj.Props["_MODELID"] = advplrt.NewNumber(0)
+			v.push(obj)
+			return nil
+		case "FWFORMVIEW":
+			obj := advplrt.NewObject("FWFormView", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			obj.Props["_VIEWID"] = advplrt.NewNumber(0)
+			v.push(obj)
+			return nil
+		case "FWFORMBROWSE":
+			obj := advplrt.NewObject("FWFormBrowse", cls)
+			obj.Props["NAME"] = advplrt.NewString("")
+			obj.Props["_BROWSEID"] = advplrt.NewNumber(0)
+			v.push(obj)
+			return nil
 		default:
 			return fmt.Errorf("unknown class: %s", className)
 		}
@@ -1120,6 +1228,40 @@ func defaultValueForType(typeName string) advplrt.Value {
 
 func timeZero() time.Time {
 	return time.Time{}
+}
+
+// MVC registration methods
+func (v *VM) registerMVCModel(model *mvc.FWFormModel) int {
+	id := v.mvcNextID
+	v.mvcNextID++
+	v.mvcModels[id] = model
+	return id
+}
+
+func (v *VM) getMVCModel(id int) *mvc.FWFormModel {
+	return v.mvcModels[id]
+}
+
+func (v *VM) registerMVCView(view *mvc.FWFormView) int {
+	id := v.mvcNextID
+	v.mvcNextID++
+	v.mvcViews[id] = view
+	return id
+}
+
+func (v *VM) getMVCView(id int) *mvc.FWFormView {
+	return v.mvcViews[id]
+}
+
+func (v *VM) registerMVCBrowse(browse *mvc.FWFormBrowse) int {
+	id := v.mvcNextID
+	v.mvcNextID++
+	v.mvcBrowses[id] = browse
+	return id
+}
+
+func (v *VM) getMVCBrowse(id int) *mvc.FWFormBrowse {
+	return v.mvcBrowses[id]
 }
 
 func (v *VM) doReturn(val advplrt.Value) error {
