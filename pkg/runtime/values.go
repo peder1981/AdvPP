@@ -154,6 +154,7 @@ type ObjectValue struct {
 	ClassName string
 	Props     map[string]Value
 	Class     *ClassDef
+	Native    interface{} // estado Go de classes de framework nativas (ex.: FWGridProcess)
 }
 
 func (o *ObjectValue) Type() string   { return "O" }
