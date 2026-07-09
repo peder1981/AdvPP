@@ -1054,6 +1054,16 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 		if err != nil {
 			return nil, err
 		}
+		// `@ x,y GET var` precisa do NOME da variável para o diálogo web
+		// escrever o valor digitado de volta (via FunctionInfo.LocalNames);
+		// vai como string antes do valor: AT_GET(x, y, "cNome", cNome, ...)
+		if verb == "GET" {
+			name := ""
+			if ident, ok := mainVal.(*ast.Ident); ok {
+				name = ident.Name
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(tok), Value: name})
+		}
 		args = append(args, mainVal)
 	}
 
@@ -1062,10 +1072,23 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") {
 			continue // flag clauses, no value
 		}
+		clauseName := strings.ToUpper(clauseTok.Value)
 		vals, err := p.parseCommaValues()
 		if err != nil {
 			return nil, err
 		}
+		// VALID/WHEN/ACTION são lazy no Protheus (#xcommand embrulha em
+		// codeblock); replica isso para não avaliar a expressão na hora
+		// de montar o controle
+		if clauseName == "VALID" || clauseName == "WHEN" || clauseName == "ACTION" {
+			for i, v := range vals {
+				if _, isBlock := v.(*ast.CodeBlock); !isBlock {
+					vals[i] = &ast.CodeBlock{Loc: p.posFromToken(clauseTok), Expr: v}
+				}
+			}
+		}
+		// etiqueta a cláusula: AT_SAY(x, y, txt, "SIZE", w, h, "PICTURE", pic)
+		args = append(args, &ast.StringLit{Loc: p.posFromToken(clauseTok), Value: clauseName})
 		args = append(args, vals...)
 	}
 

@@ -175,6 +175,7 @@ func (c *Compiler) compileFunction(fn *ast.FunctionDecl) error {
 	}
 
 	info.NumLocals = ctx.nextLocal
+	info.LocalNames = ctx.locals
 	return nil
 }
 
@@ -234,6 +235,7 @@ func (c *Compiler) compileMethod(m *ast.MethodImpl) error {
 	}
 
 	info.NumLocals = ctx.nextLocal
+	info.LocalNames = ctx.locals
 	return nil
 }
 
