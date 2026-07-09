@@ -6,24 +6,27 @@ O AdvPlc é o compilador oficial do AdvPP para as linguagens AdvPL e TLPP. Ele p
 
 ## Requisitos do Sistema
 
-- **Sistema Operacional**: Linux (Ubuntu 20.04+, Debian 11+, Fedora 35+)
-- **Memória RAM**: Mínimo 1GB, recomendado 2GB
-- **Espaço em Disco**: 50MB para instalação
-- **Processador**: Arquitetura x86_64 (amd64)
+- **Sistema Operacional**: Linux, Windows 64-bit ou macOS (binário 100% estático, sem dependências externas)
+- **Arquiteturas**: amd64 e arm64
+- **Espaço em Disco**: ~15MB
 
 ## Instalação
 
-### Via Pacote Debian/Ubuntu
+### Via Release do GitHub (recomendado)
+
+Baixe o pacote da sua plataforma em https://github.com/peder1981/AdvPP/releases:
+
+- `advpp-cli-<versão>-linux-amd64.tar.gz` / `linux-arm64`
+- `advpp-cli-<versão>-windows-amd64.zip`
+- `advpp-cli-<versão>-darwin-amd64.tar.gz` / `darwin-arm64` (macOS)
+- `advpp_<versão>_amd64.deb` (Debian/Ubuntu, inclui as ferramentas gráficas)
 
 ```bash
-# Baixar o pacote
-wget https://github.com/peder1981/AdvPP/releases/download/v1.0.0/advpp_1.0.0_amd64.deb
+# Linux/macOS
+tar xzf advpp-cli-*.tar.gz && sudo mv advplc /usr/local/bin/
 
-# Instalar
-sudo dpkg -i advpp_1.0.0_amd64.deb
-
-# Resolver dependências se necessário
-sudo apt-get install -f
+# Debian/Ubuntu (suite completa)
+sudo dpkg -i advpp_*_amd64.deb
 ```
 
 ### Via Compilação
@@ -33,11 +36,11 @@ sudo apt-get install -f
 git clone https://github.com/peder1981/AdvPP.git
 cd AdvPP
 
-# Compilar
-go build -o advplc ./cmd/advplc
+# Compilar todas as ferramentas
+make build
 
-# Instalar
-sudo cp advplc /usr/local/bin/
+# Cross-compilar o CLI para todas as plataformas (dist/)
+make cross
 ```
 
 ## Visão Geral
@@ -72,65 +75,81 @@ Execução na VM
 
 ## Uso Básico
 
-### Compilar Arquivo Individual
+O advplc trabalha com subcomandos:
 
 ```bash
-advplc arquivo.prw
+advplc <comando> <arquivo(s)> [opções]
 ```
 
-Isso gera o arquivo `arquivo.bytecode`.
-
-### Compilar com Saída Específica
+### Executar um fonte diretamente
 
 ```bash
-advplc -o output.bytecode arquivo.prw
+advplc run programa.prw
+advplc run programa.prw --ui              # com diálogos gráficos (Fyne)
+advplc run programa.prw --db-path meu.db  # conectado a um banco específico
 ```
 
-### Compilar Múltiplos Arquivos
+### Compilar para bytecode
 
 ```bash
-advplc arquivo1.prw arquivo2.prw arquivo3.prw
+advplc compile programa.prw -o programa.bytecode
+advplc exec programa.bytecode              # executa o bytecode
 ```
 
-### Compilar Diretório Inteiro
+### Verificar sintaxe (um ou vários arquivos, em paralelo)
 
 ```bash
-advplc -d ./src
+advplc check programa.prw
+
+# Múltiplos arquivos: verificação paralela (1 worker por CPU).
+# Os arquivos vêm ANTES das opções:
+advplc check src/*.prw src/*.tlpp -I ./includes
 ```
 
-Compila todos os arquivos `.prw` e `.tlpp` no diretório especificado.
+Saída do modo múltiplo: `OK`/`FAIL` por arquivo e um resumo
+(`checked N files: X ok, Y failed (W workers)`). Código de saída 1 se
+qualquer arquivo falhar.
+
+### Executável standalone
+
+```bash
+advplc build programa.prw -o programa
+```
+
+Embute bytecode e runtime num executável independente (requer Go instalado).
+
+### Inspeção
+
+```bash
+advplc ast programa.prw       # imprime a AST
+advplc bytecode programa.prw  # imprime o bytecode
+advplc version                # versão do compilador
+```
 
 ## Opções de Linha de Comando
 
-### Opções Principais
-
 | Opção | Descrição | Exemplo |
 |-------|-----------|---------|
-| `-o, --output` | Define arquivo de saída | `-o saida.bytecode` |
-| `-d, --dir` | Compila diretório inteiro | `-d ./src` |
-| `-r, --recursive` | Compila recursivamente | `-r ./src` |
-| `-v, --verbose` | Modo verboso | `-v` |
-| `-q, --quiet` | Modo silencioso | `-q` |
-| `-h, --help` | Mostra ajuda | `-h` |
-| `--version` | Mostra versão | `--version` |
+| `-I, --include <dir>` | Adiciona diretório de include (repetível) | `-I ./includes` |
+| `-D, --define <k=v>` | Define símbolo do preprocessador | `-D DEBUG=1` |
+| `--ui` | Habilita interface gráfica (Fyne) | `--ui` |
+| `--headless` | Desabilita UI (padrão) | `--headless` |
+| `--db <backend>` | Backend de banco: sqlite (padrão) | `--db sqlite` |
+| `--db-path <path>` | Caminho do banco SQLite | `--db-path dados.db` |
+| `-o <file>` | Arquivo de saída (compile/build) | `-o saida.bytecode` |
 
-### Opções de Compilação
+### Banco de dados compartilhado
 
-| Opção | Descrição | Exemplo |
-|-------|-----------|---------|
-| `-t, --target` | Define target (advpl/tlpp) | `-t tlpp` |
-| `-O, --optimize` | Nível de otimização (0-3) | `-O2` |
-| `-g, --debug` | Inclui símbolos de debug | `-g` |
-| `--strict` | Modo estrito de validação | `--strict` |
-| `--no-warnings` | Suprime warnings | `--no-warnings` |
+Sem `--db-path`, o runtime resolve o banco na mesma ordem de todas as
+ferramentas AdvPP: variável `ADVPP_DB` → config `~/.advpp/advpp_config.json`
+→ padrão `~/.advpp/ADVPP.db`. Assim `DBSelectArea`/`DBSeek`/`RecCount` etc.
+enxergam exatamente o mesmo banco que o AdvCfg e o AdvEditor.
 
-### Opções de Include
+### Encoding CP-1252
 
-| Opção | Descrição | Exemplo |
-|-------|-----------|---------|
-| `-I, --include` | Adiciona diretório de include | `-I ./include` |
-| `-D, --define` | Define macro | `-D DEBUG` |
-| `-U, --undefine` | Undefine macro | `-U DEBUG` |
+Fontes em CP-1252 (padrão Protheus) são detectados e convertidos
+automaticamente para UTF-8 por conversor interno 100% Go — não há
+dependência do `iconv` e o comportamento é idêntico em Linux, Windows e macOS.
 
 ## Sintaxe AdvPL
 
@@ -416,64 +435,52 @@ local nValor := 10
 #include "totvs.ch"
 ```
 
-## Otimizações
+## Performance
 
-### Níveis de Otimização
+O compilador é otimizado para fontes reais do Protheus: um arquivo de
+~574KB compila em ~0,1s e um lote de 300 fontes reais é verificado em
+~1,2s com `advplc check` paralelo (1 worker por CPU).
 
-**-O0**: Sem otimização (padrão)
-- Compilação rápida
-- Bytecode não otimizado
-- Útil para debug
+Não há níveis de otimização configuráveis — o bytecode gerado é único.
 
-**-O1**: Otimização básica
-- Remoção de código morto
-- Simplificação de expressões
-- Bom equilíbrio
+## Multi-thread no runtime
 
-**-O2**: Otimização agressiva
-- Inlining de funções
-- Loop unrolling
-- Melhor performance
+### StartJob
 
-**-O3**: Otimização máxima
-- Todas as otimizações de -O2
-- Otimizações avançadas
-- Maior tempo de compilação
-
-### Exemplo de Otimização
-
-```bash
-# Sem otimização
-advplc -O0 arquivo.prw
-
-# Otimização básica
-advplc -O1 arquivo.prw
-
-# Otimização agressiva
-advplc -O2 arquivo.prw
-
-# Otimização máxima
-advplc -O3 arquivo.prw
+```advpl
+// StartJob(cFunc, cEnv, lWait, params...)
+StartJob("U_Worker", "ENV", .F., "parametro")   // assíncrono
+StartJob("U_Worker", "ENV", .T., "parametro")   // síncrono (bloqueia)
 ```
 
-## Debug
+Cada job roda em uma VM isolada (memória própria, como um work process
+do Protheus) com sua própria conexão ao banco SQLite compartilhado.
+Jobs assíncronos pendentes são aguardados antes de o processo encerrar.
 
-### Compilar com Debug
+### FWGridProcess
 
-```bash
-advplc -g arquivo.prw
+Processamento em grid com pool de threads (ver documentação TDN):
+
+```advpl
+oGrid := FWGridProcess():New("ROTINA", "Titulo", "Descricao", Nil, "", "U_GridWk", .T.)
+oGrid:SetThreadGrid(4)              // pool de 4 threads
+For nX := 1 To 100
+    If !oGrid:CallExecute(nX)       // despacha p/ o pool (backpressure)
+        Exit                        // .F. = StopExecute() foi chamado
+    EndIf
+Next nX
+oGrid:Activate()                    // espera as threads terminarem
+If oGrid:IsFinished()
+    ConOut("ok")
+EndIf
 ```
 
-Isso inclui informações de debug no bytecode, permitindo:
-
-- Breakpoints
-- Inspeção de variáveis
-- Call stack
-- Step-by-step
-
-### Executar com Debug
-
-Use o AdvPP IDE para depurar o bytecode gerado.
+Métodos suportados: `New`, `Activate`, `Execute`, `DeActivate`,
+`SetThreadGrid`, `SetMaxThreadGrid`, `CallExecute`, `StopExecute`,
+`IsFinished`, `SetAbort`, `SetAfterExecute`, `SetMeters`, `SetMaxMeter`,
+`SetIncMeter`, `SetNoParam`, `SaveLog`, `GetLastLog`.
+A interface gráfica de configuração do Protheus não é reproduzida
+(runtime headless); a semântica de processamento é completa.
 
 ## Integração com IDE
 

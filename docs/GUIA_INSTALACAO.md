@@ -36,22 +36,20 @@ Este é o método mais simples e recomendado para usuários de Debian, Ubuntu e 
 
 #### Passo 1: Baixar o Pacote
 
-```bash
-# Baixar a versão mais recente
-wget https://github.com/peder1981/AdvPP/releases/download/v1.0.0/advpp_1.0.0_amd64.deb
-```
-
-Ou use o comando `curl`:
+Acesse https://github.com/peder1981/AdvPP/releases e baixe o
+`advpp_<versão>_amd64.deb` mais recente, ou via linha de comando:
 
 ```bash
-curl -L -o advpp_1.0.0_amd64.deb https://github.com/peder1981/AdvPP/releases/download/v1.0.0/advpp_1.0.0_amd64.deb
+# Baixa o .deb da última release automaticamente
+curl -sL https://api.github.com/repos/peder1981/AdvPP/releases/latest \
+  | grep browser_download_url | grep amd64.deb | cut -d'"' -f4 | xargs wget
 ```
 
 #### Passo 2: Instalar o Pacote
 
 ```bash
 # Instalar o pacote
-sudo dpkg -i advpp_1.0.0_amd64.deb
+sudo dpkg -i advpp_*_amd64.deb
 ```
 
 #### Passo 3: Resolver Dependências
@@ -111,9 +109,9 @@ cd AdvPP
 
 ```bash
 # Compilar todas as ferramentas
-go build -o advpp-ide ./cmd/advpp-ide
-go build -o advcfg ./cmd/advcfg
-go build -o adveditor ./cmd/adveditor
+make build
+
+# (ou individualmente)
 go build -o advplc ./cmd/advplc
 ```
 
@@ -154,11 +152,14 @@ Este método é útil quando você não tem permissões de administrador ou pref
 mkdir -p ~/advpp/bin
 cd ~/advpp/bin
 
-# Baixar os binários (substitua pelos links corretos)
-wget https://github.com/peder1981/AdvPP/releases/download/v1.0.0/advpp-ide
-wget https://github.com/peder1981/AdvPP/releases/download/v1.0.0/advcfg
-wget https://github.com/peder1981/AdvPP/releases/download/v1.0.0/adveditor
-wget https://github.com/peder1981/AdvPP/releases/download/v1.0.0/advplc
+# Baixar o pacote da sua plataforma em:
+#   https://github.com/peder1981/AdvPP/releases
+# Linux:   advpp-<versão>-linux-amd64.tar.gz   (suite completa)
+# Windows: advpp-<versão>-windows-amd64.zip
+# macOS:   advpp-<versão>-darwin-arm64.tar.gz (Apple Silicon)
+#          advpp-<versão>-darwin-amd64.tar.gz (Intel)
+# Somente CLI (todas as plataformas): advpp-cli-<versão>-*.tar.gz/.zip
+tar xzf advpp-*.tar.gz
 ```
 
 #### Passo 2: Tornar Executáveis
@@ -405,10 +406,12 @@ update-desktop-database ~/.local/share/applications/
 
 ```bash
 # Baixar nova versão
-wget https://github.com/peder1981/AdvPP/releases/download/v1.1.0/advpp_1.1.0_amd64.deb
+# Baixe o .deb mais recente em https://github.com/peder1981/AdvPP/releases
+curl -sL https://api.github.com/repos/peder1981/AdvPP/releases/latest \
+  | grep browser_download_url | grep amd64.deb | cut -d'"' -f4 | xargs wget
 
 # Instalar nova versão
-sudo dpkg -i advpp_1.1.0_amd64.deb
+sudo dpkg -i advpp_*_amd64.deb
 
 # Resolver dependências se necessário
 sudo apt-get install -f
@@ -450,7 +453,7 @@ bash: advpp-ide: command not found
 which advpp-ide
 
 # Se não existir, reinstale
-sudo dpkg -i advpp_1.0.0_amd64.deb
+sudo dpkg -i advpp_*_amd64.deb
 
 # Se existir, adicione ao PATH
 export PATH="/usr/local/bin:$PATH"
@@ -460,7 +463,7 @@ export PATH="/usr/local/bin:$PATH"
 
 **Sintoma:**
 ```bash
-$ sudo dpkg -i advpp_1.0.0_amd64.deb
+$ sudo dpkg -i advpp_*_amd64.deb
 dpkg: dependency problems prevent configuration...
 ```
 
@@ -522,7 +525,7 @@ cat ~/.advpp/logs/advpp-ide.log
 
 # Reinstalar
 sudo dpkg -r advpp
-sudo dpkg -i advpp_1.0.0_amd64.deb
+sudo dpkg -i advpp_*_amd64.deb
 
 # Se persistir, reporte o bug
 ```

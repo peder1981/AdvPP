@@ -81,6 +81,24 @@ O compilador AdvPP faz parsing da sintaxe REST 2.0 mas **integração de servido
 - ❌ Invocação de serviço
 - ❌ Integração de cliente HTTP
 
+## Banco de Dados e Multi-thread (atualizado 2026-07-08)
+
+### Status Atual: Funcional
+
+- ✅ **Banco SQLite compartilhado**: todas as ferramentas (advplc, advcfg,
+  adveditor, advpp-ide) resolvem o mesmo banco (`~/.advpp/ADVPP.db`) via
+  `shared.ResolveDatabasePath` (flag → `ADVPP_DB` → config → padrão)
+- ✅ **Driver 100% Go** (modernc.org/sqlite, sem CGO) com WAL + busy_timeout
+- ✅ **Natives de banco conectados ao VM**: DBSelectArea, DBSeek, DBSkip,
+  RecCount, FieldGet/FieldPut etc. operam sobre o banco real
+- ✅ **StartJob(cFunc, cEnv, lWait, params...)**: execução em VM isolado
+  (goroutine), síncrona ou assíncrona, com conexão própria ao banco
+- ✅ **FWGridProcess**: pool de threads com backpressure (SetThreadGrid,
+  CallExecute, StopExecute, IsFinished, meters, SaveLog)
+- ✅ **advplc check paralelo**: N arquivos com 1 worker por CPU
+- ⚠️ Locks de registro (RecLock/MsUnlock) são no-ops — sem controle de
+  concorrência em escrita entre processos
+
 ## Resumo
 
 | Recurso | Status | Notas |
