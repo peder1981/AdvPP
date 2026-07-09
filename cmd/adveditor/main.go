@@ -22,6 +22,7 @@ type AdvEditorWindow struct {
 	dataGrid     *widget.Table
 	statusBar    *widget.Label
 	currentTable *shared.TableInfo
+	records      []shared.Record // página atual de dados exibida no grid
 }
 
 // NewAdvEditorWindow cria uma nova janela do AdvEditor
@@ -57,43 +58,49 @@ func (ae *AdvEditorWindow) setupUI() {
 		ae.onTableSelected(node)
 	})
 
-	// Cria grid de dados
+	// Cria grid de dados: linha 0 = cabeçalho, demais = registros carregados
 	ae.dataGrid = widget.NewTable(
 		func() (int, int) {
 			if ae.currentTable == nil {
 				return 0, 0
 			}
-			return 10, len(ae.currentTable.Structure) // 10 linhas por página
+			return len(ae.records) + 1, len(ae.currentTable.Structure)
 		},
 		func() fyne.CanvasObject {
-			return widget.NewLabel("")
+			label := widget.NewLabel("")
+			label.Truncation = fyne.TextTruncateEllipsis
+			return label
 		},
 		func(id widget.TableCellID, cell fyne.CanvasObject) {
 			label := cell.(*widget.Label)
-			if ae.currentTable == nil {
+			if ae.currentTable == nil || id.Col >= len(ae.currentTable.Structure) {
 				label.SetText("")
 				return
 			}
+			field := ae.currentTable.Structure[id.Col]
 
 			if id.Row == 0 {
-				// Cabeçalho
-				if id.Col < len(ae.currentTable.Structure) {
-					label.SetText(ae.currentTable.Structure[id.Col].Name)
-				}
-			} else {
-				// Dados
-				label.SetText("")
+				label.TextStyle = fyne.TextStyle{Bold: true}
+				label.SetText(field.Name)
+				return
 			}
+			label.TextStyle = fyne.TextStyle{}
+			if id.Row-1 >= len(ae.records) {
+				label.SetText("")
+				return
+			}
+			label.SetText(formatCell(ae.records[id.Row-1].Fields[field.Name]))
 		},
 	)
 
 	// Status bar
 	ae.statusBar = widget.NewLabel("Pronto")
 
-	// Layout principal
+	// Layout principal (Border: a árvore ocupa toda a altura do painel)
 	split := container.NewHSplit(
-		container.NewVBox(
-			widget.NewLabel("Tabelas Abertas"),
+		container.NewBorder(
+			widget.NewLabel("Tabelas"),
+			nil, nil, nil,
 			ae.treeView,
 		),
 		container.NewBorder(
@@ -515,10 +522,11 @@ func (ae *AdvEditorWindow) listTablesFromDB() []string {
 
 // updateUIWithNewTreeView atualiza a UI com a nova tree view
 func (ae *AdvEditorWindow) updateUIWithNewTreeView() {
-	// Recria o layout com a nova tree view
+	// Recria o layout com a nova tree view (Border: árvore com altura total)
 	split := container.NewHSplit(
-		container.NewVBox(
+		container.NewBorder(
 			widget.NewLabel("Tabelas"),
+			nil, nil, nil,
 			ae.treeView,
 		),
 		container.NewBorder(
@@ -560,8 +568,52 @@ func (ae *AdvEditorWindow) loadTableData(tableName string) {
 	}
 
 	ae.currentTable = tableInfo
+
+	// Carrega a primeira página de registros
+	records, err := tableInfo.DriverObj.GetData(0, pageSize)
+	if err != nil {
+		ae.statusBar.SetText("Erro ao ler dados: " + err.Error())
+		records = nil
+	}
+	ae.records = records
+
+	// Larguras de coluna: maior entre o nome do campo e o tamanho do dado
+	for i, field := range tableInfo.Structure {
+		chars := len(field.Name)
+		if field.Size > chars {
+			chars = field.Size
+		}
+		if chars > 40 {
+			chars = 40
+		}
+		ae.dataGrid.SetColumnWidth(i, float32(chars)*9+28)
+	}
+
 	ae.updateDataGrid()
-	ae.statusBar.SetText("Tabela carregada: " + tableName)
+	ae.statusBar.SetText(fmt.Sprintf("Tabela carregada: %s (%d registros exibidos)", tableName, len(ae.records)))
+}
+
+// pageSize é o máximo de registros carregados no grid por vez.
+// ponytail: sem paginação por enquanto — adicionar navegação quando alguém
+// precisar de tabelas com mais de 500 linhas
+const pageSize = 500
+
+// formatCell formata um valor de célula do banco para exibição
+func formatCell(val interface{}) string {
+	if val == nil {
+		return ""
+	}
+	switch v := val.(type) {
+	case string:
+		return strings.TrimRight(v, " ")
+	case float64:
+		if v == float64(int64(v)) {
+			return fmt.Sprintf("%d", int64(v))
+		}
+		return fmt.Sprintf("%.2f", v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // Show exibe a janela
