@@ -2,6 +2,54 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.4.0] — 2026-07-09
+
+### Motor de inferência LLM embutido (`pkg/llm` + classe `LLM`)
+
+Novo: um motor de inferência para modelos de linguagem quantizados em
+**I2_S** (ternário, formato BitNet), escrito 100% em Go — sem CGO, sem
+`llama.cpp`, sem dependências de terceiros — compilando e rodando
+identicamente em Linux, Windows e macOS (amd64 e arm64). Validado
+**token a token** contra o `llama.cpp` de referência (fork BitNet do
+projeto) usando o modelo `Falcon3-3B-Instruct-1.58bit`.
+
+- **Parser GGUF** (`pkg/llm/gguf.go`): header, metadados e tensores lidos
+  sob demanda (não carrega o arquivo inteiro em memória de uma vez).
+- **Kernel ternário I2_S** (`pkg/llm/i2s.go`): dequantização e matmul
+  contra ativações int8, replicando byte a byte o algoritmo de
+  `ggml-quants.c`.
+- **SIMD AVX2** (`pkg/llm/simd_amd64.s`, amd64): o dot-product ternário
+  em assembly Go (VPMADDUBSW/VPSRLW), com detecção de CPU em runtime via
+  CPUID e fallback automático para o caminho escalar em CPUs sem AVX2 —
+  ou em qualquer arquitetura fora de amd64 (arm64 usa o escalar puro já
+  validado; sem assembly não testável nesta arquitetura).
+- **Forward pass completo** (`pkg/llm/model.go`): transformer arquitetura
+  "llama" (GQA, RoPE, RMSNorm, FFN SwiGLU) com KV cache incremental.
+- **Tokenizer BPE** (`pkg/llm/tokenizer.go`): byte-level estilo GPT-2,
+  usando o vocabulário/merges já embutidos no próprio GGUF.
+- **Amostragem** (`pkg/llm/sampling.go`): greedy, temperatura, top-k, top-p.
+- **Classe AdvPL/TLPP `LLM`** (`pkg/vm/llm_native.go`): expõe o motor
+  como native, no mesmo padrão de `FWMBrowse`/`MsDialog`:
+  ```advpl
+  oLLM := LLM():New("/caminho/modelo-i2_s.gguf")
+  cTexto := oLLM:Generate("The capital of France is", 6, 0)  // prompt, nMaxTokens, nTemperatura
+  aTokens := oLLM:Tokenize("algum texto")
+  cTexto := oLLM:Decode(aTokens)
+  oLLM:Close()
+  ```
+
+**Desempenho** (Falcon3-3B-1.58bit, 8 núcleos): ~5s/token com
+paralelização por goroutines (matmul e atenção por faixa de
+linhas/cabeças) + caminho rápido sem checagem de limite para blocos
+ternários completos; AVX2 reduz mais ~1.6x sobre isso em amd64.
+
+**Limitações conhecidas**: só arquitetura GGUF `"llama"` com pesos I2_S
+(não `bitnet-b1.58` com as normas extras "SubLN"); pré-tokenizador
+simplificado (não replica o split dígito-a-dígito específico da
+Falcon3 — só afeta números com mais de um dígito); sem streaming
+token-a-token na classe `LLM` (bloqueia até `Generate()` terminar); sem
+suporte a outras quantizações (Q4_K, Q6_K etc.) nem outras arquiteturas.
+
 ## [1.3.0] — 2026-07-09
 
 ### Renderer web (`advplc serve`) — fases 1 a 4

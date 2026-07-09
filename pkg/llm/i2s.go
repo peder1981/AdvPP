@@ -64,16 +64,26 @@ func dotI2SRow(packed []byte, row, nCols int, q []int8) int32 {
 	rowBytes := nCols / 4
 	rowData := packed[row*rowBytes : (row+1)*rowBytes]
 
+	nFullBlocks := nCols / 128
+	done := nFullBlocks * 128
+	byteOff := nFullBlocks * 32
+
 	var sumi int32
-	done := 0
-	byteOff := 0
-	for ; done+128 <= nCols; done, byteOff = done+128, byteOff+32 {
-		for gp := 0; gp < 32; gp++ {
-			b := rowData[byteOff+gp]
-			sumi += map2bitTable[(b>>6)&0x3] * int32(q[done+gp])
-			sumi += map2bitTable[(b>>4)&0x3] * int32(q[done+32+gp])
-			sumi += map2bitTable[(b>>2)&0x3] * int32(q[done+64+gp])
-			sumi += map2bitTable[(b>>0)&0x3] * int32(q[done+96+gp])
+	if hasAVX2 && nFullBlocks > 0 {
+		// dotI2SBlocksAVX2 devolve a soma dos CÓDIGOS BRUTOS (0..2, sem o
+		// mapeamento -1/0/+1) — precisa da mesma correção `-Σq` que o
+		// ggml de referência aplica (ver comentário em simd_amd64.go).
+		rawSum := dotI2SBlocksAVX2(rowData[:byteOff], q[:done], nFullBlocks)
+		sumi = rawSum - sumInt8(q[:done])
+	} else {
+		for d, bo := 0, 0; d < done; d, bo = d+128, bo+32 {
+			for gp := 0; gp < 32; gp++ {
+				b := rowData[bo+gp]
+				sumi += map2bitTable[(b>>6)&0x3] * int32(q[d+gp])
+				sumi += map2bitTable[(b>>4)&0x3] * int32(q[d+32+gp])
+				sumi += map2bitTable[(b>>2)&0x3] * int32(q[d+64+gp])
+				sumi += map2bitTable[(b>>0)&0x3] * int32(q[d+96+gp])
+			}
 		}
 	}
 
@@ -99,6 +109,16 @@ func dotI2SRow(packed []byte, row, nCols int, q []int8) int32 {
 		}
 	}
 	return sumi
+}
+
+// sumInt8 soma um slice de int8 em int32 (usado para a correção `-Σq` do
+// caminho AVX2, que trabalha com códigos brutos em vez de valores ternários).
+func sumInt8(q []int8) int32 {
+	var sum int32
+	for _, v := range q {
+		sum += int32(v)
+	}
+	return sum
 }
 
 // clampBlock retorna quantas colunas do sub-bloco em `base` (0/32/64/96)

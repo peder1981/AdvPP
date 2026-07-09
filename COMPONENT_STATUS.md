@@ -99,6 +99,10 @@ O compilador AdvPP faz parsing da sintaxe REST 2.0 mas **integração de servido
 - ✅ **Renderer web (advplc serve)**: PO-UI embutido no binário; console,
   diálogos, FWMBrowse→po-table com dicionário SX3, po-dynamic-form,
   MSDIALOG legado por heurística de grade e hot reload (--watch)
+- ✅ **Motor de inferência LLM (classe `LLM`)**: modelos GGUF I2_S
+  (BitNet/Falcon3-1.58bit) via `pkg/llm`, 100% Go sem CGO, com kernel
+  SIMD AVX2 em amd64 (fallback escalar em qualquer outra arquitetura),
+  validado token a token contra o `llama.cpp` de referência
 - ⚠️ Locks de registro (RecLock/MsUnlock) são no-ops — sem controle de
   concorrência em escrita entre processos
 
