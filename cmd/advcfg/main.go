@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -22,6 +23,29 @@ type AdvCfgWindow struct {
 	dictionary   *shared.Dictionary
 	currentTable string
 	currentData  []map[string]interface{}
+}
+
+// fieldColumns são as colunas do SX3 exibidas no grid de campos.
+// ponytail: SX3 tem 82 colunas; mostrar só as relevantes para edição.
+var fieldColumns = []string{"X3_CAMPO", "X3_TITULO", "X3_TIPO", "X3_TAMANHO", "X3_DECIMAL", "X3_DESCRIC"}
+
+// formatCell formata um valor de célula do dicionário para exibição
+func formatCell(val interface{}) string {
+	switch v := val.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimRight(v, " ")
+	case int64:
+		return fmt.Sprintf("%d", v)
+	case float64:
+		if v == float64(int64(v)) {
+			return fmt.Sprintf("%d", int64(v))
+		}
+		return fmt.Sprintf("%.2f", v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // NewAdvCfgWindow cria uma nova janela do AdvCfg
@@ -98,17 +122,31 @@ func (ac *AdvCfgWindow) setupUI() {
 		ac.onNodeSelected(node)
 	})
 
-	// Cria grid de dados
+	// Cria grid de dados: linha 0 = cabeçalho, demais = campos da tabela selecionada
 	ac.dataGrid = widget.NewTable(
 		func() (int, int) {
-			return 10, 5 // 10 linhas por página, 5 colunas
+			return len(ac.currentData) + 1, len(fieldColumns)
 		},
 		func() fyne.CanvasObject {
-			return widget.NewLabel("")
+			label := widget.NewLabel("")
+			label.Truncation = fyne.TextTruncateEllipsis
+			return label
 		},
 		func(id widget.TableCellID, cell fyne.CanvasObject) {
 			label := cell.(*widget.Label)
-			label.SetText("")
+			col := fieldColumns[id.Col]
+
+			if id.Row == 0 {
+				label.TextStyle = fyne.TextStyle{Bold: true}
+				label.SetText(col)
+				return
+			}
+			label.TextStyle = fyne.TextStyle{}
+			if id.Row-1 >= len(ac.currentData) {
+				label.SetText("")
+				return
+			}
+			label.SetText(formatCell(ac.currentData[id.Row-1][col]))
 		},
 	)
 
@@ -117,8 +155,9 @@ func (ac *AdvCfgWindow) setupUI() {
 
 	// Layout principal
 	split := container.NewHSplit(
-		container.NewVBox(
+		container.NewBorder(
 			widget.NewLabel("Dicionário"),
+			nil, nil, nil,
 			ac.treeView,
 		),
 		container.NewBorder(
@@ -329,6 +368,22 @@ func (ac *AdvCfgWindow) loadTableFields(table string) {
 
 // updateDataGrid atualiza o grid de dados
 func (ac *AdvCfgWindow) updateDataGrid() {
+	// Larguras de coluna: maior entre o nome da coluna e o dado real carregado
+	for i, col := range fieldColumns {
+		chars := len(col)
+		for _, rec := range ac.currentData {
+			if n := len(formatCell(rec[col])); n > chars {
+				chars = n
+			}
+		}
+		if chars > 40 {
+			chars = 40
+		}
+		if chars < 4 {
+			chars = 4
+		}
+		ac.dataGrid.SetColumnWidth(i, float32(chars)*9+28)
+	}
 	ac.dataGrid.Refresh()
 }
 
