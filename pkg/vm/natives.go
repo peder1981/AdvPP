@@ -1032,7 +1032,7 @@ func (v *VM) registerNatives() {
 			return obj, nil
 		},
 		"FWMBROWSE": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewObject("FWMBrowse", nil), nil
+			return newBrowseObject(), nil
 		},
 		"VIEWDEF": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.Nil, nil

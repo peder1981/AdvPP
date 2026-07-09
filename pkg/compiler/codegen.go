@@ -938,6 +938,7 @@ var builtinClasses = map[string]bool{
 	"FWFORMMODEL":   true,
 	"FWFORMBROWSE":  true,
 	"FWGRIDPROCESS": true,
+	"FWMBROWSE":     true,
 }
 
 func isBuiltinClass(name string) bool {

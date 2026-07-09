@@ -16,7 +16,14 @@ TOOLS    = advplc advcfg adveditor advpp-ide
 # Alvos do CLI (puro Go, CGO_ENABLED=0). GUIs Fyne exigem build nativo (CI).
 CLI_TARGETS = linux/amd64 linux/arm64 windows/amd64 darwin/arm64
 
-.PHONY: build test cross package release clean
+.PHONY: build test cross package release clean web
+
+# Recompila o frontend PO-UI (advplc serve) e embute em pkg/webui/dist.
+# Requer Node 20+; o dist é versionado, então `go build` funciona sem Node.
+web:
+	cd web && npx ng build
+	rm -rf pkg/webui/dist
+	cp -r web/dist/advpp-web/browser pkg/webui/dist
 
 build:
 	@for t in $(TOOLS); do \
