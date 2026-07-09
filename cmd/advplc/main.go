@@ -18,6 +18,7 @@ import (
 	"github.com/advpl/compiler/pkg/preprocessor"
 	"github.com/advpl/compiler/pkg/tools/shared"
 	"github.com/advpl/compiler/pkg/vm"
+	"github.com/advpl/compiler/pkg/webui"
 )
 
 // version é injetada no build via -ldflags "-X main.version=v1.2.3"
@@ -142,6 +143,18 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "serve":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "Error: missing source file")
+			os.Exit(1)
+		}
+		sourceFile := os.Args[2]
+		opts := parseOptions(os.Args[3:])
+		if err := serveFile(sourceFile, opts); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		fmt.Printf("advplc %s\n", version)
 
@@ -161,6 +174,7 @@ type Options struct {
 	uiEnabled bool
 	dbPath    string
 	dbBackend string
+	port      string
 }
 
 func parseOptions(args []string) *Options {
@@ -198,6 +212,11 @@ func parseOptions(args []string) *Options {
 		case "--db-path":
 			if i+1 < len(args) {
 				opts.dbPath = args[i+1]
+				i++
+			}
+		case "--port":
+			if i+1 < len(args) {
+				opts.port = args[i+1]
 				i++
 			}
 		}
@@ -393,6 +412,26 @@ func attachDatabase(v *vm.VM, opts *Options) {
 func checkFile(sourceFile string, opts *Options) error {
 	_, err := loadAndCompile(sourceFile, opts)
 	return err
+}
+
+// serveFile executa o programa com a interface renderizada no browser
+// (fase 1: console + diálogos). Cada aba/recarga do browser cria uma
+// sessão com VM isolada — mesma semântica de work process do StartJob.
+func serveFile(sourceFile string, opts *Options) error {
+	bc, err := loadAndCompile(sourceFile, opts)
+	if err != nil {
+		return err
+	}
+	port := shared.ResolveWebUIPort(opts.port)
+	return webui.Serve("localhost:"+port, filepath.Base(sourceFile),
+		func(ui *webui.Provider, console *webui.OutWriter) error {
+			v := vm.NewVM(bc, true)
+			v.SetUIProvider(ui)
+			v.SetOutputWriter(console)
+			attachDatabase(v, opts)
+			_, err := v.Run()
+			return err
+		})
 }
 
 // checkFilesParallel verifica N arquivos com um pool de workers (1 por CPU).
@@ -642,7 +681,8 @@ Commands:
   run       Compile and execute an AdvPL/TLPP source file
   compile   Compile source to bytecode file (use -o for output)
   exec      Execute a compiled bytecode file
-  check     Validate syntax without executing
+  check     Validate syntax without executing (accepts multiple files)
+  serve     Run the program with the UI rendered in the browser (web mode)
   ast       Print the AST structure
   bytecode  Print the compiled bytecode
 
@@ -657,6 +697,8 @@ Options:
                                 database configured in ~/.advpp — the same
                                 database used by advcfg/adveditor/advpp-ide)
   -o <file>                     Output file for compile command
+  --port <n>                    Web mode port (default: webui_port in
+                                ~/.advpp/advpp_config.json, or 8080)
 
 Examples:
   advplc run hello.prw

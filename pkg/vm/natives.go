@@ -20,12 +20,14 @@ func (v *VM) registerNatives() {
 		"CONOUT": func(args []advplrt.Value) (advplrt.Value, error) {
 			msg := buildOutputString(args)
 			fmt.Println(msg)
+			v.writeOut(msg)
 			v.output.WriteString(msg + "\n")
 			return advplrt.Nil, nil
 		},
 		"CONOUTW": func(args []advplrt.Value) (advplrt.Value, error) {
 			msg := buildOutputString(args)
 			fmt.Println(msg)
+			v.writeOut(msg)
 			v.output.WriteString(msg + "\n")
 			return advplrt.Nil, nil
 		},
