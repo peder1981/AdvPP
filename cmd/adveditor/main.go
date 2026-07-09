@@ -577,14 +577,22 @@ func (ae *AdvEditorWindow) loadTableData(tableName string) {
 	}
 	ae.records = records
 
-	// Larguras de coluna: maior entre o nome do campo e o tamanho do dado
+	// Larguras de coluna: maior entre o nome do campo e o dado real carregado.
+	// ponytail: field.Size mente para tabelas de dicionário (SX2/SX3/...),
+	// que declaram TEXT genérico sem tamanho — por isso usamos o conteúdo
+	// realmente lido em vez do Size do driver.
 	for i, field := range tableInfo.Structure {
 		chars := len(field.Name)
-		if field.Size > chars {
-			chars = field.Size
+		for _, rec := range ae.records {
+			if n := len(formatCell(rec.Fields[field.Name])); n > chars {
+				chars = n
+			}
 		}
 		if chars > 40 {
 			chars = 40
+		}
+		if chars < 4 {
+			chars = 4
 		}
 		ae.dataGrid.SetColumnWidth(i, float32(chars)*9+28)
 	}
