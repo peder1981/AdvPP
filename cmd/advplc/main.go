@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 	"unicode/utf8"
 
 	"github.com/advpl/compiler/pkg/compiler"
@@ -175,6 +177,7 @@ type Options struct {
 	dbPath    string
 	dbBackend string
 	port      string
+	watch     bool
 }
 
 func parseOptions(args []string) *Options {
@@ -219,6 +222,8 @@ func parseOptions(args []string) *Options {
 				opts.port = args[i+1]
 				i++
 			}
+		case "--watch", "-w":
+			opts.watch = true
 		}
 	}
 	return opts
@@ -422,16 +427,54 @@ func serveFile(sourceFile string, opts *Options) error {
 	if err != nil {
 		return err
 	}
-	port := shared.ResolveWebUIPort(opts.port)
-	return webui.Serve("localhost:"+port, filepath.Base(sourceFile),
+	// bytecode atual atrás de um ponteiro atômico: o --watch (fase 3) troca
+	// pela versão recompilada e cada nova sessão executa a mais recente
+	var current atomic.Pointer[compiler.Bytecode]
+	current.Store(bc)
+
+	srv := webui.New(filepath.Base(sourceFile),
 		func(ui *webui.Provider, console *webui.OutWriter) error {
-			v := vm.NewVM(bc, true)
+			v := vm.NewVM(current.Load(), true)
 			v.SetUIProvider(ui)
 			v.SetOutputWriter(console)
 			attachDatabase(v, opts)
 			_, err := v.Run()
 			return err
 		})
+
+	if opts.watch {
+		go watchSource(sourceFile, opts, &current, srv)
+	}
+
+	port := shared.ResolveWebUIPort(opts.port)
+	return srv.Serve("localhost:" + port)
+}
+
+// watchSource observa o fonte (polling de mtime, sem dependências) e, a cada
+// alteração, recompila e manda as sessões do browser recarregarem. Erro de
+// compilação vai para o console do browser em vez de recarregar.
+func watchSource(sourceFile string, opts *Options, current *atomic.Pointer[compiler.Bytecode], srv *webui.Server) {
+	lastMod := time.Time{}
+	if info, err := os.Stat(sourceFile); err == nil {
+		lastMod = info.ModTime()
+	}
+	for {
+		time.Sleep(500 * time.Millisecond)
+		info, err := os.Stat(sourceFile)
+		if err != nil || !info.ModTime().After(lastMod) {
+			continue
+		}
+		lastMod = info.ModTime()
+		bc, err := loadAndCompile(sourceFile, opts)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "watch: erro de compilação: %v\n", err)
+			srv.Broadcast("error", fmt.Sprintf("erro de compilação: %v", err))
+			continue
+		}
+		current.Store(bc)
+		fmt.Printf("watch: %s recompilado, recarregando sessões\n", filepath.Base(sourceFile))
+		srv.Broadcast("reload", "fonte alterado")
+	}
 }
 
 // checkFilesParallel verifica N arquivos com um pool de workers (1 por CPU).
