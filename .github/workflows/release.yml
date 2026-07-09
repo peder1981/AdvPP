@@ -42,8 +42,6 @@ jobs:
             platform: windows-amd64
           - os: macos-latest
             platform: darwin-arm64
-          - os: macos-13
-            platform: darwin-amd64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

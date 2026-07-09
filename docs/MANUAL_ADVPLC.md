@@ -18,7 +18,7 @@ Baixe o pacote da sua plataforma em https://github.com/peder1981/AdvPP/releases:
 
 - `advpp-cli-<versão>-linux-amd64.tar.gz` / `linux-arm64`
 - `advpp-cli-<versão>-windows-amd64.zip`
-- `advpp-cli-<versão>-darwin-amd64.tar.gz` / `darwin-arm64` (macOS)
+- `advpp-cli-<versão>-darwin-arm64.tar.gz` (macOS Apple Silicon)
 - `advpp_<versão>_amd64.deb` (Debian/Ubuntu, inclui as ferramentas gráficas)
 
 ```bash
