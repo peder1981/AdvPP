@@ -8,8 +8,22 @@ import (
 )
 
 // Config representa a configuração compartilhada entre as ferramentas
+// (~/.advpp/advpp_config.json — editável hoje à mão e, futuramente, pelo AdvCfg)
 type Config struct {
 	DefaultDatabase string `json:"default_database"`
+	WebUIPort       string `json:"webui_port,omitempty"` // porta do advplc serve (padrão 8080)
+}
+
+// ResolveWebUIPort resolve a porta do modo web: explícita (--port) →
+// config ~/.advpp → padrão 8080.
+func ResolveWebUIPort(explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	if config, err := LoadConfig(); err == nil && config.WebUIPort != "" {
+		return config.WebUIPort
+	}
+	return "8080"
 }
 
 const configFileName = "advpp_config.json"

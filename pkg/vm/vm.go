@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -65,6 +66,7 @@ type VM struct {
 	mvcNextID    int
 	dbFactory    func() DBEngine // cria um engine próprio por job (StartJob)
 	jobs         sync.WaitGroup  // jobs em background pendentes
+	outWriter    io.Writer       // espelho opcional da saída de console (modo web)
 }
 
 type namedArgInfo struct {
@@ -130,6 +132,18 @@ func (v *VM) SetDBFactory(factory func() DBEngine) {
 
 func (v *VM) SetUIProvider(provider UIProvider) {
 	v.uiProvider = provider
+}
+
+// SetOutputWriter espelha a saída de console (ConOut etc.) para um writer
+// adicional — usado pelo modo web (advplc serve) para transmitir ao browser.
+func (v *VM) SetOutputWriter(w io.Writer) {
+	v.outWriter = w
+}
+
+func (v *VM) writeOut(line string) {
+	if v.outWriter != nil {
+		fmt.Fprintln(v.outWriter, line)
+	}
 }
 
 func (v *VM) GetOutput() string {

@@ -118,6 +118,23 @@ advplc build programa.prw -o programa
 
 Embute bytecode e runtime num executável independente (requer Go instalado).
 
+### Modo web (fase 1)
+
+```bash
+advplc serve programa.prw               # http://localhost:8080
+advplc serve programa.prw --port 9000
+```
+
+Executa o programa no servidor (mesma VM, mesmo banco `ADVPP.db`) e
+renderiza a interface no browser em HTML puro — fase 1 cobre o console
+(`ConOut`) e os diálogos (`MsgInfo`, `MsgStop`, `MsgAlert`, `MsgYesNo`,
+`Alert`), que bloqueiam a execução até a resposta do usuário, como no
+Protheus. Cada aba/recarga do browser cria uma sessão com VM isolada.
+
+A porta padrão pode ser fixada em `~/.advpp/advpp_config.json`
+(`"webui_port": "9000"`) — configuração compartilhada que futuramente
+será editável pelo AdvCfg.
+
 ### Inspeção
 
 ```bash
