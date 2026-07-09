@@ -2,6 +2,54 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.3.0] — 2026-07-09
+
+### Renderer web (`advplc serve`) — fases 1 a 4
+
+Novo modo de execução: o programa AdvPL/TLPP roda no servidor (mesma VM,
+mesmo `ADVPP.db`) e a interface é renderizada no browser. Basta o binário
+`advplc` e um navegador — sem SmartClient, sem executável gráfico.
+
+- **Fase 1 — console e diálogos**: `advplc serve <fonte> [--port N]`.
+  `ConOut` é transmitido em tempo real; `MsgInfo`/`MsgStop`/`MsgAlert`/
+  `MsgYesNo` bloqueiam a execução até a resposta do usuário no browser.
+  Protocolo SSE + POST (stdlib pura, sem WebSocket). Cada aba/recarga é
+  uma sessão com VM isolada e conexão própria ao banco.
+- **Fase 2 — MVC → PO-UI**: frontend **PO-UI/Angular** (TOTVS) embutido
+  no binário via `embed.FS`. `FWMBrowse():New()` + `SetAlias("SA1")` +
+  `Activate()` renderiza um **`po-table`** com colunas e títulos vindos
+  do dicionário **SX3** do `ADVPP.db`; Incluir/Editar abrem um
+  **`po-dynamic-form`** gerado do dicionário; exclusão é soft-delete
+  padrão Protheus (`D_E_L_E_T_='*'`). CRUD persistido no SQLite.
+- **Fase 3 — hot reload**: `advplc serve <fonte> --watch` recompila a
+  cada alteração do fonte e recarrega as sessões do browser
+  automaticamente; erro de compilação aparece no console do browser.
+- **Fase 4 — MSDIALOG legado**: `DEFINE MSDIALOG` + `@ linha,coluna
+  SAY/GET/BUTTON` + `ACTIVATE MSDIALOG` viram um modal PO-UI por
+  heurística de grade (controles agrupados em linhas por proximidade de
+  `y`). O valor digitado nos `GET`s **escreve de volta nas variáveis**
+  do programa (novo `FunctionInfo.LocalNames` no bytecode). `ACTION` de
+  botão executa em VM isolada; `VALID`/`WHEN`/`ACTION` agora são lazy
+  (embrulhados em codeblock, como o `#xcommand` real do Protheus).
+
+### Infra
+
+- `webui_port` na configuração compartilhada (`~/.advpp/advpp_config.json`);
+  precedência: `--port` → config → 8080. Diretiva do projeto: toda nova
+  configuração entra na Config compartilhada para futura edição via AdvCfg.
+- Novo alvo `make web`: recompila o frontend PO-UI e embute em
+  `pkg/webui/dist` (o dist é versionado — `go build` funciona sem Node).
+- `SQLiteEngine` ganhou `QueryRows`/`Exec` (interface `vm.SQLEngine`).
+- Fixtures novos: `tests/webui_test.prw`, `tests/mvc_browse_test.prw`,
+  `tests/msdialog_test.prw`.
+
+### Limitações conhecidas (fase 4)
+
+- Codeblocks deste runtime não capturam variáveis locais: `ACTION
+  {|| oDlg:End()}` não fecha o diálogo — por isso, qualquer clique de
+  botão fecha o diálogo após executar o `ACTION`.
+- `VALID` ainda não dispara round-trip por campo (planejado).
+
 ## [1.2.0] — 2026-07-08
 
 ### Multi-thread
