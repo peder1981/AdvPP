@@ -110,6 +110,9 @@ export class App {
         this.finished.set(true);
         this.browse.set(null);
         break;
+      case 'reload': // hot reload do --watch: fonte recompilado no servidor
+        location.reload();
+        break;
     }
   }
 

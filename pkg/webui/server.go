@@ -118,10 +118,44 @@ func (w *OutWriter) Write(b []byte) (int, error) {
 // writer de console já ligados ao browser; retorna o erro de execução.
 type RunFunc func(ui *Provider, console *OutWriter) error
 
-// Serve sobe o servidor HTTP e bloqueia. run é chamado uma vez por sessão.
+// Server é o servidor do modo web. Mantém as sessões ativas para permitir
+// broadcast (hot reload da fase 3: --watch).
+type Server struct {
+	sourceName string
+	run        RunFunc
+	mu         sync.Mutex
+	sessions   map[string]*session
+}
+
+// New cria o servidor do modo web. run é chamado uma vez por sessão.
+func New(sourceName string, run RunFunc) *Server {
+	return &Server{sourceName: sourceName, run: run, sessions: map[string]*session{}}
+}
+
+// Serve sobe o servidor HTTP e bloqueia (compatibilidade com a fase 1).
 func Serve(addr, sourceName string, run RunFunc) error {
-	var mu sync.Mutex
-	sessions := map[string]*session{}
+	return New(sourceName, run).Serve(addr)
+}
+
+// Broadcast envia um evento a todas as sessões conectadas sem bloquear.
+// kind "reload" faz o browser recarregar (reexecutando o programa).
+func (srv *Server) Broadcast(kind, text string) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	for _, s := range srv.sessions {
+		select {
+		case s.events <- event{Type: kind, Text: text}:
+		default: // sessão com canal cheio: descarta em vez de travar o watcher
+		}
+	}
+}
+
+// Serve sobe o servidor HTTP e bloqueia.
+func (srv *Server) Serve(addr string) error {
+	mu := &srv.mu
+	sessions := srv.sessions
+	sourceName := srv.sourceName
+	run := srv.run
 
 	mux := http.NewServeMux()
 
@@ -172,9 +206,8 @@ func Serve(addr, sourceName string, run RunFunc) error {
 				enc.Encode(ev)
 				fmt.Fprintf(w, "\n")
 				flusher.Flush()
-				if ev.Type == "done" {
-					return
-				}
+				// não encerra no "done": a conexão fica aberta para eventos
+				// posteriores (ex.: reload do --watch)
 			case <-r.Context().Done():
 				return
 			}
