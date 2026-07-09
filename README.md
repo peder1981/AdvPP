@@ -19,6 +19,30 @@ Um compilador e interpretador totalmente funcional para as linguagens de program
 - **Blocos de Código**: Blocos de código executáveis `{|| ... }`
 - **MVC**: Suporte FWFormModel, FWFormView, FWFormBrowse com validação de campos e tratamento de eventos
 - **Multi-thread**: `StartJob()` (execução em VM isolado, semântica de work process) e `FWGridProcess` (pool de threads com `SetThreadGrid`, `CallExecute`, `StopExecute`, `IsFinished`, meters e log); `advplc check arq1 arq2 ...` verifica N arquivos em paralelo
+- **Renderer web (PO-UI)**: `advplc serve programa.prw` executa o programa no servidor e renderiza a interface no browser com PO-UI (embutido no binário): console e diálogos em tempo real, `FWMBrowse`→`po-table` com dicionário SX3, formulários `po-dynamic-form`, MSDIALOG legado (`@ SAY/GET/BUTTON`) como modal por heurística de grade e hot reload com `--watch`
+
+## Renderer web (`advplc serve`)
+
+```bash
+advplc serve tests/mvc_browse_test.prw          # http://localhost:8080
+advplc serve programa.prw --port 9000 --watch   # porta própria + hot reload
+```
+
+O programa AdvPL/TLPP roda na VM do servidor (mesmo banco `ADVPP.db` de
+todas as ferramentas) e o browser é o terminal de interface — mesmo
+modelo do SmartClient HTML do Protheus. O frontend PO-UI/Angular vai
+embutido no binário (`embed.FS`): nenhuma dependência extra em produção.
+
+- `ConOut` → console em tempo real (SSE)
+- `MsgYesNo`/`MsgInfo`/... → diálogos PO-UI que bloqueiam a VM até a resposta
+- `FWMBrowse` sobre um alias → `po-table` com colunas/títulos do SX3 e
+  CRUD completo (`po-dynamic-form` gerado do dicionário, soft-delete padrão)
+- `DEFINE MSDIALOG` + `@ linha,coluna SAY/GET/BUTTON` → modal PO-UI; os
+  valores digitados voltam para as variáveis do programa
+- `--watch`: salvar o fonte recompila e recarrega o browser
+
+Para alterar o frontend: `make web` (requer Node 20+; o resultado
+compilado é versionado, então `go build` funciona sem Node).
 
 ## Framework MVC
 

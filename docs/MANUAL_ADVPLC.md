@@ -118,22 +118,41 @@ advplc build programa.prw -o programa
 
 Embute bytecode e runtime num executável independente (requer Go instalado).
 
-### Modo web (fase 1)
+### Modo web (renderer no browser)
 
 ```bash
 advplc serve programa.prw               # http://localhost:8080
 advplc serve programa.prw --port 9000
+advplc serve programa.prw --watch       # hot reload ao salvar o fonte
 ```
 
 Executa o programa no servidor (mesma VM, mesmo banco `ADVPP.db`) e
-renderiza a interface no browser em HTML puro — fase 1 cobre o console
-(`ConOut`) e os diálogos (`MsgInfo`, `MsgStop`, `MsgAlert`, `MsgYesNo`,
-`Alert`), que bloqueiam a execução até a resposta do usuário, como no
-Protheus. Cada aba/recarga do browser cria uma sessão com VM isolada.
+renderiza a interface no browser com **PO-UI** (framework visual da
+TOTVS), embutida no próprio binário — não precisa de Node, npm ou
+SmartClient. Cada aba/recarga do browser cria uma sessão com VM isolada
+e conexão própria ao banco.
+
+O que é renderizado:
+
+| Recurso AdvPL | No browser |
+|---------------|------------|
+| `ConOut(...)` | Console em tempo real |
+| `MsgInfo`/`MsgStop`/`MsgAlert`/`MsgYesNo`/`Alert` | Diálogos PO-UI que bloqueiam a execução até a resposta |
+| `FWMBrowse():New()` + `SetAlias("SA1")` + `SetDescription(...)` + `Activate()` | **`po-table`** com colunas e títulos do dicionário SX3; Incluir/Editar abrem **`po-dynamic-form`** gerado do dicionário; Excluir faz soft-delete (`D_E_L_E_T_='*'`) |
+| `DEFINE MSDIALOG` + `@ linha,coluna SAY/GET/BUTTON` + `ACTIVATE MSDIALOG` | Modal PO-UI montado por heurística de grade; o que o usuário digita nos `GET`s **volta para as variáveis** do programa |
+
+Com `--watch` (ou `-w`), o fonte é recompilado a cada alteração e todas
+as sessões do browser recarregam automaticamente; erro de compilação
+aparece no console do browser sem recarregar.
 
 A porta padrão pode ser fixada em `~/.advpp/advpp_config.json`
 (`"webui_port": "9000"`) — configuração compartilhada que futuramente
 será editável pelo AdvCfg.
+
+Limitações atuais do MSDIALOG web: codeblocks não capturam variáveis
+locais (`ACTION {|| oDlg:End()}` não fecha o diálogo — qualquer clique
+de botão fecha após executar o `ACTION`); `VALID` por campo ainda não
+dispara validação no servidor.
 
 ### Inspeção
 
@@ -153,6 +172,8 @@ advplc version                # versão do compilador
 | `--headless` | Desabilita UI (padrão) | `--headless` |
 | `--db <backend>` | Backend de banco: sqlite (padrão) | `--db sqlite` |
 | `--db-path <path>` | Caminho do banco SQLite | `--db-path dados.db` |
+| `--port <n>` | Porta do modo web (`serve`) | `--port 9000` |
+| `-w, --watch` | Hot reload no modo web (`serve`) | `--watch` |
 | `-o <file>` | Arquivo de saída (compile/build) | `-o saida.bytecode` |
 
 ### Banco de dados compartilhado

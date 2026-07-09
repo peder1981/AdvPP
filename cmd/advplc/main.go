@@ -742,6 +742,8 @@ Options:
   -o <file>                     Output file for compile command
   --port <n>                    Web mode port (default: webui_port in
                                 ~/.advpp/advpp_config.json, or 8080)
+  -w, --watch                   Web mode: recompile on source change and
+                                reload browser sessions (hot reload)
 
 Examples:
   advplc run hello.prw
@@ -749,5 +751,6 @@ Examples:
   advplc compile hello.prw -o hello.bytecode
   advplc exec hello.bytecode
   advplc check program.prw --include ./includes
+  advplc serve program.prw --port 9000 --watch
   advplc bytecode program.prw`)
 }

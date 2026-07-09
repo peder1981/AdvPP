@@ -96,6 +96,9 @@ O compilador AdvPP faz parsing da sintaxe REST 2.0 mas **integração de servido
 - ✅ **FWGridProcess**: pool de threads com backpressure (SetThreadGrid,
   CallExecute, StopExecute, IsFinished, meters, SaveLog)
 - ✅ **advplc check paralelo**: N arquivos com 1 worker por CPU
+- ✅ **Renderer web (advplc serve)**: PO-UI embutido no binário; console,
+  diálogos, FWMBrowse→po-table com dicionário SX3, po-dynamic-form,
+  MSDIALOG legado por heurística de grade e hot reload (--watch)
 - ⚠️ Locks de registro (RecLock/MsUnlock) são no-ops — sem controle de
   concorrência em escrita entre processos
 

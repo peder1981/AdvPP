@@ -124,6 +124,7 @@ All standard patterns work in AdvPP
 | Codificação de Arquivo | ✅ 100% | Conversão automática CP1252 -> UTF-8 (100% Go, sem iconv) |
 | Banco de Dados | ✅ Funcional | DBSelectArea/DBSeek/RecCount etc. sobre SQLite compartilhado (~/.advpp/ADVPP.db) |
 | Multi-thread | ✅ Funcional | StartJob (VM isolado por job) e FWGridProcess (pool de threads) |
+| Renderer web (PO-UI) | ✅ Funcional | advplc serve: console/diálogos, FWMBrowse→po-table (SX3), MSDIALOG legado→modal, hot reload --watch |
 
 ## Limitações
 
