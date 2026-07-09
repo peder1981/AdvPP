@@ -14,7 +14,7 @@ LDFLAGS  = -s -w -X main.version=v$(VERSION)
 GOFLAGS  = -trimpath -ldflags '$(LDFLAGS)'
 TOOLS    = advplc advcfg adveditor advpp-ide
 # Alvos do CLI (puro Go, CGO_ENABLED=0). GUIs Fyne exigem build nativo (CI).
-CLI_TARGETS = linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darwin/arm64
+CLI_TARGETS = linux/amd64 linux/arm64 windows/amd64 darwin/arm64
 
 .PHONY: build test cross package release clean
 

@@ -157,7 +157,6 @@ cd ~/advpp/bin
 # Linux:   advpp-<versão>-linux-amd64.tar.gz   (suite completa)
 # Windows: advpp-<versão>-windows-amd64.zip
 # macOS:   advpp-<versão>-darwin-arm64.tar.gz (Apple Silicon)
-#          advpp-<versão>-darwin-amd64.tar.gz (Intel)
 # Somente CLI (todas as plataformas): advpp-cli-<versão>-*.tar.gz/.zip
 tar xzf advpp-*.tar.gz
 ```
