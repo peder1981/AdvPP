@@ -125,6 +125,7 @@ All standard patterns work in AdvPP
 | Banco de Dados | ✅ Funcional | DBSelectArea/DBSeek/RecCount etc. sobre SQLite compartilhado (~/.advpp/ADVPP.db) |
 | Multi-thread | ✅ Funcional | StartJob (VM isolado por job) e FWGridProcess (pool de threads) |
 | Renderer web (PO-UI) | ✅ Funcional | advplc serve: console/diálogos, FWMBrowse→po-table (SX3), MSDIALOG legado→modal, hot reload --watch |
+| Motor de inferência LLM | ✅ Funcional | Classe `LLM`: modelos GGUF I2_S (BitNet/Falcon3-1.58bit), 100% Go, SIMD AVX2 em amd64 |
 
 ## Limitações
 

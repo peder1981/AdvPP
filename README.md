@@ -20,6 +20,40 @@ Um compilador e interpretador totalmente funcional para as linguagens de program
 - **MVC**: Suporte FWFormModel, FWFormView, FWFormBrowse com validação de campos e tratamento de eventos
 - **Multi-thread**: `StartJob()` (execução em VM isolado, semântica de work process) e `FWGridProcess` (pool de threads com `SetThreadGrid`, `CallExecute`, `StopExecute`, `IsFinished`, meters e log); `advplc check arq1 arq2 ...` verifica N arquivos em paralelo
 - **Renderer web (PO-UI)**: `advplc serve programa.prw` executa o programa no servidor e renderiza a interface no browser com PO-UI (embutido no binário): console e diálogos em tempo real, `FWMBrowse`→`po-table` com dicionário SX3, formulários `po-dynamic-form`, MSDIALOG legado (`@ SAY/GET/BUTTON`) como modal por heurística de grade e hot reload com `--watch`
+- **Motor de inferência LLM** (`pkg/llm` + classe `LLM`): carrega modelos GGUF quantizados em I2_S (BitNet/Falcon3-1.58bit) e gera texto direto do AdvPL/TLPP — 100% Go, sem CGO, com kernel SIMD AVX2 em amd64 e fallback escalar em qualquer outra arquitetura
+
+## Motor de inferência LLM (`LLM`)
+
+```advpl
+User Function LlmDemo()
+    Local oLLM := LLM():New("/caminho/Falcon3-3B-Instruct-1.58bit/ggml-model-i2_s.gguf")
+    ConOut(oLLM:Generate("The capital of France is", 6, 0)) // prompt, nMaxTokens, nTemperatura (0=greedy)
+    oLLM:Close()
+Return
+```
+
+Motor de inferência para modelos **GGUF quantizados em I2_S** (pesos
+ternários -1/0/+1, formato usado pelo BitNet e por conversões como o
+Falcon3-3B-Instruct-1.58bit) — escrito inteiramente em Go
+(`pkg/llm`), sem `llama.cpp`, sem CGO e sem dependências externas.
+Compila e roda de forma idêntica em Linux, Windows e macOS
+(amd64/arm64); em amd64 usa um kernel SIMD (AVX2) com detecção de CPU
+em runtime, caindo automaticamente para um caminho escalar puro em
+qualquer CPU/arquitetura sem esse suporte.
+
+Métodos da classe `LLM`:
+
+| Método | Descrição |
+|--------|-----------|
+| `New(cCaminhoGGUF)` | Carrega o modelo e o tokenizer |
+| `Generate(cPrompt, nMaxTokens, nTemperatura)` | Gera texto (bloqueia até terminar; `nTemperatura<=0` = greedy) |
+| `Tokenize(cTexto)` | Retorna um array de token ids |
+| `Decode(aTokens)` | Converte token ids de volta em texto |
+| `Close()` | Libera o modelo |
+
+Validado **token a token** contra o `llama.cpp` de referência (ver
+`pkg/llm/validate_test.go`). Limitações: só arquitetura GGUF `"llama"`
+com pesos I2_S; sem streaming (ver CHANGELOG para a lista completa).
 
 ## Renderer web (`advplc serve`)
 

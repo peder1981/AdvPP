@@ -520,6 +520,73 @@ Métodos suportados: `New`, `Activate`, `Execute`, `DeActivate`,
 A interface gráfica de configuração do Protheus não é reproduzida
 (runtime headless); a semântica de processamento é completa.
 
+## Motor de inferência LLM (classe `LLM`)
+
+O AdvPP embute um motor de inferência para modelos de linguagem
+quantizados em **I2_S** (pesos ternários -1/0/+1, formato BitNet),
+escrito inteiramente em Go — sem CGO, sem `llama.cpp`, sem
+dependências de terceiros. Compila e roda de forma idêntica em Linux,
+Windows e macOS (amd64/arm64).
+
+### Exemplo
+
+```advpl
+User Function LlmDemo()
+    Local oLLM
+    Local cModelo := "/caminho/Falcon3-3B-Instruct-1.58bit/ggml-model-i2_s.gguf"
+
+    oLLM := LLM():New(cModelo)
+    ConOut(oLLM:Generate("The capital of France is", 6, 0))
+    oLLM:Close()
+Return
+```
+
+### Métodos
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `New` | `cCaminhoGGUF` | `Object` (self) | Carrega o modelo e o tokenizer. Pode levar alguns segundos (o arquivo GGUF tem tipicamente 1-2GB). |
+| `Generate` | `cPrompt, nMaxTokens, nTemperatura` | `Character` | Roda o prompt pela rede e amostra até `nMaxTokens` novos tokens. `nTemperatura<=0` faz amostragem gulosa (greedy, determinística); a chamada **bloqueia** até terminar ou encontrar o token de fim de sequência. |
+| `Tokenize` | `cTexto` | `Array` | Retorna os token ids (números) do texto, via BPE byte-level. |
+| `Decode` | `aTokens` | `Character` | Converte um array de token ids de volta em texto. |
+| `Close` | — | `Nil` | Libera o arquivo do modelo. |
+
+### Arquitetura suportada
+
+Só arquitetura GGUF `general.architecture = "llama"` com tensores de
+peso em **I2_S** — é o caso do BitNet original convertido para essa
+arquitetura e de conversões como o `Falcon3-3B-Instruct-1.58bit`. Não
+suporta (ainda) a arquitetura customizada `bitnet-b1.58` (que tem
+normas extras "SubLN" no grafo) nem outras quantizações (Q4_K, Q6_K,
+etc.) — ver `pkg/llm/model.go`.
+
+### Desempenho e SIMD
+
+O kernel do produto escalar ternário usa **AVX2** em CPUs amd64 que o
+suportam (detecção via CPUID em tempo de execução — sem AVX2, ou fora
+de amd64, cai automaticamente para um caminho escalar puro em Go,
+idêntico em resultado, só mais lento). Matmuls e atenção são
+paralelizados por faixa de linhas/cabeças via goroutines
+(`runtime.GOMAXPROCS`). Referência: ~5s/token no Falcon3-3B-1.58bit em
+8 núcleos com AVX2.
+
+### Validação
+
+O motor foi validado **token a token** contra o `llama.cpp` de
+referência (mesmo algoritmo do BitNet oficial) — ver
+`pkg/llm/validate_test.go`. Rode `go test ./pkg/llm/...` (sem
+`-short`) para reproduzir, desde que tenha o modelo e um binário
+`llama-cli` de referência disponíveis localmente.
+
+### Limitações conhecidas
+
+- Sem streaming: `Generate` só devolve o texto completo ao final.
+- Pré-tokenizador simplificado: não replica o split dígito-a-dígito
+  específico do pré-tokenizador "falcon3" do llama.cpp (só afeta
+  números com mais de um dígito).
+- Uma sessão (`Context`) por objeto `LLM`; sem suporte a múltiplas
+  sequências simultâneas na mesma chamada.
+
 ## Integração com IDE
 
 ### Compilação via IDE
