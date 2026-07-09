@@ -13,3 +13,28 @@
 .advpp-console .muted {
   color: #8a939d;
 }
+
+/* MSDIALOG legado (fase 4): linhas da grade heurística */
+.advpp-dlg-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.advpp-dlg-say {
+  min-width: 110px;
+  font-weight: 500;
+}
+
+.advpp-dlg-get {
+  flex: 1;
+  min-width: 160px;
+}
+
+.advpp-dlg-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}

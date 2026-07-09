@@ -1312,6 +1312,8 @@ func (v *VM) registerNatives() {
 		},
 	}
 
+	v.registerDialogNatives(natives)
+
 	for name, fn := range natives {
 		v.natives[name] = &advplrt.FunctionValue{Name: name, Fn: fn}
 	}

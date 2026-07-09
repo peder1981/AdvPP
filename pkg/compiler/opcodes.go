@@ -168,6 +168,7 @@ type FunctionInfo struct {
 	IsNative    bool
 	Offset      int // bytecode offset
 	ParamNames  []string
+	LocalNames  map[string]int // nome da local → slot (writeback do @ GET web)
 	Annotations []AnnotationInfo
 }
 

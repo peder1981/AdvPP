@@ -102,6 +102,12 @@ func (p *Provider) Browse(spec []byte) []byte {
 	return []byte(p.s.askData("browse", spec))
 }
 
+// Dialog implementa vm.DialogUI: envia um MSDIALOG legado (fase 4) ao
+// browser e bloqueia até o usuário agir (button/close em JSON).
+func (p *Provider) Dialog(spec []byte) []byte {
+	return []byte(p.s.askData("msdialog", spec))
+}
+
 // outWriter transmite a saída de console (ConOut) para o browser.
 type OutWriter struct{ s *session }
 

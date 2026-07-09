@@ -67,6 +67,7 @@ type VM struct {
 	dbFactory    func() DBEngine // cria um engine próprio por job (StartJob)
 	jobs         sync.WaitGroup  // jobs em background pendentes
 	outWriter    io.Writer       // espelho opcional da saída de console (modo web)
+	curDialog    *webDialog      // MSDIALOG em construção (fase 4 do renderer web)
 }
 
 type namedArgInfo struct {
@@ -1129,6 +1130,8 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callGridProcessMethod(obj, upperMethod, args)
 	case "FWMBrowse":
 		return v.callFormBrowseMethod(obj, upperMethod, args)
+	case "MsDialog":
+		return v.callMsDialogMethod(obj, upperMethod, args)
 	default:
 		return fmt.Errorf("unknown method %s on object %s", method, obj.ClassName)
 	}
