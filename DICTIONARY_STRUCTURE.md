@@ -8,7 +8,7 @@ O AdvCfg utiliza um banco de dados SQLite para armazenar o dicionário de dados 
 
 O dicionário é armazenado em:
 ```
-./data/advpl_dictionary.db
+~/.advpp/ADVPP.db
 ```
 
 ## Tabelas do Dicionário
@@ -146,7 +146,7 @@ Armazera perguntas de consultas (SX1).
 ### Criar Dicionário
 
 ```go
-dict, err := shared.NewDictionary("./data/advpl_dictionary.db")
+dict, err := shared.NewDictionary(shared.ResolveDatabasePath(""))
 if err != nil {
     // Tratar erro
 }
@@ -261,7 +261,7 @@ O AdvCfg carrega automaticamente o dicionário ao iniciar:
 
 ```go
 // Carrega dicionário
-dict, err := shared.NewDictionary("./data/advpl_dictionary.db")
+dict, err := shared.NewDictionary(shared.ResolveDatabasePath(""))
 if err != nil {
     dialog.ShowError(err, w)
     return nil
@@ -277,13 +277,13 @@ ac.loadDictionaryData()
 ### Backup
 
 ```bash
-cp ./data/advpl_dictionary.db ./data/advpl_dictionary_backup.db
+cp ~/.advpp/ADVPP.db ~/.advpp/ADVPP_backup.db
 ```
 
 ### Restauração
 
 ```bash
-cp ./data/advpl_dictionary_backup.db ./data/advpl_dictionary.db
+cp ~/.advpp/ADVPP_backup.db ~/.advpp/ADVPP.db
 ```
 
 ## Migrar Dicionário Protheus

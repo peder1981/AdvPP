@@ -13,7 +13,7 @@ A integração entre as ferramentas AdvPP é fundamental para proporcionar uma e
 ### 1. Dicionário de Dados (AdvCfg)
 
 **Inicialização:**
-- AdvCfg abre automaticamente `./data/advpl_dictionary.db`
+- AdvCfg abre automaticamente `~/.advpp/ADVPP.db`
 - Se o banco não existir, é criado automaticamente
 - Se o banco existir mas estiver vazio, é populado com dados iniciais
 - Tabelas do dicionário: SX2, SX3, SIX, SX7, SX5, SX6, SXB
@@ -56,7 +56,7 @@ A integração entre as ferramentas AdvPP é fundamental para proporcionar uma e
    - Carrega estrutura e dados
 
 **Inicialização:**
-- AdvEditor abre automaticamente `./data/advpl_dictionary.db` ao iniciar
+- AdvEditor abre automaticamente `~/.advpp/ADVPP.db` ao iniciar
 - Lista todas as tabelas disponíveis no banco
 - Permite navegar entre tabelas
 
@@ -81,7 +81,7 @@ A integração entre as ferramentas AdvPP é fundamental para proporcionar uma e
 
 ## Banco de Dados Padrão
 
-**Localização:** `./data/advpl_dictionary.db`
+**Localização:** `~/.advpp/ADVPP.db`
 
 **Criação Automática:**
 - Criado na primeira execução do AdvCfg
@@ -114,7 +114,7 @@ A integração entre as ferramentas AdvPP é fundamental para proporcionar uma e
 ### Compartilhamento de Banco de Dados
 
 **Arquivo Único:**
-- Todas as ferramentas usam o mesmo arquivo `./data/advpl_dictionary.db`
+- Todas as ferramentas usam o mesmo arquivo `~/.advpp/ADVPP.db`
 - SQLite permite acesso concorrente
 - Lock automático para evitar conflitos
 
@@ -174,7 +174,7 @@ A integração entre as ferramentas AdvPP é fundamental para proporcionar uma e
 ### Caminhos Padrão
 
 ```
-./data/advpl_dictionary.db  - Dicionário de dados
+~/.advpp/ADVPP.db  - Dicionário de dados
 ./data/*.db                 - Bancos de dados SQLite
 ./data/*.dbf                - Arquivos DBF
 ```
@@ -182,7 +182,7 @@ A integração entre as ferramentas AdvPP é fundamental para proporcionar uma e
 ### Variáveis de Ambiente
 
 ```bash
-ADVP_DICTIONARY_PATH=./data/advpl_dictionary.db
+ADVPP_DB=~/.advpp/ADVPP.db
 ADVP_DATA_DIR=./data
 ADVP_DEFAULT_DRIVER=SQLite
 ```
@@ -252,7 +252,7 @@ type EditorAPI interface {
 ### Problemas Comuns
 
 **Banco de dados não encontrado:**
-- Verifique se `./data/advpl_dictionary.db` existe
+- Verifique se `~/.advpp/ADVPP.db` existe
 - Verifique permissões de escrita no diretório
 
 **Conflito de acesso:**

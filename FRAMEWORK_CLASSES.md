@@ -186,6 +186,26 @@ type FWListView struct {
 - `AddColumn(column *ListViewColumn)` - Adiciona coluna
 - `AddItem(item *ListViewItem)` - Adiciona item
 
+### FWGridProcess
+
+Classe de processamento em grid multi-thread (TDN: interface padrão de
+processamento). Implementada nativamente em Go (`pkg/vm/grid.go`) com
+estado no campo `Native` do `ObjectValue`.
+
+**Semântica:**
+- `New(cFunName, cTitle, cDesc, bProcess, cPerg, cGrid, lSaveLog)` — construtor
+- `SetThreadGrid(n)` / `SetMaxThreadGrid(n)` — tamanho do pool de threads
+- `CallExecute(p0..p9)` — despacha a função `cGrid` para o pool; cada
+  execução roda em VM isolada com conexão SQLite própria; retorna `.F.`
+  se `StopExecute()` foi chamado; aplica backpressure quando o pool enche
+- `Activate()` / `Execute()` — avalia `bProcess` e espera as threads
+- `StopExecute()`, `IsFinished()`, `SetAbort(l)`, `SetAfterExecute(b)`
+- `SetMeters(n)`, `SetMaxMeter(nMax,nMeter,cMsg)`, `SetIncMeter(nMeter,cMsg)` — contadores de progresso (sem UI)
+- `SaveLog(cMsg)` / `GetLastLog()` — log em memória (eco no console com `lSaveLog=.T.`)
+
+**Limitação:** a interface gráfica de configuração do Protheus não é
+reproduzida (runtime headless). Teste: `tests/grid_process_test.prw`.
+
 ## Registro no VM
 
 As classes complexas foram registradas na VM para permitir instanciação:

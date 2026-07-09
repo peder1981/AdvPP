@@ -121,7 +121,9 @@ All standard patterns work in AdvPP
 | Componentes MVC | ✅ 100% | FWFormModel, FWFormView, FWFormBrowse |
 | Funções de Diálogo | ✅ 100% | MsgInfo, MsgStop, MsgAlert, MsgYesNo |
 | Padrões Padrão | ✅ 100% | Model 1, Model 3, etc. |
-| Codificação de Arquivo | ✅ 100% | Conversão automática CP1252 -> UTF-8 implementada |
+| Codificação de Arquivo | ✅ 100% | Conversão automática CP1252 -> UTF-8 (100% Go, sem iconv) |
+| Banco de Dados | ✅ Funcional | DBSelectArea/DBSeek/RecCount etc. sobre SQLite compartilhado (~/.advpp/ADVPP.db) |
+| Multi-thread | ✅ Funcional | StartJob (VM isolado por job) e FWGridProcess (pool de threads) |
 
 ## Limitações
 

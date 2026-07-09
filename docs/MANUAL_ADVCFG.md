@@ -17,10 +17,12 @@ O AdvCfg é o configurador de tabelas do AdvPP, inspirado no SIGACFG do TOTVS Pr
 
 ```bash
 # Baixar o pacote
-wget https://github.com/peder1981/AdvPP/releases/download/v1.0.0/advpp_1.0.0_amd64.deb
+# Baixe o .deb mais recente em https://github.com/peder1981/AdvPP/releases
+curl -sL https://api.github.com/repos/peder1981/AdvPP/releases/latest \
+  | grep browser_download_url | grep amd64.deb | cut -d'"' -f4 | xargs wget
 
 # Instalar
-sudo dpkg -i advpp_1.0.0_amd64.deb
+sudo dpkg -i advpp_*_amd64.deb
 
 # Resolver dependências se necessário
 sudo apt-get install -f
