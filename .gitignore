@@ -29,6 +29,11 @@ dist/
 debian/
 data/
 
+# Frontend web (fonte versionado; build vai embutido em pkg/webui/dist)
+web/node_modules/
+web/.angular/
+!pkg/webui/dist/
+
 # Artefatos de exemplo
 /demo1.bytecode
 /hello_exec

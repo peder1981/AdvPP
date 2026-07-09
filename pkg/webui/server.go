@@ -1,34 +1,38 @@
 // Package webui implementa o modo "advplc serve": executa o programa
 // AdvPL/TLPP no servidor (mesma VM, mesmo banco ADVPP.db) e renderiza a
-// interface no browser do usuário — fase 1 do renderer web: console e
-// diálogos (MsgInfo/MsgStop/MsgAlert/MsgYesNo/Alert) em HTML puro.
+// interface no browser do usuário. Fase 2 do renderer web: app PO-UI/Angular
+// embutido (console, diálogos e FWMBrowse→po-table + SX3→po-dynamic-form).
 //
-// Protocolo (stdlib apenas, sem WebSocket):
-//   GET  /            → página HTML embutida
-//   GET  /events?s=ID → stream SSE: {type:"output"|"dialog"|"done"|"error", ...}
-//   POST /reply?s=ID  → resposta de diálogo: {"id":N,"result":"ok"|"yes"|"no"}
+// Protocolo (backend stdlib apenas, sem WebSocket):
+//   GET  /            → app PO-UI embutido (embed.FS)
+//   GET  /events?s=ID → stream SSE: {type:"output"|"dialog"|"browse"|"done"|"error", ...}
+//   POST /reply?s=ID  → resposta: {"id":N,"result":"ok"|"yes"|"no"|<ação JSON do browse>}
 //
 // Cada conexão /events cria uma sessão com VM própria (isolada, como um
 // work process) — recarregar a página reexecuta o programa.
 package webui
 
 import (
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"sync"
 )
 
-//go:embed index.html
-var indexHTML []byte
+// dist é o app PO-UI/Angular compilado (fase 2) — regenerar com `make web`.
+//
+//go:embed all:dist
+var distFS embed.FS
 
 type event struct {
-	Type  string `json:"type"` // output | dialog | done | error
-	ID    int    `json:"id,omitempty"`
-	Kind  string `json:"kind,omitempty"` // info | stop | alert | yesno
-	Title string `json:"title,omitempty"`
-	Text  string `json:"text,omitempty"`
+	Type  string          `json:"type"` // output | dialog | browse | done | error
+	ID    int             `json:"id,omitempty"`
+	Kind  string          `json:"kind,omitempty"` // info | stop | alert | yesno
+	Title string          `json:"title,omitempty"`
+	Text  string          `json:"text,omitempty"`
+	Data  json.RawMessage `json:"data,omitempty"` // payload estruturado (browse)
 }
 
 type session struct {
@@ -58,6 +62,20 @@ func (s *session) ask(kind, msg, title string) string {
 	return <-ch
 }
 
+// askData envia um evento com payload estruturado (ex.: browse) e bloqueia
+// até a resposta do browser — mesma mecânica de ask, com JSON no lugar de texto.
+func (s *session) askData(eventType string, data json.RawMessage) string {
+	s.mu.Lock()
+	s.nextID++
+	id := s.nextID
+	ch := make(chan string, 1)
+	s.waiting[id] = ch
+	s.mu.Unlock()
+
+	s.events <- event{Type: eventType, ID: id, Data: data}
+	return <-ch
+}
+
 func (s *session) reply(id int, result string) {
 	s.mu.Lock()
 	ch := s.waiting[id]
@@ -76,6 +94,12 @@ func (p *Provider) MsgStop(msg, title string)  { p.s.ask("stop", msg, title) }
 func (p *Provider) MsgAlert(msg, title string) { p.s.ask("alert", msg, title) }
 func (p *Provider) MsgYesNo(msg, title string) bool {
 	return p.s.ask("yesno", msg, title) == "yes"
+}
+
+// Browse implementa vm.BrowseUI: envia o spec do FWMBrowse ao browser e
+// bloqueia até o usuário devolver uma ação (save/delete/close em JSON).
+func (p *Provider) Browse(spec []byte) []byte {
+	return []byte(p.s.askData("browse", spec))
 }
 
 // outWriter transmite a saída de console (ConOut) para o browser.
@@ -101,10 +125,11 @@ func Serve(addr, sourceName string, run RunFunc) error {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(indexHTML)
-	})
+	staticFS, err := fs.Sub(distFS, "dist")
+	if err != nil {
+		return err
+	}
+	mux.Handle("/", http.FileServerFS(staticFS))
 
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
 		sid := r.URL.Query().Get("s")

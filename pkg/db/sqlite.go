@@ -172,6 +172,48 @@ func (e *SQLiteEngine) RecNo() int {
 	return e.current + 1
 }
 
+// QueryRows executa SQL direto e devolve as linhas como mapas coluna→string
+// (chaves em maiúsculas) — extensão vm.SQLEngine usada pelo FWMBrowse.
+func (e *SQLiteEngine) QueryRows(query string, args ...any) ([]map[string]string, error) {
+	rows, err := e.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	result := []map[string]string{}
+	for rows.Next() {
+		values := make([]interface{}, len(columns))
+		ptrs := make([]interface{}, len(columns))
+		for i := range columns {
+			ptrs[i] = &values[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return nil, err
+		}
+		record := map[string]string{}
+		for i, col := range columns {
+			if values[i] == nil {
+				record[strings.ToUpper(col)] = ""
+			} else {
+				record[strings.ToUpper(col)] = fmt.Sprintf("%v", values[i])
+			}
+		}
+		result = append(result, record)
+	}
+	return result, rows.Err()
+}
+
+// Exec executa um comando SQL (INSERT/UPDATE/DELETE) — extensão vm.SQLEngine.
+func (e *SQLiteEngine) Exec(query string, args ...any) error {
+	_, err := e.db.Exec(query, args...)
+	return err
+}
+
 func (e *SQLiteEngine) Close() error {
 	if e.db != nil {
 		return e.db.Close()
