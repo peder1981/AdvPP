@@ -179,6 +179,45 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "LOCATE") {
 		return p.parseLocateCommand()
 	}
+	// `Count To <var> [For <expr>] [While <expr>]` / `Sum <expr,...> To
+	// <var,...> [For ...] [While ...]` / `Average <expr,...> To <var,...>` —
+	// comandos Clipper de agregação sobre o alias atual; parseados e
+	// descartados (mesmo espírito de DELETE FOR/LOCATE).
+	if (p.isWord(tok, "COUNT") || p.isWord(tok, "SUM") || p.isWord(tok, "AVERAGE")) &&
+		(p.isKeyword(p.peekAt(1), "TO") || p.isKeyword(p.peekAt(1), "FOR") || p.isKeyword(p.peekAt(1), "WHILE") ||
+			(!p.isWord(tok, "COUNT") && (p.peekAt(1).Type == lexer.TOKEN_IDENT))) {
+		aggTok := p.advance()
+		// expressões agregadas (SUM/AVERAGE)
+		if !strings.EqualFold(aggTok.Value, "COUNT") && !p.isKeyword(p.peek(), "TO") {
+			if _, err := p.parseCommaValues(); err != nil {
+				return nil, err
+			}
+		}
+		for {
+			cur := p.peek()
+			switch {
+			case p.isKeyword(cur, "TO"):
+				p.advance()
+				for {
+					if _, err := p.expectName(); err != nil {
+						return nil, err
+					}
+					if p.peek().Type != lexer.TOKEN_COMMA {
+						break
+					}
+					p.advance()
+				}
+			case p.isKeyword(cur, "FOR"), p.isKeyword(cur, "WHILE"):
+				p.advance()
+				if _, err := p.parseOr(); err != nil {
+					return nil, err
+				}
+			default:
+				call := &ast.CallExpr{Loc: p.posFromToken(aggTok), Name: strings.ToUpper(aggTok.Value) + "_RECORDS", Args: nil}
+				return &ast.ExprStmt{Loc: p.posFromToken(aggTok), Expr: call}, nil
+			}
+		}
+	}
 	// `Release Object <name>` / `Release All [Like <mask>]` — libera
 	// memvars/objetos; parseado e descartado. Só com OBJECT/ALL para não
 	// engolir um identificador "Release" usado como nome comum.

@@ -464,6 +464,12 @@ func (c *Compiler) compileStoreTarget(target ast.Expression, line int) error {
 		// Macro/dynamic assignment (&cVar := x) has no addressable storage
 		// in this VM yet — drop the value rather than fail compilation.
 		c.emit(OP_POP, 0, 0, "", line)
+	case *ast.CallExpr, *ast.MethodCall:
+		// Clipper permite atribuição em resultado de chamada com semântica
+		// de referência (`ATail(arr) := valor`, `oObj:Metodo() := x`). O VM
+		// não modela lvalues por referência — descarta o valor em vez de
+		// falhar a compilação (mesma tolerância do MacroExp acima).
+		c.emit(OP_POP, 0, 0, "", line)
 	default:
 		return fmt.Errorf("unsupported assignment target: %T", target)
 	}
