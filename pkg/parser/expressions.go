@@ -177,7 +177,11 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 		p.advance()
 		var retExpr ast.Expression
 		if p.peek().Type != lexer.TOKEN_EOF && p.peek().Type != lexer.TOKEN_SEMICOLON && !p.isStatementBoundary(p.peek()) {
-			expr, err := p.parseExpression()
+			// `Return target := value` (assignment used inline as the
+			// return value, e.g. `Return self:oProp := {...}`) — same
+			// idiom as If/While conditions, needs parseAssignRHS instead
+			// of plain parseExpression to not leave the ':=' dangling.
+			expr, err := p.parseAssignRHS()
 			if err != nil {
 				return nil, err
 			}
@@ -2611,7 +2615,11 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 			if p.peek().Type == lexer.TOKEN_COMMA {
 				elements = append(elements, &ast.NilLit{Loc: p.posFromToken(p.peek())})
 			} else {
-				elem, err := p.parseExpression()
+				// parseCodeBlockItem (not plain parseExpression) so an
+				// element can itself be an assignment (`{a, b := c, d}`,
+				// seen as a `{||...}`-less block body used as an array in
+				// real Protheus VALID/ACTION clauses).
+				elem, err := p.parseCodeBlockItem()
 				if err != nil {
 					return nil, err
 				}

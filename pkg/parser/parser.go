@@ -554,7 +554,9 @@ func (p *Parser) parseFunctionBody() ([]ast.Statement, ast.Expression, error) {
 				p.peek().Type != lexer.TOKEN_SEMICOLON &&
 				p.peek().Type != lexer.TOKEN_AT &&
 				!p.isStatementBoundary(p.peek()) {
-				expr, err := p.parseExpression()
+				// `Return target := value` — see the same fix in
+				// expressions.go's top-level RETURN handling.
+				expr, err := p.parseAssignRHS()
 				if err != nil {
 					return body, nil, err
 				}

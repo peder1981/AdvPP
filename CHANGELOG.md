@@ -2,6 +2,24 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.5] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (82,0% → 83,0%)
+
+Continuação do sweep dirigido por corpus (ver [[advpp_corpus_locations]]).
+Dois bugs reais adicionais de parser corrigidos:
+
+- Elemento de array literal `{a, b := c, d}` (sem `||`, usado como
+  sequência de expressões em cláusulas VALID/ACTION reais) não aceitava
+  atribuição (`:=`) como elemento — usava `parseExpression` puro em vez de
+  `parseCodeBlockItem`, mesma classe de bug já corrigida em outros pontos
+  do parser para `:=` inline.
+- `Return target := value` (atribuição usada inline como valor de retorno,
+  ex. `Return self:oProp := {...}`) deixava o `:=` pendurado — corrigido
+  nos DOIS parsers de RETURN existentes (`expressions.go` e o parser de
+  corpo de método em `parser.go`, que tem sua própria cópia da lógica de
+  RETURN) para usar `parseAssignRHS` em vez de `parseExpression`.
+
 ## [1.7.4] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (81,0% → 82,0%)
