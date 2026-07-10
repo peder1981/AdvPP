@@ -179,6 +179,34 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "LOCATE") {
 		return p.parseLocateCommand()
 	}
+	// `Release Object <name>` / `Release All [Like <mask>]` — libera
+	// memvars/objetos; parseado e descartado. Só com OBJECT/ALL para não
+	// engolir um identificador "Release" usado como nome comum.
+	if p.isWord(tok, "RELEASE") && (p.isWord(p.peekAt(1), "OBJECT") || p.isKeyword(p.peekAt(1), "ALL")) {
+		relTok := p.advance() // RELEASE
+		if p.isWord(p.peek(), "OBJECT") {
+			p.advance()
+			for {
+				if _, err := p.expectName(); err != nil {
+					return nil, err
+				}
+				if p.peek().Type != lexer.TOKEN_COMMA {
+					break
+				}
+				p.advance()
+			}
+		} else {
+			p.advance() // ALL
+			if p.isWord(p.peek(), "LIKE") {
+				p.advance()
+				if _, err := p.parseOr(); err != nil {
+					return nil, err
+				}
+			}
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(relTok), Name: "RELEASE_VARS", Args: nil}
+		return &ast.ExprStmt{Loc: p.posFromToken(relTok), Expr: call}, nil
+	}
 	if p.isWord(tok, "PUBLISH") && p.isWord(p.peekAt(1), "MODEL") {
 		return p.parsePublishModel()
 	}
@@ -805,8 +833,12 @@ func (p *Parser) parseBeginReportQuery() (ast.Statement, error) {
 	startTok := p.advance() // BEGIN
 	p.advance()             // REPORT
 	p.advance()             // QUERY
+	// A "seção" pode ser uma expressão completa (`oReport:Section(2)`),
+	// não só um nome — parseia como expressão postfix e descarta.
 	if p.peek().Type == lexer.TOKEN_IDENT {
-		p.advance() // section var
+		if _, err := p.parsePostfix(); err != nil {
+			return nil, err
+		}
 	}
 
 	isEndReportQuery := func() bool {
@@ -831,9 +863,12 @@ func (p *Parser) parseBeginReportQuery() (ast.Statement, error) {
 		p.advance()
 		queryTok := p.advance()
 		// Same-line guard: don't eat a genuinely new statement's leading
-		// identifier as if it were the trailing section-var echo.
+		// identifier as if it were the trailing section-var echo. O eco
+		// também pode ser uma expressão (`oReport:Section(2)`).
 		if p.peek().Type == lexer.TOKEN_IDENT && p.peek().Line == queryTok.Line {
-			p.advance()
+			if _, err := p.parsePostfix(); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return bs, nil
@@ -1851,7 +1886,7 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 		}
 		for p.isAtClauseWord(p.peek()) {
 			clauseTok := p.advance()
-			if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") {
+			if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "MULTILINE") {
 				continue
 			}
 			vals, err := p.parseCommaValues()
@@ -1958,7 +1993,7 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 
 func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 	for _, kw := range []string{
-		"SIZE", "PICTURE", "VALID", "WHEN", "COLOR", "FONT", "PIXEL",
+		"SIZE", "PICTURE", "VALID", "WHEN", "COLOR", "COLORS", "FONT", "PIXEL",
 		"MESSAGE", "ACTION", "OF", "DECODE", "F3", "CLICKFOCUS", "RANGE",
 		"MAXLENGTH", "MASK", "RESET", "TITLE", "VAR", "MEMO",
 		// `@ y,x GROUP var TO y2,x2 OF window LABEL "..." PIXEL` — GROUP
@@ -1997,6 +2032,9 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		// DSL mobile (FDA); `@ y,x BUTTON o CAPTION x SYMBOL ACTION f()` —
 		// botão com bitmap simbólico do mesmo DSL.
 		"CAPTION", "SYMBOL",
+		// `@ y,x To y2,x2 MultiLine Object oMulti` — caixa multi-linha
+		// (TMultiget legado) com var de saída via OBJECT.
+		"OBJECT",
 		// `@ y,x VTSAY cTexto VTGET var VALID expr` — DSL VT100 (coletores
 		// de dados): VTGET encadeia um campo de entrada na mesma linha @.
 		"VTGET",
@@ -2075,7 +2113,9 @@ func (p *Parser) parseCodeBlockItem() (ast.Expression, error) {
 
 	if p.peek().Type == lexer.TOKEN_ASSIGN {
 		p.advance()
-		val, err := p.parseExpression()
+		// parseAssignRHS: o valor pode ser outra atribuição encadeada
+		// (`x[9] := x[10] := ... := 0` dentro de codeblock real).
+		val, err := p.parseAssignRHS()
 		if err != nil {
 			return nil, err
 		}
@@ -2871,8 +2911,10 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 			}
 			// TLPP reserves ARRAY/DATE/OBJECT as type-annotation keywords, but
 			// classic AdvPL also calls them as constructors: Array(10),
-			// Date(2024,1,1). Same shape as If()/IIF() above.
-			if (strings.EqualFold(tok.Value, "ARRAY") || strings.EqualFold(tok.Value, "DATE") || strings.EqualFold(tok.Value, "OBJECT")) &&
+			// Date(2024,1,1). Same shape as If()/IIF() above. BREAK is a
+			// statement keyword, but `Break(oError)` inside a codeblock
+			// (idioma de ErrorBlock) é uma chamada de função.
+			if (strings.EqualFold(tok.Value, "ARRAY") || strings.EqualFold(tok.Value, "DATE") || strings.EqualFold(tok.Value, "OBJECT") || strings.EqualFold(tok.Value, "BREAK")) &&
 				p.peekAt(1).Type == lexer.TOKEN_LPAREN {
 				p.advance()
 				p.advance()
