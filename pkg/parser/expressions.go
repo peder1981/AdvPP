@@ -1061,7 +1061,7 @@ func (p *Parser) isDefineClauseWord(tok lexer.Token) bool {
 		"TITLE", "FROM", "TO", "OF", "PIXEL", "ENABLE", "DISABLE", "COLOR",
 		"STYLE", "ICON", "NAME", "SIZE", "TYPE", "ACTION", "ALIAS",
 		"BOLD", "ITALIC", "UNDERLINE", "PARAMETER", "PARAMETERS", "DESCRIPTION",
-		"TABLES", "PICTURE", "WHEN", "ONSTOP",
+		"TABLES", "PICTURE", "WHEN", "ONSTOP", "BLOCK",
 	} {
 		if p.isWord(tok, kw) {
 			return true
@@ -1169,6 +1169,10 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 		// botão (TButton "OnStop"), clause de valor único.
 		case p.isWord(cur, "ONSTOP"):
 			name = "ONSTOP"
+		// `DEFINE CELL ... BLOCK{||...} ...` — TReport column value block
+		// (equivalente a NAME quando o conteúdo não é um campo direto).
+		case p.isWord(cur, "BLOCK"):
+			name = "BLOCK"
 		// `DEFINE FUNCTION ... FUNCTION SUM ...` — TReport column aggregate
 		// function (SUM/AVG/...); clause name collides with the DEFINE kind
 		// itself, only ever seen after `DEFINE FUNCTION <target> FROM ...`.
@@ -1710,6 +1714,48 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 		y2, err := p.parseOr()
 		if err != nil {
 			return nil, err
+		}
+		// `@ x1,y1 TO x2,y2 DIALOG <var> TITLE "..." ...` — legacy dialog
+		// creation syntax (equivalente a `DEFINE MSDIALOG <var> FROM
+		// x1,y1 TO x2,y2 TITLE ...`), distinto do desenho de caixa (BOX).
+		if p.isWord(p.peek(), "DIALOG") {
+			dlgTok := p.advance()
+			varTok, err := p.expect(lexer.TOKEN_IDENT)
+			if err != nil {
+				return nil, err
+			}
+			clauses := map[string][]ast.Expression{}
+			for {
+				cur := p.peek()
+				var name string
+				switch {
+				case p.isKeyword(cur, "TITLE"):
+					name = "TITLE"
+				case p.isWord(cur, "PIXEL"):
+					p.advance()
+					continue
+				default:
+					goto dlgDone
+				}
+				p.advance()
+				vals, err := p.parseCommaValues()
+				if err != nil {
+					return nil, err
+				}
+				clauses[name] = vals
+			}
+		dlgDone:
+			nilExpr := func() ast.Expression { return &ast.NilLit{Loc: p.posFromToken(dlgTok)} }
+			at := func(name string, i int) ast.Expression {
+				if v, ok := clauses[name]; ok && i < len(v) {
+					return v[i]
+				}
+				return nilExpr()
+			}
+			call := &ast.CallExpr{Loc: p.posFromToken(dlgTok), Name: "MSDIALOG",
+				Args: []ast.Expression{x, y, x2, y2, at("TITLE", 0)}}
+			target := &ast.Ident{Loc: p.posFromToken(varTok), Name: varTok.Value}
+			return &ast.AssignStmt{Loc: p.posFromToken(tok), Target: target, Value: call, Op: ":="}, nil
 		}
 		args := []ast.Expression{x, y, x2, y2}
 		if p.isWord(p.peek(), "BOX") {
