@@ -745,6 +745,14 @@ func (l *Lexer) tokenizeOperator(line, col int) error {
 		return nil
 	}
 
+	// Bytes de controle soltos (\x01 etc., corrupção comum em fontes reais
+	// vindos de sistemas legados) são tolerados pelo compilador Protheus —
+	// ignora, como o backtick acima.
+	if ch < 0x20 {
+		l.advance()
+		return nil
+	}
+
 	return fmt.Errorf("unexpected character %q at %s:%d:%d", ch, l.fileName, line, col)
 }
 
