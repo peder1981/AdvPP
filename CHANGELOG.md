@@ -2,7 +2,42 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
-## [1.7.0] — 2026-07-10
+## [1.7.1] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (70,8% → 73,8%)
+
+Continuação do sweep dirigido por corpus contra os fontes reais 811R4 e
+12.1.2510 (amostra de 500 arquivos, ver [[advpp_corpus_locations]]).
+Onze bugs reais de parser corrigidos:
+
+- `SET KEY <nKey> TO [<uBlock>]` — o keycode antes do `TO` não era
+  reconhecido pelo dispatcher de `SET`.
+- `DEFINE CELL ... AUTO SIZE` (TReport) — flag `AUTO` sem valor antes de
+  `SIZE` não era reconhecida, quebrando o parsing da cláusula seguinte.
+- Drift em `SET FILTER TO` — a heurística "tem valor?" não detectava que
+  um `x += ...` na linha seguinte não era o valor do `SET`, engolindo a
+  variável errada.
+- `DELETE FILE <expr>` e `DELETE [FOR/WHILE/RECORD/REST/ALL]` — comandos
+  Clipper de arquivo/registro não eram suportados.
+- `WSMETHOD ... WSRECEIVE a,b WSSEND c` — só aceitava `WSSEND` antes de
+  `WSRECEIVE` e com valor único; real Protheus usa qualquer ordem e listas
+  separadas por vírgula em ambas.
+- `PREPARE ENVIRONMENT EMPRESA/FILIAL/MODULO/TABLES` — comando batch de
+  abertura de ambiente não suportado.
+- `SET DELETE ON` — "DELETE" é palavra reservada (`TOKEN_KEYWORD`), não
+  identificador; o dispatcher de `SET` exigia `TOKEN_IDENT` e falhava.
+- **Bug estrutural**: como quebras de linha são descartadas antes do
+  parsing, um `++x` prefixo iniciando uma nova instrução colava-se ao
+  fim da expressão da instrução anterior (`y := f()` seguido de `++x`
+  virava `(f())++`, erro de compilação "unsupported assignment target").
+  Corrigido exigindo que o operador pós-fixo `++`/`--` esteja na mesma
+  linha do token anterior.
+- Atribuição encadeada (`a:=b:=c:=valor`) dentro de `Local`/`Private` não
+  era suportada (só funcionava em atribuição solta).
+- `For ... EndFor` (além de `Next`/`End`) não fechava o loop.
+- `Default a:=1, b:=2, c:=3` (múltiplas variáveis separadas por vírgula)
+  só suportava uma única variável.
+
 
 ### Motor real de `#xcommand`/`#command`/`#xtranslate`/`#translate`
 

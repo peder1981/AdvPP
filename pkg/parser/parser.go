@@ -151,6 +151,9 @@ func (p *Parser) isStatementBoundary(tok lexer.Token) bool {
 	if p.isFunctionBoundary(tok) {
 		return true
 	}
+	if p.isWord(tok, "ENDFOR") {
+		return true
+	}
 	for _, kw := range []string{
 		"ENDIF", "ELSE", "ELSEIF",
 		"NEXT", "ENDDO", "END",
@@ -979,18 +982,13 @@ func (p *Parser) parseWSMethodImpl() (*ast.MethodImpl, error) {
 		}
 		p.advance()
 	}
-	// Optional `WSSEND arg[,arg...] WSRECEIVE resultVar` clauses (SOAP
-	// request/response binding) between the name and WSCLIENT. Parsed and
+	// Optional `WSSEND arg[,arg...]` / `WSRECEIVE arg[,arg...]` clauses
+	// (SOAP request/response binding) between the name and WSCLIENT, in
+	// either order and each with a comma-separated arg list. Parsed and
 	// dropped — this VM doesn't do real SOAP marshaling.
-	if p.isWord(p.peek(), "WSSEND") {
+	for p.isWord(p.peek(), "WSSEND") || p.isWord(p.peek(), "WSRECEIVE") {
 		p.advance()
 		if _, err := p.parseCommaValues(); err != nil {
-			return nil, err
-		}
-	}
-	if p.isWord(p.peek(), "WSRECEIVE") {
-		p.advance()
-		if _, err := p.parseOr(); err != nil {
 			return nil, err
 		}
 	}

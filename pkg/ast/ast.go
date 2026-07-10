@@ -169,6 +169,19 @@ func (v *VarDeclGroup) Pos() Position  { return v.Loc }
 func (v *VarDeclGroup) String() string { return "VarDeclGroup" }
 func (v *VarDeclGroup) statementNode() {}
 
+// DefaultGroup holds a comma-separated `Default` line with more than one
+// variable (`Default a := 1, b := 2, c := 3`) — same rationale as
+// VarDeclGroup: each pair is its own DefaultExpr, kept together as the one
+// ast.Statement a single parseStatement() call must return.
+type DefaultGroup struct {
+	Loc      Position
+	Defaults []*DefaultExpr
+}
+
+func (d *DefaultGroup) Pos() Position  { return d.Loc }
+func (d *DefaultGroup) String() string { return "DefaultGroup" }
+func (d *DefaultGroup) statementNode() {}
+
 type AssignStmt struct {
 	Loc    Position
 	Target Expression

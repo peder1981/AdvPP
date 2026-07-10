@@ -320,6 +320,13 @@ func (c *Compiler) compileStatement(stmt ast.Statement) error {
 			}
 		}
 		return nil
+	case *ast.DefaultGroup:
+		for _, d := range s.Defaults {
+			if err := c.compileExpr(d); err != nil {
+				return err
+			}
+		}
+		return nil
 	case *ast.AssignStmt:
 		return c.compileAssign(s)
 	case *ast.IfStmt:
