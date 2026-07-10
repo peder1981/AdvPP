@@ -59,8 +59,13 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isKeyword(tok, "DO") && p.isKeyword(p.peekAt(1), "CASE") {
 		return p.parseDoCase()
 	}
-	if p.isWord(tok, "SET") && p.peekAt(1).Type == lexer.TOKEN_IDENT &&
+	if p.isWord(tok, "SET") && (p.peekAt(1).Type == lexer.TOKEN_IDENT || p.peekAt(1).Type == lexer.TOKEN_KEYWORD) &&
 		(p.isKeyword(p.peekAt(2), "TO") || p.isWord(p.peekAt(2), "ON") || p.isWord(p.peekAt(2), "OFF") || p.isWord(p.peekAt(2), "OF")) {
+		return p.parseSetCommand()
+	}
+	// `SET KEY <nKey> TO [<uBlock>]` — o keycode vem antes do TO, ao
+	// contrário de `SET <opção> TO ...`.
+	if p.isWord(tok, "SET") && p.isWord(p.peekAt(1), "KEY") {
 		return p.parseSetCommand()
 	}
 	if p.isKeyword(tok, "ADD") && p.isWord(p.peekAt(1), "OPTION") {
@@ -93,8 +98,20 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "INDEX") && p.isKeyword(p.peekAt(1), "ON") {
 		return p.parseIndexOn()
 	}
+	// `Delete File <expr>` — apaga um arquivo do disco (comando Clipper,
+	// diferente de `Delete [For expr] [While expr]` que marca registros do
+	// alias atual para deleção); ambos parseados e descartados.
+	if p.isWord(tok, "DELETE") {
+		return p.parseDeleteCommand()
+	}
 	if p.isWord(tok, "PUBLISH") && p.isWord(p.peekAt(1), "MODEL") {
 		return p.parsePublishModel()
+	}
+	// `Prepare Environment Empresa <expr> Filial <expr> [Modulo <expr>]
+	// [Tables <expr>,...]` — abre ambiente/tabelas de um job batch fora do
+	// contexto de uma rotina interativa; parseado e descartado.
+	if p.isWord(tok, "PREPARE") && p.isWord(p.peekAt(1), "ENVIRONMENT") {
+		return p.parsePrepareEnvironment()
 	}
 	if p.isKeyword(tok, "ACTIVATE") && (p.isWord(p.peekAt(1), "MSDIALOG") || p.isWord(p.peekAt(1), "DIALOG") || p.isWord(p.peekAt(1), "WIZARD") || p.isWord(p.peekAt(1), "WINDOW")) {
 		return p.parseActivateDialog()
@@ -218,7 +235,10 @@ func (p *Parser) parseVarDecl() (ast.Statement, error) {
 
 	if p.peek().Type == lexer.TOKEN_ASSIGN {
 		p.advance()
-		val, err := p.parseExpression()
+		// parseAssignRHS (not parseExpression) so chained assignment
+		// (`Private cL2:=cL3:=cL4:="x"`) parses as nested AssignExpr instead
+		// of leaving the extra ':='s dangling.
+		val, err := p.parseAssignRHS()
 		if err != nil {
 			return nil, err
 		}
@@ -257,7 +277,7 @@ func (p *Parser) parseVarDecl() (ast.Statement, error) {
 		}
 		if p.peek().Type == lexer.TOKEN_ASSIGN {
 			p.advance()
-			val, err := p.parseExpression()
+			val, err := p.parseAssignRHS()
 			if err != nil {
 				return nil, err
 			}
@@ -427,9 +447,10 @@ func (p *Parser) parseFor() (ast.Statement, error) {
 		Body: make([]ast.Statement, 0),
 	}
 
-	// "End" genérico (sem "Next") também fecha o For no Clipper clássico,
-	// igual ao If/While/Case.
-	for !p.isKeyword(p.peek(), "NEXT") && !p.isKeyword(p.peek(), "END") && p.peek().Type != lexer.TOKEN_EOF {
+	// "End" genérico (sem "Next") e "EndFor" também fecham o For no
+	// Clipper/AdvPL clássico, igual ao If/While/Case.
+	for !p.isKeyword(p.peek(), "NEXT") && !p.isKeyword(p.peek(), "END") &&
+		!p.isWord(p.peek(), "ENDFOR") && p.peek().Type != lexer.TOKEN_EOF {
 		if p.isFunctionBoundary(p.peek()) {
 			break
 		}
@@ -442,7 +463,7 @@ func (p *Parser) parseFor() (ast.Statement, error) {
 		}
 	}
 
-	if p.isKeyword(p.peek(), "END") {
+	if p.isKeyword(p.peek(), "END") || p.isWord(p.peek(), "ENDFOR") {
 		p.advance()
 		return forStmt, nil
 	}
@@ -770,8 +791,32 @@ func (p *Parser) parseTryCatch() (ast.Statement, error) {
 	return tc, nil
 }
 
+// parseDefault handles both the single form `Default var := val` and the
+// comma-separated multi-var form `Default a := 1, b := 2, c := 3` — common
+// in real AdvPL for setting up several optional parameters at once.
 func (p *Parser) parseDefault() (ast.Statement, error) {
 	tok := p.advance()
+	def, err := p.parseOneDefault(tok)
+	if err != nil {
+		return nil, err
+	}
+	defaults := []*ast.DefaultExpr{def}
+	for p.peek().Type == lexer.TOKEN_COMMA {
+		p.advance()
+		nextTok := p.peek()
+		d, err := p.parseOneDefault(nextTok)
+		if err != nil {
+			return nil, err
+		}
+		defaults = append(defaults, d)
+	}
+	if len(defaults) == 1 {
+		return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: defaults[0]}, nil
+	}
+	return &ast.DefaultGroup{Loc: p.posFromToken(tok), Defaults: defaults}, nil
+}
+
+func (p *Parser) parseOneDefault(tok lexer.Token) (*ast.DefaultExpr, error) {
 	nameTok, err := p.expect(lexer.TOKEN_IDENT)
 	if err != nil {
 		return nil, err
@@ -783,10 +828,7 @@ func (p *Parser) parseDefault() (ast.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.ExprStmt{
-		Loc:  p.posFromToken(tok),
-		Expr: &ast.DefaultExpr{Loc: p.posFromToken(tok), Name: nameTok.Value, Value: val},
-	}, nil
+	return &ast.DefaultExpr{Loc: p.posFromToken(tok), Name: nameTok.Value, Value: val}, nil
 }
 
 // parseAddOption handles the MenuDef() `#xcommand` idiom:
@@ -1021,6 +1063,13 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 		case p.isWord(cur, "BOLD"), p.isWord(cur, "ITALIC"), p.isWord(cur, "UNDERLINE"):
 			p.advance() // DEFINE FONT style flags, no value
 			continue
+		// `DEFINE CELL ... AUTO SIZE` — coluna de relatório com largura
+		// automática (TReport): par de flags sem valor, "SIZE" aqui não é
+		// seguido de w,h como na cláusula normal de SIZE.
+		case p.isWord(cur, "AUTO") && p.isKeyword(p.peekAt(1), "SIZE"):
+			p.advance()
+			p.advance()
+			continue
 		default:
 			goto done
 		}
@@ -1181,6 +1230,106 @@ done:
 	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
 }
 
+// parseDeleteCommand handles the two Clipper "DELETE" forms:
+//
+//	Delete File <expr>                         — apaga arquivo do disco
+//	Delete [For <expr>] [While <expr>] [Next <expr>] [Record <expr>] [Rest] [All]
+//
+// — marca registro(s) do alias atual para deleção. Ambas descartadas (sem
+// engine de banco por trás), mesmo espírito de COPY TO/APPEND FROM.
+func (p *Parser) parseDeleteCommand() (ast.Statement, error) {
+	tok := p.advance() // DELETE
+	if p.isWord(p.peek(), "FILE") {
+		p.advance()
+		target, err := p.parseOr()
+		if err != nil {
+			return nil, err
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "DELETE_FILE", Args: []ast.Expression{target}}
+		return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+	}
+	args := []ast.Expression{}
+	clauseVal := func(cur lexer.Token, name string) error {
+		p.advance()
+		val, err := p.parseOr()
+		if err != nil {
+			return err
+		}
+		args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: name}, val)
+		return nil
+	}
+	for {
+		cur := p.peek()
+		var err error
+		switch {
+		case p.isKeyword(cur, "FOR"):
+			err = clauseVal(cur, "FOR")
+		case p.isKeyword(cur, "WHILE"):
+			err = clauseVal(cur, "WHILE")
+		case p.isKeyword(cur, "NEXT"):
+			err = clauseVal(cur, "NEXT")
+		case p.isWord(cur, "RECORD"):
+			err = clauseVal(cur, "RECORD")
+		case p.isWord(cur, "REST"), p.isWord(cur, "ALL"):
+			p.advance()
+		default:
+			goto done
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+done:
+	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "DELETE_RECORD", Args: args}
+	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+}
+
+// parsePrepareEnvironment handles:
+//
+//	Prepare Environment Empresa <expr> Filial <expr> [Modulo <expr>]
+//	    [Tables <expr>,...]
+//
+// — comando batch (fora de rotina interativa) que abre empresa/filial/
+// tabelas; desugarizado para uma chamada solta e descartada, mesmo espírito
+// de DEFINE/COPY TO.
+func (p *Parser) parsePrepareEnvironment() (ast.Statement, error) {
+	tok := p.advance() // PREPARE
+	p.advance()         // ENVIRONMENT
+	args := []ast.Expression{}
+	clauseVal := func(cur lexer.Token, name string) error {
+		p.advance()
+		vals, err := p.parseCommaValues()
+		if err != nil {
+			return err
+		}
+		args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: name})
+		args = append(args, vals...)
+		return nil
+	}
+	for {
+		cur := p.peek()
+		var err error
+		switch {
+		case p.isWord(cur, "EMPRESA"):
+			err = clauseVal(cur, "EMPRESA")
+		case p.isWord(cur, "FILIAL"):
+			err = clauseVal(cur, "FILIAL")
+		case p.isWord(cur, "MODULO"):
+			err = clauseVal(cur, "MODULO")
+		case p.isWord(cur, "TABLES"):
+			err = clauseVal(cur, "TABLES")
+		default:
+			goto done
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+done:
+	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "PREPARE_ENVIRONMENT", Args: args}
+	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+}
+
 func (p *Parser) parseCopyTo() (ast.Statement, error) {
 	tok := p.advance() // COPY
 	p.advance()        // TO
@@ -1254,11 +1403,22 @@ done:
 // this interpreter doesn't model any of these runtime options.
 func (p *Parser) parseSetCommand() (ast.Statement, error) {
 	tok := p.advance() // SET
-	nameTok, err := p.expect(lexer.TOKEN_IDENT)
+	// nameTok pode ser reservado (`SET DELETE ON`, `SET FUNCTION ...`), não
+	// só identificador — expectName aceita ambos.
+	nameTok, err := p.expectName()
 	if err != nil {
 		return nil, err
 	}
 	args := []ast.Expression{}
+	// `SET KEY <nKey> TO [<uBlock>]` — o keycode é um argumento posicional
+	// antes do TO, diferente das demais opções de SET.
+	if p.isWord(nameTok, "KEY") && !p.isKeyword(p.peek(), "TO") {
+		keyExpr, err := p.parseOr()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, keyExpr)
+	}
 	// `SET MESSAGE OF oWnd TO expr [NOINSET] [FONT oFont]` — cláusula OF
 	// (janela/controle alvo) antes do TO, e clausulas finais soltas.
 	if p.isWord(p.peek(), "OF") {
@@ -1279,10 +1439,13 @@ func (p *Parser) parseSetCommand() (ast.Statement, error) {
 		// statements, not `SET_FILTER(cChave)` followed by a stray `:=`).
 		hasValue := false
 		switch p.peek().Type {
-		case lexer.TOKEN_STRING, lexer.TOKEN_NUMBER, lexer.TOKEN_LPAREN:
+		case lexer.TOKEN_STRING, lexer.TOKEN_NUMBER, lexer.TOKEN_LPAREN, lexer.TOKEN_LBRACE:
 			hasValue = true
 		case lexer.TOKEN_IDENT:
-			hasValue = !p.isWord(p.peek(), "SET") && p.peekAt(1).Type != lexer.TOKEN_ASSIGN
+			hasValue = !p.isWord(p.peek(), "SET") && p.peekAt(1).Type != lexer.TOKEN_ASSIGN &&
+				!((p.peekAt(1).Type == lexer.TOKEN_PLUS || p.peekAt(1).Type == lexer.TOKEN_MINUS ||
+					p.peekAt(1).Type == lexer.TOKEN_STAR || p.peekAt(1).Type == lexer.TOKEN_SLASH) &&
+					p.peekAt(2).Type == lexer.TOKEN_ASSIGN)
 		}
 		if hasValue {
 			vals, err := p.parseCommaValues()
@@ -1573,7 +1736,11 @@ func (p *Parser) parseCodeBlockItem() (ast.Expression, error) {
 		}
 	}
 
-	if p.peek().Type == lexer.TOKEN_INCREMENT || p.peek().Type == lexer.TOKEN_DECREMENT {
+	// Same-line guard: newlines are stripped before parsing, so without this
+	// a `++x`/`--x` prefix statement on the next source line would glue onto
+	// whatever expression this codeblock item just finished parsing.
+	if (p.peek().Type == lexer.TOKEN_INCREMENT || p.peek().Type == lexer.TOKEN_DECREMENT) &&
+		p.pos > 0 && p.tokens[p.pos-1].Line == p.peek().Line {
 		opTok := p.advance()
 		op := "+"
 		if opTok.Type == lexer.TOKEN_DECREMENT {
@@ -1643,8 +1810,11 @@ func (p *Parser) parseExprStatement() (ast.Statement, error) {
 		}
 	}
 
-	// x++ / x-- desugars to x := x + 1 / x := x - 1.
-	if p.peek().Type == lexer.TOKEN_INCREMENT || p.peek().Type == lexer.TOKEN_DECREMENT {
+	// x++ / x-- desugars to x := x + 1 / x := x - 1. Same-line guard as in
+	// parsePostfix: a `++x` prefix statement on the next source line must
+	// not glue onto this statement's already-parsed expr.
+	if (p.peek().Type == lexer.TOKEN_INCREMENT || p.peek().Type == lexer.TOKEN_DECREMENT) &&
+		p.pos > 0 && p.tokens[p.pos-1].Line == p.peek().Line {
 		opTok := p.advance()
 		op := "+"
 		if opTok.Type == lexer.TOKEN_DECREMENT {
@@ -1941,6 +2111,16 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 			// the new value, so this is pre- rather than post-increment
 			// semantics, but real usage here is always a running counter
 			// where callers don't depend on which one they get.
+			//
+			// Newlines are stripped before parsing, so nothing else marks a
+			// statement boundary here — without this check, a `++x` prefix
+			// statement on the NEXT source line gets glued onto whatever
+			// expression ended the previous statement (e.g. `y := f()` \n
+			// `++x` misparses as `(f())++`). Require the operator to be on
+			// the same line as the token right before it.
+			if p.pos == 0 || p.tokens[p.pos-1].Line != tok.Line {
+				goto done
+			}
 			opTok := p.advance()
 			op := "+"
 			if opTok.Type == lexer.TOKEN_DECREMENT {
