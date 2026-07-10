@@ -162,8 +162,12 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 			i++
 			// Estas definições costumam se espalhar por várias linhas
 			// físicas via continuação com ';' no final (mesma convenção do
-			// código normal) — junta tudo antes de compilar a regra.
+			// código normal) — junta tudo antes de compilar a regra. O ';'
+			// de FIM de linha é só a marca de continuação e é removido ao
+			// juntar; um ';' no meio/começo de linha é conteúdo (no lado do
+			// resultado, separa dois comandos gerados) e fica.
 			for strings.HasSuffix(strings.TrimRight(trimmed, " \t"), ";") && i < len(lines) {
+				def = strings.TrimRight(strings.TrimRight(def, " \t"), ";")
 				trimmed = strings.TrimSpace(lines[i])
 				def += " " + trimmed
 				i++

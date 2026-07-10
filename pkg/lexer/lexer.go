@@ -112,6 +112,26 @@ func (l *Lexer) lastTokenIsNewlineOrEOF() bool {
 	return last.Type == TOKEN_NEWLINE || last.Type == TOKEN_EOF || last.Type == TOKEN_SEMICOLON
 }
 
+// lastTokenEndsOperand reports whether the previous meaningful token can
+// end an operand — used to disambiguate `[` (array indexing) from `[texto]`
+// (Clipper bracket string literal). A newline between counts as a break.
+func (l *Lexer) lastTokenEndsOperand() bool {
+	for i := len(l.tokens) - 1; i >= 0; i-- {
+		t := l.tokens[i]
+		switch t.Type {
+		case TOKEN_LINECOMMENT, TOKEN_BLOCKCOMMENT:
+			continue
+		case TOKEN_IDENT, TOKEN_NUMBER, TOKEN_STRING,
+			TOKEN_RPAREN, TOKEN_RBRACKET, TOKEN_RBRACE,
+			TOKEN_TRUE, TOKEN_FALSE, TOKEN_NIL:
+			return true
+		default:
+			return false
+		}
+	}
+	return false
+}
+
 func (l *Lexer) Tokenize() ([]Token, error) {
 	for l.pos < len(l.source) {
 		l.skipWhitespace()
@@ -196,6 +216,13 @@ func (l *Lexer) Tokenize() ([]Token, error) {
 
 		// Identifiers and keywords
 		if l.isAlpha(ch) {
+			// `BeginContent var <name> ...raw... EndContent` — TLPP raw
+			// content block (JSON/XML embutido). The body is NOT AdvPL and
+			// must not be tokenized; consume the whole construct here and
+			// emit the equivalent of `<name> := "<raw>"`.
+			if l.tryBeginContent(line, col) {
+				continue
+			}
 			l.tokenizeIdentifier(line, col)
 			continue
 		}
@@ -212,6 +239,89 @@ func (l *Lexer) Tokenize() ([]Token, error) {
 	})
 
 	return l.tokens, nil
+}
+
+// tryBeginContent detects `BeginContent var <name>` at the current position
+// and, when found, consumes everything up to (and including) the line whose
+// first word is `EndContent`, emitting `<name> := "<raw body>"` as three
+// tokens. Returns false (consuming nothing) when the current word is not
+// BeginContent or the construct is malformed.
+func (l *Lexer) tryBeginContent(line, col int) bool {
+	const kw = "begincontent"
+	// Match the word BeginContent case-insensitively without consuming.
+	if l.pos+len(kw) > len(l.source) {
+		return false
+	}
+	if !strings.EqualFold(l.source[l.pos:l.pos+len(kw)], kw) {
+		return false
+	}
+	if l.pos+len(kw) < len(l.source) && l.isAlphaNum(l.source[l.pos+len(kw)]) {
+		return false // longer identifier that merely starts with it
+	}
+	// Scan ahead (indices only) for: ws+ "var" ws+ <name> ws* \n
+	i := l.pos + len(kw)
+	for i < len(l.source) && (l.source[i] == ' ' || l.source[i] == '\t') {
+		i++
+	}
+	if i+3 > len(l.source) || !strings.EqualFold(l.source[i:i+3], "var") {
+		return false
+	}
+	i += 3
+	for i < len(l.source) && (l.source[i] == ' ' || l.source[i] == '\t') {
+		i++
+	}
+	nameStart := i
+	for i < len(l.source) && l.isAlphaNum(l.source[i]) {
+		i++
+	}
+	if i == nameStart {
+		return false
+	}
+	name := l.source[nameStart:i]
+	// Body: from just after this line's newline to the line starting with
+	// EndContent (first non-ws word).
+	for i < len(l.source) && l.source[i] != '\n' {
+		i++
+	}
+	if i < len(l.source) {
+		i++ // consume the newline
+	}
+	bodyStart := i
+	end := -1     // index of the line that holds EndContent
+	endAfter := i // index just past EndContent's line
+	for i < len(l.source) {
+		lineStart := i
+		j := i
+		for j < len(l.source) && (l.source[j] == ' ' || l.source[j] == '\t') {
+			j++
+		}
+		if j+10 <= len(l.source) && strings.EqualFold(l.source[j:j+10], "endcontent") &&
+			(j+10 == len(l.source) || !l.isAlphaNum(l.source[j+10])) {
+			end = lineStart
+			endAfter = j + 10
+			break
+		}
+		for i < len(l.source) && l.source[i] != '\n' {
+			i++
+		}
+		if i < len(l.source) {
+			i++
+		}
+	}
+	if end < 0 {
+		return false // no EndContent — not the construct after all
+	}
+	body := l.source[bodyStart:end]
+	// Consume through EndContent, keeping line/col bookkeeping via advance.
+	for l.pos < endAfter {
+		l.advance()
+	}
+	l.tokens = append(l.tokens,
+		Token{Type: TOKEN_IDENT, Value: name, Line: line, Col: col, FileName: l.fileName},
+		Token{Type: TOKEN_ASSIGN, Value: ":=", Line: line, Col: col, FileName: l.fileName},
+		Token{Type: TOKEN_STRING, Value: body, Line: line, Col: col, FileName: l.fileName},
+	)
+	return true
 }
 
 func (l *Lexer) tokenizeDirective(line, col int) error {
@@ -513,6 +623,30 @@ func (l *Lexer) tokenizeOperator(line, col int) error {
 		l.tokens = append(l.tokens, Token{Type: TOKEN_RPAREN, Value: ")", Line: line, Col: col, FileName: l.fileName})
 		return nil
 	case '[':
+		// Clipper's bracket-delimited string literal: `[texto]` in operand
+		// position (start of expression) is a string, same as "texto".
+		// Disambiguation heuristic (the classic Clipper rule): `[` right
+		// after a token that ENDS an operand (ident, number, string, `)`,
+		// `]`, `}`, `.T.`/`.F.`) is array indexing; anywhere else — after
+		// an operator, comma, `(`, `:=`, keyword, or at line start — it
+		// begins a string literal running to the next `]` on the same line.
+		if !l.lastTokenEndsOperand() {
+			// Look ahead (without consuming) for the closing ']' on the
+			// same line before committing to the string interpretation.
+			end := l.pos + 1
+			for end < len(l.source) && l.source[end] != ']' && l.source[end] != '\n' {
+				end++
+			}
+			if end < len(l.source) && l.source[end] == ']' {
+				content := l.source[l.pos+1 : end]
+				for l.pos <= end { // consume '[', content, ']'
+					l.advance()
+				}
+				l.tokens = append(l.tokens, Token{Type: TOKEN_STRING, Value: content, Line: line, Col: col, FileName: l.fileName})
+				return nil
+			}
+			// No closing ']' on this line — fall through as a plain bracket.
+		}
 		l.advance()
 		l.tokens = append(l.tokens, Token{Type: TOKEN_LBRACKET, Value: "[", Line: line, Col: col, FileName: l.fileName})
 		return nil
