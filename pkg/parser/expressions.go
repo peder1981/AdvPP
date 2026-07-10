@@ -218,6 +218,94 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 			}
 		}
 	}
+	// `MENU <var> POPUP ... MENUITEM <expr> [ACTION <expr>] ... ENDMENU` —
+	// menu de contexto legado; parseado e descartado.
+	if p.isWord(tok, "MENU") && (p.peekAt(1).Type == lexer.TOKEN_IDENT) {
+		menuTok := p.advance() // MENU
+		p.advance()            // var
+		if p.isWord(p.peek(), "POPUP") {
+			p.advance()
+		}
+		for !p.isWord(p.peek(), "ENDMENU") && p.peek().Type != lexer.TOKEN_EOF {
+			if p.isWord(p.peek(), "MENUITEM") {
+				p.advance()
+				if _, err := p.parseOr(); err != nil {
+					return nil, err
+				}
+				if p.isKeyword(p.peek(), "ACTION") {
+					p.advance()
+					if _, err := p.parseAssignableExpr(); err != nil {
+						return nil, err
+					}
+				}
+				continue
+			}
+			p.advance() // tolera cláusulas desconhecidas dentro do menu
+		}
+		if p.isWord(p.peek(), "ENDMENU") {
+			p.advance()
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(menuTok), Name: "MENU_POPUP", Args: nil}
+		return &ast.ExprStmt{Loc: p.posFromToken(menuTok), Expr: call}, nil
+	}
+	// `DBADDTREE <expr> PROMPT <expr> [RESOURCE <expr,...>] [CARGO <expr>]
+	// [OPENED]` — insere nó em árvore (TWFTreeView); parseado e descartado.
+	if p.isWord(tok, "DBADDTREE") {
+		dbTok := p.advance()
+		if _, err := p.parseOr(); err != nil {
+			return nil, err
+		}
+		for {
+			cur := p.peek()
+			switch {
+			case p.isWord(cur, "PROMPT"), p.isWord(cur, "RESOURCE"), p.isWord(cur, "CARGO"):
+				p.advance()
+				if _, err := p.parseCommaValues(); err != nil {
+					return nil, err
+				}
+			case p.isWord(cur, "OPENED"):
+				p.advance()
+			default:
+				call := &ast.CallExpr{Loc: p.posFromToken(dbTok), Name: "DB_ADD_TREE", Args: nil}
+				return &ast.ExprStmt{Loc: p.posFromToken(dbTok), Expr: call}, nil
+			}
+		}
+	}
+	// `GET MAIL ERROR <var>` — recupera a mensagem de erro do último SEND
+	// MAIL; parseado e descartado.
+	if p.isWord(tok, "GET") && p.isWord(p.peekAt(1), "MAIL") && p.isWord(p.peekAt(2), "ERROR") {
+		getTok := p.advance() // GET
+		p.advance()           // MAIL
+		p.advance()           // ERROR
+		if _, err := p.expectName(); err != nil {
+			return nil, err
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(getTok), Name: "GET_MAIL_ERROR", Args: nil}
+		return &ast.ExprStmt{Loc: p.posFromToken(getTok), Expr: call}, nil
+	}
+	// `SEND MAIL FROM <expr> TO <expr,...> [CC ...] [BCC ...] SUBJECT
+	// <expr> BODY <expr> [ATTACHMENT <expr,...>] [RESULT <var>]` — DSL de
+	// e-mail do workflow; parseado e descartado.
+	if p.isWord(tok, "SEND") && p.isWord(p.peekAt(1), "MAIL") {
+		sendTok := p.advance() // SEND
+		p.advance()            // MAIL
+		for {
+			cur := p.peek()
+			switch {
+			case p.isKeyword(cur, "FROM"), p.isKeyword(cur, "TO"), p.isWord(cur, "CC"),
+				p.isWord(cur, "BCC"), p.isWord(cur, "SUBJECT"), p.isWord(cur, "BODY"),
+				p.isWord(cur, "ATTACHMENT"), p.isWord(cur, "RESULT"), p.isWord(cur, "SERVER"),
+				p.isWord(cur, "ACCOUNT"), p.isWord(cur, "PASSWORD"):
+				p.advance()
+				if _, err := p.parseCommaValues(); err != nil {
+					return nil, err
+				}
+			default:
+				call := &ast.CallExpr{Loc: p.posFromToken(sendTok), Name: "SEND_MAIL", Args: nil}
+				return &ast.ExprStmt{Loc: p.posFromToken(sendTok), Expr: call}, nil
+			}
+		}
+	}
 	// `Release Object <name>` / `Release All [Like <mask>]` — libera
 	// memvars/objetos; parseado e descartado. Só com OBJECT/ALL para não
 	// engolir um identificador "Release" usado como nome comum.
@@ -566,7 +654,12 @@ func (p *Parser) parseIf() (ast.Statement, error) {
 	}
 
 	if p.isEndIf(p.peek()) {
-		p.advance()
+		endTok := p.advance()
+		// `End If` em duas palavras (variante real de EndIf): consome o IF
+		// que sobra na mesma linha do END.
+		if strings.EqualFold(endTok.Value, "END") && p.isKeyword(p.peek(), "IF") && p.peek().Line == endTok.Line {
+			p.advance()
+		}
 	}
 
 	return ifStmt, nil
@@ -708,16 +801,19 @@ func (p *Parser) parseWhile() (ast.Statement, error) {
 	return whileStmt, nil
 }
 
-// isEndCase reconhece tanto "ENDCASE" (uma palavra) quanto "End Case"
-// (duas palavras, forma clássica do Clipper).
+// isEndCase reconhece "ENDCASE", "End Case" (forma clássica do Clipper),
+// "End Do" (variante irregular vista em fontes reais fechando Do Case) e
+// "End" sozinho no fim do bloco.
 func (p *Parser) isEndCase() bool {
 	return p.isKeyword(p.peek(), "ENDCASE") ||
-		(p.isKeyword(p.peek(), "END") && p.isWord(p.peekAt(1), "CASE"))
+		(p.isKeyword(p.peek(), "END") && p.isWord(p.peekAt(1), "CASE")) ||
+		(p.isKeyword(p.peek(), "END") && p.isKeyword(p.peekAt(1), "DO") && p.peekAt(1).Line == p.peek().Line) ||
+		p.isKeyword(p.peek(), "END")
 }
 
 func (p *Parser) advanceEndCase() {
-	p.advance()
-	if p.isWord(p.peek(), "CASE") {
+	endTok := p.advance()
+	if (p.isWord(p.peek(), "CASE") || p.isKeyword(p.peek(), "DO")) && p.peek().Line == endTok.Line {
 		p.advance()
 	}
 }
@@ -1330,6 +1426,18 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 		// `DEFINE SCROLLBAR ... RANGE min, max`
 		case p.isWord(cur, "RANGE"):
 			name = "RANGE"
+		// `DEFINE DBTREE ... CARGO ; ON CHANGE <expr>` — CARGO é flag,
+		// ON CHANGE leva um callback.
+		case p.isWord(cur, "CARGO"):
+			p.advance()
+			continue
+		case p.isKeyword(cur, "ON") && p.isWord(p.peekAt(1), "CHANGE"):
+			p.advance()
+			p.advance()
+			if _, err := p.parseAssignableExpr(); err != nil {
+				return nil, err
+			}
+			continue
 		case p.isWord(cur, "PICTURE"):
 			name = "PICTURE"
 		case p.isWord(cur, "WHEN"):
@@ -1861,6 +1969,11 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
+	// `@ nLin++` sozinho (sem vírgula/verbo na mesma linha) — forma
+	// degenerada vista em fontes reais; avalia a expressão e pronto.
+	if p.peek().Type != lexer.TOKEN_COMMA && p.peek().Line != tok.Line {
+		return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: x}, nil
+	}
 	if p.peek().Type == lexer.TOKEN_COMMA {
 		p.advance()
 	}
@@ -1998,7 +2111,16 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 			continue
 		}
 		clauseTok := p.advance()
-		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") || p.isWord(clauseTok, "VSCROLL") || p.isWord(clauseTok, "HASBUTTON") || p.isWord(clauseTok, "SYMBOL") {
+		// `LISTBOX ... FIELDS "" ; HEADER ...` — FIELDS pode levar uma
+		// lista de valores própria (ou ser só flag antes de HEADER).
+		if p.isWord(clauseTok, "FIELDS") && !p.isAtClauseWord(p.peek()) &&
+			(p.peek().Type == lexer.TOKEN_STRING || p.peek().Type == lexer.TOKEN_IDENT || p.peek().Type == lexer.TOKEN_NUMBER) {
+			if _, err := p.parseCommaValues(); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") || p.isWord(clauseTok, "VSCROLL") || p.isWord(clauseTok, "HASBUTTON") || p.isWord(clauseTok, "SYMBOL") || p.isWord(clauseTok, "RIGHT") {
 			continue // flag clauses, no value
 		}
 		// `@ ... LISTBOX ... ON DBLCLICK <expr> ...` — o nome do evento
@@ -2044,14 +2166,14 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 
 func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 	for _, kw := range []string{
-		"SIZE", "PICTURE", "VALID", "WHEN", "COLOR", "COLORS", "FONT", "PIXEL",
+		"SIZE", "PICTURE", "PICT", "VALID", "WHEN", "COLOR", "COLORS", "FONT", "PIXEL",
 		"MESSAGE", "ACTION", "OF", "DECODE", "F3", "CLICKFOCUS", "RANGE",
 		"MAXLENGTH", "MASK", "RESET", "TITLE", "VAR", "MEMO",
 		// `@ y,x GROUP var TO y2,x2 OF window LABEL "..." PIXEL` — GROUP
 		// (caixa de agrupamento) usa TO para a segunda coordenada e LABEL
 		// para o texto, como cláusulas normais (não como o `@ TO` de caixa
 		// sem verbo, tratado antes de chegar aqui).
-		"TO", "LABEL",
+		"TO", "LABEL", "FROM",
 		// `@ ... LISTBOX ... FIELDS HEADER a,b,c ... ON DBLCLICK expr
 		// NOSCROLL OF window PIXEL` — mais cláusulas do LISTBOX.
 		"FIELDS", "HEADER", "ON", "NOSCROLL", "FIELDSIZES", "MULTILINE", "HSCROLL", "VSCROLL", "HASBUTTON",
@@ -2082,7 +2204,7 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		// `@ y,x TO y2,x2 CAPTION expr OF oFolder` — expansão de folder do
 		// DSL mobile (FDA); `@ y,x BUTTON o CAPTION x SYMBOL ACTION f()` —
 		// botão com bitmap simbólico do mesmo DSL.
-		"CAPTION", "SYMBOL",
+		"CAPTION", "SYMBOL", "OPTION", "RIGHT",
 		// `@ y,x To y2,x2 MultiLine Object oMulti` — caixa multi-linha
 		// (TMultiget legado) com var de saída via OBJECT.
 		"OBJECT",
@@ -2970,8 +3092,11 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 			// Date(2024,1,1). Same shape as If()/IIF() above. BREAK is a
 			// statement keyword, but `Break(oError)` inside a codeblock
 			// (idioma de ErrorBlock) é uma chamada de função.
-			if (strings.EqualFold(tok.Value, "ARRAY") || strings.EqualFold(tok.Value, "DATE") || strings.EqualFold(tok.Value, "OBJECT") || strings.EqualFold(tok.Value, "BREAK")) &&
-				p.peekAt(1).Type == lexer.TOKEN_LPAREN {
+			if p.peekAt(1).Type == lexer.TOKEN_LPAREN && p.peekAt(1).Line == tok.Line {
+				// Generalizado: QUALQUER keyword seguida de '(' na mesma
+				// linha em contexto de expressão é uma chamada de função
+				// (Add(), Delete(), Select(), ... — statements já foram
+				// despachados antes de chegar aqui).
 				p.advance()
 				p.advance()
 				args, err := p.parseArguments()
