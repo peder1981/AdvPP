@@ -31,6 +31,19 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 		return p.parseVarDecl()
 	}
 	if p.isKeyword(tok, "IF") {
+		// `IF(cond, then, else)` — o condicional em linha do Clipper/AdvPL,
+		// usado como statement isolado (resultado descartado), ex.:
+		// `IF(VALTYPE(d) != 'D', d := Date(), )`. Distingue do bloco
+		// `If (cond) ... EndIf` por lookahead: uma vírgula no nível
+		// superior dentro dos parênteses só existe na forma de chamada
+		// (`If (cond)` sozinho nunca tem vírgula de topo).
+		if p.peekAt(1).Type == lexer.TOKEN_LPAREN && p.isInlineIfCall() {
+			expr, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: expr}, nil
+		}
 		return p.parseIf()
 	}
 	if p.isKeyword(tok, "FOR") {
@@ -59,7 +72,7 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "PUBLISH") && p.isWord(p.peekAt(1), "MODEL") {
 		return p.parsePublishModel()
 	}
-	if p.isKeyword(tok, "ACTIVATE") && p.isWord(p.peekAt(1), "MSDIALOG") {
+	if p.isKeyword(tok, "ACTIVATE") && (p.isWord(p.peekAt(1), "MSDIALOG") || p.isWord(p.peekAt(1), "DIALOG")) {
 		return p.parseActivateDialog()
 	}
 	if tok.Type == lexer.TOKEN_AT {
@@ -237,6 +250,32 @@ func (p *Parser) parseVarDecl() (ast.Statement, error) {
 		return decl, nil
 	}
 	return &ast.VarDeclGroup{Loc: p.posFromToken(tok), Decls: decls}, nil
+}
+
+// isInlineIfCall faz lookahead a partir de "IF(" (chamador já garantiu
+// peekAt(1)==LPAREN) e retorna true se houver uma vírgula no nível
+// superior de parênteses antes do fechamento correspondente — sinal de
+// que é a forma de chamada `IF(cond,then,else)`, não `If (cond)` bloco.
+func (p *Parser) isInlineIfCall() bool {
+	depth := 0
+	for i := 1; ; i++ {
+		tok := p.peekAt(i)
+		switch tok.Type {
+		case lexer.TOKEN_LPAREN:
+			depth++
+		case lexer.TOKEN_RPAREN:
+			depth--
+			if depth == 0 {
+				return false
+			}
+		case lexer.TOKEN_COMMA:
+			if depth == 1 {
+				return true
+			}
+		case lexer.TOKEN_EOF:
+			return false
+		}
+	}
 }
 
 func (p *Parser) parseIf() (ast.Statement, error) {
