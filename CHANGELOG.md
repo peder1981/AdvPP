@@ -2,6 +2,21 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.8.6] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (96,8% → 98,6%)
+
+- `WEB EXTENDED INIT <var> START <expr>` / `WEB EXTENDED END` (Portais).
+- `TTALK "v1"` como cláusula de WSMETHOD (declaração e dispatch);
+  `PRODUCES/CONSUMES` aceita constante que colide com keyword;
+  `QUERYPARAM a, b` (lista) na implementação.
+- `Replace <campo> With <expr> [, <campo> With <expr>...]` (Clipper).
+- Flags/cláusulas de `@`: `CENTERED`, `RAISED`, `PROMPTS` (FOLDER),
+  `FILENAME/FILE/DISK` (BITMAP).
+- `COLORS` como sinônimo de COLOR no DEFINE.
+- `Store Header/Cols ... TO ...` tolerado nativamente quando o .ch com o
+  #command (PLSMGER.CH) não é resolvível.
+
 ## [1.8.5] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (95,8% → 96,8%)

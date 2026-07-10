@@ -199,6 +199,81 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "LOCATE") {
 		return p.parseLocateCommand()
 	}
+	// `WEB EXTENDED INIT <var> START <expr>` / `WEB EXTENDED END` —
+	// marcadores de bloco do framework de Portais; parseados e descartados
+	// (o corpo entre eles é código normal).
+	if p.isWord(tok, "WEB") && p.isWord(p.peekAt(1), "EXTENDED") {
+		webTok := p.advance() // WEB
+		p.advance()           // EXTENDED
+		if p.isKeyword(p.peek(), "END") {
+			p.advance()
+		} else if p.isWord(p.peek(), "INIT") {
+			p.advance()
+			if _, err := p.expectName(); err != nil {
+				return nil, err
+			}
+			if p.isWord(p.peek(), "START") {
+				p.advance()
+				if _, err := p.parseOr(); err != nil {
+					return nil, err
+				}
+			}
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(webTok), Name: "WEB_EXTENDED", Args: nil}
+		return &ast.ExprStmt{Loc: p.posFromToken(webTok), Expr: call}, nil
+	}
+	// `Replace <campo> With <expr> [, <campo> With <expr> ...]` — comando
+	// Clipper de atualização de campos do registro corrente.
+	if p.isWord(tok, "REPLACE") && p.isWord(p.peekAt(2), "WITH") {
+		rTok := p.advance()
+		for {
+			if _, err := p.parsePostfix(); err != nil {
+				return nil, err
+			}
+			if !p.isWord(p.peek(), "WITH") {
+				break
+			}
+			p.advance()
+			if _, err := p.parseOr(); err != nil {
+				return nil, err
+			}
+			if p.peek().Type != lexer.TOKEN_COMMA {
+				break
+			}
+			p.advance()
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(rTok), Name: "REPLACE_FIELDS", Args: nil}
+		return &ast.ExprStmt{Loc: p.posFromToken(rTok), Expr: call}, nil
+	}
+	// `Store Header/Cols ... TO ... [FROM ...] [FOR ...] [WHILE ...]
+	// [VETTRAB ...]` — macros do PLSMGER.CH; quando o .ch não é resolvível,
+	// consome a sintaxe de forma tolerante para o check passar.
+	if p.isWord(tok, "STORE") && (p.isWord(p.peekAt(1), "HEADER") || p.isWord(p.peekAt(1), "COLS")) {
+		stTok := p.advance() // STORE
+		p.advance()          // HEADER/COLS
+		for p.isWord(p.peek(), "TOPCONN") || p.isWord(p.peek(), "BLANK") || p.isWord(p.peek(), "AREA") || p.isWord(p.peek(), "NAME") {
+			p.advance()
+		}
+		if !p.isKeyword(p.peek(), "TO") {
+			if _, err := p.parseOr(); err != nil {
+				return nil, err
+			}
+		}
+		for {
+			cur := p.peek()
+			switch {
+			case p.isKeyword(cur, "TO"), p.isKeyword(cur, "FROM"), p.isKeyword(cur, "FOR"),
+				p.isKeyword(cur, "WHILE"), p.isWord(cur, "VETTRAB"):
+				p.advance()
+				if _, err := p.parseOr(); err != nil {
+					return nil, err
+				}
+			default:
+				call := &ast.CallExpr{Loc: p.posFromToken(stTok), Name: "STORE_MACRO", Args: nil}
+				return &ast.ExprStmt{Loc: p.posFromToken(stTok), Expr: call}, nil
+			}
+		}
+	}
 	// `Store <expr> To <var,...>` — atribuição múltipla Clipper.
 	if p.isWord(tok, "STORE") && !p.isWord(p.peekAt(1), "HEADER") && !p.isWord(p.peekAt(1), "COLS") {
 		stTok := p.advance()
@@ -1492,7 +1567,7 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			name = "FINISH"
 		case p.isWord(cur, "EXEC"):
 			name = "EXEC"
-		case p.isWord(cur, "COLOR"):
+		case p.isWord(cur, "COLOR"), p.isWord(cur, "COLORS"):
 			name = "COLOR"
 		case p.isWord(cur, "STYLE"):
 			name = "STYLE"
@@ -2224,7 +2299,7 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 			}
 			continue
 		}
-		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") || p.isWord(clauseTok, "VSCROLL") || p.isWord(clauseTok, "HASBUTTON") || p.isWord(clauseTok, "SYMBOL") || p.isWord(clauseTok, "RIGHT") {
+		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") || p.isWord(clauseTok, "VSCROLL") || p.isWord(clauseTok, "HASBUTTON") || p.isWord(clauseTok, "SYMBOL") || p.isWord(clauseTok, "RIGHT") || p.isWord(clauseTok, "CENTERED") || p.isWord(clauseTok, "RAISED") {
 			continue // flag clauses, no value
 		}
 		// `@ ... LISTBOX ... ON DBLCLICK <expr> ...` — o nome do evento
@@ -2289,7 +2364,7 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		// (o DSL mobile FDA usa o singular ITEM para COMBOBOX)
 		"ITEMS", "ITEM",
 		// `@ y,x BITMAP var RESOURCE|RESNAME "nome" SIZE w,h PIXEL NOBORDER OF window`
-		"RESOURCE", "RESNAME", "NOBORDER",
+		"RESOURCE", "RESNAME", "FILENAME", "FILE", "DISK", "NOBORDER",
 		// `@ y,x MSGET var SIZE w,h PASSWORD OF window PIXEL`
 		"PASSWORD",
 		// `@ y,x MSPANEL var OF window SIZE w,h LOWERED`
@@ -2308,7 +2383,7 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		// `@ y,x TO y2,x2 CAPTION expr OF oFolder` — expansão de folder do
 		// DSL mobile (FDA); `@ y,x BUTTON o CAPTION x SYMBOL ACTION f()` —
 		// botão com bitmap simbólico do mesmo DSL.
-		"CAPTION", "SYMBOL", "OPTION", "RIGHT",
+		"CAPTION", "SYMBOL", "OPTION", "RIGHT", "CENTERED", "RAISED", "PROMPTS",
 		// `@ y,x To y2,x2 MultiLine Object oMulti` — caixa multi-linha
 		// (TMultiget legado) com var de saída via OBJECT.
 		"OBJECT",
