@@ -37,10 +37,24 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 	var output strings.Builder
 
 	i := 0
+	inComment := false
 	for i < len(lines) {
 		line := lines[i]
 		trimmed := strings.TrimSpace(line)
 		upper := strings.ToUpper(trimmed)
+
+		// Dentro de comentário de bloco `/* ... */`, NADA é diretiva: um
+		// `#ENDIF*/` comentado (`/*#IFDEF TOP ... #ENDIF*/`, idioma real de
+		// desativar código) seria consumido como diretiva, DELETANDO o `*/`
+		// e invertendo a fase de comentários do resto do arquivo. Linhas em
+		// comentário passam direto, só atualizando o estado.
+		if inComment {
+			inComment = scanBlockComment(line, true)
+			output.WriteString(line)
+			output.WriteString("\n")
+			i++
+			continue
+		}
 
 		if strings.HasPrefix(upper, "#INCLUDE") {
 			includeFile := extractIncludeFile(trimmed)
@@ -226,10 +240,49 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 		for k := 0; k < extra; k++ {
 			output.WriteString("\n")
 		}
+		inComment = scanBlockComment(joined, false)
 		i += 1 + extra
 	}
 
 	return output.String(), nil
+}
+
+// scanBlockComment percorre uma linha atualizando o estado "dentro de
+// comentário de bloco" (`/* ... */`), respeitando aspas e `//` fora de
+// comentário. Retorna o estado ao FIM da linha.
+func scanBlockComment(line string, inComment bool) bool {
+	i := 0
+	n := len(line)
+	for i < n {
+		if inComment {
+			if line[i] == '*' && i+1 < n && line[i+1] == '/' {
+				inComment = false
+				i += 2
+				continue
+			}
+			i++
+			continue
+		}
+		c := line[i]
+		if c == '/' && i+1 < n && line[i+1] == '/' {
+			return false // resto da linha é comentário de linha
+		}
+		if c == '/' && i+1 < n && line[i+1] == '*' {
+			inComment = true
+			i += 2
+			continue
+		}
+		if c == '"' || c == '\'' {
+			j := i + 1
+			for j < n && line[j] != c {
+				j++
+			}
+			i = j + 1
+			continue
+		}
+		i++
+	}
+	return inComment
 }
 
 var sqlAliasRe = regexp.MustCompile(`(?i)\bALIAS\s+(\w+)`)

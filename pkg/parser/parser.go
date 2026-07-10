@@ -511,7 +511,8 @@ func (p *Parser) parseParameter() (*ast.Parameter, error) {
 		p.advance()
 	}
 
-	nameTok, err := p.expect(lexer.TOKEN_IDENT)
+	// nome de parâmetro pode colidir com keyword (`GetSU5(oApi, Self)`)
+	nameTok, err := p.expectName()
 	if err != nil {
 		return nil, err
 	}
