@@ -110,7 +110,7 @@ func (p *Parser) isEndWSClient() bool {
 // keywords, used to tell whether a name follows the HTTP verb or the
 // declaration jumps straight into clauses (`WSMETHOD POST DESCRIPTION ...`).
 func (p *Parser) isRestMethodClauseWord(tok lexer.Token) bool {
-	for _, kw := range []string{"DESCRIPTION", "PATH", "WSSYNTAX", "PRODUCES", "CONSUMES"} {
+	for _, kw := range []string{"DESCRIPTION", "PATH", "WSSYNTAX", "PRODUCES", "CONSUMES", "TTALK"} {
 		if p.isWord(tok, kw) {
 			return true
 		}
@@ -914,7 +914,12 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 						}
 					case p.isWord(p.peek(), "PRODUCES"), p.isWord(p.peek(), "CONSUMES"):
 						p.advance()
-						if _, err := p.expect(lexer.TOKEN_IDENT); err != nil {
+						if _, err := p.expectName(); err != nil {
+							return nil, err
+						}
+					case p.isWord(p.peek(), "TTALK"):
+						p.advance()
+						if _, err := p.parseOr(); err != nil {
 							return nil, err
 						}
 					default:
@@ -1017,8 +1022,14 @@ func (p *Parser) parseWSMethodImpl() (*ast.MethodImpl, error) {
 	// parameter binding) right after the method name. Parsed and dropped.
 	for p.isWord(p.peek(), "PATHPARAM") || p.isWord(p.peek(), "QUERYPARAM") {
 		p.advance()
-		if _, err := p.expectName(); err != nil {
-			return nil, err
+		for {
+			if _, err := p.expectName(); err != nil {
+				return nil, err
+			}
+			if p.peek().Type != lexer.TOKEN_COMMA {
+				break
+			}
+			p.advance()
 		}
 	}
 	// Optional `WSSEND arg[,arg...]` / `WSRECEIVE arg[,arg...]` clauses
