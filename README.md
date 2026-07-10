@@ -21,6 +21,39 @@ Um compilador e interpretador totalmente funcional para as linguagens de program
 - **Multi-thread**: `StartJob()` (execução em VM isolado, semântica de work process) e `FWGridProcess` (pool de threads com `SetThreadGrid`, `CallExecute`, `StopExecute`, `IsFinished`, meters e log); `advplc check arq1 arq2 ...` verifica N arquivos em paralelo
 - **Renderer web (PO-UI)**: `advplc serve programa.prw` executa o programa no servidor e renderiza a interface no browser com PO-UI (embutido no binário): console e diálogos em tempo real, `FWMBrowse`→`po-table` com dicionário SX3, formulários `po-dynamic-form`, MSDIALOG legado (`@ SAY/GET/BUTTON`) como modal por heurística de grade e hot reload com `--watch`
 - **Motor de inferência LLM** (`pkg/llm` + classe `LLM`): carrega modelos GGUF quantizados em I2_S (BitNet/Falcon3-1.58bit) e gera texto direto do AdvPL/TLPP — 100% Go, sem CGO, com kernel SIMD AVX2 em amd64 e fallback escalar em qualquer outra arquitetura
+- **Servidor MCP nativo** (`pkg/mcp` + classe `MCPServer`): expõe funções AdvPL/TLPP como "tools" de um servidor MCP real (JSON-RPC 2.0 sobre stdio) — funciona de verdade (ao contrário do REST, que só reconhece a sintaxe), validado com o SDK oficial do MCP
+
+## Servidor MCP (`MCPServer`)
+
+```advpl
+User Function McpDemo()
+    Local oMCP := MCPServer():New("meu-servidor", "1.0.0")
+    oMCP:AddTool("soma", "Soma dois números", ;
+        '{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"]}', ;
+        "ToolSoma")
+    oMCP:Serve() // bloqueia lendo/escrevendo em stdin/stdout
+Return
+
+User Function ToolSoma(oArgs)
+Return cValToChar(oArgs:A + oArgs:B)
+```
+
+Roda com `advplc run meu_programa.prw` normalmente — não precisa de
+comando novo. Diferente do suporte a REST (`WSRESTFUL`/`@Get`/`@Post`),
+que hoje só reconhece a sintaxe e descarta (sem servidor HTTP nem
+despacho real), o `MCPServer` **funciona de verdade**: implementa o
+protocolo MCP (Model Context Protocol) via JSON-RPC 2.0 sobre stdio —
+`initialize`, `tools/list`, `tools/call` — em Go puro, sem CGO, sem
+dependências externas. Cada tool chamada roda a função AdvPL
+correspondente numa VM isolada (mesmo mecanismo do `StartJob`).
+
+| Método | Descrição |
+|--------|-----------|
+| `New(cNome, cVersao)` | Cria o servidor |
+| `AddTool(cNome, cDescricao, cSchemaJSON, cNomeFuncao)` | Registra uma tool; a função recebe um objeto com os argumentos (`oArgs:CAMPO`) e retorna o texto do resultado |
+| `Serve()` | Sobe o loop stdio (bloqueia) |
+
+Validado com o SDK oficial em Python do MCP (`cmd/advplc/mcp_integration_test.go`).
 
 ## Motor de inferência LLM (`LLM`)
 

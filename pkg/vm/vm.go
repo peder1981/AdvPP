@@ -1134,6 +1134,8 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callMsDialogMethod(obj, upperMethod, args)
 	case "LLM":
 		return v.callLLMMethod(obj, upperMethod, args)
+	case "MCPServer":
+		return v.callMCPServerMethod(obj, upperMethod, args)
 	default:
 		return fmt.Errorf("unknown method %s on object %s", method, obj.ClassName)
 	}
@@ -1262,6 +1264,9 @@ func (v *VM) newInstance(className string, args []advplrt.Value) error {
 			return nil
 		case "LLM":
 			v.push(newLLMObject())
+			return nil
+		case "MCPSERVER":
+			v.push(newMCPServerObject())
 			return nil
 		case "ERRORCLASS":
 			obj := advplrt.NewObject("ErrorClass", cls)
