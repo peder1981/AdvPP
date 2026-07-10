@@ -1526,6 +1526,19 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 					return nil, err
 				}
 				expr = &ast.NewExpr{Loc: p.posFromToken(tok), ClassName: ident.Name, Args: args}
+			} else if _, ok := expr.(*ast.MacroExp); ok {
+				// `&cFunc.()` / `&(expr)()` — chamada de função cujo nome vem
+				// de uma macro (`&`), idioma clássico do Clipper/AdvPL. O VM
+				// ainda não resolve/chama uma função por nome dinâmico em
+				// runtime (mesma simplificação já feita para alias->&macro,
+				// ver TOKEN_ARROW acima): consome os parênteses/argumentos
+				// para o parsing suceder, mas não modela a invocação — o
+				// resultado da expressão continua sendo só a leitura da
+				// macro, sem efetivamente chamá-la.
+				p.advance()
+				if _, err := p.parseArguments(); err != nil {
+					return nil, err
+				}
 			} else {
 				goto done
 			}
@@ -1793,6 +1806,13 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 		identTok, err := p.expect(lexer.TOKEN_IDENT)
 		if err != nil {
 			return nil, err
+		}
+		// `&nome.` — o ponto final é um terminador explícito clássico do
+		// Clipper/AdvPL para a substituição de macro (`&cFunc.()`), usado
+		// quando o que segue poderia ser confundido com o resto do nome.
+		// Não carrega significado semântico próprio; só é consumido aqui.
+		if p.peek().Type == lexer.TOKEN_DOT {
+			p.advance()
 		}
 		return &ast.MacroExp{Loc: p.posFromToken(tok), Expr: &ast.Ident{Loc: p.posFromToken(tok), Name: identTok.Value}}, nil
 
