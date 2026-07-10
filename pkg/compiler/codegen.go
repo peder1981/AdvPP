@@ -853,6 +853,8 @@ func (c *Compiler) compileBinaryOp(e *ast.BinaryOp) error {
 		c.emit(OP_DIV, 0, 0, "", e.Loc.Line)
 	case "%":
 		c.emit(OP_MOD, 0, 0, "", e.Loc.Line)
+	case "^", "**":
+		c.emit(OP_POW, 0, 0, "", e.Loc.Line)
 	case "==":
 		c.emit(OP_EQ, 0, 0, "", e.Loc.Line)
 	case "!=", "<>":

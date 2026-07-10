@@ -67,8 +67,8 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 			// marca de continuação — precisa sair, ou sobra um separador
 			// de statement inválido no meio do valor expandido (ex.:
 			// dentro de um array literal `{...}`).
-			for strings.HasSuffix(strings.TrimRight(def, " \t"), ";") {
-				def = strings.TrimSuffix(strings.TrimRight(def, " \t"), ";")
+			for strings.HasSuffix(strings.TrimRight(def, " \t\r"), ";") {
+				def = strings.TrimSuffix(strings.TrimRight(def, " \t\r"), ";")
 				if i >= len(lines) {
 					break
 				}
@@ -165,10 +165,14 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 			// código normal) — junta tudo antes de compilar a regra. O ';'
 			// de FIM de linha é só a marca de continuação e é removido ao
 			// juntar; um ';' no meio/começo de linha é conteúdo (no lado do
-			// resultado, separa dois comandos gerados) e fica.
-			for strings.HasSuffix(strings.TrimRight(trimmed, " \t"), ";") && i < len(lines) {
-				def = strings.TrimRight(strings.TrimRight(def, " \t"), ";")
-				trimmed = strings.TrimSpace(lines[i])
+			// resultado, separa dois comandos gerados) e fica. Comentário
+			// `//` após o ';' é comum (`[ STYLE <n> ] ; // Styles`) e não
+			// pode esconder a marca de continuação.
+			def = strings.TrimRight(stripLineComment(def), " \t\r")
+			trimmed = strings.TrimRight(stripLineComment(trimmed), " \t\r")
+			for strings.HasSuffix(trimmed, ";") && i < len(lines) {
+				def = strings.TrimSuffix(strings.TrimRight(def, " \t\r"), ";")
+				trimmed = strings.TrimRight(stripLineComment(strings.TrimSpace(lines[i])), " \t\r")
 				def += " " + trimmed
 				i++
 			}
@@ -195,10 +199,34 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 			continue
 		}
 
-		processed := p.applyDefines(p.applyCommandRules(line))
+		// Junta a linha lógica: um ';' no fim da linha física é continuação
+		// em AdvPL, e o casamento de #command precisa da linha inteira
+		// (`Store COLS ... ;` + `While ...`). Preserva a contagem de linhas
+		// emitindo em branco as linhas absorvidas (diagnósticos apontam
+		// para a primeira linha do comando).
+		joined := line
+		extra := 0
+		if len(p.commandRules) > 0 {
+			for strings.HasSuffix(strings.TrimRight(stripLineComment(joined), " \t\r"), ";") && i+extra+1 < len(lines) {
+				joined = strings.TrimSuffix(strings.TrimRight(stripLineComment(joined), " \t\r"), ";")
+				joined += " " + strings.TrimSpace(lines[i+extra+1])
+				extra++
+			}
+			// se nenhuma regra casa na linha juntada, mantém as linhas
+			// físicas originais intactas (o lexer entende a continuação e
+			// as posições de erro ficam exatas).
+			if extra > 0 && p.applyCommandRulesDepth(joined, 0) == joined {
+				joined = line
+				extra = 0
+			}
+		}
+		processed := p.applyDefines(p.applyCommandRules(joined))
 		output.WriteString(processed)
 		output.WriteString("\n")
-		i++
+		for k := 0; k < extra; k++ {
+			output.WriteString("\n")
+		}
+		i += 1 + extra
 	}
 
 	return output.String(), nil
@@ -380,11 +408,28 @@ func (p *Preprocessor) loadInclude(fileName string) (string, error) {
 	}
 	p.processed[key] = true
 
+	// Além do diretório em si, projetos reais guardam os headers em
+	// subpastas convencionais ("ch/", "include/", "includes/") ao lado dos
+	// fontes; e em Linux o nome no #include quase nunca bate o case do
+	// arquivo em disco (fonte CP-1252 vindo de Windows) — tenta exato e
+	// depois case-insensitive.
 	for _, dir := range p.includePaths {
-		path := filepath.Join(dir, fileName)
-		data, err := os.ReadFile(path)
-		if err == nil && !isBinary(data) {
-			return string(data), nil
+		for _, sub := range []string{"", "ch", "include", "includes"} {
+			base := dir
+			if sub != "" {
+				base = filepath.Join(dir, sub)
+			}
+			path := filepath.Join(base, fileName)
+			data, err := os.ReadFile(path)
+			if err == nil && !isBinary(data) {
+				return string(data), nil
+			}
+			if found := findFileFold(base, fileName); found != "" {
+				data, err := os.ReadFile(found)
+				if err == nil && !isBinary(data) {
+					return string(data), nil
+				}
+			}
 		}
 	}
 
@@ -394,6 +439,21 @@ func (p *Preprocessor) loadInclude(fileName string) (string, error) {
 	}
 
 	return "", nil
+}
+
+// findFileFold procura em `dir` uma entrada cujo nome case-insensitive seja
+// igual a `name`. Devolve o caminho completo ou "".
+func findFileFold(dir, name string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.EqualFold(e.Name(), name) {
+			return filepath.Join(dir, e.Name())
+		}
+	}
+	return ""
 }
 
 // isBinary reports whether data looks like a compiled/compressed header
