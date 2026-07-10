@@ -2287,7 +2287,9 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 				}
 				break
 			}
-			fieldTok, err := p.expect(lexer.TOKEN_IDENT)
+			// Field name can collide with a reserved word (`alias->END`,
+			// `alias->DELETE`, ...) — accept KEYWORD too, like expectName.
+			fieldTok, err := p.expectName()
 			if err != nil {
 				return nil, err
 			}

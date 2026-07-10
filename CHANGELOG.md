@@ -2,6 +2,18 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.6] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (83,0% → 83,6%)
+
+Continuação do sweep dirigido por corpus (ver [[advpp_corpus_locations]]).
+
+- `alias->END` (e qualquer outro campo cujo nome colide com palavra
+  reservada, ex. `alias->DELETE`) — nome de campo após `->` exigia
+  `TOKEN_IDENT`; agora usa `expectName()` (aceita `TOKEN_KEYWORD`
+  também), mesma classe de bug já corrigida em outros pontos do parser
+  para identificadores que colidem com keywords.
+
 ## [1.7.5] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (82,0% → 83,0%)
