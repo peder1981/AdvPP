@@ -2,6 +2,34 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.8.2] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (89,4% → 92,6%)
+
+- `&&` (comentário Clipper) após `;` de continuação tratado como fim de
+  linha para a continuação (lexer), igual ao `//` já suportado.
+- `Begin Report Query <expr>` — a seção pode ser expressão completa
+  (`oReport:Section(2)`), não só um nome, nos dois lados do bloco.
+- Atribuição encadeada como valor dentro de item de codeblock
+  (`x[9] := x[10] := ... := 0`).
+- `COLORS` como cláusula de `@` (FOLDER ... COLORS 0,167...).
+- `Release Object <nome>` / `Release All [Like <máscara>]`.
+- `Break(oErro)` como chamada de função em expressão (idioma de
+  ErrorBlock), distinto do statement BREAK.
+- `@ y,x To y2,x2 MultiLine Object oMulti` — flags/cláusulas do TMultiget
+  legado no ramo de caixa do `@`.
+- `Data <keyword>` — nome de membro de classe pode colidir com palavra
+  reservada (`Data size`, `Data default`); `::Default()` idem em acesso.
+- `DEFINE SCROLLBAR ::oVScroll VERTICAL OF Self RANGE a,b` — alvo `::prop`
+  em DEFINE e ACTIVATE, flags VERTICAL/HORIZONTAL e cláusula RANGE.
+- Bytes de controle soltos (\x01, corrupção comum em fontes legados)
+  tolerados pelo lexer, como o backtick.
+- `Count To <var>` / `Sum <exprs> To <vars>` / `Average ... To ...`
+  (comandos Clipper de agregação; parseados e descartados).
+- Atribuição em resultado de chamada (`ATail(arr) := v`, semântica de
+  referência do Clipper) tolerada no codegen (avalia e descarta), mesma
+  tolerância já dada a `&macro := v`.
+
 ## [1.8.1] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (87,6% → 89,4%)
