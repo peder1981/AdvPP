@@ -888,17 +888,17 @@ func (c *Compiler) compileUnaryOp(e *ast.UnaryOp) error {
 func (c *Compiler) compileCallExpr(e *ast.CallExpr) error {
 	// Check if this is a class constructor call (e.g., Calculator():New())
 	if _, isClass := c.bc.Classes[e.Name]; isClass {
-		c.compileArgs(e.Args, e.Loc.Line)
+		c.compileArgs(e.Args)
 		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), e.Name, e.Loc.Line)
 		return nil
 	}
 	// Check known built-in classes
 	if isBuiltinClass(e.Name) {
-		c.compileArgs(e.Args, e.Loc.Line)
+		c.compileArgs(e.Args)
 		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), e.Name, e.Loc.Line)
 		return nil
 	}
-	c.compileArgs(e.Args, e.Loc.Line)
+	c.compileArgs(e.Args)
 	if strings.ToUpper(e.Name) == "EVAL" {
 		c.emit(OP_EVAL_CODEBLOCK, 0, len(e.Args)-1, "", e.Loc.Line)
 		return nil
@@ -911,7 +911,7 @@ func (c *Compiler) compileCallExpr(e *ast.CallExpr) error {
 	return nil
 }
 
-func (c *Compiler) compileArgs(args []ast.Expression, line int) {
+func (c *Compiler) compileArgs(args []ast.Expression) {
 	for _, arg := range args {
 		if np, ok := arg.(*ast.NamedParam); ok {
 			c.emit(OP_NAMED_ARG, 0, 0, np.Name, np.Loc.Line)
@@ -927,7 +927,7 @@ func (c *Compiler) compileMethodCall(e *ast.MethodCall) error {
 	if err := c.compileExpr(e.Object); err != nil {
 		return err
 	}
-	c.compileArgs(e.Args, e.Loc.Line)
+	c.compileArgs(e.Args)
 	c.emit(OP_CALL_METHOD, 0, len(e.Args), e.Method, e.Loc.Line)
 	return nil
 }

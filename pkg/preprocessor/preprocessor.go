@@ -13,6 +13,7 @@ type Preprocessor struct {
 	defines      map[string]string
 	processed    map[string]bool
 	sqlCounter   int
+	commandRules []commandRule
 }
 
 func NewPreprocessor(includePaths []string) *Preprocessor {
@@ -56,8 +57,25 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 		}
 
 		if strings.HasPrefix(upper, "#DEFINE") {
-			p.parseDefine(trimmed)
+			def := trimmed
 			i++
+			// `#define nome { valor1,;\n  valor2,; ...}` — arrays/valores
+			// multi-linha via continuação com ';' no final (mesma
+			// convenção usada em #command). Sem juntar, as linhas de
+			// continuação vazam como código bruto (sobra "valor2," etc.
+			// como se fosse uma statement de verdade). O ';' em si é só a
+			// marca de continuação — precisa sair, ou sobra um separador
+			// de statement inválido no meio do valor expandido (ex.:
+			// dentro de um array literal `{...}`).
+			for strings.HasSuffix(strings.TrimRight(def, " \t"), ";") {
+				def = strings.TrimSuffix(strings.TrimRight(def, " \t"), ";")
+				if i >= len(lines) {
+					break
+				}
+				def += " " + strings.TrimSpace(lines[i])
+				i++
+			}
+			p.parseDefine(def)
 			continue
 		}
 
@@ -135,17 +153,23 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 
 		if strings.HasPrefix(upper, "#XCOMMAND") || strings.HasPrefix(upper, "#XTRANSLATE") ||
 			strings.HasPrefix(upper, "#COMMAND") || strings.HasPrefix(upper, "#TRANSLATE") {
+			// Corta a palavra-chave da diretiva ("#xcommand ", "#command ",
+			// ...), mantendo o resto: "STORE HEADER <cA> TO <aH> => ...".
+			def := trimmed
+			if sp := strings.IndexAny(def, " \t"); sp >= 0 {
+				def = def[sp+1:]
+			}
 			i++
-			// These command-translation templates commonly span multiple
-			// physical lines via a trailing ';' continuation (same
-			// convention as regular code). Without following it, a
-			// continuation line — plain pattern-template text, not a line
-			// that itself starts with '#' — falls through to the normal
-			// code path below and gets fed to the lexer as if it were real
-			// AdvPL, escaped braces (`\{`/`\}`) and all.
+			// Estas definições costumam se espalhar por várias linhas
+			// físicas via continuação com ';' no final (mesma convenção do
+			// código normal) — junta tudo antes de compilar a regra.
 			for strings.HasSuffix(strings.TrimRight(trimmed, " \t"), ";") && i < len(lines) {
 				trimmed = strings.TrimSpace(lines[i])
+				def += " " + trimmed
 				i++
+			}
+			if rule, ok := parseCommandDef(def); ok {
+				p.commandRules = append(p.commandRules, rule)
 			}
 			continue
 		}
@@ -167,7 +191,7 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 			continue
 		}
 
-		processed := p.applyDefines(line)
+		processed := p.applyDefines(p.applyCommandRules(line))
 		output.WriteString(processed)
 		output.WriteString("\n")
 		i++
@@ -256,13 +280,24 @@ func extractDefineName(line string) string {
 }
 
 func (p *Preprocessor) parseDefine(line string) {
-	parts := strings.SplitN(line, " ", 3)
-	if len(parts) >= 2 {
-		name := strings.TrimSpace(parts[1])
-		value := ""
-		if len(parts) >= 3 {
-			value = strings.TrimSpace(stripTrailingLineComment(parts[2]))
-		}
+	// Não usa SplitN(line, " ", 3): quebra com mais de um espaço entre
+	// "#define" e o nome (`#define  __aNotCampos    valor`, estilo comum
+	// em código real de verdade) — o split cai num campo vazio entre os
+	// dois espaços e a macro fica armazenada com nome "".
+	rest := strings.TrimSpace(line)
+	if sp := strings.IndexAny(rest, " \t"); sp >= 0 {
+		rest = rest[sp+1:]
+	} else {
+		rest = ""
+	}
+	rest = strings.TrimLeft(rest, " \t")
+	nameEnd := strings.IndexAny(rest, " \t")
+	if nameEnd < 0 {
+		nameEnd = len(rest)
+	}
+	name := rest[:nameEnd]
+	if name != "" {
+		value := strings.TrimSpace(stripTrailingLineComment(strings.TrimSpace(rest[nameEnd:])))
 		p.defines[name] = value
 	}
 }

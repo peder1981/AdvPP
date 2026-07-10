@@ -2,6 +2,52 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.0] — 2026-07-10
+
+### Motor real de `#xcommand`/`#command`/`#xtranslate`/`#translate`
+
+Até aqui, o pré-processador **reconhecia** a sintaxe destas diretivas mas
+**descartava** as definições — nenhuma expansão de verdade acontecia. Isso
+quebrava qualquer arquivo que dependesse de comandos customizados definidos
+em headers `.ch` reais (padrão comum em código Protheus legado: `STORE
+HEADER <cA> TO <aH> [FOR <for>]`, `COPY <cAC> TO MEMORY [<bl:BLANK>]`,
+etc.). Agora o AdvPP implementa o pattern-matching de verdade, no estilo
+Clipper:
+
+- **Padrão de casamento**: palavras literais (case-insensitive), `<nome>`
+  (captura uma cláusula até o próximo literal esperado), `<nome,...>`
+  (captura uma lista), `[...]` (grupo opcional — só tenta se o primeiro
+  literal dele aparecer na posição atual), `[<nome:LITERAL>]` (marcador de
+  flag booleana).
+- **Molde de resultado**: `<nome>` (substitui pelo texto capturado, ou
+  vazio se ausente), `<{nome}>` (vira `{|| texto}` se presente, `NIL` se
+  ausente — usado para condições `FOR`/`WHILE` que viram codeblock),
+  `<.nome.>` (`.T.`/`.F.` conforme presença), `\[`/`\]` (colchete literal).
+- Definições multi-linha via continuação com `;` (convenção usual do
+  Clipper) são unidas antes de compilar a regra.
+
+Três bugs reais adicionais encontrados e corrigidos no caminho (achados ao
+validar contra headers `.ch` reais de um fork ApSoft/Protheus):
+
+1. **`#define` com múltiplos espaços** (`#define  NOME    valor`) —
+   `parseDefine` usava `strings.SplitN(line, " ", 3)`, que quebra quando
+   há mais de um espaço entre `#define` e o nome (comum em código real),
+   armazenando a macro com nome vazio.
+2. **`#define` multi-linha** (`#define NOME { "a","b",;\n "c","d" }`) —
+   sem juntar as linhas de continuação, o resto do array vazava como
+   código bruto (token solto no meio de uma statement).
+3. **Tokenização por espaço simples** grudava identificador com pontuação
+   colada (`TCSQLEXEC("select 1")` virava um token só), fazendo até um
+   `#translate` sem parâmetros nunca casar; e quando um padrão casava só
+   o início da linha, o resto era descartado em vez de reanexado.
+
+Validado com testes automatizados (`pkg/preprocessor/commands_test.go`) e
+contra arquivos `.prw`/`.ch` reais de um corpus de ~30 mil fontes Protheus
+(legado 811R4 + versão 12.1.2510 atual) cedido pelo usuário para esta
+investigação — usado só localmente para validação, não redistribuído.
+Sem regressões: `make test` continua 30/30, `go vet` e os demais pacotes
+seguem limpos, cross-compile OK em linux/windows/darwin (amd64+arm64).
+
 ## [1.6.0] — 2026-07-09
 
 ### `tests/real_protheus_test.prw` totalmente resolvido

@@ -5,7 +5,7 @@ Um compilador e interpretador totalmente funcional para as linguagens de program
 ## Recursos
 
 - **Lexer**: Tokenizador completo para sintaxe AdvPL/TLPP incluindo palavras-chave, operadores, blocos de código e diretivas de pré-processador
-- **Pré-processador**: Trata `#include`, `#define`, `#ifdef`/`#ifndef`/`#else`/`#endif`, `#xCommand`, `#xTranslate`
+- **Pré-processador**: Trata `#include`, `#define` (inclusive multi-linha), `#ifdef`/`#ifndef`/`#else`/`#endif`, e `#xCommand`/`#command`/`#xTranslate`/`#translate` com pattern-matching real (marcadores `<nome>`, cláusulas opcionais `[...]`, flags `[<nome:LITERAL>]`, resultado com `<{nome}>`/`<.nome.>`)
 - **Parser**: Parser recursivo descendente completo gerando uma AST
 - **Compilador**: Gera bytecode otimizado com 88 opcodes
 - **Serialização de Bytecode**: Salva bytecode compilado em disco para execução posterior

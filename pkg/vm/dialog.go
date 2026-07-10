@@ -133,7 +133,10 @@ func (v *VM) registerDialogNatives(natives map[string]func([]advplrt.Value) (adv
 }
 
 // callMsDialogMethod atende os métodos usuais do objeto de diálogo.
-func (v *VM) callMsDialogMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
+// args não é usado: nenhum destes métodos recebe parâmetro (ACTIVATE/END/
+// CLOSE/DEACTIVATE/NEW) — mantido só para uniformidade de assinatura com
+// os demais dispatchers de classe nativa (callFormBrowseMethod etc.).
+func (v *VM) callMsDialogMethod(obj *advplrt.ObjectValue, method string, _ []advplrt.Value) error {
 	dlg, ok := obj.Native.(*webDialog)
 	if !ok {
 		return fmt.Errorf("MsDialog: objeto sem estado interno")

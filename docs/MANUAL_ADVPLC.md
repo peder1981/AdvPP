@@ -283,6 +283,51 @@ dbGoBottom()
 TCQuery("SELECT * FROM SA1 WHERE A1_FILIAL = '01'")
 ```
 
+## Comandos customizados (`#xcommand`/`#command`/`#xtranslate`/`#translate`)
+
+O pré-processador expande de verdade comandos customizados definidos em
+headers `.ch`, no estilo do pré-processador do Clipper — não é só
+sintaxe reconhecida e descartada.
+
+```advpl
+#command STORE HEADER <cA> TO <aH> [FOR <for>] ;
+      => SX3->(dbSetOrder(1)) ;
+       ; SX3->(DBEval({|| AaDd(<aH>,{SX3->X3_CAMPO})}, {|| PLSCHKNIV(<for>) }))
+
+STORE HEADER "SA1" TO aHead FOR MeuFiltro()
+// expande para: SX3->(dbSetOrder(1)) ; SX3->(DBEval({|| AaDd(aHead,{SX3->X3_CAMPO})}, {|| PLSCHKNIV(MeuFiltro())}))
+```
+
+### Sintaxe do padrão (lado esquerdo do `=>`)
+
+| Elemento | Significado |
+|----------|-------------|
+| `PALAVRA` | Literal, casado sem diferenciar maiúsculas/minúsculas |
+| `<nome>` | Captura o que aparecer até o próximo literal esperado |
+| `<nome,...>` | Captura uma lista (texto cru, vírgulas inclusas) |
+| `[...]` | Grupo opcional — só é tentado se o primeiro literal dentro dele aparecer na posição atual |
+| `[<nome:LITERAL>]` | Marcador de flag booleana (vira `<.nome.>` no resultado) |
+
+### Sintaxe do resultado (lado direito do `=>`)
+
+| Elemento | Significado |
+|----------|-------------|
+| `<nome>` | Substitui pelo texto capturado (vazio se a cláusula estava ausente) |
+| `<{nome}>` | Vira `{\|\| texto}` se capturado, `NIL` se ausente — para condições `FOR`/`WHILE` |
+| `<.nome.>` | `.T.` se capturado/flag presente, `.F.` caso contrário |
+| `\[` / `\]` | Colchete literal no texto de saída |
+
+Definições podem se espalhar por várias linhas físicas via continuação
+com `;` no final — mesma convenção do código comum.
+
+### Limitações conhecidas
+
+- Casamento só no início da linha/statement (não no meio de uma
+  expressão maior).
+- Tokenização própria (não usa o lexer completo) — cobre bem os casos
+  reais mais comuns, mas construções muito incomuns dentro dos
+  argumentos capturados podem não ser preservadas perfeitamente.
+
 ## Sintaxe TLPP
 
 ### Classes

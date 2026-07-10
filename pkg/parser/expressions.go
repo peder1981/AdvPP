@@ -60,7 +60,7 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 		return p.parseDoCase()
 	}
 	if p.isWord(tok, "SET") && p.peekAt(1).Type == lexer.TOKEN_IDENT &&
-		(p.isKeyword(p.peekAt(2), "TO") || p.isWord(p.peekAt(2), "ON") || p.isWord(p.peekAt(2), "OFF")) {
+		(p.isKeyword(p.peekAt(2), "TO") || p.isWord(p.peekAt(2), "ON") || p.isWord(p.peekAt(2), "OFF") || p.isWord(p.peekAt(2), "OF")) {
 		return p.parseSetCommand()
 	}
 	if p.isKeyword(tok, "ADD") && p.isWord(p.peekAt(1), "OPTION") {
@@ -69,10 +69,34 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "DEFINE") {
 		return p.parseDefine()
 	}
+	// `CREATE PANEL oWizard HEADER ... MESSAGE ... BACK {||...} NEXT
+	// {||...} FINISH {||...}` — mesma forma de DEFINE WIZARD (var +
+	// cláusulas), só com "CREATE PANEL" em vez de "DEFINE WIZARD".
+	if p.isWord(tok, "CREATE") && p.isWord(p.peekAt(1), "PANEL") {
+		return p.parseDefine()
+	}
+	// `Append From (expr) [Via expr] [Fields ...] [For expr] [While expr]`
+	// — comando Clipper clássico de importação de registros de outro
+	// arquivo/RDD; parseado e descartado (sem engine de banco por trás),
+	// mesmo espírito do SET/DEFINE.
+	if p.isWord(tok, "APPEND") && p.isKeyword(p.peekAt(1), "FROM") {
+		return p.parseAppendFrom()
+	}
+	// `Copy To (expr) [For expr] [While expr] [Via expr] [Fields ...]
+	// [SDF] [DELIMITED [WITH expr]] [REST] [NEXT expr]` — comando Clipper
+	// de exportação de registros; parseado e descartado.
+	if p.isWord(tok, "COPY") && p.isKeyword(p.peekAt(1), "TO") {
+		return p.parseCopyTo()
+	}
+	// `Index On <expr> [Tag <expr>] [For <expr>] [Unique] [Descending]
+	// [Additive] To <expr>` — comando Clipper de criação de índice.
+	if p.isWord(tok, "INDEX") && p.isKeyword(p.peekAt(1), "ON") {
+		return p.parseIndexOn()
+	}
 	if p.isWord(tok, "PUBLISH") && p.isWord(p.peekAt(1), "MODEL") {
 		return p.parsePublishModel()
 	}
-	if p.isKeyword(tok, "ACTIVATE") && (p.isWord(p.peekAt(1), "MSDIALOG") || p.isWord(p.peekAt(1), "DIALOG")) {
+	if p.isKeyword(tok, "ACTIVATE") && (p.isWord(p.peekAt(1), "MSDIALOG") || p.isWord(p.peekAt(1), "DIALOG") || p.isWord(p.peekAt(1), "WIZARD") || p.isWord(p.peekAt(1), "WINDOW")) {
 		return p.parseActivateDialog()
 	}
 	if tok.Type == lexer.TOKEN_AT {
@@ -403,7 +427,9 @@ func (p *Parser) parseFor() (ast.Statement, error) {
 		Body: make([]ast.Statement, 0),
 	}
 
-	for !p.isKeyword(p.peek(), "NEXT") && p.peek().Type != lexer.TOKEN_EOF {
+	// "End" genérico (sem "Next") também fecha o For no Clipper clássico,
+	// igual ao If/While/Case.
+	for !p.isKeyword(p.peek(), "NEXT") && !p.isKeyword(p.peek(), "END") && p.peek().Type != lexer.TOKEN_EOF {
 		if p.isFunctionBoundary(p.peek()) {
 			break
 		}
@@ -414,6 +440,11 @@ func (p *Parser) parseFor() (ast.Statement, error) {
 		if stmt != nil {
 			forStmt.Body = append(forStmt.Body, stmt)
 		}
+	}
+
+	if p.isKeyword(p.peek(), "END") {
+		p.advance()
+		return forStmt, nil
 	}
 
 	if p.isKeyword(p.peek(), "NEXT") {
@@ -767,7 +798,7 @@ func (p *Parser) parseDefault() (ast.Statement, error) {
 // so clauses are collected by keyword rather than assumed positional.
 func (p *Parser) parseAddOption() (ast.Statement, error) {
 	tok := p.advance() // ADD
-	p.advance()         // OPTION
+	p.advance()        // OPTION
 
 	arrTok, err := p.expect(lexer.TOKEN_IDENT)
 	if err != nil {
@@ -842,7 +873,7 @@ done:
 // interpreter doesn't have a real REST dispatch layer to register with.
 func (p *Parser) parsePublishModel() (ast.Statement, error) {
 	tok := p.advance() // PUBLISH
-	p.advance()         // MODEL
+	p.advance()        // MODEL
 	if p.isKeyword(p.peek(), "REST") {
 		p.advance()
 	}
@@ -933,9 +964,34 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			name = "TO"
 		case p.isKeyword(cur, "OF"):
 			name = "OF"
-		case p.isKeyword(cur, "PIXEL"), p.isWord(cur, "ENABLE"), p.isWord(cur, "DISABLE"):
+		case p.isKeyword(cur, "PIXEL"), p.isWord(cur, "ENABLE"), p.isWord(cur, "DISABLE"),
+			p.isWord(cur, "PANEL"), p.isWord(cur, "NOFIRSTPANEL"), p.isWord(cur, "TOP"), p.isWord(cur, "GROUP"):
 			p.advance() // flag clauses, no value
 			continue
+		// `DEFINE BUTTONBAR ... 3D TOP OF ...` — "3D" tokeniza como NUMBER
+		// "3" + IDENT "D" separados (identificador não pode começar com
+		// dígito); trata o par junto como uma única flag.
+		case cur.Type == lexer.TOKEN_NUMBER && cur.Value == "3" &&
+			p.peekAt(1).Type == lexer.TOKEN_IDENT && strings.EqualFold(p.peekAt(1).Value, "D"):
+			p.advance()
+			p.advance()
+			continue
+		// `DEFINE WIZARD ... HEADER expr MESSAGE expr NEXT {|lOk|...}
+		// BACK {||...} FINISH {||...} PANEL NOFIRSTPANEL` — TWizard/
+		// ApWizard (API obsoleta, mas ainda usada em fontes legados; só
+		// consome a sintaxe, sem modelar o assistente de verdade).
+		case p.isWord(cur, "HEADER"):
+			name = "HEADER"
+		case p.isWord(cur, "MESSAGE"):
+			name = "MESSAGE"
+		case p.isKeyword(cur, "NEXT"):
+			name = "NEXT"
+		case p.isWord(cur, "BACK"):
+			name = "BACK"
+		case p.isWord(cur, "FINISH"):
+			name = "FINISH"
+		case p.isWord(cur, "EXEC"):
+			name = "EXEC"
 		case p.isWord(cur, "COLOR"):
 			name = "COLOR"
 		case p.isWord(cur, "STYLE"):
@@ -944,6 +1000,10 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			name = "ICON"
 		case p.isWord(cur, "NAME"):
 			name = "NAME"
+		case p.isWord(cur, "RESOURCE"), p.isWord(cur, "RESNAME"):
+			name = "RESOURCE"
+		case p.isWord(cur, "TOOLTIP"):
+			name = "TOOLTIP"
 		case p.isKeyword(cur, "SIZE"):
 			name = "SIZE"
 		case p.isWord(cur, "TYPE"):
@@ -956,6 +1016,8 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			name = "PARAMETER"
 		case p.isWord(cur, "DESCRIPTION"):
 			name = "DESCRIPTION"
+		case p.isWord(cur, "PROMPT"):
+			name = "PROMPT"
 		case p.isWord(cur, "BOLD"), p.isWord(cur, "ITALIC"), p.isWord(cur, "UNDERLINE"):
 			p.advance() // DEFINE FONT style flags, no value
 			continue
@@ -1004,6 +1066,188 @@ func (p *Parser) parseCommaValues() ([]ast.Expression, error) {
 	return vals, nil
 }
 
+// parseAppendFrom handles `Append From <expr> [Via <expr>] [Fields
+// f1,f2,...] [For <expr>] [While <expr>]`, desugaring to a dropped
+// `APPEND_FROM(source, via, fields..., for, while)` call.
+func (p *Parser) parseAppendFrom() (ast.Statement, error) {
+	tok := p.advance() // APPEND
+	p.advance()        // FROM
+
+	source, err := p.parseOr()
+	if err != nil {
+		return nil, err
+	}
+	args := []ast.Expression{source}
+
+	for {
+		cur := p.peek()
+		switch {
+		case p.isWord(cur, "VIA"):
+			p.advance()
+			val, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: "VIA"}, val)
+		case p.isWord(cur, "FIELDS"):
+			p.advance()
+			vals, err := p.parseCommaValues()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: "FIELDS"})
+			args = append(args, vals...)
+		case p.isKeyword(cur, "FOR"):
+			p.advance()
+			val, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: "FOR"}, val)
+		case p.isKeyword(cur, "WHILE"):
+			p.advance()
+			val, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: "WHILE"}, val)
+		case p.isKeyword(cur, "REST"):
+			p.advance()
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: "REST"})
+		case p.isKeyword(cur, "NEXT"):
+			p.advance()
+			val, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: "NEXT"}, val)
+		default:
+			goto done
+		}
+	}
+done:
+	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "APPEND_FROM", Args: args}
+	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+}
+
+// parseCopyTo handles `Copy To <expr> [For expr] [While expr] [Via expr]
+// [Fields f1,f2,...] [SDF] [DELIMITED [WITH expr]] [REST] [NEXT expr]`,
+// desugaring to a dropped `COPY_TO(dest, ...)` call.
+// parseIndexOn handles `Index On <expr> [Tag <expr>] [For <expr>] [Unique]
+// [Descending] [Additive] To <expr>`, desugarado para `INDEX_ON(key, ...)`.
+func (p *Parser) parseIndexOn() (ast.Statement, error) {
+	tok := p.advance() // INDEX
+	p.advance()        // ON
+
+	key, err := p.parseOr()
+	if err != nil {
+		return nil, err
+	}
+	args := []ast.Expression{key}
+
+	for {
+		cur := p.peek()
+		switch {
+		case p.isWord(cur, "TAG"):
+			p.advance()
+			val, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: "TAG"}, val)
+		case p.isKeyword(cur, "FOR"):
+			p.advance()
+			val, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: "FOR"}, val)
+		case p.isWord(cur, "UNIQUE"), p.isWord(cur, "DESCENDING"), p.isWord(cur, "ADDITIVE"):
+			p.advance()
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: strings.ToUpper(cur.Value)})
+		case p.isKeyword(cur, "TO"):
+			p.advance()
+			val, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: "TO"}, val)
+		default:
+			goto done
+		}
+	}
+done:
+	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "INDEX_ON", Args: args}
+	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+}
+
+func (p *Parser) parseCopyTo() (ast.Statement, error) {
+	tok := p.advance() // COPY
+	p.advance()        // TO
+
+	dest, err := p.parseOr()
+	if err != nil {
+		return nil, err
+	}
+	args := []ast.Expression{dest}
+
+	flag := func(name string) {
+		args = append(args, &ast.StringLit{Loc: p.posFromToken(tok), Value: name})
+	}
+	clauseVal := func(cur lexer.Token, name string) error {
+		p.advance()
+		val, err := p.parseOr()
+		if err != nil {
+			return err
+		}
+		args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: name}, val)
+		return nil
+	}
+
+	for {
+		cur := p.peek()
+		var err error
+		switch {
+		case p.isKeyword(cur, "FOR"):
+			err = clauseVal(cur, "FOR")
+		case p.isKeyword(cur, "WHILE"):
+			err = clauseVal(cur, "WHILE")
+		case p.isWord(cur, "VIA"):
+			err = clauseVal(cur, "VIA")
+		case p.isKeyword(cur, "NEXT"):
+			err = clauseVal(cur, "NEXT")
+		case p.isWord(cur, "FIELDS"):
+			p.advance()
+			vals, verr := p.parseCommaValues()
+			if verr != nil {
+				return nil, verr
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: "FIELDS"})
+			args = append(args, vals...)
+		case p.isWord(cur, "SDF"):
+			p.advance()
+			flag("SDF")
+		case p.isKeyword(cur, "REST"):
+			p.advance()
+			flag("REST")
+		case p.isWord(cur, "DELIMITED"):
+			p.advance()
+			flag("DELIMITED")
+			if p.isWord(p.peek(), "WITH") {
+				err = clauseVal(p.peek(), "WITH")
+			}
+		default:
+			goto done
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+done:
+	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "COPY_TO", Args: args}
+	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+}
+
 // parseSetCommand handles Clipper's `SET <option> TO [<value>]` /
 // `SET <option> ON|OFF` family (SET DEVICE TO SCREEN, SET FILTER TO ...,
 // SET DELETED ON, ...), desugaring to a dropped `SET_<OPTION>(value)` call —
@@ -1015,30 +1259,58 @@ func (p *Parser) parseSetCommand() (ast.Statement, error) {
 		return nil, err
 	}
 	args := []ast.Expression{}
+	// `SET MESSAGE OF oWnd TO expr [NOINSET] [FONT oFont]` — cláusula OF
+	// (janela/controle alvo) antes do TO, e clausulas finais soltas.
+	if p.isWord(p.peek(), "OF") {
+		p.advance()
+		target, err := p.parseOr()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, target)
+	}
 	if p.isKeyword(p.peek(), "TO") {
 		p.advance()
 		// `SET FILTER TO` with nothing after (clearing the option) is also
 		// common; only a STRING/NUMBER/LPAREN is unambiguously a value. A
 		// bare IDENT is only treated as one if it isn't itself the start of
-		// the next `SET ...` statement.
+		// the next `SET ...` statement, nor the target of an assignment on
+		// the next line (`Set Filter to` \n `cChave := ...` is two
+		// statements, not `SET_FILTER(cChave)` followed by a stray `:=`).
 		hasValue := false
 		switch p.peek().Type {
 		case lexer.TOKEN_STRING, lexer.TOKEN_NUMBER, lexer.TOKEN_LPAREN:
 			hasValue = true
 		case lexer.TOKEN_IDENT:
-			hasValue = !p.isWord(p.peek(), "SET")
+			hasValue = !p.isWord(p.peek(), "SET") && p.peekAt(1).Type != lexer.TOKEN_ASSIGN
 		}
 		if hasValue {
 			vals, err := p.parseCommaValues()
 			if err != nil {
 				return nil, err
 			}
-			args = vals
+			args = append(args, vals...)
 		}
 	} else if p.isWord(p.peek(), "ON") || p.isWord(p.peek(), "OFF") {
 		args = append(args, &ast.BoolLit{Loc: p.posFromToken(tok), Value: p.isWord(p.peek(), "ON")})
 		p.advance()
 	}
+	// Cláusulas finais soltas (NOINSET flag, FONT expr, ...) — parseadas e
+	// descartadas, mesmo espírito das cláusulas de @ e DEFINE.
+	for {
+		switch {
+		case p.isWord(p.peek(), "NOINSET"):
+			p.advance()
+		case p.isWord(p.peek(), "FONT"):
+			p.advance()
+			if _, err := p.parseOr(); err != nil {
+				return nil, err
+			}
+		default:
+			goto doneClauses
+		}
+	}
+doneClauses:
 	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "SET_" + strings.ToUpper(nameTok.Value), Args: args}
 	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
 }
@@ -1129,7 +1401,7 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 
 	for p.isAtClauseWord(p.peek()) {
 		clauseTok := p.advance()
-		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") {
+		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") {
 			continue // flag clauses, no value
 		}
 		// `@ ... LISTBOX ... ON DBLCLICK <expr> ...` — o nome do evento
@@ -1139,7 +1411,7 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 		if p.isWord(clauseTok, "ON") {
 			eventTok := p.advance()
 			clauseName := "ON_" + strings.ToUpper(eventTok.Value)
-			val, err := p.parseOr()
+			val, err := p.parseAssignableExpr()
 			if err != nil {
 				return nil, err
 			}
@@ -1191,6 +1463,20 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		"PROMPT",
 		// `@ y,x RADIO var VAR nVar ITEMS v1,v2,... SIZE w,h OF window PIXEL`
 		"ITEMS",
+		// `@ y,x BITMAP var RESOURCE|RESNAME "nome" SIZE w,h PIXEL NOBORDER OF window`
+		"RESOURCE", "RESNAME", "NOBORDER",
+		// `@ y,x MSGET var SIZE w,h PASSWORD OF window PIXEL`
+		"PASSWORD",
+		// `@ y,x MSPANEL var OF window SIZE w,h LOWERED`
+		"LOWERED",
+		// `@ y,x GET var VAR nome SIZE w,h OF window PICTURE p READONLY`
+		"READONLY",
+		// `@ y,x LISTBOX var FIELDS HEADER a,b,c SIZES w1,w2,w3 SIZE w,h`
+		"SIZES",
+		// `@ y,x METER var VAR n TOTAL 100 SIZE w,h`
+		"TOTAL",
+		// `@ y,x SCROLLBOX var VERTICAL|HORIZONTAL OF window PIXEL`
+		"VERTICAL", "HORIZONTAL",
 	} {
 		if p.isWord(tok, kw) {
 			return true
@@ -1208,7 +1494,7 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 // so the goal is just consuming the clauses so `check` succeeds.
 func (p *Parser) parseActivateDialog() (ast.Statement, error) {
 	tok := p.advance() // ACTIVATE
-	p.advance()         // MSDIALOG
+	p.advance()        // MSDIALOG
 
 	varTok, err := p.expect(lexer.TOKEN_IDENT)
 	if err != nil {
@@ -1235,7 +1521,7 @@ func (p *Parser) parseActivateDialog() (ast.Statement, error) {
 				return nil, err
 			}
 			clauses["VALID"] = val
-		case p.isWord(cur, "CENTERED"):
+		case p.isWord(cur, "CENTERED"), p.isWord(cur, "CENTER"), p.isWord(cur, "ICONIZED"), p.isWord(cur, "ICONIZE"):
 			p.advance()
 		default:
 			goto done
@@ -1671,6 +1957,41 @@ done:
 	return expr, nil
 }
 
+// parseAssignableExpr faz o mesmo papel que parseCodeBlockItem para o valor
+// de uma cláusula/argumento avulso: parseia uma expressão e, se sobrar um
+// operador de atribuição (:=, +=, -=, *=, /=) logo depois — o parser de
+// binário aditivo/multiplicativo já evita consumi-lo sozinho — completa
+// como AssignExpr. Usado em contextos fora de codeblock/argumentos de
+// função que também aceitam atribuição como valor (ex.: `ON evento expr`).
+func (p *Parser) parseAssignableExpr() (ast.Expression, error) {
+	tok := p.peek()
+	expr, err := p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
+	if p.peek().Type == lexer.TOKEN_ASSIGN {
+		p.advance()
+		val, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		return &ast.AssignExpr{Loc: p.posFromToken(tok), Target: expr, Value: val}, nil
+	}
+	if (p.peek().Type == lexer.TOKEN_PLUS || p.peek().Type == lexer.TOKEN_MINUS ||
+		p.peek().Type == lexer.TOKEN_STAR || p.peek().Type == lexer.TOKEN_SLASH) &&
+		p.peekAt(1).Type == lexer.TOKEN_ASSIGN {
+		opTok := p.advance()
+		p.advance()
+		val, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		combined := &ast.BinaryOp{Loc: p.posFromToken(tok), Op: opTok.Value, Left: expr, Right: val}
+		return &ast.AssignExpr{Loc: p.posFromToken(tok), Target: expr, Value: combined}, nil
+	}
+	return expr, nil
+}
+
 func (p *Parser) parseArguments() ([]ast.Expression, error) {
 	args := make([]ast.Expression, 0)
 	for p.peek().Type != lexer.TOKEN_RPAREN && p.peek().Type != lexer.TOKEN_EOF {
@@ -1691,22 +2012,13 @@ func (p *Parser) parseArguments() ([]ast.Expression, error) {
 			}
 			args = append(args, &ast.NamedParam{Loc: p.posFromToken(nameTok), Name: nameTok.Value, Value: valExpr})
 		} else {
-			argTok := p.peek()
-			arg, err := p.parseExpression()
+			// `f(aArray[i] := val, ...)` / `f(nOrd += 1, ...)` — atribuição
+			// (simples ou composta) como argumento onde o alvo não é um
+			// identificador simples (a checagem de parâmetro nomeado acima
+			// só cobre `ident := valor`).
+			arg, err := p.parseAssignableExpr()
 			if err != nil {
 				return nil, err
-			}
-			// `f(aArray[i] := val, ...)` — atribuição como argumento onde o
-			// alvo não é um identificador simples (a checagem de parâmetro
-			// nomeado acima só cobre `ident := valor`); parseExpression já
-			// parou em `aArray[i]`, sobrando o ":=" aqui.
-			if p.peek().Type == lexer.TOKEN_ASSIGN {
-				p.advance()
-				val, err := p.parseExpression()
-				if err != nil {
-					return nil, err
-				}
-				arg = &ast.AssignExpr{Loc: p.posFromToken(argTok), Target: arg, Value: val}
 			}
 			args = append(args, arg)
 		}
