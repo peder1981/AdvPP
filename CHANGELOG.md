@@ -2,6 +2,23 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.7] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (83,6% → 84,4%)
+
+Continuação do sweep dirigido por corpus (ver [[advpp_corpus_locations]]).
+Dois bugs reais adicionais de parser corrigidos:
+
+- `Private M->NOME_CAMPO := valor` — idioma Clipper de qualificar
+  explicitamente uma memvar com o alias "M" (memory), redundante mas usado
+  em fontes reais para dar nome de memvar igual a um campo; `Local`/
+  `Private`/`Public`/`Static` só aceitavam um nome simples, não o padrão
+  `M->nome`.
+- `@ ... MSGET ... HASBUTTON F3 "..." ...`, `@ ... WORKTIME ... RESOLUTION
+  <expr> VALUE <expr> ...` — cláusulas de `@` não reconhecidas
+  (`HASBUTTON` do MSGET com botão de F3; `RESOLUTION`/`VALUE` do controle
+  WORKTIME).
+
 ## [1.7.6] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (83,0% → 83,6%)

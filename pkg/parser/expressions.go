@@ -270,6 +270,18 @@ func (p *Parser) parseVarDecl() (ast.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
+	// `Private M->AKR_ORCAME := ...` — Clipper idiom explicitly qualifying
+	// a memvar with the "M" (memory) alias, redundant scope prefix that
+	// only real-alias field access (`SomeAlias->field`) normally uses;
+	// the declared variable's actual name is the part after '->'.
+	if strings.EqualFold(nameTok.Value, "M") && p.peek().Type == lexer.TOKEN_ARROW {
+		p.advance() // ->
+		realName, err := p.expectName()
+		if err != nil {
+			return nil, err
+		}
+		nameTok = realName
+	}
 
 	decl := &ast.VarDecl{
 		Loc:   p.posFromToken(tok),
@@ -1763,7 +1775,7 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 			continue
 		}
 		clauseTok := p.advance()
-		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") {
+		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") || p.isWord(clauseTok, "HASBUTTON") {
 			continue // flag clauses, no value
 		}
 		// `@ ... LISTBOX ... ON DBLCLICK <expr> ...` — o nome do evento
@@ -1819,7 +1831,8 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		"TO", "LABEL",
 		// `@ ... LISTBOX ... FIELDS HEADER a,b,c ... ON DBLCLICK expr
 		// NOSCROLL OF window PIXEL` — mais cláusulas do LISTBOX.
-		"FIELDS", "HEADER", "ON", "NOSCROLL", "FIELDSIZES", "MULTILINE", "HSCROLL",
+		"FIELDS", "HEADER", "ON", "NOSCROLL", "FIELDSIZES", "MULTILINE", "HSCROLL", "HASBUTTON",
+		"RESOLUTION", "VALUE",
 		// `@ y,x BUTTON var PROMPT "texto" SIZE w,h OF window PIXEL ACTION
 		// expr` — PROMPT é o texto do botão.
 		"PROMPT",
