@@ -2,6 +2,24 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.8.5] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (95,8% → 96,8%)
+
+- **Bug estrutural (preprocessor)**: diretivas `#IFDEF`/`#ENDIF` DENTRO de
+  comentário de bloco (`/*#IFDEF TOP ... #ENDIF*/`, idioma real de
+  desativar código) eram consumidas como diretivas de verdade, DELETANDO o
+  `*/` da saída e invertendo a fase de comentários do resto do arquivo —
+  fonte do drift bug mais antigo da sessão (WSAPD010). O preprocessor
+  agora rastreia estado de comentário de bloco e passa essas linhas
+  intactas.
+- `Store <expr> To <var,...>` (atribuição múltipla Clipper).
+- `DEFINE TIMER ... INTERVAL <n> ACTION <expr> OF <janela>`.
+- Nome de parâmetro de função pode colidir com keyword
+  (`Static Function GetSU5(oApi, Self)`).
+- Vírgula pendurada antes de cláusula em lista de valores
+  (`HEADER "a","b",;` + `SIZE w,h` na linha seguinte).
+
 ## [1.8.4] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (94,4% → 95,8%)

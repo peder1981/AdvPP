@@ -199,6 +199,27 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "LOCATE") {
 		return p.parseLocateCommand()
 	}
+	// `Store <expr> To <var,...>` — atribuição múltipla Clipper.
+	if p.isWord(tok, "STORE") && !p.isWord(p.peekAt(1), "HEADER") && !p.isWord(p.peekAt(1), "COLS") {
+		stTok := p.advance()
+		if _, err := p.parseOr(); err != nil {
+			return nil, err
+		}
+		if p.isKeyword(p.peek(), "TO") {
+			p.advance()
+			for {
+				if _, err := p.parsePostfix(); err != nil {
+					return nil, err
+				}
+				if p.peek().Type != lexer.TOKEN_COMMA {
+					break
+				}
+				p.advance()
+			}
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(stTok), Name: "STORE_VARS", Args: nil}
+		return &ast.ExprStmt{Loc: p.posFromToken(stTok), Expr: call}, nil
+	}
 	// `Count To <var> [For <expr>] [While <expr>]` / `Sum <expr,...> To
 	// <var,...> [For ...] [While ...]` / `Average <expr,...> To <var,...>` —
 	// comandos Clipper de agregação sobre o alias atual; parseados e
@@ -1500,6 +1521,9 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 		// `DEFINE SCROLLBAR ... RANGE min, max`
 		case p.isWord(cur, "RANGE"):
 			name = "RANGE"
+		// `DEFINE TIMER ... INTERVAL <n> ACTION <expr> OF <janela>`
+		case p.isWord(cur, "INTERVAL"):
+			name = "INTERVAL"
 		// `DEFINE DBTREE ... CARGO ; ON CHANGE <expr>` — CARGO é flag,
 		// ON CHANGE leva um callback.
 		case p.isWord(cur, "CARGO"):
@@ -1578,6 +1602,12 @@ func (p *Parser) parseCommaValues() ([]ast.Expression, error) {
 	}
 	vals := []ast.Expression{first}
 	for p.peek().Type == lexer.TOKEN_COMMA {
+		// vírgula pendurada antes de outra cláusula (`HEADER "a","b",;`
+		// numa linha e `SIZE w,h` na seguinte) — lista termina aqui.
+		if p.isAtClauseWord(p.peekAt(1)) && p.peekAt(1).Line != p.peek().Line {
+			p.advance()
+			break
+		}
 		p.advance()
 		v, err := p.parseOr()
 		if err != nil {
