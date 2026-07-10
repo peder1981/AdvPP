@@ -93,6 +93,49 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "COPY") && p.isKeyword(p.peekAt(1), "TO") {
 		return p.parseCopyTo()
 	}
+	// `Copy <alias-expr> To Memory <name> [Blank]` — copia a estrutura de
+	// campos do alias para um array (distinto de `Copy To` que exporta
+	// registros); parseado e descartado.
+	if p.isWord(tok, "COPY") {
+		save := p.pos
+		p.advance() // COPY
+		if _, err := p.parseOr(); err == nil && p.isKeyword(p.peek(), "TO") && p.isWord(p.peekAt(1), "MEMORY") {
+			p.advance() // TO
+			p.advance() // MEMORY
+			nameTok, err := p.expectName()
+			if err != nil {
+				return nil, err
+			}
+			if p.isWord(p.peek(), "BLANK") {
+				p.advance()
+			}
+			call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "COPY_TO_MEMORY", Args: []ast.Expression{&ast.StringLit{Loc: p.posFromToken(nameTok), Value: nameTok.Value}}}
+			return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+		}
+		p.pos = save
+	}
+	// `Copy File <expr> To <expr>` — copia arquivo no disco (comando
+	// Clipper), distinto de `Copy To` (exportação de registros do alias
+	// atual); parseado e descartado, mesmo espírito de DELETE FILE.
+	if p.isWord(tok, "COPY") && p.isWord(p.peekAt(1), "FILE") {
+		copyTok := p.advance() // COPY
+		p.advance()            // FILE
+		source, err := p.parseOr()
+		if err != nil {
+			return nil, err
+		}
+		args := []ast.Expression{source}
+		if p.isKeyword(p.peek(), "TO") {
+			p.advance()
+			dest, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, dest)
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(copyTok), Name: "COPY_FILE", Args: args}
+		return &ast.ExprStmt{Loc: p.posFromToken(copyTok), Expr: call}, nil
+	}
 	// `Index On <expr> [Tag <expr>] [For <expr>] [Unique] [Descending]
 	// [Additive] To <expr>` — comando Clipper de criação de índice.
 	if p.isWord(tok, "INDEX") && p.isKeyword(p.peekAt(1), "ON") {
@@ -103,6 +146,11 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	// alias atual para deleção); ambos parseados e descartados.
 	if p.isWord(tok, "DELETE") {
 		return p.parseDeleteCommand()
+	}
+	// `Locate For <expr> [While <expr>]` — posiciona no primeiro registro do
+	// alias atual que satisfaz a condição (Found() reflete o resultado).
+	if p.isWord(tok, "LOCATE") {
+		return p.parseLocateCommand()
 	}
 	if p.isWord(tok, "PUBLISH") && p.isWord(p.peekAt(1), "MODEL") {
 		return p.parsePublishModel()
@@ -997,7 +1045,7 @@ func (p *Parser) isDefineClauseWord(tok lexer.Token) bool {
 		"TITLE", "FROM", "TO", "OF", "PIXEL", "ENABLE", "DISABLE", "COLOR",
 		"STYLE", "ICON", "NAME", "SIZE", "TYPE", "ACTION", "ALIAS",
 		"BOLD", "ITALIC", "UNDERLINE", "PARAMETER", "PARAMETERS", "DESCRIPTION",
-		"TABLES", "PICTURE", "WHEN",
+		"TABLES", "PICTURE", "WHEN", "ONSTOP",
 	} {
 		if p.isWord(tok, kw) {
 			return true
@@ -1101,6 +1149,10 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			name = "PICTURE"
 		case p.isWord(cur, "WHEN"):
 			name = "WHEN"
+		// `DEFINE SBUTTON ... ONSTOP <expr> OF ...` — texto de tooltip do
+		// botão (TButton "OnStop"), clause de valor único.
+		case p.isWord(cur, "ONSTOP"):
+			name = "ONSTOP"
 		// `DEFINE FUNCTION ... FUNCTION SUM ...` — TReport column aggregate
 		// function (SUM/AVG/...); clause name collides with the DEFINE kind
 		// itself, only ever seen after `DEFINE FUNCTION <target> FROM ...`.
@@ -1331,6 +1383,42 @@ func (p *Parser) parseDeleteCommand() (ast.Statement, error) {
 	}
 done:
 	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "DELETE_RECORD", Args: args}
+	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+}
+
+// parseLocateCommand handles Clipper's `Locate For <expr> [While <expr>]`
+// — finds the first record in the current alias matching the condition
+// (positions the record pointer; Found() reflects the result). Parsed and
+// discarded, same spirit as DELETE FOR/WHILE.
+func (p *Parser) parseLocateCommand() (ast.Statement, error) {
+	tok := p.advance() // LOCATE
+	args := []ast.Expression{}
+	clauseVal := func(cur lexer.Token, name string) error {
+		p.advance()
+		val, err := p.parseOr()
+		if err != nil {
+			return err
+		}
+		args = append(args, &ast.StringLit{Loc: p.posFromToken(cur), Value: name}, val)
+		return nil
+	}
+	for {
+		cur := p.peek()
+		var err error
+		switch {
+		case p.isKeyword(cur, "FOR"):
+			err = clauseVal(cur, "FOR")
+		case p.isKeyword(cur, "WHILE"):
+			err = clauseVal(cur, "WHILE")
+		default:
+			goto done
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+done:
+	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "LOCATE_RECORD", Args: args}
 	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
 }
 
@@ -1658,9 +1746,20 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 		args = append(args, mainVal)
 	}
 
-	for p.isAtClauseWord(p.peek()) {
+	for p.isAtClauseWord(p.peek()) ||
+		(p.peek().Type == lexer.TOKEN_NUMBER && p.peek().Value == "3" &&
+			p.peekAt(1).Type == lexer.TOKEN_IDENT && strings.EqualFold(p.peekAt(1).Value, "D")) {
+		// `@ ... RADIO ... ITEMS ... 3D SIZE w,h ...` — "3D" tokeniza como
+		// NUMBER "3" + IDENT "D" (identificador não pode começar com
+		// dígito); flag de layout do RADIO/CHECKBOX, sem valor.
+		if p.peek().Type == lexer.TOKEN_NUMBER && p.peek().Value == "3" &&
+			p.peekAt(1).Type == lexer.TOKEN_IDENT && strings.EqualFold(p.peekAt(1).Value, "D") {
+			p.advance()
+			p.advance()
+			continue
+		}
 		clauseTok := p.advance()
-		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") {
+		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") {
 			continue // flag clauses, no value
 		}
 		// `@ ... LISTBOX ... ON DBLCLICK <expr> ...` — o nome do evento
@@ -1716,7 +1815,7 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		"TO", "LABEL",
 		// `@ ... LISTBOX ... FIELDS HEADER a,b,c ... ON DBLCLICK expr
 		// NOSCROLL OF window PIXEL` — mais cláusulas do LISTBOX.
-		"FIELDS", "HEADER", "ON", "NOSCROLL",
+		"FIELDS", "HEADER", "ON", "NOSCROLL", "FIELDSIZES", "MULTILINE", "HSCROLL",
 		// `@ y,x BUTTON var PROMPT "texto" SIZE w,h OF window PIXEL ACTION
 		// expr` — PROMPT é o texto do botão.
 		"PROMPT",

@@ -2,6 +2,28 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.4] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (81,0% → 82,0%)
+
+Continuação do sweep dirigido por corpus (ver [[advpp_corpus_locations]]).
+Seis bugs reais adicionais de parser corrigidos:
+
+- `@ ... RADIO/CHECKBOX ... 3D SIZE w,h ...` — flag de layout "3D"
+  (tokeniza como NUMBER "3" + IDENT "D") não reconhecida no laço de
+  cláusulas de `@` (só existia o caso equivalente em `DEFINE`).
+- `LOCATE FOR <expr> [WHILE <expr>]` — comando Clipper de busca sequencial
+  no alias atual, não suportado (nenhum dispatch existia).
+- `Copy File <expr> To <expr>` — cópia de arquivo em disco (comando
+  Clipper), distinto de `Copy To` (exportação de registros); confundia-se
+  com este e quebrava o parsing.
+- `Copy <alias-expr> To Memory <name> [Blank]` — copia a estrutura de
+  campos de um alias para um array; forma de `COPY` não reconhecida.
+- `@ ... GET ... MULTILINE ... HSCROLL ...` — cláusulas do GET multilinha
+  (TGet memo) não reconhecidas.
+- `DEFINE SBUTTON ... ONSTOP <expr> ...` — cláusula de tooltip do botão
+  não reconhecida.
+
 ## [1.7.3] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (76,6% → 81,0%)
