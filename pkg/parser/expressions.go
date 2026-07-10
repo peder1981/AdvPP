@@ -906,6 +906,16 @@ func (p *Parser) parseOneDefault(tok lexer.Token) (*ast.DefaultExpr, error) {
 			return nil, err
 		}
 		name = "::" + propTok.Value
+	} else if p.isWord(p.peek(), "SELF") && p.peekAt(1).Type == lexer.TOKEN_COLON {
+		// `Default Self:Prop := 0` — same self-property target as `::Prop`,
+		// spelled out explicitly instead of the `::` shorthand.
+		p.advance() // Self
+		p.advance() // :
+		propTok, err := p.expectName()
+		if err != nil {
+			return nil, err
+		}
+		name = "::" + propTok.Value
 	} else {
 		nameTok, err := p.expect(lexer.TOKEN_IDENT)
 		if err != nil {

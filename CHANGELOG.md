@@ -2,6 +2,19 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.11] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (86,0% → 86,4%)
+
+Continuação do sweep dirigido por corpus (ver [[advpp_corpus_locations]]).
+Dois bugs reais adicionais de parser corrigidos:
+
+- `WSMETHOD GET <nome> PATHPARAM <param> WSRECEIVE ...` — cláusulas REST
+  `PATHPARAM`/`QUERYPARAM` (binding de parâmetro de rota) não reconhecidas
+  na implementação do WSMETHOD.
+- `Default Self:Prop := valor` — alvo de `Default` explicitamente escrito
+  como `Self:Prop` em vez do atalho `::Prop` já suportado.
+
 ## [1.7.10] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real
