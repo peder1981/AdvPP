@@ -992,6 +992,14 @@ func (p *Parser) parseWSMethodImpl() (*ast.MethodImpl, error) {
 		}
 		p.advance()
 	}
+	// Optional `PATHPARAM <name>` / `QUERYPARAM <name>` clauses (REST route
+	// parameter binding) right after the method name. Parsed and dropped.
+	for p.isWord(p.peek(), "PATHPARAM") || p.isWord(p.peek(), "QUERYPARAM") {
+		p.advance()
+		if _, err := p.expectName(); err != nil {
+			return nil, err
+		}
+	}
 	// Optional `WSSEND arg[,arg...]` / `WSRECEIVE arg[,arg...]` clauses
 	// (SOAP request/response binding) between the name and WSCLIENT, in
 	// either order and each with a comma-separated arg list. Parsed and
