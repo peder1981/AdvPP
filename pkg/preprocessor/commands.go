@@ -43,7 +43,7 @@ type patToken struct {
 	isList   bool       // patMarker: era "<nome,...>"
 	sub      []patToken // patOptional: padrão dentro do "[...]"
 	flagName string     // patOptional: se o grupo é só um marcador de flag "<nome:LITERAL>", o nome
-	flagLit  string     // patOptional: ... e o literal que ativa a flag
+	flagLits []string   // patMarker/patOptional: literais do marcador restrito "<nome: LIT1, LIT2, ...>"
 }
 
 // parseCommandDef compila uma definição de #command/#xcommand/#translate/
@@ -121,7 +121,16 @@ func compilePattern(s string) []patToken {
 // "nome:LITERAL" (esta última só faz sentido dentro de um "[...]").
 func compileMarker(inner string) patToken {
 	if ci := strings.IndexByte(inner, ':'); ci >= 0 {
-		return patToken{kind: patMarker, name: inner[:ci], flagLit: inner[ci+1:]}
+		// Marcador restrito "<nome: LIT1, LIT2, ...>": casa exatamente UMA
+		// das palavras da lista (captura a que casou). Espaços ao redor de
+		// ':' e ',' são comuns e não fazem parte dos literais.
+		var lits []string
+		for _, l := range strings.Split(inner[ci+1:], ",") {
+			if l = strings.TrimSpace(l); l != "" {
+				lits = append(lits, l)
+			}
+		}
+		return patToken{kind: patMarker, name: strings.TrimSpace(inner[:ci]), flagLits: lits}
 	}
 	name := inner
 	isList := false
@@ -138,8 +147,8 @@ func compileMarker(inner string) patToken {
 // sub-padrão completo.
 func compileOptional(inner string) patToken {
 	sub := compilePattern(inner)
-	if len(sub) == 1 && sub[0].kind == patMarker && sub[0].flagLit != "" {
-		return patToken{kind: patOptional, flagName: sub[0].name, flagLit: sub[0].flagLit, sub: sub}
+	if len(sub) == 1 && sub[0].kind == patMarker && len(sub[0].flagLits) > 0 {
+		return patToken{kind: patOptional, flagName: sub[0].name, flagLits: sub[0].flagLits, sub: sub}
 	}
 	return patToken{kind: patOptional, sub: sub}
 }
@@ -236,9 +245,14 @@ type matchResult struct {
 }
 
 // matchPattern tenta casar `pattern` inteiro contra os tokens de origem,
-// consumindo a partir de srcTokens[0]. Retorna o número de tokens
+// consumindo a partir de srcTokens[0]. `outerStop` é o literal em que um
+// marcador do FIM deste padrão deve parar quando o padrão em si não tem mais
+// literais — necessário quando o padrão é o sub-padrão de um grupo opcional
+// e o literal de parada real vem DEPOIS do grupo no padrão externo (ex.:
+// `[<sayClauses,...>] VTGET ...`: o marcador de lista dentro do grupo tem de
+// parar em "VTGET", que só o chamador conhece). Retorna o número de tokens
 // consumidos e as capturas, ou ok=false se não bateu.
-func matchPattern(pattern []patToken, srcTokens []string) (int, matchResult, bool) {
+func matchPattern(pattern []patToken, srcTokens []string, outerStops []string) (int, matchResult, bool) {
 	res := matchResult{vars: map[string]string{}, flags: map[string]bool{}}
 	pos := 0
 	for pi := 0; pi < len(pattern); pi++ {
@@ -250,44 +264,96 @@ func matchPattern(pattern []patToken, srcTokens []string) (int, matchResult, boo
 			}
 			pos++
 		case patOptional:
-			if pt.flagLit != "" && len(pt.sub) == 1 {
-				// grupo é só uma flag: "[<nome:LITERAL>]"
-				if pos < len(srcTokens) && strings.EqualFold(srcTokens[pos], pt.flagLit) {
-					res.flags[pt.flagName] = true
-					pos++
-				} else {
-					res.flags[pt.flagName] = false
+			// Cláusulas opcionais consecutivas casam em QUALQUER ordem
+			// (semântica Clipper: `[ OF <oWnd> ] [ PIXEL ]` aceita tanto
+			// `OF oDlg PIXEL` quanto `PIXEL OF oDlg`). Junta a corrida de
+			// opcionais e tenta cada grupo repetidamente até nenhum casar.
+			runEnd := pi
+			for runEnd < len(pattern) && pattern[runEnd].kind == patOptional {
+				runEnd++
+			}
+			run := pattern[pi:runEnd]
+			// pontos de parada para marcadores gulosos dentro dos grupos:
+			// os literais de abertura de TODOS os grupos da corrida + o que
+			// vier depois dela (ou o herdado do chamador).
+			runStops := nextLiterals(pattern[pi:])
+			if after := nextLiterals(pattern[runEnd:]); len(after) == 0 {
+				runStops = append(runStops, outerStops...)
+			}
+			used := make([]bool, len(run))
+			for progress := true; progress; {
+				progress = false
+				for gi := range run {
+					if used[gi] {
+						continue
+					}
+					g := run[gi]
+					if len(g.flagLits) > 0 && len(g.sub) == 1 {
+						// grupo é só uma flag: "[<nome: LIT[, LIT...]>]"
+						if pos < len(srcTokens) && matchesAnyFold(srcTokens[pos], g.flagLits) {
+							res.flags[g.flagName] = true
+							res.vars[g.flagName] = srcTokens[pos]
+							pos++
+							used[gi] = true
+							progress = true
+						}
+						continue
+					}
+					// grupo genérico: só tenta se um literal de abertura
+					// dele aparecer na posição atual.
+					openLits := firstLiterals(g.sub)
+					if len(openLits) > 0 && (pos >= len(srcTokens) || !matchesAnyFold(srcTokens[pos], openLits)) {
+						continue
+					}
+					consumed, subRes, ok := matchPattern(g.sub, srcTokens[pos:], runStops)
+					if !ok || consumed == 0 {
+						continue
+					}
+					pos += consumed
+					used[gi] = true
+					progress = true
+					for k, v := range subRes.vars {
+						res.vars[k] = v
+					}
+					for k, v := range subRes.flags {
+						res.flags[k] = v
+					}
 				}
-				continue
 			}
-			// grupo opcional genérico: só tenta se o primeiro literal do
-			// sub-padrão aparecer na posição atual; senão pula o grupo
-			// inteiro (marcadores dele ficam ausentes).
-			firstLit := firstLiteral(pt.sub)
-			if firstLit != "" && (pos >= len(srcTokens) || !strings.EqualFold(srcTokens[pos], firstLit)) {
-				continue
+			// flags de grupos que não apareceram ficam explicitamente .F.
+			for gi := range run {
+				if !used[gi] && run[gi].flagName != "" {
+					if _, seen := res.flags[run[gi].flagName]; !seen {
+						res.flags[run[gi].flagName] = false
+					}
+				}
 			}
-			consumed, subRes, ok := matchPattern(pt.sub, srcTokens[pos:])
-			if !ok {
-				continue // não bateu o resto do grupo: trata como ausente
-			}
-			pos += consumed
-			for k, v := range subRes.vars {
-				res.vars[k] = v
-			}
-			for k, v := range subRes.flags {
-				res.flags[k] = v
-			}
+			pi = runEnd - 1 // o for externo pula a corrida inteira
 		case patMarker:
-			// consome tokens até o próximo literal esperado (olhando à
-			// frente no padrão) ou até o fim da linha/token ';'.
-			stop := nextLiteral(pattern[pi+1:])
+			// marcador restrito "<nome: LIT1, LIT2>": casa exatamente uma
+			// das palavras, capturando a que casou.
+			if len(pt.flagLits) > 0 {
+				if pos >= len(srcTokens) || !matchesAnyFold(srcTokens[pos], pt.flagLits) {
+					return 0, res, false
+				}
+				res.flags[pt.name] = true
+				res.vars[pt.name] = srcTokens[pos]
+				pos++
+				continue
+			}
+			// consome tokens até QUALQUER literal alcançável à frente no
+			// padrão (literais de grupos opcionais são todos candidatos, já
+			// que grupos podem ser pulados) ou até o fim da linha/token ';'.
+			stops := nextLiterals(pattern[pi+1:])
+			if len(stops) == 0 {
+				stops = outerStops
+			}
 			start := pos
 			for pos < len(srcTokens) {
 				if srcTokens[pos] == ";" {
 					break
 				}
-				if stop != "" && strings.EqualFold(srcTokens[pos], stop) {
+				if matchesAnyFold(srcTokens[pos], stops) {
 					break
 				}
 				pos++
@@ -311,6 +377,22 @@ func firstLiteral(pattern []patToken) string {
 	return ""
 }
 
+// firstLiterals devolve os literais que podem ABRIR um padrão: o texto de um
+// patLit inicial, ou os literais de um marcador restrito inicial
+// ("<of: WINDOW, DIALOG, OF> <oWnd>" abre com WINDOW/DIALOG/OF).
+func firstLiterals(pattern []patToken) []string {
+	if len(pattern) == 0 {
+		return nil
+	}
+	switch pattern[0].kind {
+	case patLit:
+		return []string{pattern[0].text}
+	case patMarker:
+		return pattern[0].flagLits // vazio para marcador comum
+	}
+	return nil
+}
+
 // nextLiteral acha o texto do próximo token literal em uma sequência de
 // padrão (pulando marcadores/opcionais), usado como ponto de parada para um
 // marcador guloso.
@@ -328,10 +410,57 @@ func nextLiteral(pattern []patToken) string {
 	return ""
 }
 
+// nextLiterals acumula TODOS os literais alcançáveis a partir daqui: os
+// literais de abertura de cada grupo opcional (qualquer um pode ser o
+// próximo token real, já que grupos são puláveis) e — parando nele — o
+// primeiro literal obrigatório. Um marcador guloso tem de parar em QUALQUER
+// um deles (ex.: `<var> [PICTURE <pic>] [VALID <v>] [WHEN <w>]`: var para
+// em PICTURE, VALID ou WHEN, o que aparecer primeiro).
+func nextLiterals(pattern []patToken) []string {
+	var lits []string
+	for _, pt := range pattern {
+		switch pt.kind {
+		case patLit:
+			return append(lits, pt.text)
+		case patMarker:
+			if len(pt.flagLits) > 0 {
+				// marcador restrito obrigatório: são literais de parada e,
+				// como é obrigatório, nada além dele pode vir — para aqui.
+				return append(lits, pt.flagLits...)
+			}
+			// marcador comum guloso à frente: não contribui literal
+		case patOptional:
+			lits = append(lits, firstLiterals(pt.sub)...)
+		}
+	}
+	return lits
+}
+
+func matchesAnyFold(tok string, lits []string) bool {
+	for _, l := range lits {
+		if strings.EqualFold(tok, l) {
+			return true
+		}
+	}
+	return false
+}
+
 // expandResult substitui os marcadores de resultado (<nome>, <{nome}>,
-// <.nome.>) e os colchetes escapados (\[ \]) no molde de resultado.
+// <.nome.>, <"nome">), os grupos opcionais `[...]` (emitidos só se algum
+// marcador dentro capturou algo — sem os colchetes) e os colchetes
+// escapados (\[ \]) no molde de resultado.
 func expandResult(result string, m matchResult) string {
+	out, _, _ := expandResultSeg(result, m)
+	return out
+}
+
+// expandResultSeg faz a expansão de um trecho do molde e reporta se o trecho
+// continha marcadores e se algum deles capturou valor não-vazio — é o que
+// decide se um grupo opcional `[...]` do resultado aparece na saída.
+func expandResultSeg(result string, m matchResult) (string, bool, bool) {
 	var out strings.Builder
+	hasMarker := false
+	anyCaptured := false
 	i := 0
 	for i < len(result) {
 		switch {
@@ -341,6 +470,35 @@ func expandResult(result string, m matchResult) string {
 		case strings.HasPrefix(result[i:], `\]`):
 			out.WriteByte(']')
 			i += 2
+		case result[i] == '[':
+			// grupo opcional no resultado: emite o conteúdo expandido só se
+			// algum marcador do grupo capturou algo; senão o grupo some.
+			depth := 1
+			j := i + 1
+			for j < len(result) && depth > 0 {
+				if strings.HasPrefix(result[j:], `\[`) || strings.HasPrefix(result[j:], `\]`) {
+					j += 2
+					continue
+				}
+				if result[j] == '[' {
+					depth++
+				} else if result[j] == ']' {
+					depth--
+				}
+				j++
+			}
+			innerSeg := result[i+1 : j-1]
+			i = j
+			seg, segHas, segCap := expandResultSeg(innerSeg, m)
+			if !segHas || segCap {
+				out.WriteString(seg)
+			}
+			if segHas {
+				hasMarker = true
+				if segCap {
+					anyCaptured = true
+				}
+			}
 		case result[i] == '<':
 			j := strings.IndexByte(result[i:], '>')
 			if j < 0 {
@@ -350,13 +508,26 @@ func expandResult(result string, m matchResult) string {
 			}
 			inner := result[i+1 : i+j]
 			i += j + 1
-			out.WriteString(expandMarkerResult(inner, m))
+			exp := expandMarkerResult(inner, m)
+			hasMarker = true
+			if v, ok := m.vars[markerBaseName(inner)]; ok && v != "" {
+				anyCaptured = true
+			}
+			out.WriteString(exp)
 		default:
 			out.WriteByte(result[i])
 			i++
 		}
 	}
-	return out.String()
+	return out.String(), hasMarker, anyCaptured
+}
+
+// markerBaseName extrai o nome da variável de um marcador de resultado em
+// qualquer das formas: nome, {nome}, .nome., "nome".
+func markerBaseName(inner string) string {
+	inner = strings.TrimSpace(inner)
+	inner = strings.Trim(inner, `.{}"`)
+	return strings.TrimSpace(inner)
 }
 
 func expandMarkerResult(inner string, m matchResult) string {
@@ -376,6 +547,12 @@ func expandMarkerResult(inner string, m matchResult) string {
 			return "{|| " + v + "}"
 		}
 		return "NIL"
+	case strings.HasPrefix(inner, `"`) && strings.HasSuffix(inner, `"`):
+		// "dumb stringify": <"var"> vira o texto capturado entre aspas
+		// (idioma clássico para passar o NOME da variável a um runtime,
+		// ex.: VTSetGet(@<var>, <"var">, ...)).
+		name := strings.Trim(inner, `"`)
+		return `"` + m.vars[name] + `"`
 	default:
 		return m.vars[inner]
 	}
@@ -385,17 +562,34 @@ func expandMarkerResult(inner string, m matchResult) string {
 // definidas) contra o início da linha; a primeira que bater vence. Linhas
 // sem nenhum comando customizado voltam inalteradas.
 func (p *Preprocessor) applyCommandRules(line string) string {
-	if len(p.commandRules) == 0 {
+	return p.applyCommandRulesDepth(line, 0)
+}
+
+func (p *Preprocessor) applyCommandRulesDepth(line string, depth int) string {
+	if depth > 8 || len(p.commandRules) == 0 {
 		return line
 	}
 	trimmed := strings.TrimSpace(line)
 	if trimmed == "" || strings.HasPrefix(trimmed, "//") {
 		return line
 	}
+	// Comentário de fim de linha não participa do casamento — sem tirar,
+	// um marcador guloso o captura para DENTRO da expansão e o `//`
+	// comenta o resto do código gerado (`TSay():New(..., oPanel//"x", ...)`).
+	trimmed = strings.TrimSpace(stripLineComment(trimmed))
+	if trimmed == "" {
+		return line
+	}
 	leading := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
 	tokens := tokenizeLine(trimmed)
-	for _, rule := range p.commandRules {
-		consumed, res, ok := matchPattern(rule.pattern, tokens)
+	// Semântica Clipper: a regra definida por ÚLTIMO vence (permite um .ch
+	// especializar um comando já definido — ex.: apvt100.ch define
+	// `@...VTSAY <xpr>` simples e depois `@...VTSAY <xpr> VTGET <var>`
+	// combinado; o combinado, mais específico e definido depois, tem de
+	// ganhar). Itera em ordem reversa de definição.
+	for i := len(p.commandRules) - 1; i >= 0; i-- {
+		rule := p.commandRules[i]
+		consumed, res, ok := matchPattern(rule.pattern, tokens, nil)
 		if !ok || consumed == 0 {
 			continue
 		}
@@ -410,9 +604,67 @@ func (p *Preprocessor) applyCommandRules(line string) string {
 			}
 			expanded += remainder
 		}
-		return leading + expanded
+		// A expansão pode gerar novos comandos (ex.: o VTSAY+VTGET combinado
+		// expande para DOIS comandos `@...` separados por ';', cada um
+		// coberto por outra regra) — reprocessa cada segmento de topo.
+		segs := splitTopSemicolons(expanded)
+		for si := range segs {
+			segs[si] = p.applyCommandRulesDepth(strings.TrimSpace(segs[si]), depth+1)
+		}
+		return leading + strings.Join(segs, " ; ")
 	}
 	return line
+}
+
+// stripLineComment corta um comentário `//` de fim de linha (fora de
+// aspas). `&&` (comentário Clipper) fica de fora de propósito: é raro e
+// ambíguo com o operador .AND. abreviado em macros.
+func stripLineComment(s string) string {
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		if c == '"' || c == '\'' {
+			quote = c
+			continue
+		}
+		if c == '/' && i+1 < len(s) && s[i+1] == '/' {
+			return s[:i]
+		}
+	}
+	return s
+}
+
+// splitTopSemicolons divide uma linha expandida nos ';' de separação de
+// comandos (fora de aspas). Um ';' dentro de string fica intacto.
+func splitTopSemicolons(s string) []string {
+	var segs []string
+	start := 0
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		if c == '"' || c == '\'' {
+			quote = c
+			continue
+		}
+		if c == ';' {
+			segs = append(segs, s[start:i])
+			start = i + 1
+		}
+	}
+	segs = append(segs, s[start:])
+	return segs
 }
 
 func endsWithWordChar(s string) bool {

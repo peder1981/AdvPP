@@ -1911,6 +1911,9 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		// `@ y,x BMPBUTTON TYPE n ACTION expr` — botão bitmap com número de
 		// estilo predefinido (TYPE), distinto da @ BUTTON comum.
 		"TYPE",
+		// `@ y,x VTSAY cTexto VTGET var VALID expr` — DSL VT100 (coletores
+		// de dados): VTGET encadeia um campo de entrada na mesma linha @.
+		"VTGET",
 	} {
 		if p.isWord(tok, kw) {
 			return true
@@ -2619,7 +2622,9 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 				p.advance()
 			} else {
 				for p.peek().Type != lexer.TOKEN_PIPE && p.peek().Type != lexer.TOKEN_EOF {
-					paramTok, err := p.expect(lexer.TOKEN_IDENT)
+					// nome de parâmetro pode colidir com palavra reservada
+					// ({|Self| ...} em código real) — aceita keyword também.
+					paramTok, err := p.expectName()
 					if err != nil {
 						return nil, err
 					}

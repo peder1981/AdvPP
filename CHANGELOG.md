@@ -2,6 +2,51 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.8.0] — 2026-07-10
+
+### Motor de #command reescrito para semântica Clipper real + 2 features de lexer (86,4% → 87,6%)
+
+Rodada dirigida pelos arquivos que exigiam o pré-processador de verdade:
+
+**Motor #command/#xcommand (pkg/preprocessor):**
+- Junção de definição multi-linha agora REMOVE o `;` de continuação de fim
+  de linha (antes ficava dentro do padrão como literal impossível de casar,
+  desativando silenciosamente toda regra multi-linha); um `;` no meio/começo
+  de linha do resultado é conteúdo (separador de comandos gerados).
+- Regra definida por ÚLTIMO vence (ordem reversa de tentativa), semântica
+  Clipper que permite um .ch especializar comando já definido.
+- Cláusulas opcionais consecutivas casam em QUALQUER ORDEM (ex.: padrão
+  declara `[OF <oWnd>] [PIXEL]`, fonte usa `PIXEL OF oPanel`).
+- Marcador restrito multi-literal `<nome: LIT1, LIT2, ...>` (captura qual
+  literal casou; `<.nome.>` vira .T./.F.).
+- Marcador guloso para em QUALQUER literal alcançável à frente (união dos
+  abridores de todos os grupos opcionais + próximo literal obrigatório),
+  não só no primeiro.
+- Marcador dentro de grupo opcional herda o ponto de parada do padrão
+  externo (lista, não um único literal).
+- Grupos opcionais `[...]` do lado do RESULTADO: emitidos sem os colchetes
+  só se algum marcador interno capturou algo (antes viravam `[, ]` literal).
+- Marcador de resultado `<"var">` (stringify: nome capturado entre aspas).
+- Expansão re-processada recursivamente (o resultado pode conter novos
+  comandos, ex.: VTSAY+VTGET expande para dois comandos `@...` que expandem
+  de novo), segmentada por `;` de topo.
+- Comentário `//` de fim de linha removido antes do casamento (um marcador
+  guloso o capturava para dentro da expansão, comentando o resto do código
+  gerado).
+- Flag `[<nome: LITERAL>]` com espaços ao redor de `:`/`,` normalizada.
+
+**Lexer:**
+- Literal de string entre colchetes do Clipper: `[texto]`/`[]` em posição
+  de operando é string (heurística clássica: `[` após token que encerra
+  operando é indexação; caso contrário, literal até o `]` da mesma linha).
+- `BeginContent var <nome> ...conteúdo cru... EndContent` (bloco TLPP de
+  JSON/XML embutido) — corpo não é AdvPL e não deve ser tokenizado;
+  consumido no lexer e emitido como `<nome> := "<corpo>"`.
+
+**Parser:**
+- Parâmetro de codeblock pode colidir com palavra reservada
+  (`{|Self| ...}`) — aceita keyword como nome.
+
 ## [1.7.11] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (86,0% → 86,4%)
