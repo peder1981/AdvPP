@@ -182,6 +182,13 @@ func (l *Lexer) Tokenize() ([]Token, error) {
 			if l.tryDotLiteral(line, col) {
 				continue
 			}
+			// Leading-dot float literal: `.5` / `.7` (no digit before the
+			// dot), valid AdvPL/Clipper numeric syntax — real coordinate
+			// literals in `@ .5,.7 ...` commands use this form.
+			if l.pos+1 < len(l.source) && l.isDigit(l.source[l.pos+1]) {
+				l.tokenizeNumber(line, col)
+				continue
+			}
 			l.advance()
 			l.tokens = append(l.tokens, Token{Type: TOKEN_DOT, Value: ".", Line: line, Col: col, FileName: l.fileName})
 			continue
