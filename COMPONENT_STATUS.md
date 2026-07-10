@@ -103,6 +103,11 @@ O compilador AdvPP faz parsing da sintaxe REST 2.0 mas **integração de servido
   (BitNet/Falcon3-1.58bit) via `pkg/llm`, 100% Go sem CGO, com kernel
   SIMD AVX2 em amd64 (fallback escalar em qualquer outra arquitetura),
   validado token a token contra o `llama.cpp` de referência
+- ✅ **Servidor MCP nativo (classe `MCPServer`)**: JSON-RPC 2.0 real
+  sobre stdio via `pkg/mcp` (initialize/tools.list/tools.call), expõe
+  funções AdvPL como tools — execução real, ao contrário do REST
+  (WSRESTFUL, que só reconhece a sintaxe); validado com o SDK oficial
+  em Python do MCP
 - ⚠️ Locks de registro (RecLock/MsUnlock) são no-ops — sem controle de
   concorrência em escrita entre processos
 

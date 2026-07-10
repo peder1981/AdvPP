@@ -587,6 +587,67 @@ referência (mesmo algoritmo do BitNet oficial) — ver
 - Uma sessão (`Context`) por objeto `LLM`; sem suporte a múltiplas
   sequências simultâneas na mesma chamada.
 
+## Servidor MCP (classe `MCPServer`)
+
+O AdvPP fala **MCP (Model Context Protocol)** nativamente — um servidor
+que expõe funções AdvPL/TLPP como "tools" que qualquer cliente MCP
+(Claude, outros agentes de IA) pode listar e chamar via JSON-RPC 2.0
+sobre stdio. Diferente do suporte a REST (`WSRESTFUL`/`WSSERVICE`/
+`@Get`/`@Post`), que hoje só **reconhece a sintaxe** e a descarta (sem
+subir servidor HTTP nem despachar nada — ver seção de Sintaxe TLPP), o
+`MCPServer` **executa de verdade**.
+
+### Exemplo
+
+```advpl
+User Function McpDemo()
+    Local oMCP := MCPServer():New("meu-servidor", "1.0.0")
+
+    oMCP:AddTool("soma", "Soma dois números", ;
+        '{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"]}', ;
+        "ToolSoma")
+
+    oMCP:Serve() // bloqueia lendo stdin / escrevendo stdout
+Return
+
+User Function ToolSoma(oArgs)
+Return cValToChar(oArgs:A + oArgs:B)
+```
+
+Rode com `advplc run mcp_demo.prw` — não precisa de nenhum comando
+novo de CLI. O processo vira um servidor MCP: qualquer cliente que
+fale o protocolo (ex.: via `stdio_client` do SDK oficial) pode se
+conectar via stdin/stdout do processo.
+
+### Métodos
+
+| Método | Parâmetros | Descrição |
+|--------|-----------|-----------|
+| `New` | `cNome, cVersao` | Cria o servidor (nome/versão aparecem no handshake `initialize`) |
+| `AddTool` | `cNome, cDescricao, cSchemaJSON, cNomeFuncao` | Registra uma tool. `cSchemaJSON` é o JSON Schema dos parâmetros (pode ser `""` para aceitar qualquer objeto). `cNomeFuncao` é o nome de uma User Function que recebe **um objeto** com os argumentos da chamada (`oArgs:CAMPO`, em maiúsculas) e devolve o texto do resultado. |
+| `Serve` | — | Sobe o loop de mensagens JSON-RPC sobre stdio. **Bloqueia** até o cliente fechar a conexão (EOF no stdin). Redireciona `ConOut`/console para stderr automaticamente, para não misturar saída de depuração com as mensagens do protocolo no stdout. |
+
+### Isolamento de execução
+
+Cada `tools/call` roda a função registrada em uma **VM isolada**
+(mesmo mecanismo do `StartJob`) — necessário porque `Serve()` já está
+em execução no meio da VM principal quando uma chamada chega; invocar
+a função direto na mesma VM corromperia a pilha de chamadas em
+andamento.
+
+### Protocolo suportado
+
+`initialize`, `notifications/initialized`, `tools/list`, `tools/call`,
+`ping` — o essencial para expor tools. Não implementa `resources/*`,
+`prompts/*` nem `sampling/*` (extensões do protocolo fora do escopo de
+"tools", que é o caso de uso mais comum).
+
+### Validação
+
+Testado com o **SDK oficial em Python do MCP** (`stdio_client` +
+`ClientSession`), não só com mensagens JSON-RPC feitas à mão — ver
+`cmd/advplc/mcp_integration_test.go`.
+
 ## Integração com IDE
 
 ### Compilação via IDE

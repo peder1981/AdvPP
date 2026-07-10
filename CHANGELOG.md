@@ -2,6 +2,77 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.5.0] — 2026-07-09
+
+### Servidor MCP nativo (classe `MCPServer`)
+
+O AdvPP agora fala **MCP (Model Context Protocol)** de verdade — ao
+contrário do suporte a REST (`WSRESTFUL`/`@Get`/`@Post`), que hoje é só
+sintaxe reconhecida e descartada (sem servidor HTTP nem despacho real), a
+classe `MCPServer` sobe um servidor **funcional**: JSON-RPC 2.0 sobre
+stdio, expondo funções AdvPL/TLPP como "tools" que qualquer cliente MCP
+(Claude, outros agentes) pode listar e chamar.
+
+- **`pkg/mcp`**: núcleo do protocolo em Go puro (sem CGO, sem
+  dependências externas) — `initialize`, `notifications/initialized`,
+  `tools/list`, `tools/call`, `ping`; transporte stdio com uma mensagem
+  JSON por linha.
+- **Classe `MCPServer`** (`pkg/vm/mcp_native.go`):
+  ```advpl
+  oMCP := MCPServer():New("meu-servidor", "1.0.0")
+  oMCP:AddTool("soma", "Soma dois números", ;
+      '{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"]}', ;
+      "ToolSoma")
+  oMCP:Serve() // bloqueia lendo/escrevendo em stdin/stdout
+
+  User Function ToolSoma(oArgs)
+  Return cValToChar(oArgs:A + oArgs:B)
+  ```
+  Cada chamada de tool roda a função registrada numa VM isolada (mesmo
+  mecanismo do `StartJob`) — necessário porque `Serve()` já está no meio
+  da execução da VM principal quando uma `tools/call` chega; chamar a
+  função direto na mesma VM corromperia a pilha de chamadas em andamento
+  (bug real encontrado e corrigido durante o desenvolvimento).
+  `Serve()` redireciona `ConOut`/console para stderr automaticamente,
+  para não misturar saída de depuração com as mensagens JSON-RPC no
+  stdout.
+- Funciona com **`advplc run`** normal — não precisa de um comando novo.
+
+**Validado com o SDK oficial em Python do MCP** (não só testes internos):
+handshake `initialize`, `list_tools`, `call_tool` — ver
+`cmd/advplc/mcp_integration_test.go`.
+
+### Correções no parser (encontradas caçando um bug pré-existente)
+
+Investigando uma falha antiga documentada em
+`tests/real_protheus_test.prw` (um dump de 3785 linhas de código
+Protheus real usado como fixture de estresse) via bisecção binária
+(truncar o fonte progressivamente até isolar a menor entrada que ainda
+reproduz o erro), foram encontrados e corrigidos cinco bugs reais e
+distintos de parsing:
+
+1. `&nome.` — o ponto final (terminador explícito clássico do
+   Clipper/AdvPL para a substituição de macro) não era consumido.
+2. `&nome.()` / `&(expr)()` — chamada de função cujo nome vem de uma
+   macro; os parênteses da chamada não tinham dono no parser (mesma
+   simplificação já usada para `alias->&macro`: sintaxe consumida, sem
+   modelar a invocação dinâmica — o VM não resolve função por nome em
+   runtime).
+3. `@ y,x GROUP var TO y2,x2 OF window LABEL "..." PIXEL` — a cláusula
+   GROUP do comando `@` de diálogo (caixa de agrupamento) usa `TO` e
+   `LABEL` como cláusulas, não reconhecidas antes.
+4. `ACTIVATE DIALOG oDlg ON INIT ... CENTERED` — variante clássica (sem
+   o prefixo "MS") do já suportado `ACTIVATE MSDIALOG`.
+5. `IF(cond, then, else)` usado como **statement isolado** (resultado
+   descartado) — sempre caía no parser de bloco `If/EndIf`, que não
+   trata `(...)` com vírgulas como chamada. Novo lookahead
+   (`isInlineIfCall`) desambigua da forma bloco `If (cond) ... EndIf`.
+
+`tests/real_protheus_test.prw` avança de ~503 para ~2414 das 3785
+linhas antes de esbarrar no próximo gap (não mais um bug de parsing,
+uma feature genuinamente não implementada) — mantido como falha
+conhecida documentada no Makefile.
+
 ## [1.4.0] — 2026-07-09
 
 ### Motor de inferência LLM embutido (`pkg/llm` + classe `LLM`)

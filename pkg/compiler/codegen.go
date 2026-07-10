@@ -942,6 +942,7 @@ var builtinClasses = map[string]bool{
 	"FWGRIDPROCESS": true,
 	"FWMBROWSE":     true,
 	"LLM":           true,
+	"MCPSERVER":     true,
 }
 
 func isBuiltinClass(name string) bool {
