@@ -104,6 +104,26 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	// `CREATE PANEL oWizard HEADER ... MESSAGE ... BACK {||...} NEXT
 	// {||...} FINISH {||...}` — mesma forma de DEFINE WIZARD (var +
 	// cláusulas), só com "CREATE PANEL" em vez de "DEFINE WIZARD".
+	// `CREATE <var> XMLFILE <expr> [SETASARRAY <expr,...>]` — cria objeto
+	// XML a partir de arquivo (DSL XML legado); parseado e descartado.
+	if p.isWord(tok, "CREATE") && p.isWord(p.peekAt(2), "XMLFILE") {
+		crTok := p.advance() // CREATE
+		if _, err := p.expectName(); err != nil {
+			return nil, err
+		}
+		p.advance() // XMLFILE
+		if _, err := p.parseOr(); err != nil {
+			return nil, err
+		}
+		for p.isWord(p.peek(), "SETASARRAY") {
+			p.advance()
+			if _, err := p.parseCommaValues(); err != nil {
+				return nil, err
+			}
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(crTok), Name: "CREATE_XMLFILE", Args: nil}
+		return &ast.ExprStmt{Loc: p.posFromToken(crTok), Expr: call}, nil
+	}
 	if p.isWord(tok, "CREATE") && p.isWord(p.peekAt(1), "PANEL") {
 		return p.parseDefine()
 	}
@@ -199,7 +219,8 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 			case p.isKeyword(cur, "TO"):
 				p.advance()
 				for {
-					if _, err := p.expectName(); err != nil {
+					// alvo pode ser expressão (`self:nTotReg`), não só nome
+					if _, err := p.parsePostfix(); err != nil {
 						return nil, err
 					}
 					if p.peek().Type != lexer.TOKEN_COMMA {
@@ -247,6 +268,42 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 		}
 		call := &ast.CallExpr{Loc: p.posFromToken(menuTok), Name: "MENU_POPUP", Args: nil}
 		return &ast.ExprStmt{Loc: p.posFromToken(menuTok), Expr: call}, nil
+	}
+	// `DELETENODE <expr> ON <expr>` — remove nó de objeto XML.
+	if p.isWord(tok, "DELETENODE") {
+		dnTok := p.advance()
+		if _, err := p.parseOr(); err != nil {
+			return nil, err
+		}
+		if p.isKeyword(p.peek(), "ON") {
+			p.advance()
+			if _, err := p.parseOr(); err != nil {
+				return nil, err
+			}
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(dnTok), Name: "DELETE_NODE", Args: nil}
+		return &ast.ExprStmt{Loc: p.posFromToken(dnTok), Expr: call}, nil
+	}
+	// `ADDNODE <expr> NODE <expr> ON <expr>` — insere nó em objeto XML
+	// (DSL do WSDL/XML legado); parseado e descartado.
+	if p.isWord(tok, "ADDNODE") {
+		anTok := p.advance()
+		if _, err := p.parseOr(); err != nil {
+			return nil, err
+		}
+		for {
+			cur := p.peek()
+			switch {
+			case p.isWord(cur, "NODE"), p.isKeyword(cur, "ON"):
+				p.advance()
+				if _, err := p.parseOr(); err != nil {
+					return nil, err
+				}
+			default:
+				call := &ast.CallExpr{Loc: p.posFromToken(anTok), Name: "ADD_NODE", Args: nil}
+				return &ast.ExprStmt{Loc: p.posFromToken(anTok), Expr: call}, nil
+			}
+		}
 	}
 	// `DBADDTREE <expr> PROMPT <expr> [RESOURCE <expr,...>] [CARGO <expr>]
 	// [OPENED]` — insere nó em árvore (TWFTreeView); parseado e descartado.
@@ -447,6 +504,23 @@ func (p *Parser) parseArrayDeclSize(nameTok lexer.Token) (ast.Expression, error)
 func (p *Parser) parseVarDecl() (ast.Statement, error) {
 	tok := p.advance()
 	scope := strings.ToLower(tok.Value)
+
+	// `Private &("cC"+strzero(ni,2)) := ""` — nome de memvar computado por
+	// macro; o nome só existe em runtime. Consome a macro e o valor,
+	// descartando a declaração (mesma tolerância de `&macro := x`).
+	if p.peek().Type == lexer.TOKEN_AMPERSAND {
+		if _, err := p.parseUnary(); err != nil {
+			return nil, err
+		}
+		if p.peek().Type == lexer.TOKEN_ASSIGN {
+			p.advance()
+			if _, err := p.parseAssignRHS(); err != nil {
+				return nil, err
+			}
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "DECLARE_MACRO_VAR", Args: nil}
+		return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+	}
 
 	nameTok, err := p.expect(lexer.TOKEN_IDENT)
 	if err != nil {
@@ -2176,7 +2250,7 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		"TO", "LABEL", "FROM",
 		// `@ ... LISTBOX ... FIELDS HEADER a,b,c ... ON DBLCLICK expr
 		// NOSCROLL OF window PIXEL` — mais cláusulas do LISTBOX.
-		"FIELDS", "HEADER", "ON", "NOSCROLL", "FIELDSIZES", "MULTILINE", "HSCROLL", "VSCROLL", "HASBUTTON",
+		"FIELDS", "HEADER", "HEADERS", "ON", "NOSCROLL", "FIELDSIZES", "MULTILINE", "HSCROLL", "VSCROLL", "HASBUTTON",
 		"RESOLUTION", "VALUE",
 		// `@ y,x BUTTON var PROMPT "texto" SIZE w,h OF window PIXEL ACTION
 		// expr` — PROMPT é o texto do botão.
@@ -3104,6 +3178,21 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 					return nil, err
 				}
 				return &ast.CallExpr{Loc: p.posFromToken(tok), Name: strings.ToUpper(tok.Value), Args: args}, nil
+			}
+			// Keyword usada como IDENTIFICADOR comum em posição de operando
+			// ({|Panel| f(Panel, ...)}) — se o próximo token só faz sentido
+			// CONTINUANDO uma expressão (vírgula, fechamento, operador,
+			// acesso), trata como Ident. Statements já foram despachados.
+			switch p.peekAt(1).Type {
+			case lexer.TOKEN_COMMA, lexer.TOKEN_RPAREN, lexer.TOKEN_RBRACKET, lexer.TOKEN_RBRACE,
+				lexer.TOKEN_COLON, lexer.TOKEN_ARROW, lexer.TOKEN_PLUS, lexer.TOKEN_MINUS,
+				lexer.TOKEN_STAR, lexer.TOKEN_SLASH, lexer.TOKEN_EQ, lexer.TOKEN_NEQ,
+				lexer.TOKEN_LT, lexer.TOKEN_GT, lexer.TOKEN_LTE, lexer.TOKEN_GTE,
+				lexer.TOKEN_LBRACKET:
+				if p.peekAt(1).Line == tok.Line {
+					p.advance()
+					return &ast.Ident{Loc: p.posFromToken(tok), Name: tok.Value}, nil
+				}
 			}
 		}
 		return nil, fmt.Errorf("unexpected token %v (%q) at %s:%d:%d",
