@@ -1101,6 +1101,11 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		"SIZE", "PICTURE", "VALID", "WHEN", "COLOR", "FONT", "PIXEL",
 		"MESSAGE", "ACTION", "OF", "DECODE", "F3", "CLICKFOCUS", "RANGE",
 		"MAXLENGTH", "MASK", "RESET", "TITLE", "VAR", "MEMO",
+		// `@ y,x GROUP var TO y2,x2 OF window LABEL "..." PIXEL` — GROUP
+		// (caixa de agrupamento) usa TO para a segunda coordenada e LABEL
+		// para o texto, como cláusulas normais (não como o `@ TO` de caixa
+		// sem verbo, tratado antes de chegar aqui).
+		"TO", "LABEL",
 	} {
 		if p.isWord(tok, kw) {
 			return true
