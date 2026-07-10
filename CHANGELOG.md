@@ -2,6 +2,21 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.8] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (84,4% → 85,2%)
+
+Continuação do sweep dirigido por corpus (ver [[advpp_corpus_locations]]).
+Dois bugs reais adicionais de parser corrigidos:
+
+- `DEFINE CELL ... BLOCK{||...} ...` — cláusula de bloco de valor da
+  coluna do TReport não reconhecida.
+- `@ x1,y1 TO x2,y2 DIALOG <var> TITLE "..." [PIXEL]` — sintaxe legada de
+  criação de diálogo via `@ ... TO ...` (equivalente a `DEFINE MSDIALOG
+  <var> FROM x1,y1 TO x2,y2 TITLE ...`), confundida com o desenho de caixa
+  (`@ ... TO ... BOX`); nenhum dos dois é o outro, precisavam de ramos
+  separados.
+
 ## [1.7.7] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (83,6% → 84,4%)
