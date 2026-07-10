@@ -2,6 +2,13 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.10] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real
+
+- `@ y,x BMPBUTTON TYPE n ACTION expr` — cláusula `TYPE` (número de estilo
+  do botão bitmap) não reconhecida no laço de cláusulas de `@`.
+
 ## [1.7.9] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (85,2% → 86,0%)

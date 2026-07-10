@@ -1898,6 +1898,9 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		"TOTAL",
 		// `@ y,x SCROLLBOX var VERTICAL|HORIZONTAL OF window PIXEL`
 		"VERTICAL", "HORIZONTAL",
+		// `@ y,x BMPBUTTON TYPE n ACTION expr` — botão bitmap com número de
+		// estilo predefinido (TYPE), distinto da @ BUTTON comum.
+		"TYPE",
 	} {
 		if p.isWord(tok, kw) {
 			return true
