@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -1413,6 +1414,11 @@ func sortValues(elems []advplrt.Value) {
 	}
 }
 
+// getEnvOrDefault lê a variável de ambiente do processo (GetEnv do AdvPL),
+// devolvendo def se ela não estiver definida.
 func getEnvOrDefault(name, def string) string {
+	if val, ok := os.LookupEnv(name); ok {
+		return val
+	}
 	return def
 }

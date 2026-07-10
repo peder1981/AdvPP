@@ -1141,7 +1141,10 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 	}
 }
 
-func (v *VM) callErrorClassMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
+// args não é usado (ErrorClass:New() não recebe parâmetro; as propriedades
+// Description/GenCode/Severity são setadas via property access, não pelo
+// construtor) — mantido por uniformidade com os demais dispatchers.
+func (v *VM) callErrorClassMethod(obj *advplrt.ObjectValue, method string, _ []advplrt.Value) error {
 	switch method {
 	case "NEW":
 		v.push(obj)
@@ -1246,7 +1249,11 @@ func jsonValueString(val advplrt.Value) string {
 	}
 }
 
-func (v *VM) newInstance(className string, args []advplrt.Value) error {
+// args não é usado por design: a convenção deste VM é sempre construir com
+// ClassName() vazio e inicializar via :New(args) chamado à parte (ver
+// comentário "Don't auto-call constructor" mais abaixo) — os args de
+// OP_NEW_INSTANCE são descartados aqui de propósito.
+func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 	cls, ok := v.classes[className]
 	if !ok {
 		// Check if it's a known framework class

@@ -132,6 +132,7 @@ func (p *Parser) posFromToken(tok lexer.Token) ast.Position {
 
 func (p *Parser) isFunctionBoundary(tok lexer.Token) bool {
 	return p.isKeyword(tok, "FUNCTION") || p.isKeyword(tok, "USER") ||
+		p.isKeyword(tok, "MAIN") ||
 		p.isKeyword(tok, "PROCEDURE") || p.isKeyword(tok, "CLASS") ||
 		p.isKeyword(tok, "METHOD") || p.isKeyword(tok, "STATIC") ||
 		p.isWSClientOpener(tok) || p.isWord(tok, "WSMETHOD")
@@ -241,6 +242,26 @@ func (p *Parser) Parse() (*ast.Program, error) {
 			}
 			ann := &ast.Annotation{Loc: p.posFromToken(tok), Name: annNameTok.Value, Value: annValue}
 			pendingAnnotations = append(pendingAnnotations, ann)
+			continue
+		}
+
+		// `Main Function Nome()` — forma clássica do Clipper/AdvPL para
+		// marcar o ponto de entrada do programa; tratada como equivalente
+		// a User Function (IsUser=true), já que é o mesmo papel de "função
+		// invocada automaticamente quando não há statements de topo".
+		if p.isKeyword(tok, "MAIN") && p.isKeyword(p.peekAt(1), "FUNCTION") {
+			// parseFunction(isUser=true) já pula um token antes de exigir
+			// FUNCTION (pensado para "USER FUNCTION"); não consumir MAIN
+			// aqui manualmente, ou dois tokens seriam pulados.
+			fn, err := p.parseFunction(true, false)
+			if err != nil {
+				return nil, err
+			}
+			if len(pendingAnnotations) > 0 {
+				fn.Annotations = pendingAnnotations
+				pendingAnnotations = nil
+			}
+			prog.Functions = append(prog.Functions, fn)
 			continue
 		}
 
@@ -781,6 +802,14 @@ func (p *Parser) parseMethodImpl() (*ast.MethodImpl, error) {
 			return nil, err
 		}
 		method.ClassName = classTok.Value
+	}
+
+	// `method nome() class Fulano as Tipo` — a anotação de tipo de retorno
+	// também aparece DEPOIS de "class ClassName" em código real (ordem
+	// inversa do caso já tratado acima, antes do "class").
+	if p.isKeyword(p.peek(), "AS") {
+		p.advance()
+		method.ReturnType = p.parseTypeName()
 	}
 
 	body, retExpr, err := p.parseFunctionBody()
