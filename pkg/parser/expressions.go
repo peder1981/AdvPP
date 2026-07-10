@@ -68,8 +68,35 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "SET") && p.isWord(p.peekAt(1), "KEY") {
 		return p.parseSetCommand()
 	}
+	// `SET BROWSE <var> ARRAY <expr>` — DSL mobile FDA: vincula o array de
+	// dados ao browse; parseado e descartado.
+	if p.isWord(tok, "SET") && p.isWord(p.peekAt(1), "BROWSE") {
+		p.advance() // SET
+		p.advance() // BROWSE
+		target, err := p.parseOr()
+		if err != nil {
+			return nil, err
+		}
+		args := []ast.Expression{target}
+		if p.isKeyword(p.peek(), "ARRAY") {
+			p.advance()
+			val, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, val)
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "SET_BROWSE", Args: args}
+		return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+	}
 	if p.isKeyword(tok, "ADD") && p.isWord(p.peekAt(1), "OPTION") {
 		return p.parseAddOption()
+	}
+	// `ADD FOLDER <var> CAPTION <expr> OF <expr>` / `ADD COLUMN <var> TO
+	// <expr> ARRAY ELEMENT <n> HEADER <expr> WIDTH <n>` — DSL do FDA/mobile;
+	// parseado e descartado (sem UI mobile por trás).
+	if p.isKeyword(tok, "ADD") && (p.isWord(p.peekAt(1), "FOLDER") || p.isWord(p.peekAt(1), "COLUMN")) {
+		return p.parseAddWidget()
 	}
 	if p.isWord(tok, "DEFINE") {
 		return p.parseDefine()
@@ -167,7 +194,7 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "PARAMTYPE") {
 		return p.parseParamType()
 	}
-	if p.isKeyword(tok, "ACTIVATE") && (p.isWord(p.peekAt(1), "MSDIALOG") || p.isWord(p.peekAt(1), "DIALOG") || p.isWord(p.peekAt(1), "WIZARD") || p.isWord(p.peekAt(1), "WINDOW")) {
+	if p.isKeyword(tok, "ACTIVATE") && (p.isWord(p.peekAt(1), "MSDIALOG") || p.isWord(p.peekAt(1), "DIALOG") || p.isWord(p.peekAt(1), "WIZARD") || p.isWord(p.peekAt(1), "WINDOW") || p.isWord(p.peekAt(1), "FWMBROWSE") || p.isWord(p.peekAt(1), "MBROWSE") || p.isWord(p.peekAt(1), "REPORT")) {
 		return p.parseActivateDialog()
 	}
 	if tok.Type == lexer.TOKEN_AT {
@@ -931,6 +958,52 @@ func (p *Parser) parseOneDefault(tok lexer.Token) (*ast.DefaultExpr, error) {
 		return nil, err
 	}
 	return &ast.DefaultExpr{Loc: p.posFromToken(tok), Name: name, Value: val}, nil
+}
+
+// parseAddWidget handles the FDA/mobile `ADD FOLDER/COLUMN` DSL:
+//
+//	ADD FOLDER <var> CAPTION <expr> OF <expr>
+//	ADD COLUMN <var> TO <expr> ARRAY ELEMENT <n> HEADER <expr> WIDTH <n>
+//
+// parsed into a dropped ADD_<kind>(...) call.
+func (p *Parser) parseAddWidget() (ast.Statement, error) {
+	tok := p.advance()     // ADD
+	kindTok := p.advance() // FOLDER / COLUMN
+	nameTok, err := p.expectName()
+	if err != nil {
+		return nil, err
+	}
+	args := []ast.Expression{&ast.Ident{Loc: p.posFromToken(nameTok), Name: nameTok.Value}}
+	for {
+		cur := p.peek()
+		switch {
+		case p.isWord(cur, "CAPTION"), p.isKeyword(cur, "OF"), p.isKeyword(cur, "TO"),
+			p.isWord(cur, "HEADER"), p.isWord(cur, "WIDTH"), p.isKeyword(cur, "SIZE"),
+			p.isWord(cur, "ELEMENT"):
+			p.advance()
+			vals, err := p.parseCommaValues()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, vals...)
+		// `ARRAY ELEMENT <n>` — ARRAY é só um qualificador sem valor próprio.
+		case p.isKeyword(cur, "ARRAY"):
+			p.advance()
+		// `ON ACTIVATE <expr>` — callback do folder; consome o par de
+		// palavras e a expressão.
+		case p.isWord(cur, "ON") && p.isWord(p.peekAt(1), "ACTIVATE"):
+			p.advance()
+			p.advance()
+			val, err := p.parseAssignableExpr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, val)
+		default:
+			call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "ADD_" + strings.ToUpper(kindTok.Value), Args: args}
+			return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+		}
+	}
 }
 
 // parseAddOption handles the MenuDef() `#xcommand` idiom:
@@ -1820,7 +1893,8 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 
 	for p.isAtClauseWord(p.peek()) ||
 		(p.peek().Type == lexer.TOKEN_NUMBER && p.peek().Value == "3" &&
-			p.peekAt(1).Type == lexer.TOKEN_IDENT && strings.EqualFold(p.peekAt(1).Value, "D")) {
+			p.peekAt(1).Type == lexer.TOKEN_IDENT && strings.EqualFold(p.peekAt(1).Value, "D")) ||
+		(p.isWord(p.peek(), "NO") && (p.isWord(p.peekAt(1), "SCROLL") || p.isWord(p.peekAt(1), "UNDERLINE"))) {
 		// `@ ... RADIO ... ITEMS ... 3D SIZE w,h ...` — "3D" tokeniza como
 		// NUMBER "3" + IDENT "D" (identificador não pode começar com
 		// dígito); flag de layout do RADIO/CHECKBOX, sem valor.
@@ -1830,8 +1904,15 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 			p.advance()
 			continue
 		}
+		// `@ ... BROWSE ... NO SCROLL ...` / `@ ... GET ... NO UNDERLINE ...`
+		// — flags de duas palavras (DSL mobile FDA).
+		if p.isWord(p.peek(), "NO") && (p.isWord(p.peekAt(1), "SCROLL") || p.isWord(p.peekAt(1), "UNDERLINE")) {
+			p.advance()
+			p.advance()
+			continue
+		}
 		clauseTok := p.advance()
-		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") || p.isWord(clauseTok, "HASBUTTON") {
+		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") || p.isWord(clauseTok, "VSCROLL") || p.isWord(clauseTok, "HASBUTTON") || p.isWord(clauseTok, "SYMBOL") {
 			continue // flag clauses, no value
 		}
 		// `@ ... LISTBOX ... ON DBLCLICK <expr> ...` — o nome do evento
@@ -1887,13 +1968,14 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		"TO", "LABEL",
 		// `@ ... LISTBOX ... FIELDS HEADER a,b,c ... ON DBLCLICK expr
 		// NOSCROLL OF window PIXEL` — mais cláusulas do LISTBOX.
-		"FIELDS", "HEADER", "ON", "NOSCROLL", "FIELDSIZES", "MULTILINE", "HSCROLL", "HASBUTTON",
+		"FIELDS", "HEADER", "ON", "NOSCROLL", "FIELDSIZES", "MULTILINE", "HSCROLL", "VSCROLL", "HASBUTTON",
 		"RESOLUTION", "VALUE",
 		// `@ y,x BUTTON var PROMPT "texto" SIZE w,h OF window PIXEL ACTION
 		// expr` — PROMPT é o texto do botão.
 		"PROMPT",
 		// `@ y,x RADIO var VAR nVar ITEMS v1,v2,... SIZE w,h OF window PIXEL`
-		"ITEMS",
+		// (o DSL mobile FDA usa o singular ITEM para COMBOBOX)
+		"ITEMS", "ITEM",
 		// `@ y,x BITMAP var RESOURCE|RESNAME "nome" SIZE w,h PIXEL NOBORDER OF window`
 		"RESOURCE", "RESNAME", "NOBORDER",
 		// `@ y,x MSGET var SIZE w,h PASSWORD OF window PIXEL`
@@ -1911,6 +1993,10 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		// `@ y,x BMPBUTTON TYPE n ACTION expr` — botão bitmap com número de
 		// estilo predefinido (TYPE), distinto da @ BUTTON comum.
 		"TYPE",
+		// `@ y,x TO y2,x2 CAPTION expr OF oFolder` — expansão de folder do
+		// DSL mobile (FDA); `@ y,x BUTTON o CAPTION x SYMBOL ACTION f()` —
+		// botão com bitmap simbólico do mesmo DSL.
+		"CAPTION", "SYMBOL",
 		// `@ y,x VTSAY cTexto VTGET var VALID expr` — DSL VT100 (coletores
 		// de dados): VTGET encadeia um campo de entrada na mesma linha @.
 		"VTGET",
@@ -2213,17 +2299,35 @@ func (p *Parser) parseAddition() (ast.Expression, error) {
 }
 
 func (p *Parser) parseMultiplication() (ast.Expression, error) {
-	left, err := p.parseUnary()
+	left, err := p.parsePower()
 	if err != nil {
 		return nil, err
 	}
 	for (p.peek().Type == lexer.TOKEN_STAR || p.peek().Type == lexer.TOKEN_SLASH || p.peek().Type == lexer.TOKEN_PERCENT) && p.peekAt(1).Type != lexer.TOKEN_ASSIGN {
 		tok := p.advance()
-		right, err := p.parseUnary()
+		right, err := p.parsePower()
 		if err != nil {
 			return nil, err
 		}
 		left = &ast.BinaryOp{Loc: p.posFromToken(tok), Op: tok.Value, Left: left, Right: right}
+	}
+	return left, nil
+}
+
+// parsePower trata `^` (e `**`, sinônimo Clipper) — exponenciação, acima da
+// multiplicação e associativa à direita (2^3^2 = 2^(3^2)).
+func (p *Parser) parsePower() (ast.Expression, error) {
+	left, err := p.parseUnary()
+	if err != nil {
+		return nil, err
+	}
+	if p.peek().Type == lexer.TOKEN_CARET {
+		tok := p.advance()
+		right, err := p.parsePower()
+		if err != nil {
+			return nil, err
+		}
+		left = &ast.BinaryOp{Loc: p.posFromToken(tok), Op: "^", Left: left, Right: right}
 	}
 	return left, nil
 }

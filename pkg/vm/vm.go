@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -445,6 +446,8 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		return v.opBinary(func(a, b float64) float64 { return a / b }, "OPERATOR_DIV")
 	case compiler.OP_MOD:
 		return v.opBinary(func(a, b float64) float64 { return float64(int64(a) % int64(b)) }, "")
+	case compiler.OP_POW:
+		return v.opBinary(math.Pow, "")
 	case compiler.OP_NEG:
 		val := v.pop()
 		v.push(advplrt.NewNumber(-advplrt.ToFloat(val)))

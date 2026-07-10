@@ -604,6 +604,12 @@ func (l *Lexer) tokenizeOperator(line, col int) error {
 		return nil
 	case '*':
 		l.advance()
+		// `**` é sinônimo Clipper de `^` (exponenciação).
+		if l.peek() == '*' {
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TOKEN_CARET, Value: "**", Line: line, Col: col, FileName: l.fileName})
+			return nil
+		}
 		l.tokens = append(l.tokens, Token{Type: TOKEN_STAR, Value: "*", Line: line, Col: col, FileName: l.fileName})
 		return nil
 	case '/':

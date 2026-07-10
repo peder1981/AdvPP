@@ -2,6 +2,25 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.8.1] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (87,6% → 89,4%)
+
+- Resolução de #include: tenta subpastas convencionais (`ch/`, `include/`,
+  `includes/`) e fallback case-insensitive por diretório (fontes CP-1252
+  vindos de Windows quase nunca batem o case do disco em Linux).
+- Junção de linha lógica antes do casamento de #command (`Store COLS ... ;`
+  + `While ...`), preservando contagem de linhas; comentário `//` após o
+  `;` de continuação não esconde mais a marca (definições e uso); CRLF
+  (`;\r`) tratado em todos os joins.
+- Operador de exponenciação `^` e sinônimo `**` (parsePower, associativo à
+  direita, acima da multiplicação; novo OP_POW na VM via math.Pow).
+- `ACTIVATE FWMBROWSE/MBROWSE/REPORT <var>`.
+- DSL mobile FDA: `ADD FOLDER ... CAPTION ... [ON ACTIVATE f()] OF ...`,
+  `ADD COLUMN ... TO ... ARRAY ELEMENT n HEADER ... WIDTH n`,
+  `SET BROWSE <var> ARRAY <expr>`, cláusulas `CAPTION`/`SYMBOL`/`ITEM`/
+  `VSCROLL` e flags de duas palavras `NO SCROLL`/`NO UNDERLINE` em `@`.
+
 ## [1.8.0] — 2026-07-10
 
 ### Motor de #command reescrito para semântica Clipper real + 2 features de lexer (86,4% → 87,6%)
