@@ -1202,6 +1202,14 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 	if p.peek().Type == lexer.TOKEN_IDENT && !p.isDefineClauseWord(p.peek()) {
 		varTok := p.advance()
 		target = &ast.Ident{Loc: p.posFromToken(varTok), Name: varTok.Value}
+	} else if p.peek().Type == lexer.TOKEN_DOUBLECOLON {
+		// `DEFINE SCROLLBAR ::oVScroll VERTICAL OF Self` — alvo pode ser
+		// propriedade do próprio objeto; consome e descarta (o codegen só
+		// modela alvo simples).
+		p.advance()
+		if _, err := p.expectName(); err != nil {
+			return nil, err
+		}
 	}
 
 	clauses := map[string][]ast.Expression{}
@@ -1218,7 +1226,8 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 		case p.isKeyword(cur, "OF"):
 			name = "OF"
 		case p.isKeyword(cur, "PIXEL"), p.isWord(cur, "ENABLE"), p.isWord(cur, "DISABLE"),
-			p.isWord(cur, "PANEL"), p.isWord(cur, "NOFIRSTPANEL"), p.isWord(cur, "TOP"), p.isWord(cur, "GROUP"):
+			p.isWord(cur, "PANEL"), p.isWord(cur, "NOFIRSTPANEL"), p.isWord(cur, "TOP"), p.isWord(cur, "GROUP"),
+			p.isWord(cur, "VERTICAL"), p.isWord(cur, "HORIZONTAL"):
 			p.advance() // flag clauses, no value
 			continue
 		// `DEFINE BUTTONBAR ... 3D TOP OF ...` — "3D" tokeniza como NUMBER
@@ -1279,6 +1288,9 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			name = "DESCRIPTION"
 		case p.isWord(cur, "TABLES"):
 			name = "TABLES"
+		// `DEFINE SCROLLBAR ... RANGE min, max`
+		case p.isWord(cur, "RANGE"):
+			name = "RANGE"
 		case p.isWord(cur, "PICTURE"):
 			name = "PICTURE"
 		case p.isWord(cur, "WHEN"):
@@ -2057,7 +2069,11 @@ func (p *Parser) parseActivateDialog() (ast.Statement, error) {
 	tok := p.advance() // ACTIVATE
 	p.advance()        // MSDIALOG
 
-	varTok, err := p.expect(lexer.TOKEN_IDENT)
+	// alvo pode ser `::oDlg` (propriedade do próprio objeto)
+	if p.peek().Type == lexer.TOKEN_DOUBLECOLON {
+		p.advance()
+	}
+	varTok, err := p.expectName()
 	if err != nil {
 		return nil, err
 	}
@@ -2709,7 +2725,8 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 
 	case lexer.TOKEN_DOUBLECOLON:
 		p.advance()
-		propTok, err := p.expect(lexer.TOKEN_IDENT)
+		// nome de propriedade/método pode colidir com keyword (::Default()).
+		propTok, err := p.expectName()
 		if err != nil {
 			return nil, err
 		}

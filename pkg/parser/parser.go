@@ -700,7 +700,9 @@ func (p *Parser) parseClass() (*ast.ClassDecl, error) {
 
 func (p *Parser) parseProperty() (*ast.PropertyDecl, error) {
 	tok := p.peek()
-	nameTok, err := p.expect(lexer.TOKEN_IDENT)
+	// Nome de membro pode colidir com palavra reservada (`Data size`,
+	// `Data default`) — aceita keyword também.
+	nameTok, err := p.expectName()
 	if err != nil {
 		return nil, err
 	}
