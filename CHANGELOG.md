@@ -2,6 +2,19 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.9] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (85,2% → 86,0%)
+
+Continuação do sweep dirigido por corpus (ver [[advpp_corpus_locations]]).
+
+- **Bug estrutural (lexer)**: literal numérico com ponto decimal sem
+  dígito antes (`.5`, `.7` — comum em coordenadas `@ .5,.7 ...`) não era
+  reconhecido; o lexer só entrava no tokenizador de número ao ver um
+  dígito primeiro, então um `.` inicial caía sempre no caminho de
+  dot-literal/operador (`.T.`, `.AND.`, `.`), nunca no de número. Corrigido:
+  um `.` seguido de dígito agora entra no tokenizador de número.
+
 ## [1.7.8] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (84,4% → 85,2%)
