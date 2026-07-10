@@ -2,6 +2,34 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.2] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (73,8% → 76,6%)
+
+Continuação do sweep dirigido por corpus (ver [[advpp_corpus_locations]]).
+Seis bugs reais adicionais de parser corrigidos:
+
+- `If x := cond` / `While x := cond` — atribuição usada inline como
+  condição (idioma comum em AdvPL: "avança e testa") deixava o `:=`
+  pendurado; a condição agora usa `parseAssignRHS` como o resto do parser.
+- Caminho de namespace TLPP totalmente qualificado
+  (`totvs.framework.treports.date.stringToTimeStamp(...)`) quebrava
+  sempre que um segmento colidia com palavra reservada (`date`, que lexa
+  como `TOKEN_KEYWORD`); o loop de segmentos só aceitava `TOKEN_IDENT`.
+  Mesmo problema corrigido em `NAMESPACE`/`USING NAMESPACE`, agora via
+  `parseNamespacePath` compartilhado (segmento só aceito logo após um
+  ponto, nunca solto — não avança para além da declaração).
+- `WSRESTFUL/WSSERVICE <nome> ... FORMAT <expr>` — cláusula de cabeçalho
+  não reconhecida, quebrando o corpo inteiro do bloco.
+- **Bug de colisão de nome em `WSDATA`**: o bypass "nome de método é
+  opcional" (`WSMETHOD POST DESCRIPTION "..." ...`) se aplicava também a
+  `WSDATA`, então um campo literalmente chamado `Description`
+  (`WSDATA Description As String`) era confundido com a cláusula
+  `DESCRIPTION` e o parser pulava o nome do campo — struct inteira
+  corrompida a partir daí. `WSDATA` agora sempre exige nome explícito.
+- `ParamType <n> Var <nome> As <tipo> [Default <expr>]` — declaração de
+  metadados de parâmetro não suportada.
+
 ## [1.7.1] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (70,8% → 73,8%)
