@@ -2,6 +2,49 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.6.0] — 2026-07-09
+
+### `tests/real_protheus_test.prw` totalmente resolvido
+
+O dump de 3785 linhas de código Protheus real usado como fixture de
+estresse — que tinha uma falha de parser documentada como conhecida
+desde antes desta série de correções — agora **compila e interpreta
+sem nenhum erro** (`advplc check` e `advplc run`, ambos saem limpo).
+Oito bugs reais e distintos encontrados e corrigidos por bisecção
+binária (truncar o fonte progressivamente até isolar a menor entrada
+que ainda reproduz o erro), além dos cinco já corrigidos na versão
+anterior:
+
+- `++nome` — incremento **prefixo** (só o pós-fixado `nome++` estava
+  implementado).
+- `@ ... LISTBOX ... FIELDS HEADER a,b,c ... ON DBLCLICK expr
+  NOSCROLL OF window PIXEL` — cláusulas do LISTBOX (`FIELDS`,
+  `HEADER`, `ON <evento> <expr>`, `NOSCROLL`) não reconhecidas.
+- `@ y,x BUTTON var PROMPT "texto" ...` — cláusula `PROMPT` do BUTTON
+  não reconhecida.
+- `IF ( aArray[ i , j ] )` — o lookahead que desambigua bloco `If`
+  de `IF(cond,then,else)` (adicionado na correção anterior) contava
+  a vírgula de um índice multi-dimensional `[i,j]` como se fosse a
+  vírgula de topo do `IF(...)`, tratando incorretamente todo `If`
+  cuja condição usa um array 2D como a forma de chamada.
+- `f(aArray[i] := valor, ...)` — atribuição como argumento de função
+  quando o alvo não é um identificador simples (só `ident := valor`
+  virava atribuição; `array[i] := valor` ficava com o `:=` sobrando).
+- `@ y,x RADIO var VAR nVar ITEMS v1,v2,...` — cláusula `ITEMS` do
+  RADIO não reconhecida.
+- `Do Case ... End Case` — só `EndCase` (uma palavra) era aceito como
+  fechamento; `End Case` (duas palavras, forma clássica do Clipper)
+  não.
+- `FindFunction("Nome")` — nativa ausente (usada no Protheus real para
+  checar a existência de funções opcionais/AddOn antes de chamá-las).
+  Implementada: verifica natives registradas e funções do bytecode
+  (com/sem prefixo `U_`).
+
+Sem regressões: `make test` agora dá **30/30** fixtures (antes eram
+29/30, com esta sendo a única falha conhecida); `go vet ./...` e os
+testes de `pkg/llm`/`pkg/mcp`/`cmd/advplc` continuam limpos;
+cross-compile OK em linux/windows/darwin (amd64+arm64).
+
 ## [1.5.0] — 2026-07-09
 
 ### Servidor MCP nativo (classe `MCPServer`)

@@ -258,6 +258,7 @@ func (p *Parser) parseVarDecl() (ast.Statement, error) {
 // que é a forma de chamada `IF(cond,then,else)`, não `If (cond)` bloco.
 func (p *Parser) isInlineIfCall() bool {
 	depth := 0
+	bracketDepth := 0
 	for i := 1; ; i++ {
 		tok := p.peekAt(i)
 		switch tok.Type {
@@ -268,8 +269,14 @@ func (p *Parser) isInlineIfCall() bool {
 			if depth == 0 {
 				return false
 			}
+		case lexer.TOKEN_LBRACKET:
+			bracketDepth++
+		case lexer.TOKEN_RBRACKET:
+			bracketDepth--
 		case lexer.TOKEN_COMMA:
-			if depth == 1 {
+			// vírgula dentro de `[i,j]` (índice multi-dimensional) não
+			// conta — só a vírgula de topo dentro dos parênteses do IF.
+			if depth == 1 && bracketDepth == 0 {
 				return true
 			}
 		case lexer.TOKEN_EOF:
@@ -478,6 +485,20 @@ func (p *Parser) parseWhile() (ast.Statement, error) {
 	return whileStmt, nil
 }
 
+// isEndCase reconhece tanto "ENDCASE" (uma palavra) quanto "End Case"
+// (duas palavras, forma clássica do Clipper).
+func (p *Parser) isEndCase() bool {
+	return p.isKeyword(p.peek(), "ENDCASE") ||
+		(p.isKeyword(p.peek(), "END") && p.isWord(p.peekAt(1), "CASE"))
+}
+
+func (p *Parser) advanceEndCase() {
+	p.advance()
+	if p.isWord(p.peek(), "CASE") {
+		p.advance()
+	}
+}
+
 func (p *Parser) parseDoCase() (ast.Statement, error) {
 	p.advance() // DO
 	p.advance() // CASE
@@ -492,7 +513,7 @@ func (p *Parser) parseDoCase() (ast.Statement, error) {
 		}
 		clause := &ast.CaseClause{Loc: p.posFromToken(p.peek()), Condition: cond, Body: make([]ast.Statement, 0)}
 		for !p.isKeyword(p.peek(), "CASE") && !p.isKeyword(p.peek(), "OTHERWISE") &&
-			!p.isKeyword(p.peek(), "ENDCASE") && p.peek().Type != lexer.TOKEN_EOF {
+			!p.isEndCase() && p.peek().Type != lexer.TOKEN_EOF {
 			if p.isFunctionBoundary(p.peek()) {
 				break
 			}
@@ -510,7 +531,7 @@ func (p *Parser) parseDoCase() (ast.Statement, error) {
 	if p.isKeyword(p.peek(), "OTHERWISE") {
 		p.advance()
 		doCase.Otherwise = make([]ast.Statement, 0)
-		for !p.isKeyword(p.peek(), "ENDCASE") && p.peek().Type != lexer.TOKEN_EOF {
+		for !p.isEndCase() && p.peek().Type != lexer.TOKEN_EOF {
 			stmt, err := p.parseStatement()
 			if err != nil {
 				return nil, err
@@ -521,8 +542,8 @@ func (p *Parser) parseDoCase() (ast.Statement, error) {
 		}
 	}
 
-	if p.isKeyword(p.peek(), "ENDCASE") {
-		p.advance()
+	if p.isEndCase() {
+		p.advanceEndCase()
 	}
 
 	return doCase, nil
@@ -1108,8 +1129,25 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 
 	for p.isAtClauseWord(p.peek()) {
 		clauseTok := p.advance()
-		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") {
+		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") {
 			continue // flag clauses, no value
+		}
+		// `@ ... LISTBOX ... ON DBLCLICK <expr> ...` — o nome do evento
+		// (DBLCLICK, ENTER, ...) vem junto de ON formando o nome da
+		// cláusula, e o valor é uma única expressão (callback), não uma
+		// lista separada por vírgula.
+		if p.isWord(clauseTok, "ON") {
+			eventTok := p.advance()
+			clauseName := "ON_" + strings.ToUpper(eventTok.Value)
+			val, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			if _, isBlock := val.(*ast.CodeBlock); !isBlock {
+				val = &ast.CodeBlock{Loc: p.posFromToken(clauseTok), Expr: val}
+			}
+			args = append(args, &ast.StringLit{Loc: p.posFromToken(clauseTok), Value: clauseName}, val)
+			continue
 		}
 		clauseName := strings.ToUpper(clauseTok.Value)
 		vals, err := p.parseCommaValues()
@@ -1145,6 +1183,14 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		// para o texto, como cláusulas normais (não como o `@ TO` de caixa
 		// sem verbo, tratado antes de chegar aqui).
 		"TO", "LABEL",
+		// `@ ... LISTBOX ... FIELDS HEADER a,b,c ... ON DBLCLICK expr
+		// NOSCROLL OF window PIXEL` — mais cláusulas do LISTBOX.
+		"FIELDS", "HEADER", "ON", "NOSCROLL",
+		// `@ y,x BUTTON var PROMPT "texto" SIZE w,h OF window PIXEL ACTION
+		// expr` — PROMPT é o texto do botão.
+		"PROMPT",
+		// `@ y,x RADIO var VAR nVar ITEMS v1,v2,... SIZE w,h OF window PIXEL`
+		"ITEMS",
 	} {
 		if p.isWord(tok, kw) {
 			return true
@@ -1465,6 +1511,23 @@ func (p *Parser) parseUnary() (ast.Expression, error) {
 		p.advance()
 		return p.parseUnary()
 	}
+	// `++x` / `--x` — forma prefixa (a pós-fixa `x++`/`x--` já é tratada em
+	// parseCodeBlockItem/parseExprStatement). Mesma semântica: incrementa e
+	// devolve o novo valor, açúcar para `x := x + 1`.
+	if p.peek().Type == lexer.TOKEN_INCREMENT || p.peek().Type == lexer.TOKEN_DECREMENT {
+		opTok := p.advance()
+		op := "+"
+		if opTok.Type == lexer.TOKEN_DECREMENT {
+			op = "-"
+		}
+		operand, err := p.parseUnary()
+		if err != nil {
+			return nil, err
+		}
+		one := &ast.NumberLit{Loc: p.posFromToken(opTok), Value: 1, Str: "1"}
+		combined := &ast.BinaryOp{Loc: p.posFromToken(opTok), Op: op, Left: operand, Right: one}
+		return &ast.AssignExpr{Loc: p.posFromToken(opTok), Target: operand, Value: combined}, nil
+	}
 	return p.parsePostfix()
 }
 
@@ -1628,9 +1691,22 @@ func (p *Parser) parseArguments() ([]ast.Expression, error) {
 			}
 			args = append(args, &ast.NamedParam{Loc: p.posFromToken(nameTok), Name: nameTok.Value, Value: valExpr})
 		} else {
+			argTok := p.peek()
 			arg, err := p.parseExpression()
 			if err != nil {
 				return nil, err
+			}
+			// `f(aArray[i] := val, ...)` — atribuição como argumento onde o
+			// alvo não é um identificador simples (a checagem de parâmetro
+			// nomeado acima só cobre `ident := valor`); parseExpression já
+			// parou em `aArray[i]`, sobrando o ":=" aqui.
+			if p.peek().Type == lexer.TOKEN_ASSIGN {
+				p.advance()
+				val, err := p.parseExpression()
+				if err != nil {
+					return nil, err
+				}
+				arg = &ast.AssignExpr{Loc: p.posFromToken(argTok), Target: arg, Value: val}
 			}
 			args = append(args, arg)
 		}

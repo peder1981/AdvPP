@@ -810,6 +810,27 @@ func (v *VM) registerNatives() {
 		},
 
 		// --- Misc ---
+		// FindFunction(cNome) — true se a função (nativa ou definida no
+		// fonte, com ou sem prefixo U_) existir; usado no Protheus real
+		// para checar a presença de funções opcionais/AddOn antes de
+		// chamá-las (ex.: Static lX := FindFunction("FWCodFil")).
+		"FINDFUNCTION": func(args []advplrt.Value) (advplrt.Value, error) {
+			name := strings.ToUpper(advplrt.ToString(getArg(args, 0)))
+			if name == "" {
+				return advplrt.False, nil
+			}
+			if _, ok := v.natives[name]; ok {
+				return advplrt.True, nil
+			}
+			trimmed := strings.TrimPrefix(name, "U_")
+			for fname := range v.bc.Functions {
+				fupper := strings.ToUpper(fname)
+				if fupper == name || fupper == trimmed {
+					return advplrt.True, nil
+				}
+			}
+			return advplrt.False, nil
+		},
 		// StartJob(cFunc, cEnv, lWait, params...) — executa a função em um
 		// VM isolado (semântica de work process do Protheus). cEnv é aceito
 		// e ignorado (não há multi-ambiente neste runtime).
