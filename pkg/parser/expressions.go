@@ -830,9 +830,24 @@ func (p *Parser) parseDefault() (ast.Statement, error) {
 }
 
 func (p *Parser) parseOneDefault(tok lexer.Token) (*ast.DefaultExpr, error) {
-	nameTok, err := p.expect(lexer.TOKEN_IDENT)
-	if err != nil {
-		return nil, err
+	// `Default ::PageLen := 0` — target can be a self property, not just a
+	// plain local/private var. Recorded with the "::" prefix so it never
+	// collides with (and silently no-ops against, same as any other
+	// unresolvable name) a real local of the bare property name.
+	name := ""
+	if p.peek().Type == lexer.TOKEN_DOUBLECOLON {
+		p.advance()
+		propTok, err := p.expectName()
+		if err != nil {
+			return nil, err
+		}
+		name = "::" + propTok.Value
+	} else {
+		nameTok, err := p.expect(lexer.TOKEN_IDENT)
+		if err != nil {
+			return nil, err
+		}
+		name = nameTok.Value
 	}
 	if p.peek().Type == lexer.TOKEN_ASSIGN {
 		p.advance()
@@ -841,7 +856,7 @@ func (p *Parser) parseOneDefault(tok lexer.Token) (*ast.DefaultExpr, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.DefaultExpr{Loc: p.posFromToken(tok), Name: nameTok.Value, Value: val}, nil
+	return &ast.DefaultExpr{Loc: p.posFromToken(tok), Name: name, Value: val}, nil
 }
 
 // parseAddOption handles the MenuDef() `#xcommand` idiom:
@@ -1335,6 +1350,9 @@ func (p *Parser) parseParamType() (ast.Statement, error) {
 		typeTok := p.peek()
 		typeName := p.parseTypeName()
 		args = append(args, &ast.StringLit{Loc: p.posFromToken(typeTok), Value: typeName})
+	}
+	if p.isWord(p.peek(), "OPTIONAL") {
+		p.advance()
 	}
 	if p.isWord(p.peek(), "DEFAULT") {
 		p.advance()
