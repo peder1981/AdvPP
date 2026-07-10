@@ -151,10 +151,16 @@ func (p *Parser) parseNamespacePath() []string {
 }
 
 func (p *Parser) isFunctionBoundary(tok lexer.Token) bool {
+	// STATIC só abre função quando seguido de FUNCTION — `Static cVar := x`
+	// dentro de um corpo é declaração de variável, não boundary. (Todos os
+	// chamadores passam p.peek(), então olhar p.peekAt(1) é seguro.)
+	if p.isKeyword(tok, "STATIC") {
+		return p.isKeyword(p.peekAt(1), "FUNCTION")
+	}
 	return p.isKeyword(tok, "FUNCTION") || p.isKeyword(tok, "USER") ||
 		p.isKeyword(tok, "MAIN") ||
 		p.isKeyword(tok, "PROCEDURE") || p.isKeyword(tok, "CLASS") ||
-		p.isKeyword(tok, "METHOD") || p.isKeyword(tok, "STATIC") ||
+		p.isKeyword(tok, "METHOD") ||
 		p.isWSClientOpener(tok) || p.isWord(tok, "WSMETHOD")
 }
 
@@ -972,13 +978,24 @@ func (p *Parser) parseWSMethodImpl() (*ast.MethodImpl, error) {
 			break
 		}
 	}
-	nameTok, err := p.expectName()
-	if err != nil {
-		return nil, err
+	// `WSMETHOD GET WSRECEIVE a,b WSSERVICE X` — REST sem nome próprio
+	// (só o verbo HTTP): se o que vem depois do verbo já é uma cláusula,
+	// o nome do método é o próprio verbo.
+	var methodName string
+	if p.isWord(p.peek(), "WSRECEIVE") || p.isWord(p.peek(), "WSSEND") ||
+		p.isWord(p.peek(), "PATHPARAM") || p.isWord(p.peek(), "QUERYPARAM") ||
+		p.isWSClientOpener(p.peek()) || p.isWord(p.peek(), "WSREST") {
+		methodName = "REST"
+	} else {
+		nameTok, err := p.expectName()
+		if err != nil {
+			return nil, err
+		}
+		methodName = nameTok.Value
 	}
 	method := &ast.MethodImpl{
 		Loc:    p.posFromToken(startTok),
-		Name:   nameTok.Value,
+		Name:   methodName,
 		Params: make([]*ast.Parameter, 0),
 	}
 	if p.peek().Type == lexer.TOKEN_LPAREN {

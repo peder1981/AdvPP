@@ -2,6 +2,24 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.8.4] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (94,4% → 95,8%)
+
+- **Bug estrutural**: `Static cVar := valor` DENTRO de uma função era
+  tratado como fronteira de função (por causa de `Static Function`),
+  truncando o corpo silenciosamente e corrompendo o parse do resto do
+  arquivo (fonte dos piores "drift bugs"). STATIC agora só é boundary
+  seguido de FUNCTION.
+- DSL XML legado: `ADDNODE <expr> NODE <expr> ON <expr>`, `DELETENODE
+  <expr> ON <expr>`, `CREATE <var> XMLFILE <expr> [SETASARRAY <lista>]`.
+- Alvo de `Count/Sum/Average ... To` pode ser expressão (`self:nTotReg`).
+- Keyword como identificador comum em posição de operando quando o token
+  seguinte só continua expressão (`{|Panel| f(Panel, ...)}`).
+- `Private &("nome"+var) := x` — memvar com nome computado por macro.
+- `HEADERS` (plural) como cláusula de LISTBOX; WSMETHOD REST sem nome
+  próprio (`WSMETHOD GET WSRECEIVE ... WSSERVICE X`).
+
 ## [1.8.3] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (92,6% → 94,4%)
