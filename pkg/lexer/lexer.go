@@ -299,6 +299,11 @@ func (l *Lexer) tokenizeString(line, col int, quote byte) error {
 	var sb strings.Builder
 	for l.pos < len(l.source) {
 		ch := l.peek()
+		// Clipper/AdvPL strings implicitly close at end-of-line if the
+		// closing quote is missing (real legacy sources rely on this).
+		if ch == '\n' {
+			break
+		}
 		if ch == quote {
 			l.advance()
 			// Doubled quote = escaped quote

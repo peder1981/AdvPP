@@ -997,6 +997,7 @@ func (p *Parser) isDefineClauseWord(tok lexer.Token) bool {
 		"TITLE", "FROM", "TO", "OF", "PIXEL", "ENABLE", "DISABLE", "COLOR",
 		"STYLE", "ICON", "NAME", "SIZE", "TYPE", "ACTION", "ALIAS",
 		"BOLD", "ITALIC", "UNDERLINE", "PARAMETER", "PARAMETERS", "DESCRIPTION",
+		"TABLES", "PICTURE", "WHEN",
 	} {
 		if p.isWord(tok, kw) {
 			return true
@@ -1046,6 +1047,14 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			p.advance()
 			p.advance()
 			continue
+		// `DEFINE FUNCTION ... NO END SECTION` — TReport column aggregate,
+		// three-word flag with no value (don't force a page break after the
+		// section's aggregate line).
+		case p.isWord(cur, "NO") && p.isWord(p.peekAt(1), "END") && p.isWord(p.peekAt(2), "SECTION"):
+			p.advance()
+			p.advance()
+			p.advance()
+			continue
 		// `DEFINE WIZARD ... HEADER expr MESSAGE expr NEXT {|lOk|...}
 		// BACK {||...} FINISH {||...} PANEL NOFIRSTPANEL` — TWizard/
 		// ApWizard (API obsoleta, mas ainda usada em fontes legados; só
@@ -1086,6 +1095,19 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			name = "PARAMETER"
 		case p.isWord(cur, "DESCRIPTION"):
 			name = "DESCRIPTION"
+		case p.isWord(cur, "TABLES"):
+			name = "TABLES"
+		case p.isWord(cur, "PICTURE"):
+			name = "PICTURE"
+		case p.isWord(cur, "WHEN"):
+			name = "WHEN"
+		// `DEFINE FUNCTION ... FUNCTION SUM ...` — TReport column aggregate
+		// function (SUM/AVG/...); clause name collides with the DEFINE kind
+		// itself, only ever seen after `DEFINE FUNCTION <target> FROM ...`.
+		case p.isWord(cur, "FUNCTION"):
+			name = "AGGFUNCTION"
+		case p.isWord(cur, "BREAK"):
+			name = "BREAK"
 		case p.isWord(cur, "PROMPT"):
 			name = "PROMPT"
 		case p.isWord(cur, "BOLD"), p.isWord(cur, "ITALIC"), p.isWord(cur, "UNDERLINE"):
@@ -2116,14 +2138,28 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 			// this just evaluates the inner expression directly.
 			if p.peek().Type == lexer.TOKEN_LPAREN {
 				p.advance()
-				inner, err := p.parseExpression()
-				if err != nil {
-					return nil, err
+				// alias->(expr1, expr2, ...) — same comma-sequence production
+				// as plain `(a, b, c)`, evaluates all and yields the last.
+				items := []ast.Expression{}
+				for {
+					item, err := p.parseCodeBlockItem()
+					if err != nil {
+						return nil, err
+					}
+					items = append(items, item)
+					if p.peek().Type != lexer.TOKEN_COMMA {
+						break
+					}
+					p.advance()
 				}
 				if _, err := p.expect(lexer.TOKEN_RPAREN); err != nil {
 					return nil, err
 				}
-				expr = inner
+				if len(items) == 1 {
+					expr = items[0]
+				} else {
+					expr = &ast.SeqExpr{Loc: p.posFromToken(tok), Exprs: items}
+				}
 				break
 			}
 			// alias->&(expr) / alias->&ident: macro-computed field name.
@@ -2156,6 +2192,14 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 				expr = &ast.FieldAccess{Loc: p.posFromToken(tok), Alias: ident.Name, Field: fieldTok.Value}
 			}
 		case lexer.TOKEN_LPAREN:
+			// Newlines are stripped before parsing, so a call-like `(` that
+			// starts a NEW statement on the next source line (e.g. a bare
+			// `(alias)->field` statement right after this expression) must
+			// not glue onto the end of THIS expression as a call. Require
+			// the '(' to be on the same line as the token right before it.
+			if p.pos == 0 || p.tokens[p.pos-1].Line != tok.Line {
+				goto done
+			}
 			if ident, ok := expr.(*ast.Ident); ok {
 				p.advance()
 				args, err := p.parseArguments()
@@ -2325,7 +2369,11 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 			p.advance()
 			name += "." + p.advance().Value
 		}
-		if p.peek().Type == lexer.TOKEN_LPAREN {
+		// Newlines are stripped before parsing, so a `(` starting a NEW
+		// statement on the next source line (e.g. a bare `(alias)->field`
+		// statement right after a bare identifier expression) must not glue
+		// onto this identifier as a call. Require same line.
+		if p.peek().Type == lexer.TOKEN_LPAREN && p.peek().Line == tok.Line {
 			p.advance()
 			args, err := p.parseArguments()
 			if err != nil {

@@ -2,6 +2,38 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.7.3] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (76,6% → 81,0%)
+
+Continuação do sweep dirigido por corpus (ver [[advpp_corpus_locations]]).
+Dois bugs estruturais de alto impacto e mais quatro bugs pontuais de parser
+corrigidos:
+
+- **Bug estrutural**: strings `"..."` sem aspa de fechamento até o fim da
+  linha (typo comum em fontes reais, ex. query SQL multi-linha via `+=`)
+  travavam o lexer, que consumia até a próxima aspa em QUALQUER linha
+  seguinte, engolindo o resto do arquivo. Clipper/AdvPL fecha strings
+  implicitamente no fim da linha; o lexer agora faz o mesmo.
+- **Bug estrutural**: um identificador seguido de `(` seguinte, sem guarda
+  de mesma linha, era sempre tratado como chamada de função — já que
+  newlines são removidas antes do parsing, um `(alias)->campo` no início da
+  PRÓXIMA linha grudava como argumento da chamada do identificador da
+  linha anterior (`var := f() \n (alias)->campo := x` virava
+  `f()(alias)->campo`). Corrigido em dois pontos: `parsePrimary` (chamada
+  direta `ident(`) e `parsePostfix` (chamada após expressão composta),
+  ambos agora exigem que o `(` esteja na mesma linha do token anterior.
+- `alias->(expr1, expr2, ...)` — sequência separada por vírgula dentro do
+  escopo de alias só aceitava uma única expressão; agora usa a mesma
+  produção de `(a, b, c)` (avalia todas, retorna a última).
+- `DEFINE SECTION ... TABLES "A","B",...`, `DEFINE CELL ... PICTURE "..."`,
+  `DEFINE BREAK ... WHEN {||...}`, `DEFINE FUNCTION ... FUNCTION SUM BREAK
+  oBreak TITLE "..." NO END SECTION` — cláusulas do DSL de TReport
+  (`DEFINE SECTION/CELL/BREAK/FUNCTION`) não reconhecidas: `TABLES`,
+  `PICTURE`, `WHEN`, `FUNCTION` (como nome de cláusula, colide com o nome
+  do próprio DEFINE kind), `BREAK`, e o flag de três palavras `NO END
+  SECTION`.
+
 ## [1.7.2] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (73,8% → 76,6%)
