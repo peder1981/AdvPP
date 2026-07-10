@@ -677,8 +677,11 @@ func (l *Lexer) tokenizeOperator(line, col int) error {
 		for lookahead < len(l.source) && (l.source[lookahead] == ' ' || l.source[lookahead] == '\t' || l.source[lookahead] == '\r') {
 			lookahead++
 		}
-		// A trailing `// comment` still counts as end-of-line for continuation.
-		if lookahead+1 < len(l.source) && l.source[lookahead] == '/' && l.source[lookahead+1] == '/' {
+		// A trailing `// comment` or `&& comment` (Clipper) still counts as
+		// end-of-line for continuation.
+		if lookahead+1 < len(l.source) &&
+			((l.source[lookahead] == '/' && l.source[lookahead+1] == '/') ||
+				(l.source[lookahead] == '&' && l.source[lookahead+1] == '&')) {
 			for lookahead < len(l.source) && l.source[lookahead] != '\n' {
 				lookahead++
 			}
