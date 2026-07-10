@@ -130,6 +130,26 @@ func (p *Parser) posFromToken(tok lexer.Token) ast.Position {
 	return ast.Position{Line: tok.Line, Col: tok.Col, FileName: tok.FileName}
 }
 
+// parseNamespacePath consumes a dotted namespace path (`totvs.framework.x`)
+// after NAMESPACE/USING NAMESPACE. A segment can collide with a reserved
+// word (`date`, etc. lex as TOKEN_KEYWORD), so both IDENT and KEYWORD are
+// accepted — but only right after a DOT (or as the first segment), never as
+// a bare follow-on token, so this can't run past the declaration into the
+// next real statement (e.g. `NAMESPACE totvs` \n `Function Foo()`).
+func (p *Parser) parseNamespacePath() []string {
+	parts := []string{}
+	if p.peek().Type != lexer.TOKEN_IDENT && p.peek().Type != lexer.TOKEN_KEYWORD {
+		return parts
+	}
+	parts = append(parts, p.advance().Value)
+	for p.peek().Type == lexer.TOKEN_DOT &&
+		(p.peekAt(1).Type == lexer.TOKEN_IDENT || p.peekAt(1).Type == lexer.TOKEN_KEYWORD) {
+		p.advance()
+		parts = append(parts, p.advance().Value)
+	}
+	return parts
+}
+
 func (p *Parser) isFunctionBoundary(tok lexer.Token) bool {
 	return p.isKeyword(tok, "FUNCTION") || p.isKeyword(tok, "USER") ||
 		p.isKeyword(tok, "MAIN") ||
@@ -200,30 +220,14 @@ func (p *Parser) Parse() (*ast.Program, error) {
 
 		if p.isKeyword(tok, "NAMESPACE") {
 			p.advance()
-			nsParts := []string{}
-			for p.peek().Type == lexer.TOKEN_IDENT || p.peek().Type == lexer.TOKEN_DOT {
-				if p.peek().Type == lexer.TOKEN_DOT {
-					p.advance()
-					continue
-				}
-				nsParts = append(nsParts, p.advance().Value)
-			}
-			prog.Namespace = strings.Join(nsParts, ".")
+			prog.Namespace = strings.Join(p.parseNamespacePath(), ".")
 			continue
 		}
 
 		if p.isKeyword(tok, "USING") && p.isKeyword(p.peekAt(1), "NAMESPACE") {
 			p.advance() // USING
 			p.advance() // NAMESPACE
-			nsParts := []string{}
-			for p.peek().Type == lexer.TOKEN_IDENT || p.peek().Type == lexer.TOKEN_DOT {
-				if p.peek().Type == lexer.TOKEN_DOT {
-					p.advance()
-					continue
-				}
-				nsParts = append(nsParts, p.advance().Value)
-			}
-			prog.UsingNamespaces = append(prog.UsingNamespaces, strings.Join(nsParts, "."))
+			prog.UsingNamespaces = append(prog.UsingNamespaces, strings.Join(p.parseNamespacePath(), "."))
 			continue
 		}
 
@@ -841,9 +845,10 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 	if err != nil {
 		return nil, err
 	}
-	// WSRESTFUL/WSSERVICE <name> [DESCRIPTION <expr>] [NAMESPACE <expr>] —
-	// header clauses, order and presence both vary in real code.
-	for p.isWord(p.peek(), "DESCRIPTION") || p.isWord(p.peek(), "NAMESPACE") {
+	// WSRESTFUL/WSSERVICE <name> [DESCRIPTION <expr>] [NAMESPACE <expr>]
+	// [FORMAT <expr>] — header clauses, order and presence both vary in
+	// real code.
+	for p.isWord(p.peek(), "DESCRIPTION") || p.isWord(p.peek(), "NAMESPACE") || p.isWord(p.peek(), "FORMAT") {
 		p.advance()
 		if _, err := p.parseOr(); err != nil {
 			return nil, err
@@ -872,9 +877,12 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 			}
 			// The method name itself is optional in the REST form — some
 			// real code goes straight from the verb into clauses:
-			// `WSMETHOD POST DESCRIPTION "..." WSSYNTAX "..."`.
+			// `WSMETHOD POST DESCRIPTION "..." WSSYNTAX "..."`. WSDATA has
+			// no such form — a field is always named, even when that name
+			// happens to collide with a WSMETHOD clause word like
+			// "Description" (`WSDATA Description As String`).
 			nameTok := tok
-			if !p.isRestMethodClauseWord(p.peek()) {
+			if strings.EqualFold(tok.Value, "WSDATA") || !p.isRestMethodClauseWord(p.peek()) {
 				var err error
 				nameTok, err = p.expectName()
 				if err != nil {

@@ -113,6 +113,12 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "PREPARE") && p.isWord(p.peekAt(1), "ENVIRONMENT") {
 		return p.parsePrepareEnvironment()
 	}
+	// `ParamType <n> Var <name> As <type> [Default <expr>]` — declaração de
+	// metadados de parâmetro de rotina (objeto de negócio/REST), distinta
+	// do include obsoleto ParmType.ch; parseada e descartada.
+	if p.isWord(tok, "PARAMTYPE") {
+		return p.parseParamType()
+	}
 	if p.isKeyword(tok, "ACTIVATE") && (p.isWord(p.peekAt(1), "MSDIALOG") || p.isWord(p.peekAt(1), "DIALOG") || p.isWord(p.peekAt(1), "WIZARD") || p.isWord(p.peekAt(1), "WINDOW")) {
 		return p.parseActivateDialog()
 	}
@@ -332,7 +338,10 @@ func (p *Parser) isInlineIfCall() bool {
 func (p *Parser) parseIf() (ast.Statement, error) {
 	startTok := p.advance()
 
-	cond, err := p.parseExpression()
+	// parseAssignRHS (not parseExpression) so `If x := cond` — assignment
+	// used inline as the condition, real and common in AdvPL — parses as an
+	// AssignExpr instead of leaving the ':=' dangling.
+	cond, err := p.parseAssignRHS()
 	if err != nil {
 		return nil, err
 	}
@@ -490,7 +499,11 @@ func (p *Parser) parseFor() (ast.Statement, error) {
 func (p *Parser) parseWhile() (ast.Statement, error) {
 	startTok := p.advance()
 
-	cond, err := p.parseExpression()
+	// parseAssignRHS so `While x := next()` / `While (x := next()) > 0` —
+	// assignment inline in the condition, a common AdvPL idiom for
+	// "advance and test" loops — parses correctly instead of leaving the
+	// ':=' dangling.
+	cond, err := p.parseAssignRHS()
 	if err != nil {
 		return nil, err
 	}
@@ -1292,6 +1305,49 @@ done:
 // — comando batch (fora de rotina interativa) que abre empresa/filial/
 // tabelas; desugarizado para uma chamada solta e descartada, mesmo espírito
 // de DEFINE/COPY TO.
+// parseParamType handles:
+//
+//	ParamType <n> Var <name> As <type> [Default <expr>]
+//
+// — declaração de metadados de parâmetro (tipo/obrigatoriedade) usada em
+// objetos de negócio/REST; desugarizada para uma chamada solta e
+// descartada, mesmo espírito de PREPARE ENVIRONMENT/DEFINE.
+func (p *Parser) parseParamType() (ast.Statement, error) {
+	tok := p.advance() // PARAMTYPE
+	args := []ast.Expression{}
+	if p.peek().Type == lexer.TOKEN_NUMBER {
+		n, err := p.parsePrimary()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, n)
+	}
+	if p.isWord(p.peek(), "VAR") {
+		p.advance()
+		nameTok, err := p.expectName()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, &ast.StringLit{Loc: p.posFromToken(nameTok), Value: nameTok.Value})
+	}
+	if p.isKeyword(p.peek(), "AS") {
+		p.advance()
+		typeTok := p.peek()
+		typeName := p.parseTypeName()
+		args = append(args, &ast.StringLit{Loc: p.posFromToken(typeTok), Value: typeName})
+	}
+	if p.isWord(p.peek(), "DEFAULT") {
+		p.advance()
+		val, err := p.parseOr()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, val)
+	}
+	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "PARAM_TYPE", Args: args}
+	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+}
+
 func (p *Parser) parsePrepareEnvironment() (ast.Statement, error) {
 	tok := p.advance() // PREPARE
 	p.advance()         // ENVIRONMENT
@@ -2242,9 +2298,12 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 		// Fully qualified TLPP namespace path: totvs.framework.x.Func(...).
 		// Dot-literals (.T., .AND., etc) already tokenize as their own single
 		// token in the lexer, so a bare TOKEN_DOT here only ever separates
-		// namespace segments.
+		// namespace segments. A segment can collide with a reserved word
+		// (`totvs.framework.treports.date.stringToTimeStamp` — "date" lexes
+		// as TOKEN_KEYWORD), so accept either token type.
 		name := tok.Value
-		for p.peek().Type == lexer.TOKEN_DOT && p.peekAt(1).Type == lexer.TOKEN_IDENT {
+		for p.peek().Type == lexer.TOKEN_DOT &&
+			(p.peekAt(1).Type == lexer.TOKEN_IDENT || p.peekAt(1).Type == lexer.TOKEN_KEYWORD) {
 			p.advance()
 			name += "." + p.advance().Value
 		}
