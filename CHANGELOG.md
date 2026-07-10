@@ -2,6 +2,25 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.8.3] — 2026-07-10
+
+### Sweep de pass-rate no corpus Protheus real (92,6% → 94,4%)
+
+- `@ nLin++` sozinho (forma degenerada real) tolerado como expressão.
+- `End If` / `End Do` fechando If e Do Case (variantes de duas palavras).
+- QUALQUER keyword seguida de `(` na mesma linha em contexto de expressão é
+  chamada de função (`alias->(Add())`, `Select()`, ...) — generalização da
+  lista IF/ARRAY/DATE/OBJECT/BREAK.
+- Nome de função pode colidir com keyword (`Static Function Add`).
+- `SEND MAIL FROM ... TO ... SUBJECT ... BODY ... [ATTACHMENT] [RESULT]` e
+  `GET MAIL ERROR <var>` (DSL de e-mail do workflow).
+- `MENU <var> POPUP ... MENUITEM ... ACTION ... ENDMENU` (menu de contexto).
+- `DEFINE DBTREE ... CARGO ; ON CHANGE <expr>`; `DBADDTREE ... PROMPT ...
+  RESOURCE ... CARGO ... OPENED` (árvores legadas).
+- Cláusulas de `@`: `FROM` (METER FROM 0 TO 100), `PICT` (abrev. de
+  PICTURE), `OPTION` (FOLDER), flag `RIGHT`; `FIELDS` pode levar lista de
+  valores própria (`LISTBOX ... FIELDS "" ; HEADER ...`).
+
 ## [1.8.2] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (89,4% → 92,6%)

@@ -416,7 +416,8 @@ func (p *Parser) parseFunction(isUser, isStatic bool) (*ast.FunctionDecl, error)
 		return nil, err
 	}
 
-	nameTok, err := p.expect(lexer.TOKEN_IDENT)
+	// nome de função pode colidir com keyword (`Static Function Add`)
+	nameTok, err := p.expectName()
 	if err != nil {
 		return nil, err
 	}
