@@ -39,7 +39,6 @@ test: build
 		else fail=$$((fail+1)); echo "FAIL: $$f"; fi; \
 	done; \
 	echo "fixtures: $$pass pass, $$fail fail"
-	@# real_protheus_test.prw é falha conhecida pré-existente (parser)
 
 cross:
 	@mkdir -p dist
