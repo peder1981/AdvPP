@@ -81,3 +81,47 @@ done:
 	MOVL         AX, ret+56(FP)
 	VZEROUPPER
 	RET
+
+// func dotF16BlocksAVX2(rowF16 []byte, x []float32, nBlocks int) float32
+//
+// Processa nBlocks blocos de 8 valores F16 (16 bytes empacotados) cada:
+// VCVTPH2PS converte os 8 halfs em 8 float32 direto em hardware (mesmo
+// formato IEEE 754 half que Float16ToFloat32 decodifica em Go — sem
+// diferença de arredondamento, é a MESMA conversão feita pela CPU), depois
+// VFMADD231PS acumula convertido*x em Y10 (8 lanes de float32, uma
+// soma parcial por lane; reduzidas a um escalar só no final, igual ao
+// kernel inteiro acima).
+TEXT ·dotF16BlocksAVX2(SB), NOSPLIT, $0-60
+	MOVQ rowF16_base+0(FP), SI
+	MOVQ x_base+24(FP), DI
+	MOVQ nBlocks+48(FP), CX
+
+	VPXOR Y10, Y10, Y10 // acumulador de 8x float32 = 0
+
+	TESTQ CX, CX
+	JEQ   doneF16
+
+loopF16:
+	VMOVDQU   (SI), X0    // 16 bytes = 8x half-float empacotados
+	VCVTPH2PS X0, Y0      // Y0 = 8x float32 convertido em hardware
+	VMOVUPS   (DI), Y1    // 8 floats de x
+	VFMADD231PS Y1, Y0, Y10 // Y10 += Y0*Y1
+
+	ADDQ $16, SI
+	ADDQ $32, DI
+	DECQ CX
+	JNZ  loopF16
+
+doneF16:
+	// soma horizontal de Y10 (8x float32), mesmo padrão do kernel inteiro
+	// acima (VPSHUFD só rearranja bytes de 32 bits, não interpreta como
+	// int/float — reaproveitável aqui igual, só trocando PADDD por ADDPS).
+	VEXTRACTF128 $1, Y10, X0
+	VADDPS       X0, X10, X10 // X10 = [a+e, b+f, c+g, d+h]
+	VPSHUFD      $0xEE, X10, X0
+	VADDPS       X0, X10, X10 // X10[0] = (a+e)+(c+g), X10[1] = (b+f)+(d+h)
+	VPSHUFD      $0x55, X10, X0
+	VADDPS       X0, X10, X10 // X10[0] = soma final
+	VMOVSS       X10, ret+56(FP)
+	VZEROUPPER
+	RET

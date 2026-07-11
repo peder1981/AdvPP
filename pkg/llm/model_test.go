@@ -7,12 +7,12 @@ import (
 )
 
 // TestForwardRealModel roda um passo de inferência completo no Falcon3-3B-
-// 1.58bit e confere que os logits são finitos e não degenerados. É lento
-// (dezenas de segundos, forward pass escalar sem otimização) — pulado com
+// 1.58bit e confere que os logits são finitos e não degenerados. Ainda
+// carrega o modelo inteiro (2.2GB) do disco a cada execução — pulado com
 // `go test -short`.
 func TestForwardRealModel(t *testing.T) {
 	if testing.Short() {
-		t.Skip("lento: forward pass completo em 22 camadas escalares")
+		t.Skip("lento: carrega o modelo (2.2GB) do disco")
 	}
 	if _, err := os.Stat(falcon3Path); err != nil {
 		t.Skipf("modelo de teste não disponível: %v", err)

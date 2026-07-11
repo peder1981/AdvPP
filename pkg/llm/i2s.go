@@ -60,7 +60,13 @@ var map2bitTable = [4]int32{-1, 0, 1, 0}
 // verdadeiro para todas as dimensões do Falcon3-1.58bit) e evita os 4
 // testes de limite por elemento; um bloco final parcial ainda é tratado à
 // parte para não quebrar em modelos com outras dimensões.
-func dotI2SRow(packed []byte, row, nCols int, q []int8) int32 {
+//
+// qSum é Σq[:nFullBlocks*128], a correção que o caminho AVX2 precisa
+// (ver comentário abaixo) — o CHAMADOR calcula isso uma única vez por
+// MatMulI2S (é o mesmo `q` para todas as NRows linhas do peso) em vez de
+// cada chamada de dotI2SRow recalcular a mesma soma do zero; antes disso
+// era ~32% do tempo total do forward pass, inteiramente redundante.
+func dotI2SRow(packed []byte, row, nCols int, q []int8, qSum int32) int32 {
 	rowBytes := nCols / 4
 	rowData := packed[row*rowBytes : (row+1)*rowBytes]
 
@@ -74,7 +80,7 @@ func dotI2SRow(packed []byte, row, nCols int, q []int8) int32 {
 		// mapeamento -1/0/+1) — precisa da mesma correção `-Σq` que o
 		// ggml de referência aplica (ver comentário em simd_amd64.go).
 		rawSum := dotI2SBlocksAVX2(rowData[:byteOff], q[:done], nFullBlocks)
-		sumi = rawSum - sumInt8(q[:done])
+		sumi = rawSum - qSum
 	} else {
 		for d, bo := 0, 0; d < done; d, bo = d+128, bo+32 {
 			for gp := 0; gp < 32; gp++ {
@@ -173,10 +179,15 @@ func MatMulI2S(w *I2SWeight, x []float32) []float32 {
 		panic(fmt.Sprintf("llm: MatMulI2S: len(x)=%d, peso espera NCols=%d", len(x), w.NCols))
 	}
 	q, actScale := quantizeI8S(x)
+	// Σq[:nFullBlocks*128] não depende da linha — é o mesmo `q` para as
+	// NRows linhas do peso — então é calculado uma única vez aqui em vez
+	// de dentro de dotI2SRow (ver o comentário de dotI2SRow).
+	nFullBlocks := w.NCols / 128
+	qSum := sumInt8(q[:nFullBlocks*128])
 	out := make([]float32, w.NRows)
 	parallelRows(w.NRows, func(r0, r1 int) {
 		for r := r0; r < r1; r++ {
-			sumi := dotI2SRow(w.Packed, r, w.NCols, q)
+			sumi := dotI2SRow(w.Packed, r, w.NCols, q, qSum)
 			out[r] = float32(sumi) / actScale * w.Scale
 		}
 	})

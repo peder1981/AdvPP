@@ -45,7 +45,40 @@ func (n *NumberValue) Equals(other Value) bool {
 	return false
 }
 
-func NewNumber(v float64) *NumberValue { return &NumberValue{Val: v} }
+// numberCache pré-aloca *NumberValue para os inteiros pequenos mais comuns
+// (contadores de loop, índices de array, resultados de comparação/módulo,
+// 0/1 booleanos) — NewNumber devolve o ponteiro compartilhado em vez de
+// alocar um novo a cada chamada. Seguro porque NumberValue é imutável
+// depois de criado (nada no VM escreve em .Val) e Equals compara por
+// VALOR, não por identidade de ponteiro (mesmo padrão já usado por `Nil`,
+// o singleton de NilValue, logo acima). Em profile real, cada operação
+// aritmética do VM (ADD/SUB/MOD/comparação) alocava um NumberValue novo no
+// heap — para um loop com milhões de iterações isso dominava o tempo total
+// (mallocgc bem acima de qualquer opcode individual); esta é a otimização
+// mais ampla e barata sem mudar a representação de Value (interface
+// boxed) — que é a raiz real do custo, mas trocar isso é um projeto à
+// parte, não algo pra fazer no meio de uma rodada de perf.
+const numberCacheMin = -256
+const numberCacheMax = 4096
+
+var numberCache = buildNumberCache()
+
+func buildNumberCache() [numberCacheMax - numberCacheMin + 1]*NumberValue {
+	var c [numberCacheMax - numberCacheMin + 1]*NumberValue
+	for i := range c {
+		c[i] = &NumberValue{Val: float64(i + numberCacheMin)}
+	}
+	return c
+}
+
+func NewNumber(v float64) *NumberValue {
+	if v >= numberCacheMin && v <= numberCacheMax {
+		if iv := int(v); float64(iv) == v {
+			return numberCache[iv-numberCacheMin]
+		}
+	}
+	return &NumberValue{Val: v}
+}
 
 // StringValue
 type StringValue struct{ Val string }
