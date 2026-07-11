@@ -19,20 +19,36 @@ func isolate(t *testing.T) (home, work string) {
 	return home, work
 }
 
+// wantAbs computes the same platform-native absolute form ResolveDatabasePath
+// itself produces via filepath.Abs, so tests don't hardcode Unix-style
+// strings that filepath.Abs rewrites differently on Windows (e.g.
+// "/custom/path.db" becomes "C:\custom\path.db", rooted at the current
+// drive rather than matching the literal Unix string).
+func wantAbs(t *testing.T, path string) string {
+	t.Helper()
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		t.Fatalf("filepath.Abs(%q): %v", path, err)
+	}
+	return abs
+}
+
 func TestResolveDatabasePathExplicit(t *testing.T) {
 	isolate(t)
+	want := wantAbs(t, "/custom/path.db")
 	got := ResolveDatabasePath("/custom/path.db")
-	if got != "/custom/path.db" {
-		t.Errorf("ResolveDatabasePath(explicit) = %q, want /custom/path.db", got)
+	if got != want {
+		t.Errorf("ResolveDatabasePath(explicit) = %q, want %q", got, want)
 	}
 }
 
 func TestResolveDatabasePathEnvVar(t *testing.T) {
 	isolate(t)
 	t.Setenv("ADVPP_DB", "/env/path.db")
+	want := wantAbs(t, "/env/path.db")
 	got := ResolveDatabasePath("")
-	if got != "/env/path.db" {
-		t.Errorf("ResolveDatabasePath() = %q, want /env/path.db (from ADVPP_DB)", got)
+	if got != want {
+		t.Errorf("ResolveDatabasePath() = %q, want %q (from ADVPP_DB)", got, want)
 	}
 }
 
@@ -51,15 +67,21 @@ func TestResolveDatabasePathNothingConfigured(t *testing.T) {
 
 // TestResolveDatabasePathHonorsRealConfig confere que um advpp_config.json
 // que REALMENTE existe em disco (não o valor sintético que LoadConfig
-// devolve por padrão) tem prioridade sobre o banco local.
+// devolve por padrão) tem prioridade sobre o banco local. Usa um caminho
+// dentro de t.TempDir() (não um literal "/configured/shared.db") porque
+// ResolveDatabasePath só aceita o valor do config quando filepath.IsAbs é
+// verdadeiro — um caminho estilo Unix sem letra de unidade não é absoluto
+// no Windows, então o literal cairia no fallback local em vez de exercitar
+// o caminho testado aqui.
 func TestResolveDatabasePathHonorsRealConfig(t *testing.T) {
 	isolate(t)
-	if err := SaveConfig(&Config{DefaultDatabase: "/configured/shared.db"}); err != nil {
+	configured := filepath.Join(t.TempDir(), "shared.db")
+	if err := SaveConfig(&Config{DefaultDatabase: configured}); err != nil {
 		t.Fatalf("SaveConfig: %v", err)
 	}
 	got := ResolveDatabasePath("")
-	if got != "/configured/shared.db" {
-		t.Errorf("ResolveDatabasePath() = %q, want /configured/shared.db (config real em disco)", got)
+	if got != configured {
+		t.Errorf("ResolveDatabasePath() = %q, want %q (config real em disco)", got, configured)
 	}
 }
 
