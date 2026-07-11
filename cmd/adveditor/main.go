@@ -13,6 +13,9 @@ import (
 	"github.com/advpl/compiler/pkg/tools/shared"
 )
 
+// version é injetada no build via -ldflags "-X main.version=v1.2.3" (make release).
+var version = "dev"
+
 // AdvEditorWindow representa a janela principal do AdvEditor
 type AdvEditorWindow struct {
 	window       fyne.Window
@@ -27,7 +30,7 @@ type AdvEditorWindow struct {
 
 // NewAdvEditorWindow cria uma nova janela do AdvEditor
 func NewAdvEditorWindow(a fyne.App) *AdvEditorWindow {
-	w := a.NewWindow("AdvEditor - Editor de Banco de Dados")
+	w := a.NewWindow(fmt.Sprintf("AdvEditor %s - Editor de Banco de Dados", version))
 	w.Resize(fyne.NewSize(1200, 800))
 
 	ae := &AdvEditorWindow{
@@ -868,7 +871,7 @@ func (ae *AdvEditorWindow) onDropIndex() {
 
 // onAbout exibe informações sobre
 func (ae *AdvEditorWindow) onAbout() {
-	dialog.ShowInformation("Sobre", "AdvEditor v1.0\nEditor de Banco de Dados AdvPL\nInspirado em APSDU", ae.window)
+	dialog.ShowInformation("Sobre", fmt.Sprintf("AdvEditor %s\nEditor de Banco de Dados AdvPL\nInspirado em APSDU", version), ae.window)
 }
 
 // onChangeDatabase troca o banco de dados

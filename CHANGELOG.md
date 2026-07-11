@@ -92,6 +92,64 @@ Sem regressão: `go build ./...`, `go vet ./...`, `go test ./...`,
 `make test` (30 fixtures), sweep completo do corpus de 500 arquivos
 (500/500).
 
+### advpp-ide: syntax highlight, banco auto-provisionado e integração com AdvEditor
+
+Pedido do usuário: fazer o advpp-ide acompanhar a evolução do adveditor — não
+só visualmente, mas também com syntax highlight, as mesmas características
+de acesso/criação de banco de dados, e permitir abrir o AdvEditor a partir
+do próprio IDE. Também pedido: auditar se o advpp-ide reflete todas as
+evoluções do compilador até aqui.
+
+- **Syntax highlight real** (`pkg/ui/editor.go`, `CodeEditor`): editor
+  colorido para AdvPL/TLPP (palavras-chave, tipos, strings, comentários,
+  números, diretivas `#`). `widget.Entry` do Fyne não suporta cor por
+  token, então o editor alterna entre um `widget.Entry` nativo (100% do
+  comportamento de edição — cursor, seleção, clipboard, IME) enquanto tem
+  foco, e um preview colorido (`widget.RichText`) somente-leitura assim que
+  perde o foco ou um arquivo é aberto; um clique no preview volta ao modo
+  de edição. As listas `advplKeywords`/`advplTypes` já existiam no arquivo
+  mas nunca tinham sido usadas — a UI mostrava um `widget.Entry` puro sem
+  nenhuma coloração.
+- **3 bugs reais de renderização Fyne encontrados via teste visual**
+  (Xvfb+xdotool+screenshot, invisíveis a `go build`/`go test`) ao construir
+  o alterna-preview: (1) `widget.RichText` só resolve seu
+  `BaseWidget.impl` preguiçosamente, no primeiro `CreateRenderer()`/
+  `MinSize()` — se o widget é escondido antes da primeira pintura, esse
+  gatilho nunca ocorre e todo `Refresh()`/`Show()` posterior vira no-op
+  silencioso para sempre (corrigido chamando `MinSize()` uma vez no
+  construtor). (2) `Container.Refresh()` (Fyne v2.4.4) nunca chama
+  `SetDirty()` no canvas — só `Container.Move()`/`Hide()` chamam — então
+  trocar `Objects` de um `container.Stack` em runtime e chamar só
+  `Refresh()` não repinta a tela (corrigido forçando um `Move()` para a
+  própria posição atual logo depois). (3) o bug real, mais sutil: o
+  widget "catcher" transparente usado para capturar o clique que volta ao
+  modo edição estava pintando um retângulo *opaco* da cor de fundo por
+  cima do preview colorido (`container.Stack` pinta objetos depois por
+  cima dos anteriores) — cobria o próprio texto que deveria deixar
+  visível. Corrigido trocando para `color.Transparent`.
+- **Banco de dados auto-provisionado**: `run()` usava o padrão antigo
+  (`os.Stat` + `SetDBEngine` condicional, pulando a conexão se o arquivo
+  ainda não existisse) — trocado pelo mesmo padrão `SetDBFactory` de
+  `attachDatabase` já usado em advplc desde a v1.10.0 anterior, então
+  `RetSqlName`/`DbSelectArea` funcionam a partir do advpp-ide sem
+  configuração prévia, com o mesmo banco local `./advpp.db`.
+- **Menu Tools → "Open AdvEditor (database)"**: lança o binário `adveditor`
+  como processo separado, procurando primeiro ao lado do executável do
+  advpp-ide (mesmo layout dos pacotes de release) e depois no PATH.
+- **Versão real no About/título**: `advplc`/`adveditor`/`advpp-ide` já
+  recebiam `-X main.version=` via `make release`, mas só `advplc`
+  declarava a variável `version` — nos outros dois o link `-X` era um
+  no-op silencioso e a UI sempre mostrava texto hardcoded ("v1.0",
+  "Version 1.0.0"). Corrigido nos dois.
+- **Auditoria de paridade com o compilador**: advpp-ide importa
+  `pkg/compiler`/`pkg/vm`/`pkg/parser` diretamente do mesmo módulo, então
+  motor LLM, MCP e `#command` já chegavam automaticamente — o único gap
+  real era o padrão de banco de dados acima.
+
+Sem regressão: `go build ./...`, `go vet ./...`, `go test ./...` (incluindo
+testes novos de `pkg/ui` para o tokenizer de highlight), `make test` (30
+fixtures), sweep completo do corpus de 500 arquivos (500/500).
+
 ## [1.9.1] — 2026-07-11
 
 ### 4 bugs reais de parser encontrados em validação fora do corpus de amostra
