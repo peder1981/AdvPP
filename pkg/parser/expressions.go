@@ -92,10 +92,47 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isKeyword(tok, "ADD") && p.isWord(p.peekAt(1), "OPTION") {
 		return p.parseAddOption()
 	}
+	// `ADD COLUMN <var> DATA {||...} Title ... Size ... Of oBrowse` —
+	// FWBrowse column DSL (distinto do ADD COLUMN do FDA mobile).
+	// `ADD MARKCOLUMN <var> DATA ... DOUBLECLICK ... HEADERCLICK ... OF ...`
+	// `ADD LINE/SECTION <var> ...` — TReport line/section DSL.
+	if p.isKeyword(tok, "ADD") && (p.isWord(p.peekAt(1), "COLUMN") ||
+		p.isWord(p.peekAt(1), "MARKCOLUMN") || p.isWord(p.peekAt(1), "LINE") ||
+		p.isWord(p.peekAt(1), "SECTION") || p.isWord(p.peekAt(1), "LEGEND") ||
+		p.isWord(p.peekAt(1), "ITEM") || p.isWord(p.peekAt(1), "BUTTON")) {
+		return p.parseAddWidget()
+	}
+	// `MENU` — bloco de menu legado (sintaxe: MENU ... EndMenu). Parseado
+	// como bloco que consome statements ate EndMenu.
+	if p.isKeyword(tok, "MENU") {
+		return p.parseMenuBlock()
+	}
+	// `MENUITEM <expr> ACTION <expr> [RESOURCE <expr>]` — item de menu
+	// legado dentro de MENU...ENDMENU. Parseado e descartado.
+	if p.isWord(tok, "MENUITEM") {
+		return p.parseMenuItem()
+	}
+	// `END REPORT QUERY <var>` — terminador de bloco BEGIN REPORT QUERY.
+	// Consome o var e descarta.
+	if p.isWord(tok, "END") && p.isWord(p.peekAt(1), "REPORT") && p.isWord(p.peekAt(2), "QUERY") {
+		p.advance() // END
+		p.advance() // REPORT
+		p.advance() // QUERY
+		if p.peek().Type == lexer.TOKEN_IDENT {
+			p.advance()
+		}
+		return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: &ast.NilLit{Loc: p.posFromToken(tok)}}, nil
+	}
+	// `PANELONLINE <var> ; ADDPANEL TITLE ... DESCR ... TYPE ... ONLOAD
+	// ...` — DSL de painel online (FWPanelOnLine). Consome clauses ate
+	// encontrar uma linha que nao continua com `;`.
+	if p.isWord(tok, "PANELONLINE") {
+		return p.parsePanelOnline()
+	}
 	// `ADD FOLDER <var> CAPTION <expr> OF <expr>` / `ADD COLUMN <var> TO
 	// <expr> ARRAY ELEMENT <n> HEADER <expr> WIDTH <n>` — DSL do FDA/mobile;
 	// parseado e descartado (sem UI mobile por trás).
-	if p.isKeyword(tok, "ADD") && (p.isWord(p.peekAt(1), "FOLDER") || p.isWord(p.peekAt(1), "COLUMN")) {
+	if p.isKeyword(tok, "ADD") && p.isWord(p.peekAt(1), "FOLDER") {
 		return p.parseAddWidget()
 	}
 	if p.isWord(tok, "DEFINE") {
@@ -496,13 +533,31 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "PREPARE") && p.isWord(p.peekAt(1), "ENVIRONMENT") {
 		return p.parsePrepareEnvironment()
 	}
+	// `RESET ENVIRONMENT [IN SERVER <expr>]` — fecha ambiente de job batch.
+	// `CLOSE RPCCONN <expr>` — fecha conexão RPC.
+	// `CALLPROC IN <server> FUNCTION <name> PARAMETERS <args...>` — remote
+	// procedure call via RPC. All parsed and discarded.
+	if (p.isWord(tok, "RESET") && p.isWord(p.peekAt(1), "ENVIRONMENT")) ||
+		(p.isWord(tok, "CLOSE") && p.isWord(p.peekAt(1), "RPCCONN")) ||
+		(p.isWord(tok, "CALLPROC") && p.isKeyword(p.peekAt(1), "IN")) {
+		p.advance() // RESET/CLOSE/CALLPROC
+		p.advance() // ENVIRONMENT/RPCCONN/IN
+		// consume remaining tokens on the same line (don't check
+		// isStatementBoundary — FUNCTION keyword would stop the loop
+		// prematurely in CALLPROC IN ... FUNCTION "name" PARAMETERS ...)
+		for p.peek().Type != lexer.TOKEN_EOF && p.peek().Line == tok.Line {
+			p.advance()
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "RESET_ENVIRONMENT", Args: nil}
+		return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+	}
 	// `ParamType <n> Var <name> As <type> [Default <expr>]` — declaração de
 	// metadados de parâmetro de rotina (objeto de negócio/REST), distinta
 	// do include obsoleto ParmType.ch; parseada e descartada.
 	if p.isWord(tok, "PARAMTYPE") {
 		return p.parseParamType()
 	}
-	if p.isKeyword(tok, "ACTIVATE") && (p.isWord(p.peekAt(1), "MSDIALOG") || p.isWord(p.peekAt(1), "DIALOG") || p.isWord(p.peekAt(1), "WIZARD") || p.isWord(p.peekAt(1), "WINDOW") || p.isWord(p.peekAt(1), "FWMBROWSE") || p.isWord(p.peekAt(1), "MBROWSE") || p.isWord(p.peekAt(1), "REPORT")) {
+	if p.isKeyword(tok, "ACTIVATE") && (p.isWord(p.peekAt(1), "MSDIALOG") || p.isWord(p.peekAt(1), "DIALOG") || p.isWord(p.peekAt(1), "WIZARD") || p.isWord(p.peekAt(1), "WINDOW") || p.isWord(p.peekAt(1), "FWMBROWSE") || p.isWord(p.peekAt(1), "MBROWSE") || p.isWord(p.peekAt(1), "REPORT") || p.isWord(p.peekAt(1), "FWBROWSE") || p.isWord(p.peekAt(1), "FWFORMBROWSE") || p.isWord(p.peekAt(1), "POPUP")) {
 		return p.parseActivateDialog()
 	}
 	if tok.Type == lexer.TOKEN_AT {
@@ -1319,7 +1374,11 @@ func (p *Parser) parseAddWidget() (ast.Statement, error) {
 		switch {
 		case p.isWord(cur, "CAPTION"), p.isKeyword(cur, "OF"), p.isKeyword(cur, "TO"),
 			p.isWord(cur, "HEADER"), p.isWord(cur, "WIDTH"), p.isKeyword(cur, "SIZE"),
-			p.isWord(cur, "ELEMENT"):
+			p.isWord(cur, "ELEMENT"), p.isWord(cur, "DATA"), p.isWord(cur, "Title"),
+			p.isWord(cur, "Size"), p.isWord(cur, "Of"), p.isWord(cur, "DOUBLECLICK"),
+			p.isWord(cur, "HEADERCLICK"), p.isWord(cur, "COLOR"), p.isWord(cur, "LEGEND"),
+			p.isWord(cur, "PICTURE"), p.isWord(cur, "ALIGN"), p.isWord(cur, "BITMAP"),
+			p.isKeyword(cur, "ACTION"):
 			p.advance()
 			vals, err := p.parseCommaValues()
 			if err != nil {
@@ -1328,6 +1387,11 @@ func (p *Parser) parseAddWidget() (ast.Statement, error) {
 			args = append(args, vals...)
 		// `ARRAY ELEMENT <n>` — ARRAY é só um qualificador sem valor próprio.
 		case p.isKeyword(cur, "ARRAY"):
+			p.advance()
+		// flag clauses with no value
+		case p.isWord(cur, "PIXELS"), p.isWord(cur, "AUTO"), p.isWord(cur, "HEADER"),
+			p.isWord(cur, "RIGHT"), p.isWord(cur, "LEFT"), p.isWord(cur, "CENTER"),
+			p.isWord(cur, "CENTERED"):
 			p.advance()
 		// `ON ACTIVATE <expr>` — callback do folder; consome o par de
 		// palavras e a expressão.
@@ -1344,6 +1408,76 @@ func (p *Parser) parseAddWidget() (ast.Statement, error) {
 			return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
 		}
 	}
+}
+
+// parseMenuBlock handles the legacy `MENU ... EndMenu` block. It consumes
+// statements until EndMenu (or a function boundary). The body is parsed and
+// discarded — no real menu engine behind it.
+func (p *Parser) parseMenuBlock() (ast.Statement, error) {
+	tok := p.advance() // MENU
+	for !p.isWord(p.peek(), "ENDMENU") && !p.isFunctionBoundary(p.peek()) &&
+		p.peek().Type != lexer.TOKEN_EOF {
+		stmt, err := p.parseStatement()
+		if err != nil {
+			return nil, err
+		}
+		_ = stmt
+	}
+	if p.isWord(p.peek(), "ENDMENU") {
+		p.advance()
+	}
+	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "MENU_BLOCK", Args: nil}
+	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+}
+
+// parseMenuItem handles `MENUITEM <expr> ACTION <expr> [RESOURCE <expr>]`
+// inside a MENU...ENDMENU block. Parsed and discarded.
+func (p *Parser) parseMenuItem() (ast.Statement, error) {
+	tok := p.advance() // MENUITEM
+	// prompt expression
+	if _, err := p.parseOr(); err != nil {
+		return nil, err
+	}
+	// clauses: ACTION, RESOURCE, etc.
+	for p.isWord(p.peek(), "ACTION") || p.isWord(p.peek(), "RESOURCE") ||
+		p.isWord(p.peek(), "CHECKED") || p.isWord(p.peek(), "DISABLED") {
+		clauseTok := p.advance()
+		if p.isWord(clauseTok, "CHECKED") || p.isWord(clauseTok, "DISABLED") {
+			continue // flags, no value
+		}
+		if _, err := p.parseOr(); err != nil {
+			return nil, err
+		}
+	}
+	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "MENU_ITEM", Args: nil}
+	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+}
+
+// parsePanelOnline handles `PANELONLINE <var> ; ADDPANEL TITLE ... DESCR ...
+// TYPE ... ONLOAD ... ONRUN ...`. Clauses are separated by `;` continuation
+// and terminated when a line doesn't end with `;`. Everything is consumed and
+// discarded.
+func (p *Parser) parsePanelOnline() (ast.Statement, error) {
+	tok := p.advance() // PANELONLINE
+	// optional target var
+	if p.peek().Type == lexer.TOKEN_IDENT {
+		p.advance()
+	}
+	// consume all tokens until we hit a line that doesn't end with `;`
+	// or a function boundary / EOF
+	for p.peek().Type != lexer.TOKEN_EOF && !p.isFunctionBoundary(p.peek()) {
+		cur := p.peek()
+		// stop on keywords that start a new statement on a new line
+		if cur.Line != tok.Line && (p.isKeyword(cur, "IF") || p.isKeyword(cur, "FOR") ||
+			p.isKeyword(cur, "WHILE") || p.isKeyword(cur, "RETURN") ||
+			p.isKeyword(cur, "FUNCTION") || p.isKeyword(cur, "USER") ||
+			p.isKeyword(cur, "STATIC") || p.isKeyword(cur, "METHOD")) {
+			break
+		}
+		p.advance()
+	}
+	call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "PANELONLINE", Args: nil}
+	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
 }
 
 // parseAddOption handles the MenuDef() `#xcommand` idiom:
@@ -1376,8 +1510,9 @@ func (p *Parser) parseAddOption() (ast.Statement, error) {
 			name = "OPERATION"
 		case p.isWord(cur, "ACCESS"):
 			name = "ACCESS"
-		case p.isWord(cur, "DISABLE"):
-			name = "DISABLE"
+		case p.isWord(cur, "DISABLE"), p.isWord(cur, "MENU"):
+			p.advance() // flag clauses, no value
+			continue
 		case p.isWord(cur, "ID"):
 			name = "ID"
 		case p.isWord(cur, "TOOLBAR"):
@@ -1485,6 +1620,13 @@ func (p *Parser) isDefineClauseWord(tok lexer.Token) bool {
 		"STYLE", "ICON", "NAME", "SIZE", "TYPE", "ACTION", "ALIAS",
 		"BOLD", "ITALIC", "UNDERLINE", "PARAMETER", "PARAMETERS", "DESCRIPTION",
 		"TABLES", "PICTURE", "WHEN", "ONSTOP", "BLOCK",
+		"ALIGN", "HEADER", "AUTO", "BITMAP", "PIXELS", "RIGHT", "LEFT",
+		"CENTER", "CENTERED", "DATA", "PROMPT", "BREAK", "EXEC", "BACK",
+		"FINISH", "MESSAGE", "TEXT", "DOUBLECLICK", "HEADERCLICK", "LEGEND",
+		"NOBORDER", "ADJUST", "HTML", "BOTTOM", "PANEL", "NOFIRSTPANEL",
+		"TOP", "GROUP", "VERTICAL", "HORIZONTAL", "COLORS", "RESOURCE",
+		"RESNAME", "TOOLTIP", "RANGE", "INTERVAL", "CARGO", "FUNCTION",
+		"NO", "TOTAL", "NEXT", "ON", "CELL",
 	} {
 		if p.isWord(tok, kw) {
 			return true
@@ -1532,8 +1674,65 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			name = "OF"
 		case p.isKeyword(cur, "PIXEL"), p.isWord(cur, "ENABLE"), p.isWord(cur, "DISABLE"),
 			p.isWord(cur, "PANEL"), p.isWord(cur, "NOFIRSTPANEL"), p.isWord(cur, "TOP"), p.isWord(cur, "GROUP"),
-			p.isWord(cur, "VERTICAL"), p.isWord(cur, "HORIZONTAL"):
+			p.isWord(cur, "VERTICAL"), p.isWord(cur, "HORIZONTAL"),
+			p.isWord(cur, "BOTTOM"), p.isWord(cur, "ADJUST"), p.isWord(cur, "HTML"),
+			p.isWord(cur, "CENTERED"), p.isWord(cur, "NOBORDER"):
 			p.advance() // flag clauses, no value
+			continue
+		// `DEFINE FWBrowse ... NO CONFIG/REPORT/SEEK/LOCATE ...` — two-word flags
+		case p.isWord(cur, "NO") && (p.isWord(p.peekAt(1), "CONFIG") || p.isWord(p.peekAt(1), "REPORT") ||
+			p.isWord(p.peekAt(1), "SEEK") || p.isWord(p.peekAt(1), "LOCATE")):
+			p.advance()
+			p.advance()
+			continue
+		// `DEFINE REPORT ... TOTAL IN COLUMN` — three-word flag
+		case p.isWord(cur, "TOTAL") && p.isWord(p.peekAt(1), "IN") && p.isWord(p.peekAt(2), "COLUMN"):
+			p.advance()
+			p.advance()
+			p.advance()
+			continue
+		// `DEFINE WIZARD ... TEXT <expr> ...` — clause de texto do wizard
+		case p.isWord(cur, "TEXT"):
+			name = "TEXT"
+		// `DEFINE FWFORMBROWSE ... DATA ARRAY [ARRAY] aArr` — DATA ARRAY
+		// is a flag pair, the next token is the actual data source.
+		case p.isWord(cur, "DATA") && p.isWord(p.peekAt(1), "ARRAY"):
+			p.advance() // DATA
+			p.advance() // ARRAY
+			if p.isWord(p.peek(), "ARRAY") {
+				p.advance()
+			}
+			vals, err := p.parseDefineCommaValues()
+			if err != nil {
+				return nil, err
+			}
+			clauses["DATA"] = vals
+			continue
+		// `DEFINE FWBrowse ... DATA TABLE ALIAS 'xxx'` ou `DATA {|| ...}`
+		case p.isWord(cur, "DATA") && p.isWord(p.peekAt(1), "TABLE"):
+			p.advance() // DATA
+			p.advance() // TABLE
+			if p.isWord(p.peek(), "ALIAS") {
+				p.advance() // ALIAS
+			}
+			vals, err := p.parseDefineCommaValues()
+			if err != nil {
+				return nil, err
+			}
+			clauses["DATA"] = vals
+			continue
+		case p.isWord(cur, "DOUBLECLICK"):
+			name = "DOUBLECLICK"
+		// `DEFINE DBTREE ... ON RIGHT CLICK <expr> ...` — three-word clause
+		case p.isWord(cur, "ON") && p.isWord(p.peekAt(1), "RIGHT") && p.isWord(p.peekAt(2), "CLICK"):
+			p.advance() // ON
+			p.advance() // RIGHT
+			p.advance() // CLICK
+			val, err := p.parseAssignableExpr()
+			if err != nil {
+				return nil, err
+			}
+			clauses["ON_RIGHT_CLICK"] = []ast.Expression{val}
 			continue
 		// `DEFINE BUTTONBAR ... 3D TOP OF ...` — "3D" tokeniza como NUMBER
 		// "3" + IDENT "D" separados (identificador não pode começar com
@@ -1543,10 +1742,10 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			p.advance()
 			p.advance()
 			continue
-		// `DEFINE FUNCTION ... NO END SECTION` — TReport column aggregate,
-		// three-word flag with no value (don't force a page break after the
-		// section's aggregate line).
-		case p.isWord(cur, "NO") && p.isWord(p.peekAt(1), "END") && p.isWord(p.peekAt(2), "SECTION"):
+		// `DEFINE FUNCTION ... NO END SECTION/REPORT` — TReport column
+		// aggregate, three-word flag with no value.
+		case p.isWord(cur, "NO") && p.isWord(p.peekAt(1), "END") &&
+			(p.isWord(p.peekAt(2), "SECTION") || p.isWord(p.peekAt(2), "REPORT")):
 			p.advance()
 			p.advance()
 			p.advance()
@@ -1559,7 +1758,7 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			name = "HEADER"
 		case p.isWord(cur, "MESSAGE"):
 			name = "MESSAGE"
-		case p.isKeyword(cur, "NEXT"):
+		case p.isKeyword(cur, "NEXT") && (kind == "WIZARD" || kind == "PANEL"):
 			name = "NEXT"
 		case p.isWord(cur, "BACK"):
 			name = "BACK"
@@ -1642,11 +1841,39 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			p.advance()
 			p.advance()
 			continue
+		// `DEFINE CELL/COLUMN ... ALIGN LEFT/RIGHT/CENTER` — alignment flag.
+		case p.isWord(cur, "ALIGN"):
+			p.advance()
+			if p.isWord(p.peek(), "LEFT") || p.isWord(p.peek(), "RIGHT") ||
+				p.isWord(p.peek(), "CENTER") || p.isWord(p.peek(), "CENTERED") {
+				p.advance()
+			}
+			continue
+		// `DEFINE COLUMN ... PIXELS` — flag, no value.
+		case p.isWord(cur, "PIXELS"):
+			p.advance()
+			continue
+		// `DEFINE COLUMN ... BITMAP` — flag, no value.
+		case p.isWord(cur, "BITMAP"):
+			p.advance()
+			continue
+		// `DEFINE CELL ... CELL BREAK` — CELL is a flag in DEFINE CELL context.
+		case p.isWord(cur, "CELL"):
+			p.advance()
+			continue
+		// `DEFINE COLUMN ... HEADER <expr>` — already handled above for some
+		// kinds, but HEADER is a keyword in some contexts; treat as clause.
+		case p.isWord(cur, "HEADER") && kind != "WIZARD" && kind != "PANEL":
+			name = "HEADER"
+		// `DEFINE COLUMN oCol DATA <expr>` — generic DATA clause (not DATA
+		// TABLE or DATA ARRAY, those are handled above).
+		case p.isKeyword(cur, "DATA"):
+			name = "DATA"
 		default:
 			goto done
 		}
 		p.advance()
-		vals, err := p.parseCommaValues()
+		vals, err := p.parseDefineCommaValues()
 		if err != nil {
 			return nil, err
 		}
@@ -1684,6 +1911,36 @@ func (p *Parser) parseCommaValues() ([]ast.Expression, error) {
 			break
 		}
 		p.advance()
+		v, err := p.parseOr()
+		if err != nil {
+			return nil, err
+		}
+		vals = append(vals, v)
+	}
+	return vals, nil
+}
+
+// parseDefineCommaValues is like parseCommaValues but stops when the next
+// token is a known DEFINE clause word (e.g. `HEADER ALIGN RIGHT BLOCK` —
+// HEADER's value is not ALIGN, ALIGN is the next clause).
+func (p *Parser) parseDefineCommaValues() ([]ast.Expression, error) {
+	if p.isDefineClauseWord(p.peek()) {
+		return []ast.Expression{&ast.NilLit{Loc: p.posFromToken(p.peek())}}, nil
+	}
+	first, err := p.parseOr()
+	if err != nil {
+		return nil, err
+	}
+	vals := []ast.Expression{first}
+	for p.peek().Type == lexer.TOKEN_COMMA {
+		if p.isDefineClauseWord(p.peekAt(1)) {
+			p.advance()
+			break
+		}
+		p.advance()
+		if p.isDefineClauseWord(p.peek()) {
+			break
+		}
 		v, err := p.parseOr()
 		if err != nil {
 			return nil, err
@@ -1954,7 +2211,7 @@ func (p *Parser) parseParamType() (ast.Statement, error) {
 
 func (p *Parser) parsePrepareEnvironment() (ast.Statement, error) {
 	tok := p.advance() // PREPARE
-	p.advance()         // ENVIRONMENT
+	p.advance()        // ENVIRONMENT
 	args := []ast.Expression{}
 	clauseVal := func(cur lexer.Token, name string) error {
 		p.advance()
@@ -2272,7 +2529,7 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 	for p.isAtClauseWord(p.peek()) ||
 		(p.peek().Type == lexer.TOKEN_NUMBER && p.peek().Value == "3" &&
 			p.peekAt(1).Type == lexer.TOKEN_IDENT && strings.EqualFold(p.peekAt(1).Value, "D")) ||
-		(p.isWord(p.peek(), "NO") && (p.isWord(p.peekAt(1), "SCROLL") || p.isWord(p.peekAt(1), "UNDERLINE"))) {
+		(p.isWord(p.peek(), "NO") && (p.isWord(p.peekAt(1), "SCROLL") || p.isWord(p.peekAt(1), "UNDERLINE") || p.isWord(p.peekAt(1), "BORDER"))) {
 		// `@ ... RADIO ... ITEMS ... 3D SIZE w,h ...` — "3D" tokeniza como
 		// NUMBER "3" + IDENT "D" (identificador não pode começar com
 		// dígito); flag de layout do RADIO/CHECKBOX, sem valor.
@@ -2284,7 +2541,7 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 		}
 		// `@ ... BROWSE ... NO SCROLL ...` / `@ ... GET ... NO UNDERLINE ...`
 		// — flags de duas palavras (DSL mobile FDA).
-		if p.isWord(p.peek(), "NO") && (p.isWord(p.peekAt(1), "SCROLL") || p.isWord(p.peekAt(1), "UNDERLINE")) {
+		if p.isWord(p.peek(), "NO") && (p.isWord(p.peekAt(1), "SCROLL") || p.isWord(p.peekAt(1), "UNDERLINE") || p.isWord(p.peekAt(1), "BORDER")) {
 			p.advance()
 			p.advance()
 			continue
@@ -2299,7 +2556,7 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 			}
 			continue
 		}
-		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") || p.isWord(clauseTok, "VSCROLL") || p.isWord(clauseTok, "HASBUTTON") || p.isWord(clauseTok, "SYMBOL") || p.isWord(clauseTok, "RIGHT") || p.isWord(clauseTok, "CENTERED") || p.isWord(clauseTok, "RAISED") {
+		if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "CLICKFOCUS") || p.isWord(clauseTok, "RESET") || p.isWord(clauseTok, "MEMO") || p.isWord(clauseTok, "FIELDS") || p.isWord(clauseTok, "NOSCROLL") || p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "PASSWORD") || p.isWord(clauseTok, "LOWERED") || p.isWord(clauseTok, "READONLY") || p.isWord(clauseTok, "VERTICAL") || p.isWord(clauseTok, "HORIZONTAL") || p.isWord(clauseTok, "MULTILINE") || p.isWord(clauseTok, "HSCROLL") || p.isWord(clauseTok, "VSCROLL") || p.isWord(clauseTok, "HASBUTTON") || p.isWord(clauseTok, "SYMBOL") || p.isWord(clauseTok, "RIGHT") || p.isWord(clauseTok, "CENTERED") || p.isWord(clauseTok, "RAISED") || p.isWord(clauseTok, "HTML") || p.isWord(clauseTok, "ADJUST") {
 			continue // flag clauses, no value
 		}
 		// `@ ... LISTBOX ... ON DBLCLICK <expr> ...` — o nome do evento
@@ -2355,7 +2612,7 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		"TO", "LABEL", "FROM",
 		// `@ ... LISTBOX ... FIELDS HEADER a,b,c ... ON DBLCLICK expr
 		// NOSCROLL OF window PIXEL` — mais cláusulas do LISTBOX.
-		"FIELDS", "HEADER", "HEADERS", "ON", "NOSCROLL", "FIELDSIZES", "MULTILINE", "HSCROLL", "VSCROLL", "HASBUTTON",
+		"FIELDS", "HEADER", "HEADERS", "COLSIZES", "ON", "NOSCROLL", "FIELDSIZES", "MULTILINE", "HSCROLL", "VSCROLL", "HASBUTTON",
 		"RESOLUTION", "VALUE",
 		// `@ y,x BUTTON var PROMPT "texto" SIZE w,h OF window PIXEL ACTION
 		// expr` — PROMPT é o texto do botão.
@@ -2579,6 +2836,47 @@ func (p *Parser) parseExprStatement() (ast.Statement, error) {
 		one := &ast.NumberLit{Loc: p.posFromToken(opTok), Value: 1, Str: "1"}
 		combined := &ast.BinaryOp{Loc: p.posFromToken(tok), Op: op, Left: expr, Right: one}
 		return &ast.AssignStmt{Loc: p.posFromToken(tok), Target: expr, Value: combined, Op: ":="}, nil
+	}
+
+	// Trailing DSL clause words after an expression statement — e.g.
+	// `oSize:GetDimension("TOP","YSIZE") ADJUST NO BORDER OF oDlgManu PIXEL`
+	// where the method call is followed by layout flags. Consume them
+	// silently (same line only, to avoid eating the next statement).
+	//
+	// "Same line only" MUST be an actual line check: isAtClauseWord matches
+	// plain words like ITEM/SIZE/TO/OF/COLOR/FONT that are common identifier
+	// names too (e.g. a bare `item` statement followed on the next line by
+	// `item := {}` — ITEM is a clause word, so without this guard the second
+	// statement's leading ident got eaten as a trailing clause here, and
+	// then its `:=` came out as "unexpected token").
+	sameLine := func() bool {
+		return p.pos > 0 && p.tokens[p.pos-1].Line == p.peek().Line
+	}
+	if sameLine() && (p.isAtClauseWord(p.peek()) || (p.isWord(p.peek(), "NO") && p.isWord(p.peekAt(1), "BORDER")) ||
+		p.isWord(p.peek(), "ADJUST")) {
+		for sameLine() && (p.isAtClauseWord(p.peek()) || (p.isWord(p.peek(), "NO") && p.isWord(p.peekAt(1), "BORDER")) ||
+			p.isWord(p.peek(), "ADJUST")) {
+			if p.isWord(p.peek(), "NO") && p.isWord(p.peekAt(1), "BORDER") {
+				p.advance()
+				p.advance()
+				continue
+			}
+			clauseTok := p.advance()
+			if p.isWord(clauseTok, "PIXEL") || p.isWord(clauseTok, "ADJUST") ||
+				p.isWord(clauseTok, "NOBORDER") || p.isWord(clauseTok, "CENTERED") ||
+				p.isWord(clauseTok, "HTML") {
+				continue
+			}
+			// clause with value(s)
+			if p.peek().Type != lexer.TOKEN_EOF && !p.isStatementBoundary(p.peek()) &&
+				!p.isAtClauseWord(p.peek()) &&
+				!(p.isWord(p.peek(), "NO") && p.isWord(p.peekAt(1), "BORDER")) &&
+				!p.isWord(p.peek(), "ADJUST") {
+				if _, err := p.parseCommaValues(); err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 
 	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: expr}, nil
@@ -2818,13 +3116,18 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 				p.advance()
 				// alias->(expr1, expr2, ...) — same comma-sequence production
 				// as plain `(a, b, c)`, evaluates all and yields the last.
+				// Itens vazios (`, ,`) são tolerados pelo Protheus real.
 				items := []ast.Expression{}
 				for {
-					item, err := p.parseCodeBlockItem()
-					if err != nil {
-						return nil, err
+					if p.peek().Type == lexer.TOKEN_COMMA || p.peek().Type == lexer.TOKEN_RPAREN {
+						items = append(items, &ast.NilLit{Loc: p.posFromToken(p.peek())})
+					} else {
+						item, err := p.parseCodeBlockItem()
+						if err != nil {
+							return nil, err
+						}
+						items = append(items, item)
 					}
-					items = append(items, item)
 					if p.peek().Type != lexer.TOKEN_COMMA {
 						break
 					}
@@ -3140,6 +3443,11 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 			}
 			var bodyStmts []ast.Statement
 			var singleExpr ast.Expression
+			// vírgula perdida logo após os parâmetros ({|x|,expr} — typo
+			// real tolerado pelo compilador Protheus)
+			if p.peek().Type == lexer.TOKEN_COMMA {
+				p.advance()
+			}
 			for p.peek().Type != lexer.TOKEN_RBRACE && p.peek().Type != lexer.TOKEN_EOF {
 				expr, err := p.parseCodeBlockItem()
 				if err != nil {

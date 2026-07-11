@@ -2,6 +2,36 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.8.7] — 2026-07-11
+
+### Sweep de pass-rate no corpus Protheus real (98,6% → 100%, 500/500)
+
+- **Bug estrutural (parser)**: cláusulas soltas de DSL (`ADJUST`/`NO BORDER`/
+  `OF`/...) depois de uma expression statement eram consumidas mesmo
+  quando o próximo token estava em outra linha — o comentário do código
+  já dizia "same line only", mas faltava o check de `.Line` de fato.
+  `isAtClauseWord` reconhece palavras genéricas como `ITEM`, `SIZE`, `TO`,
+  `OF`, `COLOR`, `FONT` — nomes comuns de variável/campo — então um
+  statement solto (`item`) seguido na linha seguinte por
+  `item := {}` (ITEM é cláusula de RADIO/COMBOBOX) comia o segundo
+  `item` como cláusula e sobrava um `:=` "inesperado". Agora exige
+  `p.tokens[p.pos-1].Line == p.peek().Line` para entrar/continuar no loop.
+- **Bug estrutural (lexer + cmd/advplc)**: `cmd/advplc` converte fontes
+  CP-1252 para UTF-8 antes de lexar; um NBSP (0xA0) colado por editores de
+  texto vira a sequência UTF-8 de 2 bytes `0xC2 0xA0`, não um `0xA0`
+  solto. A heurística do lexer "byte >= 0x80 é letra acentuada CP-1252"
+  engolia o `0xC2` para dentro do identificador seguinte
+  (`MSGET\xc2\xa0cBanco` virava um único identificador corrompido),
+  desalinhando a tokenização e quebrando o parse 1-2 statements depois —
+  o clássico "drift bug" da sessão. Faixa de tokens idêntica entre a
+  versão corrompida e a versão limpa em ferramentas de depuração que leem
+  bytes crus (sem a conversão CP1252→UTF8) mascarou o diagnóstico por
+  várias iterações. Corrigido reconhecendo a sequência de 2 bytes como
+  espaço em branco tanto em `skipWhitespace` quanto no scanner de
+  identificadores (`tokenizeIdentifier` para de consumir ao encontrá-la).
+- Pass-rate final: **500/500 (100%)** no corpus de amostra (811R4 +
+  12.1.2510).
+
 ## [1.8.6] — 2026-07-10
 
 ### Sweep de pass-rate no corpus Protheus real (96,8% → 98,6%)
