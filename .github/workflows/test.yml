@@ -57,12 +57,18 @@ jobs:
             kill -0 $pid 2>/dev/null || break
             sleep 1
           done
+          hung=0
           if kill -0 $pid 2>/dev/null; then
-            echo "process still running after 30s, killing"
+            echo "FAIL: process still running after 30s (should exit on its own), killing"
             kill -9 $pid 2>/dev/null || true
+            hung=1
           fi
           echo "--- out.log ---"
           cat out.log
           echo "---------------"
           grep -q "standalone smoke test: linha 1" out.log
           grep -q "standalone smoke test: linha 2" out.log
+          # A forced kill means the exe hung instead of exiting on its own —
+          # that's the actual bug under test, so it must fail the step even
+          # though the expected output made it into out.log before the kill.
+          test "$hung" -eq 0
