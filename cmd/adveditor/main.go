@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/advpl/compiler/pkg/tools/shared"
+	"github.com/advpl/compiler/pkg/ui"
 )
 
 // version é injetada no build via -ldflags "-X main.version=v1.2.3" (make release).
@@ -222,7 +223,7 @@ func (ae *AdvEditorWindow) selectFile(driver string, sharedMode, readonly bool) 
 	}
 
 	// Se não for SQLite ou não encontrou banco padrão, mostra diálogo de seleção
-	dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
+	fd := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
 		if err != nil || reader == nil {
 			return
 		}
@@ -234,6 +235,10 @@ func (ae *AdvEditorWindow) selectFile(driver string, sharedMode, readonly bool) 
 
 		ae.openDatabasePath(filePath, ae.getDriverCode(driver), sharedMode, readonly, driver)
 	}, ae.window)
+	if loc := ui.CurrentDirLocation(); loc != nil {
+		fd.SetLocation(loc)
+	}
+	fd.Show()
 }
 
 // openDatabasePath abre o banco de dados no caminho especificado
@@ -876,7 +881,7 @@ func (ae *AdvEditorWindow) onAbout() {
 
 // onChangeDatabase troca o banco de dados
 func (ae *AdvEditorWindow) onChangeDatabase() {
-	dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
+	fd := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
 		if err != nil || reader == nil {
 			return
 		}
@@ -910,6 +915,10 @@ func (ae *AdvEditorWindow) onChangeDatabase() {
 		ae.loadTablesFromDatabase()
 		ae.statusBar.SetText("Banco de dados alterado: " + filePath)
 	}, ae.window)
+	if loc := ui.CurrentDirLocation(); loc != nil {
+		fd.SetLocation(loc)
+	}
+	fd.Show()
 }
 
 // updateTreeView atualiza a tree view

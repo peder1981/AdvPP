@@ -215,6 +215,9 @@ func (ide *IDE) openFile() {
 		ide.output.Append("Opened: " + reader.URI().Path())
 	}, ide.window)
 	fd.SetFilter(storage.NewExtensionFileFilter([]string{".prw", ".tlpp", ".prg"}))
+	if loc := ui.CurrentDirLocation(); loc != nil {
+		fd.SetLocation(loc)
+	}
 	fd.Show()
 }
 
@@ -257,6 +260,9 @@ func (ide *IDE) saveFileAs() {
 	}, ide.window)
 	fd.SetFileName("untitled.prw")
 	fd.SetFilter(storage.NewExtensionFileFilter([]string{".prw", ".tlpp", ".prg"}))
+	if loc := ui.CurrentDirLocation(); loc != nil {
+		fd.SetLocation(loc)
+	}
 	fd.Show()
 }
 
