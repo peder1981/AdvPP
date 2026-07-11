@@ -68,6 +68,12 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isWord(tok, "SET") && p.isWord(p.peekAt(1), "KEY") {
 		return p.parseSetCommand()
 	}
+	// `SET DATE FORMAT <expr>` — variante sem TO (Clipper clássico:
+	// `SET DATE FORMAT "dd/mm/yyyy"`), não cai na condição genérica acima
+	// porque o token depois de DATE é FORMAT, não TO/ON/OFF/OF.
+	if p.isWord(tok, "SET") && p.isWord(p.peekAt(1), "DATE") && p.isWord(p.peekAt(2), "FORMAT") {
+		return p.parseSetCommand()
+	}
 	// `SET BROWSE <var> ARRAY <expr>` — DSL mobile FDA: vincula o array de
 	// dados ao browse; parseado e descartado.
 	if p.isWord(tok, "SET") && p.isWord(p.peekAt(1), "BROWSE") {
@@ -673,7 +679,13 @@ func (p *Parser) parseVarDecl() (ast.Statement, error) {
 		return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
 	}
 
-	nameTok, err := p.expect(lexer.TOKEN_IDENT)
+	// expectName (not expect(TOKEN_IDENT)) — a Local/Private/Public/Static
+	// variable can be named after a word that's only reserved as a TLPP
+	// type-annotation keyword elsewhere (`Local dAte := ...`, `dAte`
+	// collides with the `Date` type keyword case-insensitively; common
+	// real-world abbreviation, e.g. "data até"). Same reasoning already
+	// applied to function/method parameter names elsewhere in this file.
+	nameTok, err := p.expectName()
 	if err != nil {
 		return nil, err
 	}
@@ -734,7 +746,11 @@ func (p *Parser) parseVarDecl() (ast.Statement, error) {
 	decls := []*ast.VarDecl{decl}
 	for p.peek().Type == lexer.TOKEN_COMMA {
 		p.advance()
-		if p.peek().Type != lexer.TOKEN_IDENT {
+		// KEYWORD accepted too (same reasoning as the first name above,
+		// e.g. `Local a, dAte`) — safe here because a Local/Private/
+		// Public/Static declaration list has no other clause syntax a
+		// keyword after the comma could plausibly mean instead.
+		if p.peek().Type != lexer.TOKEN_IDENT && p.peek().Type != lexer.TOKEN_KEYWORD {
 			break
 		}
 		extraName := p.advance()
@@ -2336,6 +2352,18 @@ func (p *Parser) parseSetCommand() (ast.Statement, error) {
 		}
 		args = append(args, keyExpr)
 	}
+	// `SET DATE FORMAT <expr>` — sem TO, "FORMAT" já é o valor-clausula
+	// completo (não há mais nada a consumir depois do valor).
+	if p.isWord(nameTok, "DATE") && p.isWord(p.peek(), "FORMAT") {
+		p.advance() // FORMAT
+		val, err := p.parseOr()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, val)
+		call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "SET_" + strings.ToUpper(nameTok.Value), Args: args}
+		return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
+	}
 	// `SET MESSAGE OF oWnd TO expr [NOINSET] [FONT oFont]` — cláusula OF
 	// (janela/controle alvo) antes do TO, e clausulas finais soltas.
 	if p.isWord(p.peek(), "OF") {
@@ -3160,8 +3188,11 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 				} else if _, err := p.expect(lexer.TOKEN_IDENT); err != nil {
 					return nil, err
 				}
-				if ident, ok := expr.(*ast.Ident); ok {
-					expr = &ast.FieldAccess{Loc: p.posFromToken(tok), Alias: ident.Name, Field: ""}
+				switch a := expr.(type) {
+				case *ast.Ident:
+					expr = &ast.FieldAccess{Loc: p.posFromToken(tok), Alias: a.Name, Field: ""}
+				case *ast.StringLit:
+					expr = &ast.FieldAccess{Loc: p.posFromToken(tok), Alias: a.Value, Field: ""}
 				}
 				break
 			}
@@ -3171,8 +3202,21 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 			if err != nil {
 				return nil, err
 			}
-			if ident, ok := expr.(*ast.Ident); ok {
-				expr = &ast.FieldAccess{Loc: p.posFromToken(tok), Alias: ident.Name, Field: fieldTok.Value}
+			switch a := expr.(type) {
+			case *ast.Ident:
+				expr = &ast.FieldAccess{Loc: p.posFromToken(tok), Alias: a.Name, Field: fieldTok.Value}
+			case *ast.StringLit:
+				// `(ALIAS_MACRO)->field` where ALIAS_MACRO is `#define`d to a
+				// string literal (`#define TMP_ALIAS "TMP009"`, a common real-
+				// world idiom for a work-area alias constant) — after macro
+				// expansion the alias expression is a StringLit, not an Ident.
+				// Without this case, the switch above silently fell through:
+				// `expr` stayed the bare StringLit and the `->field` got
+				// dropped entirely, so an assignment like `(TMP_ALIAS)->OK :=
+				// x` ended up with the STRING as its target — codegen error
+				// ("unsupported assignment target: *ast.StringLit"), found
+				// against real Protheus source (Conciliador BLU/ORTA009.TLPP).
+				expr = &ast.FieldAccess{Loc: p.posFromToken(tok), Alias: a.Value, Field: fieldTok.Value}
 			}
 		case lexer.TOKEN_LPAREN:
 			// Newlines are stripped before parsing, so a call-like `(` that
@@ -3607,6 +3651,16 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 					return &ast.Ident{Loc: p.posFromToken(tok), Name: tok.Value}, nil
 				}
 			}
+			// Fallback final: nenhuma forma acima casou, mas parsePrimary só é
+			// chamado onde um operando é OBRIGATÓRIO — trata como Ident comum
+			// em vez de erro. Cobre keyword-colisão em posição de valor puro
+			// (`Return dAte`, `x := dAte` no fim da linha, sem token de
+			// continuação depois para o heurístico acima reconhecer) — mesmo
+			// idioma real de `dAte`/`dDate` como nome de variável já aceito em
+			// posição de declaração (expectName). Consome só este token, sem
+			// risco de engolir o próximo statement.
+			p.advance()
+			return &ast.Ident{Loc: p.posFromToken(tok), Name: tok.Value}, nil
 		}
 		return nil, fmt.Errorf("unexpected token %v (%q) at %s:%d:%d",
 			tok.Type, tok.Value, tok.FileName, tok.Line, tok.Col)
