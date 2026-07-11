@@ -41,10 +41,28 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         timeout-minutes: 3
+        env:
+          ADVPP_STUB_TRACE: "1"
         run: |
           go build -o advplc.exe ./cmd/advplc
           ./advplc.exe build tests/standalone_console_test.prw -o standalone_smoke.exe
-          output=$(./standalone_smoke.exe)
-          echo "$output"
-          echo "$output" | grep -q "standalone smoke test: linha 1"
-          echo "$output" | grep -q "standalone smoke test: linha 2"
+          # Run detached with our own poll+kill instead of `output=$(...)`:
+          # command substitution blocks until the process exits, so a hang
+          # would show zero output at all (even from ADVPP_STUB_TRACE) —
+          # writing to a file lets us see whatever DID happen even if it
+          # never finishes.
+          ./standalone_smoke.exe > out.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 30); do
+            kill -0 $pid 2>/dev/null || break
+            sleep 1
+          done
+          if kill -0 $pid 2>/dev/null; then
+            echo "process still running after 30s, killing"
+            kill -9 $pid 2>/dev/null || true
+          fi
+          echo "--- out.log ---"
+          cat out.log
+          echo "---------------"
+          grep -q "standalone smoke test: linha 1" out.log
+          grep -q "standalone smoke test: linha 2" out.log
