@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -22,6 +24,9 @@ import (
 	"github.com/advpl/compiler/pkg/vm"
 )
 
+// version é injetada no build via -ldflags "-X main.version=v1.2.3" (make release).
+var version = "dev"
+
 type IDE struct {
 	window   fyne.Window
 	editor   *ui.CodeEditor
@@ -38,7 +43,7 @@ func main() {
 		app: a,
 	}
 
-	w := a.NewWindow("AdvPP IDE - AdvPL/TLPP Development Environment")
+	w := a.NewWindow(fmt.Sprintf("AdvPP IDE %s - AdvPL/TLPP Development Environment", version))
 	w.SetMainMenu(ide.makeMainMenu())
 	w.Resize(fyne.NewSize(1200, 800))
 
@@ -120,13 +125,60 @@ func (ide *IDE) makeMainMenu() *fyne.MainMenu {
 		}),
 	)
 
+	toolsMenu := fyne.NewMenu("Tools",
+		fyne.NewMenuItem("Open AdvEditor (database)", func() {
+			ide.openAdvEditor()
+		}),
+	)
+
 	helpMenu := fyne.NewMenu("Help",
 		fyne.NewMenuItem("About", func() {
 			ide.showAboutDialog()
 		}),
 	)
 
-	return fyne.NewMainMenu(fileMenu, editMenu, buildMenu, viewMenu, helpMenu)
+	return fyne.NewMainMenu(fileMenu, editMenu, buildMenu, viewMenu, toolsMenu, helpMenu)
+}
+
+// openAdvEditor launches the AdvEditor GUI as a separate process, looking
+// first next to the running advpp-ide binary (same install/dist layout as
+// the release packages) and falling back to PATH — same database-tool
+// pairing already offered by advplc/adveditor via the shared local
+// ./advpp.db convention (see attachDatabase).
+func (ide *IDE) openAdvEditor() {
+	path, err := adveditorPath()
+	if err != nil {
+		dialog.ShowError(err, ide.window)
+		return
+	}
+
+	cmd := exec.Command(path)
+	cmd.Dir, _ = os.Getwd()
+	if err := cmd.Start(); err != nil {
+		dialog.ShowError(fmt.Errorf("não foi possível iniciar o AdvEditor: %w", err), ide.window)
+		return
+	}
+	ide.output.Append("AdvEditor iniciado: " + path)
+}
+
+func adveditorPath() (string, error) {
+	name := "adveditor"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(exe), name)
+		if _, statErr := os.Stat(candidate); statErr == nil {
+			return candidate, nil
+		}
+	}
+
+	if p, err := exec.LookPath(name); err == nil {
+		return p, nil
+	}
+
+	return "", fmt.Errorf("binário %q não encontrado ao lado de advpp-ide nem no PATH", name)
 }
 
 func (ide *IDE) newFile() {
@@ -295,17 +347,7 @@ func (ide *IDE) run() {
 
 	// Run VM
 	v := vm.NewVM(bc, true)
-
-	// Conecta ao banco SQLite compartilhado entre todas as ferramentas AdvPP
-	dbPath := shared.ResolveDatabasePath("")
-	if _, statErr := os.Stat(dbPath); statErr == nil {
-		if engine, dbErr := db.NewSQLiteEngine(dbPath); dbErr == nil {
-			v.SetDBEngine(engine)
-			ide.output.Append("Database: " + dbPath)
-		} else {
-			ide.output.Append("Database warning: " + dbErr.Error())
-		}
-	}
+	ide.attachDatabase(v)
 
 	// Set UI provider for dialog functions
 	uiProvider := ui.NewFyneUIProvider(ide.window)
@@ -328,7 +370,30 @@ func (ide *IDE) compileAndRun() {
 	ide.run()
 }
 
+// attachDatabase conecta o VM ao banco SQLite compartilhado entre todas as
+// ferramentas AdvPP (mesmo padrão de advplc/adveditor): o banco é sempre
+// anexado via fábrica, mesmo que o arquivo ainda não exista — o driver cria
+// o arquivo no primeiro open. ResolveDatabasePath já resolve para um banco
+// local (./advpp.db) do diretório de trabalho atual quando nada foi
+// configurado globalmente, então tabelas criadas via "Tools > Open
+// AdvEditor" ficam visíveis aqui sem configuração extra.
+func (ide *IDE) attachDatabase(v *vm.VM) {
+	dbPath := shared.ResolveDatabasePath("")
+	v.SetDBFactory(func() vm.DBEngine {
+		engine, err := db.NewSQLiteEngine(dbPath)
+		if err != nil {
+			ide.output.Append("Database warning: " + err.Error())
+			return nil
+		}
+		return engine
+	})
+	ide.output.Append("Database: " + dbPath)
+}
+
 func (ide *IDE) showAboutDialog() {
-	content := widget.NewLabel("AdvPP IDE\n\nAdvPL/TLPP Compiler and Development Environment\n\nVersion 1.0.0\n\nA fully functional compiler and interpreter for the AdvPL and TLPP programming languages.")
+	content := widget.NewLabel(fmt.Sprintf(
+		"AdvPP IDE\n\nAdvPL/TLPP Compiler and Development Environment\n\nVersion %s\n\nA fully functional compiler and interpreter for the AdvPL and TLPP programming languages.\nDatabase, LLM inference engine, MCP server and #command engine included.",
+		version,
+	))
 	dialog.ShowInformation("About AdvPP IDE", content.Text, ide.window)
 }
