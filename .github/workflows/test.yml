@@ -31,3 +31,20 @@ jobs:
         # versionado) ou do binário llama-cli de referência pulam sozinhos
         # via os.Stat — não é preciso -short para eles rodarem em CI.
         run: go test ./...
+      - name: Standalone executable smoke test (Windows)
+        # Só builda e RODA (não só "builda") um executável standalone
+        # gerado por `advplc build` num runner Windows nativo de verdade —
+        # é a única forma real de confirmar que o stub (janela Fyne +
+        # console + banco) funciona no alvo em que mais importa: um app
+        # GUI-subsystem sem terminal anexado, onde ConOut sem essa janela
+        # simplesmente desapareceria.
+        if: runner.os == 'Windows'
+        shell: bash
+        timeout-minutes: 3
+        run: |
+          go build -o advplc.exe ./cmd/advplc
+          ./advplc.exe build tests/standalone_console_test.prw -o standalone_smoke.exe
+          output=$(./standalone_smoke.exe)
+          echo "$output"
+          echo "$output" | grep -q "standalone smoke test: linha 1"
+          echo "$output" | grep -q "standalone smoke test: linha 2"
