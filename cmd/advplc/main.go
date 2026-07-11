@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -594,89 +593,11 @@ func execBytecode(bytecodeFile string, opts *Options) error {
 }
 
 func buildStandalone(sourceFile, outputFile string, opts *Options) error {
-	// Compile source to bytecode
 	bc, err := loadAndCompile(sourceFile, opts)
 	if err != nil {
 		return err
 	}
-
-	// Create temporary directory for build
-	tempDir, err := os.MkdirTemp("", "advpp-build-*")
-	if err != nil {
-		return fmt.Errorf("cannot create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	// Save bytecode to temp file
-	bytecodeFile := filepath.Join(tempDir, "bytecode.json")
-	if err := compiler.SaveBytecode(bc, bytecodeFile); err != nil {
-		return fmt.Errorf("cannot save bytecode: %v", err)
-	}
-
-	// Copy stub to temp directory
-	// Use current working directory to find stub template
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("cannot get working directory: %v", err)
-	}
-	stubPath := filepath.Join(cwd, "pkg/compiler/stub_template.go")
-
-	stubSrc, err := os.ReadFile(stubPath)
-	if err != nil {
-		return fmt.Errorf("cannot read stub from %s: %v", stubPath, err)
-	}
-	// Remove the +build ignore line from the stub
-	stubLines := strings.Split(string(stubSrc), "\n")
-	var cleanStub []string
-	for _, line := range stubLines {
-		if !strings.Contains(line, "+build ignore") && !strings.Contains(line, "//go:build ignore") {
-			cleanStub = append(cleanStub, line)
-		}
-	}
-	stubDst := filepath.Join(tempDir, "main.go")
-	if err := os.WriteFile(stubDst, []byte(strings.Join(cleanStub, "\n")), 0644); err != nil {
-		return fmt.Errorf("cannot write stub: %v", err)
-	}
-
-	// Get project root directory
-	absPath, err := filepath.Abs(sourceFile)
-	if err != nil {
-		return fmt.Errorf("cannot get absolute path: %v", err)
-	}
-	projectRoot := filepath.Dir(filepath.Dir(absPath))
-
-	// Create go.mod for the standalone executable
-	goModContent := fmt.Sprintf(`module standalone
-
-go 1.24
-
-require github.com/advpl/compiler v0.0.0
-
-replace github.com/advpl/compiler => %s
-`, projectRoot)
-	goModFile := filepath.Join(tempDir, "go.mod")
-	if err := os.WriteFile(goModFile, []byte(goModContent), 0644); err != nil {
-		return fmt.Errorf("cannot write go.mod: %v", err)
-	}
-
-	// Build the executable
-	cmd := exec.Command("go", "build", "-o", outputFile, ".")
-	cmd.Dir = tempDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	fmt.Printf("Building in directory: %s\n", tempDir)
-	fmt.Printf("Output file: %s\n", outputFile)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("build failed: %v", err)
-	}
-
-	// Move the executable to the current directory
-	finalPath := filepath.Join(".", outputFile)
-	if err := os.Rename(filepath.Join(tempDir, outputFile), finalPath); err != nil {
-		return fmt.Errorf("cannot move executable: %v", err)
-	}
-
-	return nil
+	return compiler.BuildStandalone(bc, outputFile, os.Stdout)
 }
 
 func printAST(sourceFile string, opts *Options) error {
