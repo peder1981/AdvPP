@@ -123,6 +123,14 @@ replace %s => %s
 	cmd.Dir = tempDir
 	cmd.Stdout = buildLog
 	cmd.Stderr = buildLog
+	// The temp go.mod only declares standaloneModule itself; its transitive
+	// deps (Fyne, sqlite, etc.) aren't listed as indirect requires yet, and
+	// there's no go.sum. -mod=mod lets `go build` complete the module graph
+	// and write go.sum itself instead of failing and asking for a separate
+	// `go mod tidy` first — everything it needs is normally already in the
+	// local module cache (this compiler already depends on the same
+	// packages), so this shouldn't need network access in practice.
+	cmd.Env = append(os.Environ(), "GOFLAGS=-mod=mod")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("build failed: %v", err)
 	}
