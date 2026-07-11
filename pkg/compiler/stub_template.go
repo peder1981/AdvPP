@@ -68,22 +68,29 @@ func main() {
 		return engine
 	})
 
-	exitCode := 0
 	go func() {
 		tlog("v.Run starting")
 		if _, err := v.Run(); err != nil {
 			tlog("v.Run returned error: " + err.Error())
 			console.Append("Runtime error: " + err.Error())
-			exitCode = 1
+			// Leave the window open on error so the user can see it —
+			// ShowAndRun below keeps blocking until they close it manually.
 			return
 		}
-		tlog("v.Run returned ok, calling a.Quit")
-		a.Quit()
-		tlog("a.Quit returned")
+		// os.Exit terminates the process immediately and unconditionally,
+		// on whatever goroutine calls it — used here instead of a.Quit()
+		// because a.Quit() (close a done channel the glfw event loop's
+		// select watches for) was observed to not reliably unblock
+		// ShowAndRun() on Windows: the call itself returns fine, but the
+		// event loop never notices and the process hangs forever needing
+		// a manual kill. A short-lived standalone script doesn't need
+		// graceful window teardown — it just needs to actually terminate.
+		tlog("v.Run returned ok, exiting")
+		os.Exit(0)
 	}()
 
 	tlog("calling ShowAndRun")
 	w.ShowAndRun()
 	tlog("ShowAndRun returned")
-	os.Exit(exitCode)
+	os.Exit(1)
 }
