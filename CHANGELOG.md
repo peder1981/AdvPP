@@ -60,20 +60,87 @@ IDE desktop.
   qualquer arquivo real de usuário. Substituída por busca robusta (sobe a
   árvore de diretórios a partir do cwd e do executável em execução,
   procurando o `go.mod` do módulo certo).
-- **Não corrigido nesta rodada** (fora de escopo, adiado por decisão do
-  usuário): `FWMBrowse` e as 8 classes complexas do framework
-  (`FWWizardControl`, `FWDynDialog`, `FWPanel`, `FWGroupBox`, `FWTabs`,
-  `FWSplitter`, `FWTreeView`, `FWListView`) continuam sem renderização
-  nativa em Fyne — só existem como estruturas de dados Go
-  (`pkg/mvc/view.go`), sem nenhum renderer (nem web nem desktop) para os
-  8 casos complexos.
-
 Sem regressão: `go build ./...`, `go vet ./...`, `go test ./...`
 (testes novos em `pkg/ui` para o contrato JSON do diálogo e em
 `pkg/compiler` para a busca de módulo), `make test` (30 fixtures), sweep
 completo do corpus de 500 arquivos (500/500). Verificado visualmente via
 Xvfb: MSDIALOG abre, campos são editáveis, clique em botão fecha o
 diálogo e grava os valores de volta corretamente nas variáveis AdvPL.
+
+### Executáveis standalone ganham UI Fyne e banco de dados completos
+
+Pedido do usuário: quem compila um binário standalone via `advplc build`
+(ou o novo botão do advpp-ide) deveria conseguir usar TODAS as
+características da linguagem, não só a parte headless. O stub gerado
+(`pkg/compiler/stub_template.go`) rodava com `uiEnabled=false` e sem
+nenhum provider de UI nem banco de dados anexado — um programa usando
+`MsgInfo`, `MSDIALOG`, `FWMBrowse` ou acesso a tabela simplesmente perdia
+essa funcionalidade quando virava um `.exe`/binário standalone, sobrando
+só a saída de console.
+
+- O stub agora abre uma janela Fyne pequena que funciona ao mesmo tempo
+  como console de saída (`ui.OutputConsole`, via `v.SetOutputWriter`) e
+  como parent dos diálogos (`ui.FyneUIProvider`) — a MESMA dupla função
+  que corrige de brinde um problema real no Windows: um binário Fyne
+  gerado como GUI-subsystem não tem terminal anexado, então `ConOut`
+  simplesmente desaparecia sem essa janela.
+- Banco de dados conectado com o mesmo `SetDBFactory`/`ResolveDatabasePath`
+  local (`./advpp.db`) usado por advplc/adveditor/advpp-ide.
+- `pkg/ui.ConsoleWriter` extraído (antes privado em `cmd/advpp-ide`) para
+  ser reaproveitado pelo stub também.
+- Verificado visualmente via Xvfb: binário standalone gerado a partir de
+  `tests/msdialog_test.prw` abre a janela, renderiza o MSDIALOG, grava os
+  valores digitados e encerra sozinho ao fim da execução (`a.Quit()`), sem
+  deixar processo pendurado; um programa 100% console (só `ConOut`)
+  também abre a janela (double função de terminal), mostra a saída e
+  encerra sozinho sem exigir interação do usuário.
+
+### FWMBrowse renderiza de verdade no advpp-ide + bug real de recno corrigido
+
+Continuação do item anterior: `FWMBrowse` também dependia da mesma
+`BrowseUI` só implementada pelo renderer web.
+
+- **`FyneUIProvider.Browse`** (`pkg/ui/browse.go`, novo): grid real
+  (`widget.Table`, linha 0 = cabeçalho) com botões Novo/Editar/Excluir/
+  Fechar, mesmo protocolo JSON (`browseSpec`/`browseAction`) que o
+  renderer web já usa. Editar/Novo abrem `dialog.ShowForm` pré-preenchido;
+  Excluir pede confirmação antes.
+- **Bug real encontrado e corrigido em `pkg/vm/browse.go`** (compartilhado
+  pelos dois renderers, não é algo introduzido agora): `browseItems`
+  selecionava o pseudo-campo `rowid` sem apelido e procurava o resultado
+  pela chave `"ROWID"` — mas o SQLite devolve o NOME da coluna de
+  resultado usando o nome da própria coluna `INTEGER PRIMARY KEY` da
+  tabela quando ela tem uma (`R_E_C_N_O_`, em toda tabela gerenciada pelo
+  AdvPP desde a convenção de exclusão lógica da v1.10.1) — não literalmente
+  `"rowid"`. Na prática, `recno` sempre voltava como 0, e todo "Editar"
+  virava um INSERT duplicado em vez de um UPDATE. Corrigido apelidando a
+  coluna explicitamente (`AS browse_recno_`), o que torna o nome do
+  resultado independente do schema da tabela.
+- Verificado visualmente via Xvfb, ciclo completo: abrir browse com dados
+  reais (SX3 + SA1), selecionar+editar um registro (grava no lugar certo,
+  sem duplicar), Novo (insere), Excluir (soft-delete via `D_E_L_E_T_`),
+  Fechar (retorna o controle ao programa AdvPL).
+
+### 8 classes complexas do framework: adiadas por decisão explícita do usuário
+
+Pedido original também citava `FWWizardControl`, `FWDynDialog`, `FWPanel`,
+`FWGroupBox`, `FWTabs`, `FWSplitter`, `FWTreeView`, `FWListView`. Antes de
+investir nelas, verificado o uso real nos dois corpora completos do
+usuário (811R4 + 12.1.2510, ~30.000 arquivos): aparecem em **0 a 1
+arquivo no total** (`FWWizardControl` em 1 arquivo do 12.1.2510; as
+outras 7, zero). Além disso, nenhuma delas tem hoje um jeito de ser
+populada a partir de AdvPL real — não existe `TButton():New()`,
+`TabPage():New()` etc. construível em AdvPL; existem só como structs Go
+internos (`pkg/mvc/view.go`) nunca conectados ao VM/bytecode. Renderizá-las
+de verdade exigiria inventar uma API de construção de widgets do zero,
+sem nenhum uso real nos corpora para validar contra. Apresentados os
+números, o usuário optou por não investir nisso agora — permanecem como
+estruturas de dados Go sem renderer (nem web, nem desktop), documentado
+aqui como decisão consciente, não lacuna esquecida.
+
+Sem regressão em todo o arco: `go build ./...`, `go vet ./...`,
+`go test ./...`, `make test` (30 fixtures), sweep completo do corpus de
+500 arquivos (500/500) a cada passo.
 
 ## [1.10.0] — 2026-07-11
 
