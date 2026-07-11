@@ -156,23 +156,29 @@ func moveFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
 
 	info, err := in.Stat()
 	if err != nil {
+		in.Close()
 		return err
 	}
 
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
 	if err != nil {
+		in.Close()
 		return err
 	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	// src's handle must be closed before removing it — Windows (unlike
+	// POSIX) refuses to delete a file that still has an open handle, so
+	// this can't be a deferred Close() running after the return.
+	in.Close()
+	if copyErr != nil {
+		return copyErr
 	}
-	if err := out.Close(); err != nil {
-		return err
+	if closeErr != nil {
+		return closeErr
 	}
 	return os.Remove(src)
 }
