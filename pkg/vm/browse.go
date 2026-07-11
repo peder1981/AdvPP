@@ -199,7 +199,14 @@ func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete boo
 	for i, c := range cols {
 		names[i] = c.Property
 	}
-	query := fmt.Sprintf("SELECT rowid, %s FROM %s", strings.Join(names, ", "), alias)
+	// "rowid" is aliased explicitly (not selected bare) because SQLite
+	// reports the RESULT column's name as the table's own INTEGER PRIMARY
+	// KEY alias when it has one — every AdvPP-managed table does
+	// (R_E_C_N_O_, see the logical-delete convention) — not literally
+	// "rowid", which silently broke the lookup below (recno always came
+	// back as 0, turning every edit into a duplicate INSERT instead of an
+	// UPDATE).
+	query := fmt.Sprintf("SELECT rowid AS browse_recno_, %s FROM %s", strings.Join(names, ", "), alias)
 	if hasDelete {
 		query += " WHERE D_E_L_E_T_ <> '*'"
 	}
@@ -210,7 +217,7 @@ func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete boo
 	items := make([]map[string]any, 0, len(rows))
 	for _, r := range rows {
 		item := map[string]any{}
-		recno, _ := strconv.ParseInt(r["ROWID"], 10, 64)
+		recno, _ := strconv.ParseInt(r["BROWSE_RECNO_"], 10, 64)
 		item["recno"] = recno
 		for _, c := range cols {
 			val := r[c.Property]
