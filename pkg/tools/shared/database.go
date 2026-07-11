@@ -702,10 +702,20 @@ func NewSQLiteDriver() *SQLiteDriver {
 	return &SQLiteDriver{}
 }
 
-// Open abre um arquivo SQLite. Aceita a sintaxe "banco.db/tabela" para
-// abrir uma tabela específica — detectada apenas quando o caminho completo
-// NÃO existe em disco (um caminho absoluto normal contém separadores e não
-// pode ser confundido com essa sintaxe).
+// dbFileExtensions são as extensões reconhecidas como "arquivo de banco
+// SQLite" pela sintaxe "banco.db/tabela" do Open — sem isso, QUALQUER
+// caminho ainda não existente (ex.: um banco local novo que Open() deveria
+// poder criar) seria mal interpretado como "base/tabela", já que o
+// diretório-pai quase sempre existe.
+var dbFileExtensions = []string{".db", ".sqlite", ".sqlite3"}
+
+// Open abre um arquivo SQLite, criando-o se ainda não existir (OpenSQLite
+// materializa o arquivo). Aceita a sintaxe "banco.db/tabela" para abrir uma
+// tabela específica — detectada apenas quando o caminho completo NÃO existe
+// em disco E a parte antes da última barra parece um arquivo de banco de
+// verdade (extensão .db/.sqlite/.sqlite3), não apenas um diretório
+// qualquer (o diretório-pai de um banco novo também "existe", o que
+// causaria falso positivo sem essa checagem de extensão).
 func (s *SQLiteDriver) Open(file string, readOnly, shared bool) error {
 	s.file = file
 	s.readOnly = readOnly
@@ -715,9 +725,19 @@ func (s *SQLiteDriver) Open(file string, readOnly, shared bool) error {
 		// Talvez seja "banco.db/tabela" (ou "banco.db\tabela" no Windows)
 		if i := strings.LastIndexAny(file, `/\`); i > 0 {
 			base, table := file[:i], file[i+1:]
-			if _, err := os.Stat(base); err == nil {
-				s.file = base
-				s.table = table
+			baseLower := strings.ToLower(base)
+			looksLikeDBFile := false
+			for _, ext := range dbFileExtensions {
+				if strings.HasSuffix(baseLower, ext) {
+					looksLikeDBFile = true
+					break
+				}
+			}
+			if looksLikeDBFile {
+				if _, err := os.Stat(base); err == nil {
+					s.file = base
+					s.table = table
+				}
 			}
 		}
 	}
@@ -744,9 +764,16 @@ func (s *SQLiteDriver) Open(file string, readOnly, shared bool) error {
 				return fmt.Errorf("erro ao ler nome da tabela: %w", err)
 			}
 			s.table = tableName
-		} else {
-			return fmt.Errorf("nenhuma tabela encontrada no banco de dados")
 		}
+		// Banco vazio (0 tabelas) não é erro — acontece com o banco local
+		// auto-provisionado (ResolveDatabasePath/OpenSQLite) antes do
+		// usuário criar a primeira tabela via CreateTable. s.table fica ""
+		// e loadStructure/loadIndexes são pulados; SelectTable(name) depois
+		// que a primeira tabela existir preenche a estrutura normalmente.
+	}
+
+	if s.table == "" {
+		return nil
 	}
 
 	// Obtém estrutura da tabela
@@ -760,6 +787,20 @@ func (s *SQLiteDriver) Open(file string, readOnly, shared bool) error {
 	}
 
 	return nil
+}
+
+// SelectTable troca a tabela ativa desta conexão (mesmo db) e recarrega
+// estrutura/índices — usado depois de CreateTable (banco estava vazio, sem
+// tabela selecionada) e para trocar de tabela sem reabrir a conexão.
+func (s *SQLiteDriver) SelectTable(name string) error {
+	if !validIdentifier(name) {
+		return fmt.Errorf("nome de tabela inválido: %q", name)
+	}
+	s.table = name
+	if err := s.loadStructure(); err != nil {
+		return fmt.Errorf("erro ao carregar estrutura: %w", err)
+	}
+	return s.loadIndexes()
 }
 
 // Close fecha o arquivo SQLite
@@ -794,6 +835,13 @@ func (s *SQLiteDriver) loadStructure() error {
 
 		if err := rows.Scan(&cid, &name, &dataType, &notNull, &dfltValue, &pk); err != nil {
 			return err
+		}
+		// Colunas de sistema (RECNO/DELETED) são reservadas e injetadas
+		// automaticamente por CreateTable — não aparecem na estrutura
+		// editável pelo usuário (mesmo espírito de D_E_L_E_T_ não aparecer
+		// como campo comum em SX3 no Protheus real).
+		if systemColumns[strings.ToUpper(name)] {
+			continue
 		}
 
 		// Converte tipo SQLite para tipo AdvPL
@@ -892,13 +940,15 @@ func (s *SQLiteDriver) GetStructure() ([]Field, error) {
 	return s.structure, nil
 }
 
-// GetData retorna dados da tabela
+// GetData retorna dados da tabela, escondendo por padrão as linhas
+// logicamente deletadas (ver activeFilter). Record.Recno vem da coluna
+// R_E_C_N_O_ de verdade (estável — não é mais a posição na página lida).
 func (s *SQLiteDriver) GetData(offset, limit int) ([]Record, error) {
 	if s.table == "" {
 		return nil, fmt.Errorf("tabela não especificada")
 	}
 
-	query := "SELECT * FROM " + s.table
+	query := "SELECT * FROM " + s.table + " WHERE " + activeFilter
 	if limit > 0 {
 		query += " LIMIT " + fmt.Sprintf("%d", limit)
 		if offset > 0 {
@@ -918,7 +968,6 @@ func (s *SQLiteDriver) GetData(offset, limit int) ([]Record, error) {
 	}
 
 	var records []Record
-	recno := offset + 1
 
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
@@ -932,6 +981,7 @@ func (s *SQLiteDriver) GetData(offset, limit int) ([]Record, error) {
 		}
 
 		fields := make(map[string]interface{})
+		recno := 0
 		for i, col := range columns {
 			val := values[i]
 			b, ok := val.([]byte)
@@ -940,6 +990,11 @@ func (s *SQLiteDriver) GetData(offset, limit int) ([]Record, error) {
 			} else {
 				fields[col] = val
 			}
+			if col == recnoColumn {
+				if n, ok := val.(int64); ok {
+					recno = int(n)
+				}
+			}
 		}
 
 		records = append(records, Record{
@@ -947,25 +1002,56 @@ func (s *SQLiteDriver) GetData(offset, limit int) ([]Record, error) {
 			Fields:  fields,
 			Deleted: false,
 		})
-		recno++
 	}
 
 	return records, nil
 }
 
-// GetRecord retorna um registro específico
+// GetRecord retorna um registro específico por R_E_C_N_O_ (não mais uma
+// posição/offset na tabela).
 func (s *SQLiteDriver) GetRecord(recno int) (*Record, error) {
-	records, err := s.GetData(recno-1, 1)
+	if s.table == "" {
+		return nil, fmt.Errorf("tabela não especificada")
+	}
+	row := s.db.QueryRow("SELECT * FROM "+s.table+" WHERE "+recnoColumn+" = ?", recno)
+	columns, err := s.currentColumns()
 	if err != nil {
 		return nil, err
 	}
-	if len(records) == 0 {
-		return nil, fmt.Errorf("recno inválido: %d", recno)
+	values := make([]interface{}, len(columns))
+	valuePtrs := make([]interface{}, len(columns))
+	for i := range columns {
+		valuePtrs[i] = &values[i]
 	}
-	return &records[0], nil
+	if err := row.Scan(valuePtrs...); err != nil {
+		return nil, fmt.Errorf("recno inválido: %d: %w", recno, err)
+	}
+	fields := make(map[string]interface{})
+	for i, col := range columns {
+		if b, ok := values[i].([]byte); ok {
+			fields[col] = string(b)
+		} else {
+			fields[col] = values[i]
+		}
+	}
+	return &Record{Recno: recno, Fields: fields}, nil
 }
 
-// AddRecord adiciona um registro
+// currentColumns devolve os nomes de coluna da tabela aberta, na ordem do
+// SQLite (usado por GetRecord para montar os ponteiros de Scan).
+func (s *SQLiteDriver) currentColumns() ([]string, error) {
+	rows, err := s.db.Query("SELECT * FROM " + s.table + " LIMIT 0")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return rows.Columns()
+}
+
+// AddRecord adiciona um registro. R_E_C_N_O_ é sempre auto-gerado pelo
+// banco — se o chamador incluir esse campo em record.Fields, é ignorado.
+// D_E_L_E_T_/R_E_C_D_E_L_ nascem com o default da tabela (ativo) a menos
+// que explicitamente sobrescritos.
 func (s *SQLiteDriver) AddRecord(record Record) (int, error) {
 	if s.readOnly {
 		return 0, fmt.Errorf("tabela é somente leitura")
@@ -981,6 +1067,9 @@ func (s *SQLiteDriver) AddRecord(record Record) (int, error) {
 	values := make([]interface{}, 0, len(record.Fields))
 
 	for col, val := range record.Fields {
+		if col == recnoColumn {
+			continue
+		}
 		columns = append(columns, col)
 		placeholders = append(placeholders, "?")
 		values = append(values, val)
@@ -1001,7 +1090,7 @@ func (s *SQLiteDriver) AddRecord(record Record) (int, error) {
 	return int(id), nil
 }
 
-// UpdateRecord atualiza um registro
+// UpdateRecord atualiza um registro pelo R_E_C_N_O_ estável.
 func (s *SQLiteDriver) UpdateRecord(recno int, record Record) error {
 	if s.readOnly {
 		return fmt.Errorf("tabela é somente leitura")
@@ -1016,18 +1105,23 @@ func (s *SQLiteDriver) UpdateRecord(recno int, record Record) error {
 	values := make([]interface{}, 0, len(record.Fields))
 
 	for col, val := range record.Fields {
+		if col == recnoColumn {
+			continue // chave, nunca atualizada
+		}
 		updates = append(updates, col+" = ?")
 		values = append(values, val)
 	}
 
-	query := "UPDATE " + s.table + " SET " + strings.Join(updates, ", ") + " WHERE rowid = ?"
+	query := "UPDATE " + s.table + " SET " + strings.Join(updates, ", ") + " WHERE " + recnoColumn + " = ?"
 	values = append(values, recno)
 
 	_, err := s.db.Exec(query, values...)
 	return err
 }
 
-// DeleteRecord deleta um registro
+// DeleteRecord marca um registro como deletado LOGICAMENTE (D_E_L_E_T_='*',
+// R_E_C_D_E_L_=1) — igual ao Deleted()/dbDelete() do Clipper/AdvPL, nunca
+// remove a linha de verdade. Use Pack para purgar de vez as marcadas.
 func (s *SQLiteDriver) DeleteRecord(recno int) error {
 	if s.readOnly {
 		return fmt.Errorf("tabela é somente leitura")
@@ -1037,16 +1131,27 @@ func (s *SQLiteDriver) DeleteRecord(recno int) error {
 		return fmt.Errorf("tabela não especificada")
 	}
 
-	_, err := s.db.Exec("DELETE FROM "+s.table+" WHERE rowid = ?", recno)
+	query := "UPDATE " + s.table + " SET " + deletedColumn + " = '*', " + deletedBoolColumn + " = 1 WHERE " + recnoColumn + " = ?"
+	_, err := s.db.Exec(query, recno)
 	return err
 }
 
-// RecallRecord recupera um registro deletado
+// RecallRecord desfaz uma exclusão lógica (igual a Recall()/dbRecall() no
+// Clipper/AdvPL) — restaura D_E_L_E_T_=' ', R_E_C_D_E_L_=0.
 func (s *SQLiteDriver) RecallRecord(recno int) error {
-	return fmt.Errorf("recall não suportado em SQLite")
+	if s.readOnly {
+		return fmt.Errorf("tabela é somente leitura")
+	}
+	if s.table == "" {
+		return fmt.Errorf("tabela não especificada")
+	}
+	query := "UPDATE " + s.table + " SET " + deletedColumn + " = ' ', " + deletedBoolColumn + " = 0 WHERE " + recnoColumn + " = ?"
+	_, err := s.db.Exec(query, recno)
+	return err
 }
 
-// Pack compacta a tabela
+// Pack purga de vez as linhas marcadas com exclusão lógica (igual ao
+// Pack()/dbPack() do Clipper/AdvPL) e compacta o arquivo.
 func (s *SQLiteDriver) Pack() error {
 	if s.readOnly {
 		return fmt.Errorf("tabela é somente leitura")
@@ -1056,6 +1161,9 @@ func (s *SQLiteDriver) Pack() error {
 		return fmt.Errorf("tabela não especificada")
 	}
 
+	if _, err := s.db.Exec("DELETE FROM " + s.table + " WHERE " + deletedBoolColumn + " = 1"); err != nil {
+		return err
+	}
 	_, err := s.db.Exec("VACUUM")
 	return err
 }
@@ -1079,7 +1187,8 @@ func (s *SQLiteDriver) GetIndexes() ([]Index, error) {
 	return s.indexes, nil
 }
 
-// CreateIndex cria um índice
+// CreateIndex cria um índice. expression é uma lista de nomes de campo
+// separados por "+" (convenção Clipper: "CAMPO1+CAMPO2").
 func (s *SQLiteDriver) CreateIndex(name string, expression string) error {
 	if s.readOnly {
 		return fmt.Errorf("tabela é somente leitura")
@@ -1088,10 +1197,22 @@ func (s *SQLiteDriver) CreateIndex(name string, expression string) error {
 	if s.table == "" {
 		return fmt.Errorf("tabela não especificada")
 	}
+	if !validIdentifier(name) {
+		return fmt.Errorf("nome de índice inválido: %q", name)
+	}
+	cols := strings.Split(expression, "+")
+	for i, c := range cols {
+		cols[i] = strings.TrimSpace(c)
+		if !validIdentifier(cols[i]) {
+			return fmt.Errorf("nome de campo inválido no índice: %q", cols[i])
+		}
+	}
 
-	query := "CREATE INDEX IF NOT EXISTS " + name + " ON " + s.table + " (" + expression + ")"
-	_, err := s.db.Exec(query)
-	return err
+	query := "CREATE INDEX IF NOT EXISTS " + name + " ON " + s.table + " (" + strings.Join(cols, ", ") + ")"
+	if _, err := s.db.Exec(query); err != nil {
+		return err
+	}
+	return s.loadIndexes()
 }
 
 // DropIndex remove um índice
@@ -1099,9 +1220,17 @@ func (s *SQLiteDriver) DropIndex(name string) error {
 	if s.readOnly {
 		return fmt.Errorf("tabela é somente leitura")
 	}
+	if !validIdentifier(name) {
+		return fmt.Errorf("nome de índice inválido: %q", name)
+	}
 
-	_, err := s.db.Exec("DROP INDEX IF EXISTS " + name)
-	return err
+	if _, err := s.db.Exec("DROP INDEX IF EXISTS " + name); err != nil {
+		return err
+	}
+	if s.table == "" {
+		return nil
+	}
+	return s.loadIndexes()
 }
 
 // SetOrder define o índice ativo
@@ -1134,25 +1263,28 @@ func (s *SQLiteDriver) Locate(filter string) (bool, error) {
 	return false, nil
 }
 
-// Count conta registros
+// Count conta registros ativos (exclusão lógica não conta)
 func (s *SQLiteDriver) Count() (int, error) {
 	if s.table == "" {
 		return 0, fmt.Errorf("tabela não especificada")
 	}
 
 	var count int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM " + s.table).Scan(&count)
+	err := s.db.QueryRow("SELECT COUNT(*) FROM " + s.table + " WHERE " + activeFilter).Scan(&count)
 	return count, err
 }
 
-// Sum soma campo
+// Sum soma campo dos registros ativos (exclusão lógica não entra na soma)
 func (s *SQLiteDriver) Sum(fieldName string) (float64, error) {
 	if s.table == "" {
 		return 0, fmt.Errorf("tabela não especificada")
 	}
+	if !validIdentifier(fieldName) {
+		return 0, fmt.Errorf("nome de campo inválido: %q", fieldName)
+	}
 
 	var sum float64
-	err := s.db.QueryRow("SELECT SUM(" + fieldName + ") FROM " + s.table).Scan(&sum)
+	err := s.db.QueryRow("SELECT SUM(" + fieldName + ") FROM " + s.table + " WHERE " + activeFilter).Scan(&sum)
 	return sum, err
 }
 
@@ -1201,6 +1333,157 @@ func (s *SQLiteDriver) ListTables() ([]string, error) {
 	}
 
 	return tables, nil
+}
+
+// validIdentifier confere se name é um identificador seguro para interpolar
+// direto em SQL (nome de tabela/coluna — parâmetros ? do driver só cobrem
+// VALORES, não identificadores). Usada por CreateTable/DropTable/AddColumn/
+// DropColumn, cujos nomes vêm de formulários da GUI (adveditor), nunca de
+// texto de programa confiável.
+func validIdentifier(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i, r := range name {
+		isLetter := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_'
+		isDigit := r >= '0' && r <= '9'
+		if i == 0 && !isLetter {
+			return false
+		}
+		if !isLetter && !isDigit {
+			return false
+		}
+	}
+	return true
+}
+
+// sqliteColumnType mapeia um Field (tipos AdvPL: C/N/D/L/M/B) para o tipo de
+// coluna SQLite equivalente.
+func sqliteColumnType(f Field) string {
+	switch f.Type {
+	case FieldTypeNum, FieldTypeDouble:
+		if f.Decimal > 0 {
+			return "REAL"
+		}
+		return "INTEGER"
+	case FieldTypeLog:
+		return "INTEGER"
+	case FieldTypeMemo:
+		return "BLOB"
+	default: // FieldTypeChar, FieldTypeDate (data guardada como texto ISO)
+		return "TEXT"
+	}
+}
+
+// Colunas de sistema no estilo Protheus, injetadas automaticamente em toda
+// tabela criada por CreateTable (o usuário nunca as declara na lista de
+// campos — são reservadas, como nas tabelas físicas reais do Protheus):
+//   - recnoColumn:   RECNO() estável — INTEGER PRIMARY KEY AUTOINCREMENT
+//     nunca reutiliza um número, ao contrário do rowid puro do SQLite
+//     (que pode ser reciclado depois de deletar a última linha).
+//   - deletedColumn: marcador de exclusão lógica clássico do Protheus
+//     (' ' = ativo, '*' = deletado) — filtrado por padrão nas leituras,
+//     igual a `<tabela>->D_E_L_E_T_ = ' '` em AdvPL real.
+//   - deletedBoolColumn: gêmeo booleano de deletedColumn (0/1), mantido em
+//     sincronia — mais natural para filtrar em SQL puro
+//     (`WHERE R_E_C_D_E_L_ = 0`) sem precisar comparar string.
+const (
+	recnoColumn       = "R_E_C_N_O_"
+	deletedColumn     = "D_E_L_E_T_"
+	deletedBoolColumn = "R_E_C_D_E_L_"
+)
+
+// activeFilter é a cláusula WHERE que toda leitura (GetData/Count/GetRecord)
+// aplica por padrão para esconder linhas logicamente deletadas.
+const activeFilter = deletedBoolColumn + " = 0"
+
+// systemColumns são as colunas reservadas — CreateTable rejeita qualquer
+// campo do usuário que colida com um desses nomes.
+var systemColumns = map[string]bool{
+	recnoColumn:       true,
+	deletedColumn:     true,
+	deletedBoolColumn: true,
+}
+
+// CreateTable cria uma nova tabela no banco desta conexão (não precisa de
+// nenhuma tabela aberta antes — opera direto em s.db). Injeta as 3 colunas
+// de sistema (RECNO/DELETED) automaticamente — ver as constantes acima.
+func (s *SQLiteDriver) CreateTable(name string, fields []Field) error {
+	if s.readOnly {
+		return fmt.Errorf("banco é somente leitura")
+	}
+	if !validIdentifier(name) {
+		return fmt.Errorf("nome de tabela inválido: %q", name)
+	}
+	if len(fields) == 0 {
+		return fmt.Errorf("a tabela precisa de pelo menos um campo")
+	}
+	cols := []string{recnoColumn + " INTEGER PRIMARY KEY AUTOINCREMENT"}
+	for _, f := range fields {
+		if !validIdentifier(f.Name) {
+			return fmt.Errorf("nome de campo inválido: %q", f.Name)
+		}
+		if systemColumns[strings.ToUpper(f.Name)] {
+			return fmt.Errorf("%q é um nome de campo reservado (coluna de sistema)", f.Name)
+		}
+		cols = append(cols, f.Name+" "+sqliteColumnType(f))
+	}
+	cols = append(cols,
+		deletedColumn+" TEXT NOT NULL DEFAULT ' '",
+		deletedBoolColumn+" INTEGER NOT NULL DEFAULT 0",
+	)
+	_, err := s.db.Exec("CREATE TABLE " + name + " (" + strings.Join(cols, ", ") + ")")
+	return err
+}
+
+// DropTable remove uma tabela do banco desta conexão.
+func (s *SQLiteDriver) DropTable(name string) error {
+	if s.readOnly {
+		return fmt.Errorf("banco é somente leitura")
+	}
+	if !validIdentifier(name) {
+		return fmt.Errorf("nome de tabela inválido: %q", name)
+	}
+	_, err := s.db.Exec("DROP TABLE IF EXISTS " + name)
+	return err
+}
+
+// AddColumn adiciona uma coluna à tabela atualmente aberta (s.table) e
+// recarrega a estrutura em memória.
+func (s *SQLiteDriver) AddColumn(f Field) error {
+	if s.readOnly {
+		return fmt.Errorf("tabela é somente leitura")
+	}
+	if s.table == "" {
+		return fmt.Errorf("tabela não especificada")
+	}
+	if !validIdentifier(f.Name) {
+		return fmt.Errorf("nome de campo inválido: %q", f.Name)
+	}
+	query := "ALTER TABLE " + s.table + " ADD COLUMN " + f.Name + " " + sqliteColumnType(f)
+	if _, err := s.db.Exec(query); err != nil {
+		return err
+	}
+	return s.loadStructure()
+}
+
+// DropColumn remove uma coluna da tabela atualmente aberta (SQLite 3.35+;
+// modernc.org/sqlite embutido no AdvPP já suporta) e recarrega a estrutura.
+func (s *SQLiteDriver) DropColumn(fieldName string) error {
+	if s.readOnly {
+		return fmt.Errorf("tabela é somente leitura")
+	}
+	if s.table == "" {
+		return fmt.Errorf("tabela não especificada")
+	}
+	if !validIdentifier(fieldName) {
+		return fmt.Errorf("nome de campo inválido: %q", fieldName)
+	}
+	query := "ALTER TABLE " + s.table + " DROP COLUMN " + fieldName
+	if _, err := s.db.Exec(query); err != nil {
+		return err
+	}
+	return s.loadStructure()
 }
 
 // CopyFile copia um arquivo

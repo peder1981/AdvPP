@@ -1,7 +1,7 @@
 # AdvPP — build, cross-compile, empacotamento e release
 #
 # Uso rápido:
-#   make build                 # compila as 4 ferramentas para a máquina local
+#   make build                 # compila as 3 ferramentas para a máquina local
 #   make test                  # build + verifica todos os fixtures de tests/
 #   make cross                 # cross-compila o advplc (CLI) p/ Linux/Win64/macOS em dist/
 #   make package VERSION=1.1.0 # gera os pacotes .tar.gz/.zip em dist/
@@ -12,7 +12,7 @@
 VERSION ?= dev
 LDFLAGS  = -s -w -X main.version=v$(VERSION)
 GOFLAGS  = -trimpath -ldflags '$(LDFLAGS)'
-TOOLS    = advplc advcfg adveditor advpp-ide
+TOOLS    = advplc adveditor advpp-ide
 # Alvos do CLI (puro Go, CGO_ENABLED=0). GUIs Fyne exigem build nativo (CI).
 CLI_TARGETS = linux/amd64 linux/arm64 windows/amd64 darwin/arm64
 

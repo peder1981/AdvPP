@@ -2,7 +2,7 @@
 
 ## Introdução
 
-Este guia fornece instruções detalhadas para instalar o AdvPP em sistemas Linux. O AdvPP é uma suite completa de ferramentas para desenvolvimento AdvPL/TLPP, incluindo IDE, configurador de tabelas, editor de banco de dados e compilador.
+Este guia fornece instruções detalhadas para instalar o AdvPP em sistemas Linux. O AdvPP é uma suite completa de ferramentas para desenvolvimento AdvPL/TLPP, incluindo IDE, editor de banco de dados (dados + estrutura) e compilador.
 
 ## Requisitos do Sistema
 
@@ -65,7 +65,6 @@ sudo apt-get install -f
 ```bash
 # Verificar se os comandos estão disponíveis
 which advpp-ide
-which advcfg
 which adveditor
 which advplc
 
@@ -120,13 +119,11 @@ go build -o advplc ./cmd/advplc
 ```bash
 # Instalar globalmente
 sudo cp advpp-ide /usr/local/bin/
-sudo cp advcfg /usr/local/bin/
 sudo cp adveditor /usr/local/bin/
 sudo cp advplc /usr/local/bin/
 
 # Tornar executáveis
 sudo chmod +x /usr/local/bin/advpp-ide
-sudo chmod +x /usr/local/bin/advcfg
 sudo chmod +x /usr/local/bin/adveditor
 sudo chmod +x /usr/local/bin/advplc
 ```
@@ -136,7 +133,6 @@ sudo chmod +x /usr/local/bin/advplc
 ```bash
 # Verificar se os comandos estão disponíveis
 which advpp-ide
-which advcfg
 which adveditor
 which advplc
 ```
@@ -165,7 +161,6 @@ tar xzf advpp-*.tar.gz
 
 ```bash
 chmod +x advpp-ide
-chmod +x advcfg
 chmod +x adveditor
 chmod +x advplc
 ```
@@ -185,7 +180,6 @@ source ~/.bashrc
 ```bash
 # Verificar se os comandos estão disponíveis
 which advpp-ide
-which advcfg
 which adveditor
 which advplc
 ```
@@ -224,12 +218,14 @@ source ~/.bashrc
 #### Criar Dicionário Inicial
 
 ```bash
-# O dicionário será criado automaticamente na primeira execução
-# Mas você pode criar manualmente se desejar
-advcfg
+# O banco local é criado automaticamente na primeira execução de
+# qualquer ferramenta (advplc run/check/compile/serve ou adveditor) no
+# diretório de trabalho atual — ver "Banco de dados compartilhado" no
+# README.md
+adveditor
 ```
 
-O AdvCfg criará automaticamente o arquivo `~/.advpp/ADVPP.db` com as tabelas do dicionário.
+O AdvEditor abre (e cria, se ainda não existir) o banco SQLite resolvido por `shared.ResolveDatabasePath` — use o menu Tabela para criar tabelas nele.
 
 #### Configurar Caminho do Dicionário
 
@@ -267,20 +263,6 @@ Terminal=false
 EOF
 ```
 
-**AdvCfg:**
-```bash
-cat > ~/.local/share/applications/advcfg.desktop << EOF
-[Desktop Entry]
-Name=AdvCfg
-Comment=AdvPL/TLPP Table Configuration Tool
-Exec=advcfg
-Icon=advcfg
-Type=Application
-Categories=Development;Database;
-Terminal=false
-EOF
-```
-
 **AdvEditor:**
 ```bash
 cat > ~/.local/share/applications/adveditor.desktop << EOF
@@ -308,9 +290,6 @@ update-desktop-database ~/.local/share/applications/
 ```bash
 # Testar AdvPP IDE
 advpp-ide --version
-
-# Testar AdvCfg
-advcfg --version
 
 # Testar AdvEditor
 adveditor --version
@@ -341,24 +320,14 @@ advplc test.prw
 ls -la test.bytecode
 ```
 
-#### Testar AdvCfg
-
-```bash
-# Iniciar AdvCfg
-advcfg
-
-# Verificar se o dicionário foi criado
-ls -la ~/.advpp/ADVPP.db
-```
-
 #### Testar AdvEditor
 
 ```bash
 # Iniciar AdvEditor
 adveditor
 
-# Abrir o dicionário
-# Arquivo → Abrir → ~/.advpp/ADVPP.db
+# O banco local (./advpp.db) abre automaticamente; use o menu Tabela
+# para criar sua primeira tabela
 ```
 
 ## Desinstalação
@@ -382,7 +351,6 @@ rm -rf ~/.advpp
 ```bash
 # Remover binários
 sudo rm /usr/local/bin/advpp-ide
-sudo rm /usr/local/bin/advcfg
 sudo rm /usr/local/bin/adveditor
 sudo rm /usr/local/bin/advplc
 
@@ -392,7 +360,6 @@ rm -rf ~/.advpp
 
 # Remover arquivos .desktop
 rm ~/.local/share/applications/advpp-ide.desktop
-rm ~/.local/share/applications/advcfg.desktop
 rm ~/.local/share/applications/adveditor.desktop
 
 # Atualizar banco de dados de aplicativos
@@ -425,13 +392,11 @@ git pull origin master
 
 # Recompilar
 go build -o advpp-ide ./cmd/advpp-ide
-go build -o advcfg ./cmd/advcfg
 go build -o adveditor ./cmd/adveditor
 go build -o advplc ./cmd/advplc
 
 # Reinstalar
 sudo cp advpp-ide /usr/local/bin/
-sudo cp advcfg /usr/local/bin/
 sudo cp adveditor /usr/local/bin/
 sudo cp advplc /usr/local/bin/
 ```
@@ -487,7 +452,6 @@ bash: /usr/local/bin/advpp-ide: Permission denied
 ```bash
 # Tornar executável
 sudo chmod +x /usr/local/bin/advpp-ide
-sudo chmod +x /usr/local/bin/advcfg
 sudo chmod +x /usr/local/bin/adveditor
 sudo chmod +x /usr/local/bin/advplc
 ```
@@ -552,7 +516,6 @@ Para reportar bugs, forneça:
 Os logs estão localizados em:
 
 - **AdvPP IDE**: `~/.advpp/logs/advpp-ide.log`
-- **AdvCfg**: `~/.advpp/logs/advcfg.log`
 - **AdvEditor**: `~/.advpp/logs/adveditor.log`
 - **AdvPlc**: `~/.advpp/logs/advplc.log`
 
@@ -561,7 +524,7 @@ Os logs estão localizados em:
 Após a instalação:
 
 1. Leia o **Manual do Usuário** da ferramenta que deseja usar
-2. Configure o **Dicionário de Dados** através do AdvCfg
+2. Crie sua primeira tabela pelo **AdvEditor** (menu Tabela → Nova Tabela)
 3. Crie seu **Primeiro Projeto** no AdvPP IDE
 4. Explore os **Exemplos** disponíveis
 
@@ -569,7 +532,6 @@ Após a instalação:
 
 - **Documentação Técnica**: docs/TECNICO.md
 - **Manual do AdvPP IDE**: docs/MANUAL_IDE.md
-- **Manual do AdvCfg**: docs/MANUAL_ADVCFG.md
 - **Manual do AdvEditor**: docs/MANUAL_ADVEDITOR.md
 - **Manual do AdvPlc**: docs/MANUAL_ADVPLC.md
 

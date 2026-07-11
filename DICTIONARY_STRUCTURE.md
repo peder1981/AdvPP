@@ -1,5 +1,12 @@
 # Estrutura do Dicionário de Dados AdvPL
 
+> **Nota (2026-07-11):** AdvCfg foi descontinuada, e com ela o schema
+> SX2/SX3/SIX/... "dicionário-de-dicionário" descrito aqui
+> (`pkg/tools/shared/dictionary.go`, removido). O AdvEditor cria tabelas
+> comuns diretamente (com colunas de sistema `R_E_C_N_O_`/`D_E_L_E_T_`/
+> `R_E_C_D_E_L_` no estilo Protheus — ver `TOOLS_README.md`), sem esse
+> catálogo intermediário. Documento mantido como registro histórico.
+
 ## Visão Geral
 
 O AdvCfg utiliza um banco de dados SQLite para armazenar o dicionário de dados AdvPL, seguindo o padrão TOTVS Protheus. O dicionário é criado automaticamente na primeira execução e contém tabelas e dados pré-configurados.

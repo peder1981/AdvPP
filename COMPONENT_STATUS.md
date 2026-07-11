@@ -85,9 +85,10 @@ O compilador AdvPP faz parsing da sintaxe REST 2.0 mas **integração de servido
 
 ### Status Atual: Funcional
 
-- ✅ **Banco SQLite compartilhado**: todas as ferramentas (advplc, advcfg,
-  adveditor, advpp-ide) resolvem o mesmo banco (`~/.advpp/ADVPP.db`) via
-  `shared.ResolveDatabasePath` (flag → `ADVPP_DB` → config → padrão)
+- ✅ **Banco SQLite compartilhado**: todas as ferramentas (advplc,
+  adveditor, advpp-ide) resolvem o mesmo banco via
+  `shared.ResolveDatabasePath` (flag → `ADVPP_DB` → config real em disco
+  → `./advpp.db` local do diretório de trabalho, criado automaticamente)
 - ✅ **Driver 100% Go** (modernc.org/sqlite, sem CGO) com WAL + busy_timeout
 - ✅ **Natives de banco conectados ao VM**: DBSelectArea, DBSeek, DBSkip,
   RecCount, FieldGet/FieldPut etc. operam sobre o banco real

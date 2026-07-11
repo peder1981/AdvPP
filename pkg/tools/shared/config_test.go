@@ -37,9 +37,9 @@ func TestResolveDatabasePathEnvVar(t *testing.T) {
 }
 
 // TestResolveDatabasePathNothingConfigured é o caso central do pedido do
-// usuário: sem flag, sem env, sem config de advcfg (arquivo nem existe) —
-// deve cair para um banco LOCAL (./advpp.db) do diretório de trabalho
-// atual, não para o banco global ~/.advpp/ADVPP.db.
+// usuário: sem flag, sem env, sem advpp_config.json salvo (arquivo nem
+// existe) — deve cair para um banco LOCAL (./advpp.db) do diretório de
+// trabalho atual, não para o banco global ~/.advpp/ADVPP.db.
 func TestResolveDatabasePathNothingConfigured(t *testing.T) {
 	_, work := isolate(t)
 	got := ResolveDatabasePath("")
@@ -76,8 +76,8 @@ func TestResolveDatabasePathIsAbsolute(t *testing.T) {
 // TestOpenSQLiteCreatesFileImmediately confere que OpenSQLite materializa
 // o arquivo em disco assim que aberto, mesmo sem nenhuma tabela criada —
 // sql.Open+Ping sozinhos não garantiam isso (o driver só escreve o
-// arquivo na primeira escrita real), o que deixava advcfg/adveditor sem
-// enxergar o banco criado por `advplc run` até a primeira tabela existir.
+// arquivo na primeira escrita real), o que deixava adveditor sem enxergar
+// o banco criado por `advplc run` até a primeira tabela existir.
 func TestOpenSQLiteCreatesFileImmediately(t *testing.T) {
 	work := t.TempDir()
 	dbPath := filepath.Join(work, "fresh.db")

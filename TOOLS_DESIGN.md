@@ -1,5 +1,13 @@
 # Design de Ferramentas AdvEditor e AdvCfg
 
+> **Nota (2026-07-11):** AdvCfg foi descontinuada — as duas ferramentas
+> eram parecidas demais para justificar manter ambas, e AdvCfg em especial
+> nunca saiu do estágio de esqueleto (a maioria das ações do menu eram só
+> placeholders). A funcionalidade de gerenciamento de dicionário (criar/
+> editar tabelas, campos, índices) foi incorporada ao AdvEditor. Este
+> documento fica como registro histórico do design original — ver
+> `TOOLS_README.md` para o estado atual real.
+
 ## Visão Geral
 
 Baseado na análise do código TOTVS em `/home/peder/Downloads/811R4/`, vamos criar duas ferramentas modernas em Go com Fyne:

@@ -8,7 +8,7 @@ import (
 )
 
 // Config representa a configuração compartilhada entre as ferramentas
-// (~/.advpp/advpp_config.json — editável hoje à mão e, futuramente, pelo AdvCfg)
+// (~/.advpp/advpp_config.json — editável à mão; ver ResolveDatabasePath)
 type Config struct {
 	DefaultDatabase string `json:"default_database"`
 	WebUIPort       string `json:"webui_port,omitempty"` // porta do advplc serve (padrão 8080)
@@ -88,7 +88,7 @@ func DefaultDatabasePath() string {
 // trabalho (o "./advpp.db" que ResolveDatabasePath cria/procura quando
 // nada foi configurado globalmente) — cada diretório onde advplc
 // check/run/compile/serve (ou qualquer outra ferramenta AdvPP) roda ganha
-// seu próprio banco por padrão, sem exigir configuração prévia via advcfg.
+// seu próprio banco por padrão, sem exigir nenhuma configuração prévia.
 const LocalDatabaseName = "advpp.db"
 
 // ResolveDatabasePath resolve o caminho do banco compartilhado entre TODAS as
@@ -105,10 +105,10 @@ const LocalDatabaseName = "advpp.db"
 //     arquivo no primeiro open) e usa um banco local aqui em vez do
 //     global ~/.advpp/ADVPP.db, para que `advplc run/check/compile/serve`
 //     sempre tenham um banco ali mesmo, e as demais ferramentas
-//     (advcfg/adveditor) rodadas no MESMO diretório enxerguem o mesmo
+//     (adveditor/advpp-ide) rodadas no MESMO diretório enxerguem o mesmo
 //     arquivo automaticamente (mesmo resolver). O banco global só volta a
-//     valer depois que o usuário configura explicitamente via advcfg
-//     (passo 3).
+//     valer depois que o usuário configura explicitamente
+//     ~/.advpp/advpp_config.json (passo 3).
 //
 // O resultado é sempre um caminho absoluto. A criação física do arquivo
 // (se ainda não existir) é feita por OpenSQLite no primeiro open, não

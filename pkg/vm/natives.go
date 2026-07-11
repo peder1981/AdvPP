@@ -1004,7 +1004,7 @@ func (v *VM) registerNatives() {
 		// Protheus real, uma consulta ao dicionário SX2 (nome pode diferir
 		// do alias por filial/ambiente). Sem um dicionário SX2 carregado, o
 		// fallback correto é o próprio alias: é assim que as tabelas locais
-		// deste VM são nomeadas (CREATE TABLE <alias> via advcfg/adveditor),
+		// deste VM são nomeadas (CREATE TABLE <alias> via adveditor),
 		// então RetSqlName("SB2") já "funciona" mesmo sem nenhum dicionário
 		// configurado, igual pedido explicitamente.
 		"RETSQLNAME": func(args []advplrt.Value) (advplrt.Value, error) {

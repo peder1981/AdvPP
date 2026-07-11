@@ -10,8 +10,7 @@ O AdvPP é uma suite completa de ferramentas para desenvolvimento AdvPL/TLPP, co
 AdvPP/
 ├── cmd/                    # Executáveis das ferramentas
 │   ├── advpp-ide/         # IDE Principal
-│   ├── advcfg/            # Configurador de Tabelas
-│   ├── adveditor/         # Editor de Banco de Dados
+│   ├── adveditor/         # Editor de Banco de Dados (dados + estrutura)
 │   └── advplc/            # Compilador
 ├── pkg/                    # Pacotes compartilhados
 │   ├── compiler/          # Compilador AdvPL/TLPP
@@ -244,11 +243,11 @@ type Component interface {
 ### Fluxo de Dados
 
 ```
-AdvCfg → Dictionary → AdvEditor → IDE
-   ↓         ↓            ↓         ↓
-  SX2      SQLite      Tables   Autocomplete
-  SX3      Data        Fields   Validation
-  SIX      Cache       Indexes  Code Gen
+AdvEditor → SQLite (advpp.db) → IDE
+    ↓              ↓                ↓
+ Tables         Data           Autocomplete
+ Fields         Cache          Validation
+ Indexes                       Code Gen
 ```
 
 ### Comunicação
@@ -334,7 +333,6 @@ tests/
 ```bash
 # Build de todas as ferramentas
 go build -o build/advpp-ide ./cmd/advpp-ide
-go build -o build/advcfg ./cmd/advcfg
 go build -o build/adveditor ./cmd/adveditor
 go build -o build/advplc ./cmd/advplc
 ```

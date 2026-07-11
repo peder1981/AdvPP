@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -23,6 +22,7 @@ type AdvEditorWindow struct {
 	statusBar    *widget.Label
 	currentTable *shared.TableInfo
 	records      []shared.Record // página atual de dados exibida no grid
+	selectedRow  int             // índice em records da linha selecionada no grid, -1 = nenhuma
 }
 
 // NewAdvEditorWindow cria uma nova janela do AdvEditor
@@ -33,6 +33,7 @@ func NewAdvEditorWindow(a fyne.App) *AdvEditorWindow {
 	ae := &AdvEditorWindow{
 		window:       w,
 		tableManager: shared.NewTableManager(),
+		selectedRow:  -1,
 	}
 
 	ae.setupUI()
@@ -92,6 +93,16 @@ func (ae *AdvEditorWindow) setupUI() {
 			label.SetText(formatCell(ae.records[id.Row-1].Fields[field.Name]))
 		},
 	)
+	ae.dataGrid.OnSelected = func(id widget.TableCellID) {
+		if id.Row == 0 || id.Row-1 >= len(ae.records) {
+			ae.selectedRow = -1
+			return
+		}
+		ae.selectedRow = id.Row - 1
+	}
+	ae.dataGrid.OnUnselected = func(id widget.TableCellID) {
+		ae.selectedRow = -1
+	}
 
 	// Status bar
 	ae.statusBar = widget.NewLabel("Pronto")
@@ -122,10 +133,17 @@ func (ae *AdvEditorWindow) setupMenu() {
 		fyne.NewMenuItem("Abrir (Ctrl+B)", ae.onOpenTable),
 		fyne.NewMenuItem("Trocar Banco de Dados", ae.onChangeDatabase),
 		fyne.NewMenuItem("Fechar", ae.onCloseTable),
-		fyne.NewMenuItem("Estrutura", ae.onViewStructure),
 		fyne.NewMenuItem("Sair", func() {
 			ae.window.Close()
 		}),
+	)
+
+	tableMenu := fyne.NewMenu("Tabela",
+		fyne.NewMenuItem("Nova Tabela", ae.onNewTable),
+		fyne.NewMenuItem("Excluir Tabela", ae.onDropTable),
+		fyne.NewMenuItem("Estrutura", ae.onViewStructure),
+		fyne.NewMenuItem("Adicionar Campo", ae.onAddColumn),
+		fyne.NewMenuItem("Remover Campo", ae.onDropColumn),
 	)
 
 	editMenu := fyne.NewMenu("Editar",
@@ -135,9 +153,8 @@ func (ae *AdvEditorWindow) setupMenu() {
 	)
 
 	indexMenu := fyne.NewMenu("Índice",
-		fyne.NewMenuItem("Abrir", ae.onOpenIndex),
 		fyne.NewMenuItem("Criar", ae.onCreateIndex),
-		fyne.NewMenuItem("Fechar", ae.onCloseIndex),
+		fyne.NewMenuItem("Excluir", ae.onDropIndex),
 	)
 
 	helpMenu := fyne.NewMenu("Ajuda",
@@ -146,6 +163,7 @@ func (ae *AdvEditorWindow) setupMenu() {
 
 	mainMenu := fyne.NewMainMenu(
 		fileMenu,
+		tableMenu,
 		editMenu,
 		indexMenu,
 		helpMenu,
@@ -193,15 +211,11 @@ func (ae *AdvEditorWindow) selectDriver() {
 
 // selectFile seleciona o arquivo de acordo com o driver
 func (ae *AdvEditorWindow) selectFile(driver string, sharedMode, readonly bool) {
-	// Se for SQLite, tenta usar o banco padrão
+	// Se for SQLite, usa o banco padrão diretamente — sempre, mesmo que o
+	// arquivo ainda não exista (auto-criado no open, ver openDefaultDatabase).
 	if driver == "SQLite" {
-		defaultDB := shared.ResolveDatabasePath("")
-		// Verifica se o arquivo existe
-		if _, err := os.Stat(defaultDB); err == nil {
-			// Usa o banco padrão automaticamente
-			ae.openDatabasePath(defaultDB, "SQLITE", sharedMode, readonly, driver)
-			return
-		}
+		ae.openDatabasePath(shared.ResolveDatabasePath(""), "SQLITE", sharedMode, readonly, driver)
+		return
 	}
 
 	// Se não for SQLite ou não encontrou banco padrão, mostra diálogo de seleção
@@ -311,6 +325,34 @@ func (ae *AdvEditorWindow) onCloseTable() {
 	ae.statusBar.SetText("Tabela fechada")
 }
 
+// fieldTypeLabels/fieldTypeValues são as opções mostradas no Select de tipo
+// de campo (Nova Tabela / Adicionar Campo) e o shared.FieldType que cada
+// uma representa, na mesma ordem.
+var fieldTypeLabels = []string{"Caractere (C)", "Numérico (N)", "Data (D)", "Lógico (L)", "Memo (M)"}
+var fieldTypeValues = []shared.FieldType{
+	shared.FieldTypeChar, shared.FieldTypeNum, shared.FieldTypeDate, shared.FieldTypeLog, shared.FieldTypeMemo,
+}
+
+// fieldTypeLabel/fieldTypeFromLabel convertem entre o FieldType interno e o
+// texto mostrado no Select.
+func fieldTypeLabel(t shared.FieldType) string {
+	for i, v := range fieldTypeValues {
+		if v == t {
+			return fieldTypeLabels[i]
+		}
+	}
+	return fieldTypeLabels[0]
+}
+
+func fieldTypeFromLabel(label string) shared.FieldType {
+	for i, l := range fieldTypeLabels {
+		if l == label {
+			return fieldTypeValues[i]
+		}
+	}
+	return shared.FieldTypeChar
+}
+
 // onViewStructure exibe a estrutura da tabela
 func (ae *AdvEditorWindow) onViewStructure() {
 	if ae.currentTable == nil {
@@ -318,60 +360,510 @@ func (ae *AdvEditorWindow) onViewStructure() {
 		return
 	}
 
-	content := widget.NewRichTextFromMarkdown("## Estrutura da Tabela: " + ae.currentTable.Alias + "\n\n")
-
+	// Monta o markdown inteiro numa string à parte antes de parsear uma
+	// única vez — RichText.String() devolve o texto JÁ RENDERIZADO (sem as
+	// quebras de linha do markdown fonte), então reparsear content.String()
+	// a cada campo acumulava tudo numa linha só.
+	md := "## Estrutura da Tabela: " + ae.currentTable.Alias + "\n\n"
 	for _, field := range ae.currentTable.Structure {
-		content.ParseMarkdown(content.String() +
-			"- **" + field.Name + "**: " + string(field.Type) +
-			"(" + string(rune(field.Size)) + "," + string(rune(field.Decimal)) + ")\n")
+		md += fmt.Sprintf("- **%s**: %s (%d,%d)\n", field.Name, fieldTypeLabel(field.Type), field.Size, field.Decimal)
 	}
+	content := widget.NewRichTextFromMarkdown(md)
 
-	dialog.ShowCustom("Estrutura", "Fechar", container.NewScroll(content), ae.window)
+	scroll := container.NewScroll(content)
+	// container.NewScroll não tem tamanho intrínseco — sem um Resize
+	// explícito, o diálogo desenha praticamente do tamanho de um pixel
+	// (mesma causa-raiz do bug de árvore vazia: widgets Fyne sem
+	// dica de tamanho colapsam para o mínimo).
+	scroll.Resize(fyne.NewSize(500, 400))
+	d := dialog.NewCustom("Estrutura", "Fechar", scroll, ae.window)
+	d.Resize(fyne.NewSize(520, 440))
+	d.Show()
 }
 
-// onAddRecord adiciona um registro
+// fieldRow é uma linha editável do formulário "Nova Tabela" (nome + tipo +
+// tamanho + decimal + botão de remover), mantida numa lista para que o
+// usuário adicione/remova campos antes de confirmar a criação.
+type fieldRow struct {
+	nameEntry *widget.Entry
+	typeSel   *widget.Select
+	sizeEntry *widget.Entry
+	decEntry  *widget.Entry
+	box       *fyne.Container // linha inteira, para poder remover do pai
+}
+
+func newFieldRow(rowsBox *fyne.Container, rows *[]*fieldRow) *fieldRow {
+	fr := &fieldRow{
+		nameEntry: widget.NewEntry(),
+		typeSel:   widget.NewSelect(fieldTypeLabels, func(string) {}),
+		sizeEntry: widget.NewEntry(),
+		decEntry:  widget.NewEntry(),
+	}
+	fr.nameEntry.SetPlaceHolder("nome do campo")
+	fr.typeSel.SetSelectedIndex(0)
+	fr.sizeEntry.SetPlaceHolder("tamanho")
+	fr.decEntry.SetPlaceHolder("decimal")
+	removeBtn := widget.NewButton("Remover", nil)
+	fr.box = container.NewGridWithColumns(5, fr.nameEntry, fr.typeSel, fr.sizeEntry, fr.decEntry, removeBtn)
+	removeBtn.OnTapped = func() {
+		for i, r := range *rows {
+			if r == fr {
+				*rows = append((*rows)[:i], (*rows)[i+1:]...)
+				break
+			}
+		}
+		rowsBox.Remove(fr.box)
+		rowsBox.Refresh()
+	}
+	return fr
+}
+
+func (fr *fieldRow) toField() (shared.Field, error) {
+	name := strings.TrimSpace(fr.nameEntry.Text)
+	if name == "" {
+		return shared.Field{}, fmt.Errorf("nome de campo em branco")
+	}
+	size, dec := 0, 0
+	fmt.Sscanf(fr.sizeEntry.Text, "%d", &size)
+	fmt.Sscanf(fr.decEntry.Text, "%d", &dec)
+	return shared.Field{
+		Name:    name,
+		Type:    fieldTypeFromLabel(fr.typeSel.Selected),
+		Size:    size,
+		Decimal: dec,
+	}, nil
+}
+
+// showFieldListDialog exibe um diálogo com uma lista de linhas de campo
+// (nome/tipo/tamanho/decimal) que o usuário pode crescer com "Adicionar
+// Campo", e chama onConfirm com os Field resultantes se confirmado.
+// Reaproveitado por onNewTable (lista começa vazia) — Adicionar Campo
+// (onAddColumn) usa um formulário mais simples de 1 campo só, sem precisar
+// desta lista dinâmica.
+func (ae *AdvEditorWindow) showFieldListDialog(title, confirmLabel string, onConfirm func([]shared.Field) error) {
+	var rows []*fieldRow
+	rowsBox := container.NewVBox()
+	addRow := func() {
+		fr := newFieldRow(rowsBox, &rows)
+		rows = append(rows, fr)
+		rowsBox.Add(fr.box)
+	}
+	addRow() // começa com uma linha em branco pronta pra preencher
+
+	addBtn := widget.NewButton("+ Adicionar Campo", addRow)
+	content := container.NewBorder(
+		container.NewVBox(widget.NewLabel("Nome / Tipo / Tamanho / Decimal"), addBtn),
+		nil, nil, nil,
+		container.NewVScroll(rowsBox),
+	)
+
+	d := dialog.NewCustomConfirm(title, confirmLabel, "Cancelar", content, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		fields := make([]shared.Field, 0, len(rows))
+		for _, r := range rows {
+			f, err := r.toField()
+			if err != nil {
+				continue // linha em branco deixada pra trás — ignora em vez de falhar tudo
+			}
+			fields = append(fields, f)
+		}
+		if err := onConfirm(fields); err != nil {
+			dialog.ShowError(err, ae.window)
+		}
+	}, ae.window)
+	d.Resize(fyne.NewSize(600, 400))
+	d.Show()
+}
+
+// onNewTable cria uma nova tabela no banco atual (nome + lista de campos).
+func (ae *AdvEditorWindow) onNewTable() {
+	driver := ae.currentDriver()
+	if driver == nil {
+		dialog.ShowInformation("Aviso", "Abra um banco SQLite primeiro (Arquivo > Abrir)", ae.window)
+		return
+	}
+
+	nameEntry := widget.NewEntry()
+	nameEntry.SetPlaceHolder("nome da tabela")
+	dialog.ShowForm("Nova Tabela — nome", "Próximo", "Cancelar", []*widget.FormItem{
+		widget.NewFormItem("Nome", nameEntry),
+	}, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		tableName := strings.TrimSpace(nameEntry.Text)
+		if tableName == "" {
+			dialog.ShowInformation("Aviso", "Nome da tabela não pode ser vazio", ae.window)
+			return
+		}
+		ae.showFieldListDialog("Nova Tabela — campos", "Criar", func(fields []shared.Field) error {
+			if err := driver.CreateTable(tableName, fields); err != nil {
+				return fmt.Errorf("erro ao criar tabela: %w", err)
+			}
+			ae.statusBar.SetText("Tabela criada: " + tableName)
+			ae.loadTablesFromDatabase()
+			return nil
+		})
+	}, ae.window)
+}
+
+// onDropTable exclui a tabela atualmente selecionada (com confirmação).
+func (ae *AdvEditorWindow) onDropTable() {
+	if ae.currentTable == nil {
+		dialog.ShowInformation("Aviso", "Nenhuma tabela selecionada", ae.window)
+		return
+	}
+	driver := ae.currentDriver()
+	if driver == nil {
+		dialog.ShowInformation("Aviso", "Excluir tabela só é suportado para bancos SQLite por enquanto", ae.window)
+		return
+	}
+	tableName := ae.currentTable.Alias
+	dialog.ShowConfirm("Excluir Tabela", "Confirma excluir a tabela \""+tableName+"\"? Esta ação não pode ser desfeita.", func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		if err := driver.DropTable(tableName); err != nil {
+			dialog.ShowError(fmt.Errorf("erro ao excluir tabela: %w", err), ae.window)
+			return
+		}
+		ae.currentTable = nil
+		ae.records = nil
+		ae.statusBar.SetText("Tabela excluída: " + tableName)
+		ae.loadTablesFromDatabase()
+		ae.updateDataGrid()
+	}, ae.window)
+}
+
+// onAddColumn adiciona um campo à tabela atual (ALTER TABLE ADD COLUMN).
+func (ae *AdvEditorWindow) onAddColumn() {
+	if ae.currentTable == nil {
+		dialog.ShowInformation("Aviso", "Nenhuma tabela selecionada", ae.window)
+		return
+	}
+	driver := ae.currentDriver()
+	if driver == nil {
+		dialog.ShowInformation("Aviso", "Adicionar campo só é suportado para tabelas SQLite por enquanto", ae.window)
+		return
+	}
+
+	nameEntry := widget.NewEntry()
+	nameEntry.SetPlaceHolder("nome do campo")
+	typeSel := widget.NewSelect(fieldTypeLabels, func(string) {})
+	typeSel.SetSelectedIndex(0)
+	sizeEntry := widget.NewEntry()
+	decEntry := widget.NewEntry()
+
+	dialog.ShowForm("Adicionar Campo", "Adicionar", "Cancelar", []*widget.FormItem{
+		widget.NewFormItem("Nome", nameEntry),
+		widget.NewFormItem("Tipo", typeSel),
+		widget.NewFormItem("Tamanho", sizeEntry),
+		widget.NewFormItem("Decimal", decEntry),
+	}, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		name := strings.TrimSpace(nameEntry.Text)
+		if name == "" {
+			dialog.ShowInformation("Aviso", "Nome de campo não pode ser vazio", ae.window)
+			return
+		}
+		size, dec := 0, 0
+		fmt.Sscanf(sizeEntry.Text, "%d", &size)
+		fmt.Sscanf(decEntry.Text, "%d", &dec)
+		field := shared.Field{Name: name, Type: fieldTypeFromLabel(typeSel.Selected), Size: size, Decimal: dec}
+		if err := driver.AddColumn(field); err != nil {
+			dialog.ShowError(fmt.Errorf("erro ao adicionar campo: %w", err), ae.window)
+			return
+		}
+		ae.currentTable.Structure, _ = driver.GetStructure()
+		ae.statusBar.SetText("Campo adicionado: " + name)
+		ae.updateDataGrid()
+	}, ae.window)
+}
+
+// onDropColumn remove um campo da tabela atual, escolhido de uma lista dos
+// campos existentes.
+func (ae *AdvEditorWindow) onDropColumn() {
+	if ae.currentTable == nil {
+		dialog.ShowInformation("Aviso", "Nenhuma tabela selecionada", ae.window)
+		return
+	}
+	driver := ae.currentDriver()
+	if driver == nil {
+		dialog.ShowInformation("Aviso", "Remover campo só é suportado para tabelas SQLite por enquanto", ae.window)
+		return
+	}
+	if len(ae.currentTable.Structure) == 0 {
+		dialog.ShowInformation("Aviso", "Esta tabela não tem campos para remover", ae.window)
+		return
+	}
+	names := make([]string, len(ae.currentTable.Structure))
+	for i, f := range ae.currentTable.Structure {
+		names[i] = f.Name
+	}
+	sel := widget.NewSelect(names, func(string) {})
+	sel.SetSelectedIndex(0)
+	dialog.ShowForm("Remover Campo", "Remover", "Cancelar", []*widget.FormItem{
+		widget.NewFormItem("Campo", sel),
+	}, func(confirmed bool) {
+		if !confirmed || sel.Selected == "" {
+			return
+		}
+		if err := driver.DropColumn(sel.Selected); err != nil {
+			dialog.ShowError(fmt.Errorf("erro ao remover campo: %w", err), ae.window)
+			return
+		}
+		ae.currentTable.Structure, _ = driver.GetStructure()
+		ae.statusBar.SetText("Campo removido: " + sel.Selected)
+		ae.updateDataGrid()
+	}, ae.window)
+}
+
+// currentDriver devolve o SQLiteDriver da conexão aberta, ou nil se a
+// tabela atual não é SQLite (outros drivers ainda não têm DDL/CRUD real —
+// ver comentário na struct DatabaseDriver).
+func (ae *AdvEditorWindow) currentDriver() *shared.SQLiteDriver {
+	if ae.currentTable == nil {
+		return nil
+	}
+	d, _ := ae.currentTable.DriverObj.(*shared.SQLiteDriver)
+	return d
+}
+
+// fieldEntry é o par (campo, widget de edição) de uma linha do formulário
+// de registro — o tipo do widget depende de field.Type (Entry para C/N/D,
+// Check para L).
+type fieldEntry struct {
+	field shared.Field
+	entry *widget.Entry
+	check *widget.Check
+}
+
+// value lê o valor digitado no widget e converte para o tipo Go que
+// AddRecord/UpdateRecord espera (float64 para N, bool→int para L, string
+// para o resto).
+func (fe fieldEntry) value() interface{} {
+	if fe.check != nil {
+		if fe.check.Checked {
+			return 1
+		}
+		return 0
+	}
+	text := fe.entry.Text
+	if fe.field.Type == shared.FieldTypeNum || fe.field.Type == shared.FieldTypeDouble {
+		var n float64
+		fmt.Sscanf(text, "%g", &n)
+		return n
+	}
+	return text
+}
+
+// buildRecordFormItems monta um FormItem por campo da estrutura atual,
+// pré-preenchido com os valores de `initial` (nil = registro novo, campos
+// em branco). Devolve os itens do form E os fieldEntry para ler os valores
+// depois de confirmado.
+func (ae *AdvEditorWindow) buildRecordFormItems(initial map[string]interface{}) ([]*widget.FormItem, []fieldEntry) {
+	items := make([]*widget.FormItem, 0, len(ae.currentTable.Structure))
+	entries := make([]fieldEntry, 0, len(ae.currentTable.Structure))
+	for _, field := range ae.currentTable.Structure {
+		fe := fieldEntry{field: field}
+		if field.Type == shared.FieldTypeLog {
+			check := widget.NewCheck("", func(bool) {})
+			if initial != nil {
+				check.Checked = formatCell(initial[field.Name]) == "1"
+			}
+			fe.check = check
+			items = append(items, widget.NewFormItem(field.Name, check))
+		} else {
+			entry := widget.NewEntry()
+			if field.Type == shared.FieldTypeDate {
+				entry.SetPlaceHolder("AAAA-MM-DD")
+			}
+			if initial != nil {
+				entry.SetText(formatCell(initial[field.Name]))
+			}
+			fe.entry = entry
+			items = append(items, widget.NewFormItem(field.Name, entry))
+		}
+		entries = append(entries, fe)
+	}
+	return items, entries
+}
+
+// onAddRecord adiciona um registro via formulário (um campo por coluna da
+// tabela atual).
 func (ae *AdvEditorWindow) onAddRecord() {
 	if ae.currentTable == nil {
 		dialog.ShowInformation("Aviso", "Nenhuma tabela selecionada", ae.window)
 		return
 	}
+	if len(ae.currentTable.Structure) == 0 {
+		dialog.ShowInformation("Aviso", "A tabela não tem campos — use Estrutura > Adicionar Campo primeiro", ae.window)
+		return
+	}
+	driver := ae.currentDriver()
+	if driver == nil {
+		dialog.ShowInformation("Aviso", "Incluir só é suportado para tabelas SQLite por enquanto", ae.window)
+		return
+	}
 
-	dialog.ShowInformation("Info", "Funcionalidade de adicionar registro será implementada", ae.window)
+	items, entries := ae.buildRecordFormItems(nil)
+	dialog.ShowForm("Incluir Registro", "Incluir", "Cancelar", items, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		fields := make(map[string]interface{}, len(entries))
+		for _, fe := range entries {
+			fields[fe.field.Name] = fe.value()
+		}
+		if _, err := driver.AddRecord(shared.Record{Fields: fields}); err != nil {
+			dialog.ShowError(fmt.Errorf("erro ao incluir registro: %w", err), ae.window)
+			return
+		}
+		ae.loadTableData(ae.currentTable.Alias)
+	}, ae.window)
 }
 
-// onEditRecord edita um registro
+// onEditRecord edita o registro selecionado no grid.
 func (ae *AdvEditorWindow) onEditRecord() {
 	if ae.currentTable == nil {
 		dialog.ShowInformation("Aviso", "Nenhuma tabela selecionada", ae.window)
 		return
 	}
+	if ae.selectedRow < 0 || ae.selectedRow >= len(ae.records) {
+		dialog.ShowInformation("Aviso", "Selecione um registro no grid primeiro", ae.window)
+		return
+	}
+	driver := ae.currentDriver()
+	if driver == nil {
+		dialog.ShowInformation("Aviso", "Alterar só é suportado para tabelas SQLite por enquanto", ae.window)
+		return
+	}
 
-	dialog.ShowInformation("Info", "Funcionalidade de editar registro será implementada", ae.window)
+	record := ae.records[ae.selectedRow]
+	items, entries := ae.buildRecordFormItems(record.Fields)
+	dialog.ShowForm("Alterar Registro", "Salvar", "Cancelar", items, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		fields := make(map[string]interface{}, len(entries))
+		for _, fe := range entries {
+			fields[fe.field.Name] = fe.value()
+		}
+		if err := driver.UpdateRecord(record.Recno, shared.Record{Fields: fields}); err != nil {
+			dialog.ShowError(fmt.Errorf("erro ao alterar registro: %w", err), ae.window)
+			return
+		}
+		ae.loadTableData(ae.currentTable.Alias)
+	}, ae.window)
 }
 
-// onDeleteRecord deleta um registro
+// onDeleteRecord marca o registro selecionado como deletado (exclusão
+// lógica — D_E_L_E_T_/R_E_C_D_E_L_, ver pkg/tools/shared/database.go).
 func (ae *AdvEditorWindow) onDeleteRecord() {
 	if ae.currentTable == nil {
 		dialog.ShowInformation("Aviso", "Nenhuma tabela selecionada", ae.window)
 		return
 	}
+	if ae.selectedRow < 0 || ae.selectedRow >= len(ae.records) {
+		dialog.ShowInformation("Aviso", "Selecione um registro no grid primeiro", ae.window)
+		return
+	}
+	driver := ae.currentDriver()
+	if driver == nil {
+		dialog.ShowInformation("Aviso", "Excluir só é suportado para tabelas SQLite por enquanto", ae.window)
+		return
+	}
 
-	dialog.ShowInformation("Info", "Funcionalidade de deletar registro será implementada", ae.window)
+	record := ae.records[ae.selectedRow]
+	dialog.ShowConfirm("Excluir Registro", "Confirma excluir este registro?", func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		if err := driver.DeleteRecord(record.Recno); err != nil {
+			dialog.ShowError(fmt.Errorf("erro ao excluir registro: %w", err), ae.window)
+			return
+		}
+		ae.selectedRow = -1
+		ae.loadTableData(ae.currentTable.Alias)
+	}, ae.window)
 }
 
-// onOpenIndex abre um índice
-func (ae *AdvEditorWindow) onOpenIndex() {
-	dialog.ShowInformation("Info", "Funcionalidade de abrir índice será implementada", ae.window)
-}
-
-// onCreateIndex cria um índice
+// onCreateIndex cria um índice (nome + lista de campos separados por "+",
+// convenção Clipper: "CAMPO1+CAMPO2").
 func (ae *AdvEditorWindow) onCreateIndex() {
-	dialog.ShowInformation("Info", "Funcionalidade de criar índice será implementada", ae.window)
+	if ae.currentTable == nil {
+		dialog.ShowInformation("Aviso", "Nenhuma tabela selecionada", ae.window)
+		return
+	}
+	driver := ae.currentDriver()
+	if driver == nil {
+		dialog.ShowInformation("Aviso", "Índice só é suportado para tabelas SQLite por enquanto", ae.window)
+		return
+	}
+
+	nameEntry := widget.NewEntry()
+	nameEntry.SetPlaceHolder("nome do índice")
+	exprEntry := widget.NewEntry()
+	exprEntry.SetPlaceHolder("CAMPO1+CAMPO2")
+
+	dialog.ShowForm("Criar Índice", "Criar", "Cancelar", []*widget.FormItem{
+		widget.NewFormItem("Nome", nameEntry),
+		widget.NewFormItem("Campos", exprEntry),
+	}, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		if err := driver.CreateIndex(strings.TrimSpace(nameEntry.Text), strings.TrimSpace(exprEntry.Text)); err != nil {
+			dialog.ShowError(fmt.Errorf("erro ao criar índice: %w", err), ae.window)
+			return
+		}
+		ae.statusBar.SetText("Índice criado: " + nameEntry.Text)
+	}, ae.window)
 }
 
-// onCloseIndex fecha um índice
-func (ae *AdvEditorWindow) onCloseIndex() {
-	dialog.ShowInformation("Info", "Funcionalidade de fechar índice será implementada", ae.window)
+// onDropIndex remove um índice, escolhido de uma lista dos índices
+// existentes na tabela atual.
+func (ae *AdvEditorWindow) onDropIndex() {
+	if ae.currentTable == nil {
+		dialog.ShowInformation("Aviso", "Nenhuma tabela selecionada", ae.window)
+		return
+	}
+	driver := ae.currentDriver()
+	if driver == nil {
+		dialog.ShowInformation("Aviso", "Índice só é suportado para tabelas SQLite por enquanto", ae.window)
+		return
+	}
+	indexes, err := driver.GetIndexes()
+	if err != nil {
+		dialog.ShowError(err, ae.window)
+		return
+	}
+	if len(indexes) == 0 {
+		dialog.ShowInformation("Aviso", "Esta tabela não tem índices", ae.window)
+		return
+	}
+	names := make([]string, len(indexes))
+	for i, ix := range indexes {
+		names[i] = ix.Name
+	}
+	sel := widget.NewSelect(names, func(string) {})
+	sel.SetSelectedIndex(0)
+	dialog.ShowForm("Excluir Índice", "Excluir", "Cancelar", []*widget.FormItem{
+		widget.NewFormItem("Índice", sel),
+	}, func(confirmed bool) {
+		if !confirmed || sel.Selected == "" {
+			return
+		}
+		if err := driver.DropIndex(sel.Selected); err != nil {
+			dialog.ShowError(fmt.Errorf("erro ao excluir índice: %w", err), ae.window)
+			return
+		}
+		ae.statusBar.SetText("Índice excluído: " + sel.Selected)
+	}, ae.window)
 }
 
 // onAbout exibe informações sobre
@@ -446,15 +938,13 @@ func (ae *AdvEditorWindow) updateDataGrid() {
 	ae.dataGrid.Refresh()
 }
 
-// openDefaultDatabase abre o banco de dados padrão
+// openDefaultDatabase abre o banco de dados padrão — sempre, mesmo que o
+// arquivo ainda não exista (OpenSQLite/Open agora criam na hora; ver
+// pkg/tools/shared). Sem isso, a primeira execução do AdvEditor num
+// diretório novo nunca chegava a criar/abrir o banco local automático.
 func (ae *AdvEditorWindow) openDefaultDatabase() {
 	defaultDB := shared.ResolveDatabasePath("")
-	if _, err := os.Stat(defaultDB); err != nil {
-		ae.statusBar.SetText("Banco padrão ainda não existe: " + defaultDB)
-		return
-	}
 
-	// Tenta abrir o banco de dados padrão
 	tableInfo, err := ae.tableManager.OpenTable(defaultDB, "SQLITE", false, true)
 	if err != nil {
 		ae.statusBar.SetText("Erro ao abrir banco padrão: " + err.Error())
@@ -559,15 +1049,35 @@ func (ae *AdvEditorWindow) loadTableData(tableName string) {
 		return
 	}
 
-	// Abre a tabela específica
-	tablePath := ae.currentTable.File + "/" + tableName
-	tableInfo, err := ae.tableManager.OpenTable(tablePath, "SQLITE", false, true)
-	if err != nil {
-		ae.statusBar.SetText("Erro ao abrir tabela: " + err.Error())
-		return
+	tableInfo := ae.currentTable
+	// Reaproveita a conexão SQLite já aberta em vez de sempre passar pelo
+	// TableManager.OpenTable — que trata reabrir o MESMO caminho como
+	// "tabela já aberta" e devolve um erro + o snapshot antigo, sem nunca
+	// reconsultar. Isso fazia todo `loadTableData` chamado depois da
+	// PRIMEIRA seleção da tabela (ou seja, todo refresh depois de Incluir/
+	// Alterar/Excluir/Adicionar Campo/etc.) virar um no-op silencioso — o
+	// grid nunca refletia a mudança recém-feita. driver.SelectTable troca/
+	// recarrega a estrutura na mesma conexão, sem esse problema.
+	if driver, ok := tableInfo.DriverObj.(*shared.SQLiteDriver); ok {
+		if err := driver.SelectTable(tableName); err != nil {
+			ae.statusBar.SetText("Erro ao abrir tabela: " + err.Error())
+			return
+		}
+		structure, _ := driver.GetStructure()
+		tableInfo.Structure = structure
+		tableInfo.Alias = tableName
+	} else {
+		// Drivers não-SQLite (DBF/TopConnect/...) ainda não suportam trocar
+		// de tabela na mesma conexão — mantém o caminho antigo pra eles.
+		tablePath := ae.currentTable.File + "/" + tableName
+		opened, err := ae.tableManager.OpenTable(tablePath, "SQLITE", false, true)
+		if err != nil {
+			ae.statusBar.SetText("Erro ao abrir tabela: " + err.Error())
+			return
+		}
+		tableInfo = opened
+		ae.currentTable = tableInfo
 	}
-
-	ae.currentTable = tableInfo
 
 	// Carrega a primeira página de registros
 	records, err := tableInfo.DriverObj.GetData(0, pageSize)

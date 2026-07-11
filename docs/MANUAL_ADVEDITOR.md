@@ -408,14 +408,6 @@ Em caso de perda de dados:
 
 ## Integração com Outras Ferramentas
 
-### AdvCfg
-
-O AdvEditor se integra com o AdvCfg:
-
-- Dicionário compartilhado
-- Estruturas sincronizadas
-- Validação consistente
-
 ### AdvPP IDE
 
 O AdvEditor se integra com o AdvPP IDE:
