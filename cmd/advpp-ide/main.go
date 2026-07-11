@@ -355,7 +355,7 @@ func (ide *IDE) run() {
 	// Route ConOut/console writes into the IDE's own Output pane instead of
 	// the process's real stdout, which a packaged GUI app has no visible
 	// terminal for.
-	v.SetOutputWriter(&consoleWriter{console: ide.output})
+	v.SetOutputWriter(ui.NewConsoleWriter(ide.output))
 
 	// v.Run() must NOT execute on the Fyne main/event goroutine: MSDIALOG
 	// (ui.FyneUIProvider.Dialog) blocks its calling goroutine until the
@@ -420,7 +420,7 @@ func (ide *IDE) buildStandalone() {
 		// binary) — run off the UI goroutine so the window stays
 		// responsive instead of appearing frozen for its duration.
 		go func() {
-			logWriter := &consoleWriter{console: ide.output}
+			logWriter := ui.NewConsoleWriter(ide.output)
 			if err := compiler.BuildStandalone(bc, outputFile, logWriter); err != nil {
 				ide.output.Append("Build error: " + err.Error())
 				return
@@ -461,23 +461,4 @@ func (ide *IDE) showAboutDialog() {
 		version,
 	))
 	dialog.ShowInformation("About AdvPP IDE", content.Text, ide.window)
-}
-
-// consoleWriter adapts ui.OutputConsole to io.Writer, splitting arbitrary
-// writes (e.g. a `go build` subprocess's combined stdout/stderr) into
-// line-based Append calls; a partial trailing line is buffered until the
-// next Write completes it.
-type consoleWriter struct {
-	console *ui.OutputConsole
-	partial string
-}
-
-func (w *consoleWriter) Write(p []byte) (int, error) {
-	w.partial += string(p)
-	lines := strings.Split(w.partial, "\n")
-	for _, line := range lines[:len(lines)-1] {
-		w.console.Append(line)
-	}
-	w.partial = lines[len(lines)-1]
-	return len(p), nil
 }
