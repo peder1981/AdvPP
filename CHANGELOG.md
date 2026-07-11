@@ -2,6 +2,79 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.10.2] — 2026-07-11
+
+### MSDIALOG renderiza de verdade no advpp-ide (não só no modo web)
+
+Pedido do usuário: testou o FrameworkClassesTest e o botão Compilar no
+advpp-ide e achou dois problemas reais. Investigação mostrou que o segundo
+era bem maior do que parecia: `DEFINE MSDIALOG`/`ACTIVATE MSDIALOG` (o DSL
+clássico `@ x,y SAY/GET/BUTTON`) e `FWMBrowse` dependem de interfaces
+opcionais (`DialogUI`/`BrowseUI`, `pkg/vm/dialog.go`/`pkg/vm/browse.go`) que
+só o renderer web (`advplc serve`) implementava — `pkg/ui.FyneUIProvider`
+(usado por advpp-ide) só tinha os 4 primitivos de mensagem
+(`MsgInfo`/`MsgStop`/`MsgAlert`/`MsgYesNo`). Qualquer programa com MSDIALOG
+literalmente **falhava** ("MSDIALOG: requer o modo web") ao rodar pelo
+IDE desktop.
+
+- **`FyneUIProvider.Dialog`** (`pkg/ui/msdialog.go`, novo): implementa
+  `vm.DialogUI` nativamente em Fyne — renderiza o spec (linhas SAY/GET
+  agrupadas pela heurística de grade y/x já existente no VM, botões no
+  rodapé) como um `dialog.CustomDialog` de verdade, com um `chan
+  dialogAction` bloqueando a goroutine chamadora até o clique de um botão
+  (ou Escape/fechamento), devolvendo os valores digitados para writeback
+  nas variáveis AdvPL — mesmo protocolo JSON que o renderer web já usa,
+  então o VM não precisou mudar nada.
+- **`v.Run()` precisou sair da goroutine principal do Fyne**
+  (`cmd/advpp-ide`, `run()`): como `Dialog()` bloqueia quem chamou até o
+  clique do botão, e esse clique só é processado pelo event loop principal
+  do Fyne, rodar `v.Run()` direto no handler do menu "Run" causava
+  deadlock garantido assim que um programa abrisse um MSDIALOG. Corrigido
+  rodando a VM em `go func() { v.Run() ... }()`.
+- **Bug real encontrado de bônus, mesma causa raiz**: `MsgYesNo` sempre
+  devolvia `false` independente da escolha do usuário —
+  `dialog.ShowConfirm` é assíncrono (o callback só roda depois), mas o
+  código antigo lia a variável de resultado ANTES do callback rodar.
+  Corrigido com o mesmo padrão de canal bloqueante — seguro agora que
+  `v.Run()` não roda mais na goroutine principal.
+- **`ConOut`/console não aparecia em lugar nenhum visível no IDE** — a VM
+  escrevia direto em `os.Stdout` (sem terminal visível num app GUI
+  empacotado) porque `run()` nunca chamava `v.SetOutputWriter`. Corrigido
+  roteando para o próprio painel de saída do IDE.
+- **Botão "Compile" agora gera um arquivo de verdade**: antes só reportava
+  contagem de funções/classes e descartava o bytecode compilado. Agora
+  salva `<arquivo>.bytecode` (mesmo formato que `advplc compile` já
+  gerava), carregável depois via `advplc run` ou o próprio botão Run do
+  IDE sem recompilar.
+- **Novo item de menu "Build standalone executable..."**: mesmo mecanismo
+  de `advplc build`, extraído para `compiler.BuildStandalone`
+  (`pkg/compiler/standalone.go`) e compartilhado entre CLI e IDE. Só
+  funciona rodando de dentro de (ou apontando via `ADVPP_SRC` para) um
+  checkout completo do código-fonte do AdvPP com o toolchain Go instalado
+  — o stub gerado importa `pkg/compiler`/`pkg/vm` deste módulo, que não
+  está publicado em lugar nenhum que `go build` consiga buscar sozinho;
+  não é algo que funcione a partir de um pacote de release baixado
+  isoladamente. Bug real corrigido de quebra: a detecção antiga da raiz do
+  projeto (`filepath.Dir(filepath.Dir(caminhoDoFonte))`) só funcionava por
+  coincidência para fontes dentro de `tests/` deste repo — quebrava para
+  qualquer arquivo real de usuário. Substituída por busca robusta (sobe a
+  árvore de diretórios a partir do cwd e do executável em execução,
+  procurando o `go.mod` do módulo certo).
+- **Não corrigido nesta rodada** (fora de escopo, adiado por decisão do
+  usuário): `FWMBrowse` e as 8 classes complexas do framework
+  (`FWWizardControl`, `FWDynDialog`, `FWPanel`, `FWGroupBox`, `FWTabs`,
+  `FWSplitter`, `FWTreeView`, `FWListView`) continuam sem renderização
+  nativa em Fyne — só existem como estruturas de dados Go
+  (`pkg/mvc/view.go`), sem nenhum renderer (nem web nem desktop) para os
+  8 casos complexos.
+
+Sem regressão: `go build ./...`, `go vet ./...`, `go test ./...`
+(testes novos em `pkg/ui` para o contrato JSON do diálogo e em
+`pkg/compiler` para a busca de módulo), `make test` (30 fixtures), sweep
+completo do corpus de 500 arquivos (500/500). Verificado visualmente via
+Xvfb: MSDIALOG abre, campos são editáveis, clique em botão fecha o
+diálogo e grava os valores de volta corretamente nas variáveis AdvPL.
+
 ## [1.10.0] — 2026-07-11
 
 ### Banco de dados local automático — RetSqlName/DbSelectArea/GetArea funcionam sem dicionário configurado

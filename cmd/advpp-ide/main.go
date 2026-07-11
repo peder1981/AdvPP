@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -113,6 +114,10 @@ func (ide *IDE) makeMainMenu() *fyne.MainMenu {
 		}),
 		fyne.NewMenuItem("Compile and Run", func() {
 			ide.compileAndRun()
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Build standalone executable...", func() {
+			ide.buildStandalone()
 		}),
 	)
 
@@ -266,90 +271,79 @@ func (ide *IDE) saveFileAs() {
 	fd.Show()
 }
 
-func (ide *IDE) compile() {
+// loadAndCompile runs the preprocess/lex/parse/compile pipeline over the
+// editor's current content, shared by compile/run/buildStandalone so they
+// stay in sync instead of drifting as three separate copies.
+func (ide *IDE) loadAndCompile() (*compiler.Bytecode, string, error) {
 	source := ide.editor.GetContent()
 	filename := ide.editor.GetFilename()
 
 	if filename == "" || filename == "untitled.prw" {
-		ide.output.Append("Error: Please save the file first")
+		return nil, filename, fmt.Errorf("please save the file first")
+	}
+
+	includes := []string{filepath.Dir(filename)}
+	pp := preprocessor.NewPreprocessor(includes)
+	processed, err := pp.Process(source, filename)
+	if err != nil {
+		return nil, filename, fmt.Errorf("preprocessor error: %w", err)
+	}
+
+	tokens, err := lexer.Tokenize(processed, filename)
+	if err != nil {
+		return nil, filename, fmt.Errorf("lexer error: %w", err)
+	}
+
+	p := parser.NewParser(tokens, filename, pp.GetDefines())
+	prog, err := p.Parse()
+	if err != nil {
+		return nil, filename, fmt.Errorf("parser error: %w", err)
+	}
+
+	bc, err := compiler.Compile(prog)
+	if err != nil {
+		return nil, filename, fmt.Errorf("compiler error: %w", err)
+	}
+
+	return bc, filename, nil
+}
+
+// bytecodeFilename derives the .bytecode output path for a source file,
+// e.g. "foo.prw" -> "foo.bytecode" — same format advplc's own "compile"
+// command writes (compiler.SaveBytecode), loadable via "advplc run" or via
+// this IDE's own Run button without recompiling from source.
+func bytecodeFilename(sourceFile string) string {
+	ext := filepath.Ext(sourceFile)
+	return strings.TrimSuffix(sourceFile, ext) + ".bytecode"
+}
+
+func (ide *IDE) compile() {
+	bc, filename, err := ide.loadAndCompile()
+	if err != nil {
+		ide.output.Append("Error: " + err.Error())
 		return
 	}
 
 	ide.output.Append("Compiling: " + filename)
 
-	// Preprocess
-	includes := []string{filepath.Dir(filename)}
-	pp := preprocessor.NewPreprocessor(includes)
-	processed, err := pp.Process(source, filename)
-	if err != nil {
-		ide.output.Append("Preprocessor error: " + err.Error())
+	outputFile := bytecodeFilename(filename)
+	if err := compiler.SaveBytecode(bc, outputFile); err != nil {
+		ide.output.Append("Error saving bytecode: " + err.Error())
 		return
 	}
 
-	// Lex
-	tokens, err := lexer.Tokenize(processed, filename)
-	if err != nil {
-		ide.output.Append("Lexer error: " + err.Error())
-		return
-	}
-
-	// Parse
-	p := parser.NewParser(tokens, filename, pp.GetDefines())
-	prog, err := p.Parse()
-	if err != nil {
-		ide.output.Append("Parser error: " + err.Error())
-		return
-	}
-
-	// Compile
-	bc, err := compiler.Compile(prog)
-	if err != nil {
-		ide.output.Append("Compiler error: " + err.Error())
-		return
-	}
-
-	ide.output.Append("Compilation successful")
+	ide.output.Append("Compilation successful: " + outputFile)
 	ide.output.Append(fmt.Sprintf("Functions: %d, Classes: %d", len(bc.Functions), len(bc.Classes)))
 }
 
 func (ide *IDE) run() {
-	source := ide.editor.GetContent()
-	filename := ide.editor.GetFilename()
-
-	if filename == "" || filename == "untitled.prw" {
-		ide.output.Append("Error: Please save the file first")
+	bc, filename, err := ide.loadAndCompile()
+	if err != nil {
+		ide.output.Append("Error: " + err.Error())
 		return
 	}
 
 	ide.output.Append("Running: " + filename)
-
-	// Compile first
-	includes := []string{filepath.Dir(filename)}
-	pp := preprocessor.NewPreprocessor(includes)
-	processed, err := pp.Process(source, filename)
-	if err != nil {
-		ide.output.Append("Preprocessor error: " + err.Error())
-		return
-	}
-
-	tokens, err := lexer.Tokenize(processed, filename)
-	if err != nil {
-		ide.output.Append("Lexer error: " + err.Error())
-		return
-	}
-
-	p := parser.NewParser(tokens, filename, pp.GetDefines())
-	prog, err := p.Parse()
-	if err != nil {
-		ide.output.Append("Parser error: " + err.Error())
-		return
-	}
-
-	bc, err := compiler.Compile(prog)
-	if err != nil {
-		ide.output.Append("Compiler error: " + err.Error())
-		return
-	}
 
 	// Run VM
 	v := vm.NewVM(bc, true)
@@ -358,22 +352,87 @@ func (ide *IDE) run() {
 	// Set UI provider for dialog functions
 	uiProvider := ui.NewFyneUIProvider(ide.window)
 	v.SetUIProvider(uiProvider)
+	// Route ConOut/console writes into the IDE's own Output pane instead of
+	// the process's real stdout, which a packaged GUI app has no visible
+	// terminal for.
+	v.SetOutputWriter(&consoleWriter{console: ide.output})
 
-	result, err := v.Run()
-	if err != nil {
-		ide.output.Append("Runtime error: " + err.Error())
-		return
-	}
+	// v.Run() must NOT execute on the Fyne main/event goroutine: MSDIALOG
+	// (ui.FyneUIProvider.Dialog) blocks its calling goroutine until the
+	// user clicks a button, and that click is itself only processed by
+	// the main goroutine's event loop — calling v.Run() directly here
+	// would deadlock the whole window the moment a program opens a
+	// MSDIALOG. Running it on its own goroutine keeps the event loop free
+	// to process the dialog's own button clicks that unblock it.
+	go func() {
+		result, err := v.Run()
+		if err != nil {
+			ide.output.Append("Runtime error: " + err.Error())
+			return
+		}
 
-	ide.output.Append("Execution completed")
-	if result != nil {
-		ide.output.Append("Result: " + fmt.Sprintf("%v", result))
-	}
+		ide.output.Append("Execution completed")
+		if result != nil {
+			ide.output.Append("Result: " + fmt.Sprintf("%v", result))
+		}
+	}()
 }
 
 func (ide *IDE) compileAndRun() {
 	ide.compile()
 	ide.run()
+}
+
+// buildStandalone compiles the current file into a native, standalone
+// executable via compiler.BuildStandalone — same mechanism as `advplc
+// build`. This only works when advpp-ide is running from within (or
+// pointed at, via ADVPP_SRC) a full AdvPP source checkout with the Go
+// toolchain installed, since the generated stub imports pkg/compiler and
+// pkg/vm from this module, which isn't published anywhere `go build`
+// could otherwise fetch it from — not something a plain downloaded
+// release package alone can satisfy.
+func (ide *IDE) buildStandalone() {
+	bc, filename, err := ide.loadAndCompile()
+	if err != nil {
+		ide.output.Append("Error: " + err.Error())
+		return
+	}
+
+	name := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+
+	fd := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
+		if err != nil {
+			dialog.ShowError(err, ide.window)
+			return
+		}
+		if writer == nil {
+			return
+		}
+		outputFile := writer.URI().Path()
+		writer.Close()
+		os.Remove(outputFile) // BuildStandalone creates it itself via os.Rename
+
+		ide.output.Append("Building standalone executable: " + outputFile)
+		// go build can take a while (real subprocess compiling a Fyne
+		// binary) — run off the UI goroutine so the window stays
+		// responsive instead of appearing frozen for its duration.
+		go func() {
+			logWriter := &consoleWriter{console: ide.output}
+			if err := compiler.BuildStandalone(bc, outputFile, logWriter); err != nil {
+				ide.output.Append("Build error: " + err.Error())
+				return
+			}
+			ide.output.Append("Standalone executable built: " + outputFile)
+		}()
+	}, ide.window)
+	fd.SetFileName(name)
+	if loc := ui.CurrentDirLocation(); loc != nil {
+		fd.SetLocation(loc)
+	}
+	fd.Show()
 }
 
 // attachDatabase conecta o VM ao banco SQLite compartilhado entre todas as
@@ -402,4 +461,23 @@ func (ide *IDE) showAboutDialog() {
 		version,
 	))
 	dialog.ShowInformation("About AdvPP IDE", content.Text, ide.window)
+}
+
+// consoleWriter adapts ui.OutputConsole to io.Writer, splitting arbitrary
+// writes (e.g. a `go build` subprocess's combined stdout/stderr) into
+// line-based Append calls; a partial trailing line is buffered until the
+// next Write completes it.
+type consoleWriter struct {
+	console *ui.OutputConsole
+	partial string
+}
+
+func (w *consoleWriter) Write(p []byte) (int, error) {
+	w.partial += string(p)
+	lines := strings.Split(w.partial, "\n")
+	for _, line := range lines[:len(lines)-1] {
+		w.console.Append(line)
+	}
+	w.partial = lines[len(lines)-1]
+	return len(p), nil
 }

@@ -36,17 +36,23 @@ func (p *FyneUIProvider) MsgAlert(msg, title string) {
 	dialog.ShowInformation(title, msg, p.window)
 }
 
+// MsgYesNo blocks its calling goroutine until the user answers — same
+// constraint as Dialog (see msdialog.go): dialog.ShowConfirm's callback
+// only fires once Fyne's own event loop processes the click, so this must
+// never be called from that same event loop goroutine, or it deadlocks.
+// Safe here because the VM (the only caller) always runs on its own
+// goroutine (see cmd/advpp-ide's run()), never directly on a menu handler.
 func (p *FyneUIProvider) MsgYesNo(msg, title string) bool {
 	if title == "" {
 		title = "Confirm"
 	}
-	
-	result := false
+
+	result := make(chan bool, 1)
 	dialog.ShowConfirm(title, msg, func(confirmed bool) {
-		result = confirmed
+		result <- confirmed
 	}, p.window)
-	
-	return result
+
+	return <-result
 }
 
 type fyneError struct {
