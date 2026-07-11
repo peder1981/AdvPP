@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -25,7 +26,15 @@ func TestMCPServerFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("filepath.Abs: %v", err)
 	}
-	binPath := filepath.Join(t.TempDir(), "advplc")
+	binName := "advplc"
+	if runtime.GOOS == "windows" {
+		// go build não adiciona .exe sozinho quando -o já é um caminho
+		// explícito sem extensão — sem isso, exec.Command não acha o
+		// executável no Windows ("file not found in %PATH%"), só
+		// descoberto ao rodar em CI real pela primeira vez.
+		binName += ".exe"
+	}
+	binPath := filepath.Join(t.TempDir(), binName)
 	build := exec.Command("go", "build", "-o", binPath, "./cmd/advplc")
 	build.Dir = repoRoot
 	if out, err := build.CombinedOutput(); err != nil {
