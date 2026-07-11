@@ -35,6 +35,24 @@ func TestFloat16ToFloat32(t *testing.T) {
 	}
 }
 
+// TestFloat16TableExhaustive confere, para TODOS os 65536 padrões de bits
+// possíveis, que a tabela pré-computada (float16Table, usada por
+// Float16ToFloat32) é bit-a-bit idêntica à implementação de referência
+// (float16ToFloat32Bits) — garantia total, não amostragem, já que o espaço
+// de entrada é pequeno o bastante para cobrir por inteiro. NaN é comparado
+// pelos bits crus (math.Float32bits), não por `==` (NaN != NaN em ponto
+// flutuante) — payloads de NaN diferentes contariam como divergência real.
+func TestFloat16TableExhaustive(t *testing.T) {
+	for h := 0; h < 65536; h++ {
+		want := float16ToFloat32Bits(uint16(h))
+		got := Float16ToFloat32(uint16(h))
+		if math.Float32bits(want) != math.Float32bits(got) {
+			t.Fatalf("h=0x%04x: table=%v (bits %#x), reference=%v (bits %#x)",
+				h, got, math.Float32bits(got), want, math.Float32bits(want))
+		}
+	}
+}
+
 func TestRMSNorm(t *testing.T) {
 	x := []float32{1, 2, 3, 4}
 	w := []float32{1, 1, 1, 1}

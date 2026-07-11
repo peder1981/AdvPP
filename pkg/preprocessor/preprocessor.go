@@ -41,7 +41,19 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 	for i < len(lines) {
 		line := lines[i]
 		trimmed := strings.TrimSpace(line)
-		upper := strings.ToUpper(trimmed)
+		// `upper` só é usada para casar prefixos de diretiva (`#INCLUDE`,
+		// `#DEFINE`, ...) ou o início de um bloco `BeginSql` — ambos
+		// reconhecíveis por um prefixo curto e barato de checar. ToUpper
+		// da LINHA INTEIRA (às vezes centenas de bytes: SQL embutido,
+		// strings longas) para TODA linha do arquivo, mesmo as que nunca
+		// poderiam bater com nada disso, era ~31% do tempo de compilação
+		// de um arquivo grande em profile real — computa só quando o
+		// prefixo já sugere que vale a pena.
+		var upper string
+		if len(trimmed) > 0 && (trimmed[0] == '#' ||
+			(len(trimmed) >= 8 && strings.EqualFold(trimmed[:8], "beginsql"))) {
+			upper = strings.ToUpper(trimmed)
+		}
 
 		// Dentro de comentário de bloco `/* ... */`, NADA é diretiva: um
 		// `#ENDIF*/` comentado (`/*#IFDEF TOP ... #ENDIF*/`, idioma real de

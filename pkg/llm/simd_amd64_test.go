@@ -3,6 +3,7 @@
 package llm
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 )
@@ -108,6 +109,62 @@ func TestDotI2SBlocksAVX2AllOnesQ(t *testing.T) {
 // VZEROUPPER posicionado antes da extração dos 128 bits altos do
 // acumulador, zerando exatamente os dados de gp>=16 antes de lê-los — esse
 // teste pega qualquer regressão na fronteira dos 128 bits baixos/altos.
+// dotF16Ref é a referência pura-Go para dotF16BlocksAVX2, usando a mesma
+// Float16ToFloat32 (tabela) que o caminho escalar de MatMulF16 usa — serve
+// só para validar o kernel AVX2/F16C com dados aleatórios.
+func dotF16Ref(rowF16 []byte, x []float32, nBlocks int) float32 {
+	var sum float32
+	for i := 0; i < nBlocks*8; i++ {
+		h := uint16(rowF16[i*2]) | uint16(rowF16[i*2+1])<<8
+		sum += Float16ToFloat32(h) * x[i]
+	}
+	return sum
+}
+
+func TestDotF16BlocksAVX2VsScalar(t *testing.T) {
+	if !hasF16CFMA {
+		t.Skip("CPU sem F16C/FMA")
+	}
+	rng := rand.New(rand.NewSource(13))
+	for _, nBlocks := range []int{0, 1, 2, 3, 10, 24, 72, 384} {
+		rowF16 := make([]byte, nBlocks*16)
+		rng.Read(rowF16)
+		x := make([]float32, nBlocks*8)
+		for i := range x {
+			x[i] = rng.Float32()*4 - 2
+		}
+		want := dotF16Ref(rowF16, x, nBlocks)
+		got := dotF16BlocksAVX2(rowF16, x, nBlocks)
+		// tolerância pequena: a soma horizontal do kernel agrupa em ordem
+		// diferente da referência sequencial (ponto flutuante não é
+		// associativo), diferença esperada é de arredondamento apenas.
+		if diff := float32(math.Abs(float64(got - want))); diff > 1e-2*float32(math.Abs(float64(want))+1) {
+			t.Fatalf("nBlocks=%d: dotF16BlocksAVX2 = %v, want %v (ref)", nBlocks, got, want)
+		}
+	}
+}
+
+// TestDotF16BlocksAVX2KnownPattern usa valores exatos em ponto flutuante
+// (potências de 2, sem perda de precisão possível na conversão F16->F32
+// nem na soma) para checar o resultado bit-a-bit, sem tolerância.
+func TestDotF16BlocksAVX2KnownPattern(t *testing.T) {
+	if !hasF16CFMA {
+		t.Skip("CPU sem F16C/FMA")
+	}
+	// 8 valores F16 = 1.0 (bits 0x3C00), x = [1,2,3,4,5,6,7,8] -> soma = 36
+	rowF16 := make([]byte, 16)
+	for i := 0; i < 8; i++ {
+		rowF16[i*2] = 0x00
+		rowF16[i*2+1] = 0x3C
+	}
+	x := []float32{1, 2, 3, 4, 5, 6, 7, 8}
+	got := dotF16BlocksAVX2(rowF16, x, 1)
+	want := float32(36)
+	if got != want {
+		t.Errorf("dotF16BlocksAVX2 = %v, want %v", got, want)
+	}
+}
+
 func TestDotI2SBlocksAVX2EachByteLane(t *testing.T) {
 	if !hasAVX2 {
 		t.Skip("CPU sem AVX2")

@@ -2,6 +2,100 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.9.0] — 2026-07-11
+
+### Rodada de otimizações de performance (compilador, VM, motor de inferência LLM)
+
+Todas as mudanças abaixo são puramente de performance — comportamento e saída
+idênticos, validados por toda a suíte de testes (incluindo `TestValidateAgainstLlamaCPP`,
+que compara geração greedy token a token contra o llama.cpp de referência) e
+pelo sweep completo do corpus Protheus (500/500, 100% mantido). Descobertas via
+`pprof` sobre um forward pass real (Falcon3-3B-1.58bit) e uma compilação real
+(arquivo Protheus de 3,6MB) — não especulação.
+
+**Motor de inferência LLM (`pkg/llm/`) — ~14x mais rápido por forward pass
+nesta máquina (5,27s → 0,36s):**
+- `Σq` (correção do caminho AVX2 de `MatMulI2S`) era recalculada em TODA
+  linha do peso via `sumInt8`, embora seja o mesmo `q` (ativação quantizada)
+  para as `NRows` linhas — ~32% do tempo total, hoisted para fora do loop de
+  linhas (calculada uma vez por chamada de `MatMulI2S`).
+- `Float16ToFloat32` trocou a decodificação bit-a-bit por uma tabela de 65536
+  entradas pré-computada em `init()` — usada por `MatMulF16` (a maior matmul
+  do forward pass, projeção de saída com `vocab_size` linhas), que sozinha
+  era ~34% do tempo antes desta troca. Validada exaustivamente contra a
+  implementação de referência para os 65536 padrões de bit possíveis.
+- Novo kernel `dotF16BlocksAVX2` (amd64, `simd_amd64.s`) usa F16C
+  (`VCVTPH2PS`, conversão half→float em hardware) + FMA (`VFMADD231PS`) para
+  `MatMulF16` — mesmo que a tabela já tivesse ajudado, essa matmul ainda
+  dominava o profile. Detecção de CPU (`hasF16CFMA`) via CPUID, com
+  fallback escalar (tabela) em CPUs sem F16C/FMA e em arquiteturas não-amd64.
+- `gguf.go`: o parser do header GGUF (metadados + lista de tensores) fazia
+  uma syscall `pread` por CAMPO (nome, cada dimensão, tipo, offset — de
+  cada tensor, mais cada entrada de metadado) via `os.File.ReadAt` direto;
+  para um modelo real (~150+ tensores) isso sozinho era mais tempo que
+  ler os dados de peso em si. Trocado por `bufio.Reader` — `LoadModel`
+  ficou ~2,2x mais rápido (2,75s → 1,26s).
+
+**Compilador (`cmd/advplc`, `pkg/preprocessor`, `pkg/lexer`) — ~1,9x mais
+rápido por arquivo grande (163ms → 85ms num arquivo Protheus real de 3,6MB):**
+- `processFile` (preprocessor) calculava `strings.ToUpper` da LINHA INTEIRA
+  para TODA linha do arquivo, só para checar prefixos de diretiva
+  (`#INCLUDE`, `#DEFINE`, ...); ~31% do tempo de compilação. Agora só
+  computa quando a linha já começa com `#` ou `BeginSql`.
+- `convertWithGoEncoding` (conversão CP-1252→UTF-8) escrevia byte a byte
+  num `bytes.Buffer` (~23-48% do tempo, dependendo da correção anterior já
+  aplicada ou não); agora copia em BLOCOS as sequências contíguas de bytes
+  ASCII (a esmagadora maioria de qualquer fonte real) com um único `Write`
+  por trecho, só indo byte a byte nos raros bytes >=128 (acentos em
+  comentários), via tabela pré-computada.
+- `tryBeginContent` (lexer) fazia um `strings.EqualFold` de 12 bytes a cada
+  identificador do arquivo inteiro para checar `BeginContent`; agora um
+  `if` de 1 byte descarta a esmagadora maioria antes do EqualFold.
+
+**VM/interpretador (`pkg/runtime`) — ~28% mais rápido num loop aritmético
+sintético (2,65s → 1,90s para 2M iterações):**
+- `NewNumber` alocava um `*NumberValue` novo no heap a cada chamada — TODA
+  operação aritmética do VM (soma, subtração, módulo, comparação) aloca um
+  resultado novo, e isso dominava o profile de qualquer loop
+  (`runtime.mallocgc`/`newobject` bem acima de qualquer opcode). Adicionado
+  cache de inteiros pequenos (-256..4096, cobrindo contadores de loop,
+  índices de array, resultados de módulo/comparação comuns) — `NewNumber`
+  devolve o ponteiro compartilhado em vez de alocar, seguro porque
+  `NumberValue` é imutável depois de criado e `Equals` compara por valor
+  (mesmo padrão já usado pelo singleton `Nil`). `pkg/runtime` ganhou testes
+  unitários pela primeira vez (`values_test.go`) para essa mudança.
+  **Achado, não resolvido nesta rodada**: a raiz do custo é `Value` ser uma
+  interface (todo número é um ponteiro boxed no heap, nunca um valor
+  inline) — resolver isso de verdade exigiria trocar a representação de
+  `Value` para um tagged union/valor inline, uma mudança arquitetural que
+  toca `pkg/vm`, `pkg/runtime` e `pkg/compiler` inteiros; fora do escopo
+  seguro de uma rodada de perf num código que acabou de chegar a 100% de
+  corretude. Documentado aqui para uma futura sessão dedicada.
+
+**Portabilidade multi-SO**: nenhuma mudança usa `unsafe`, cgo, ou qualquer
+API específica de SO — `bufio`/`bytes.Buffer`/tabelas são 100% Go puro,
+idênticas em linux/darwin/windows. O kernel `dotF16BlocksAVX2` é amd64-only
+(gated por `hasF16CFMA`, detecção em runtime) com fallback escalar já
+testado em todas as arquiteturas; darwin/arm64 (Apple Silicon, o alvo
+`darwin-arm64` do release) e demais arquiteturas usam o caminho escalar +
+tabela, que já é ~6x mais rápido que antes desta rodada (as duas primeiras
+otimizações do LLM não dependem de amd64). Um kernel NEON para arm64 foi
+considerado mas não implementado nesta rodada: esta máquina de
+desenvolvimento não tem hardware nem emulação de usuário arm64 disponível
+(só QEMU full-system, sem binfmt_misc registrado; instalar
+qemu-user-static ou usar `docker run --privileged` para registrar
+emulação foram bloqueados pelo classificador de segurança do Auto Mode
+por serem mudanças de sistema não solicitadas explicitamente) — escrever
+assembly SIMD sem conseguir RODAR os testes contra hardware real não é
+uma otimização segura de se enviar. Ver "Próximos passos" abaixo.
+
+**Próximos passos possíveis** (não feitos nesta rodada, por escopo/risco):
+kernel NEON arm64 para `dotI2SBlocksAVX2`/`dotF16BlocksAVX2` (precisa de
+CI rodando em runner macOS arm64 real para validar — o repo já tem
+`macos-latest` no `release.yml`, mas só builda, não roda `go test`; um
+workflow de CI dedicado a testes, multi-SO, seria o pré-requisito seguro);
+representação de `Value` sem boxing no VM (projeto arquitetural à parte).
+
 ## [1.8.7] — 2026-07-11
 
 ### Sweep de pass-rate no corpus Protheus real (98,6% → 100%, 500/500)

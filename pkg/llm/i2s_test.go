@@ -27,7 +27,7 @@ func TestDotI2SRowKnownPattern(t *testing.T) {
 	for i := range q {
 		q[i] = 4
 	}
-	got := dotI2SRow(row, 0, 128, q)
+	got := dotI2SRow(row, 0, 128, q, sumInt8(q))
 	want := int32(1 * 4)
 	if got != want {
 		t.Errorf("dotI2SRow = %d, want %d", got, want)

@@ -4,8 +4,10 @@
 package llm
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"os"
 )
@@ -107,7 +109,7 @@ func Open(path string) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &reader{f: f}
+	r := &reader{br: bufio.NewReaderSize(f, 64*1024)}
 
 	var magic uint32
 	r.read(&magic)
@@ -321,8 +323,18 @@ func numericKV(v any) (float64, bool) {
 
 // --- reader sequencial de baixo nível ---
 
+// reader lê sequencialmente do início do arquivo GGUF (header + metadados +
+// lista de tensores) através de um bufio.Reader em vez de um ReadAt cru por
+// campo. O header de um modelo real tem centenas de campos (nome+dims+
+// tipo+offset por tensor, dezenas de chaves de metadado) — um ReadAt por
+// campo (a versão anterior) vira uma syscall pread(2) por campo, e essa
+// fase dominava o tempo de LoadModel (~52% em profile real, mais que os
+// dados de tensor em si, que são poucas leituras grandes). bufio absorve
+// centenas de campos por syscall real; `pos` continua rastreado manualmente
+// porque dataStart (onde a seção de dados de tensores começa) é calculado a
+// partir dele depois que o header acaba.
 type reader struct {
-	f   *os.File
+	br  *bufio.Reader
 	pos int64
 	err error
 }
@@ -345,7 +357,7 @@ func (r *reader) read(v any) {
 		r.err = fmt.Errorf("gguf: tipo não suportado no reader: %T", v)
 		return
 	}
-	if _, err := r.f.ReadAt(buf, r.pos); err != nil {
+	if _, err := io.ReadFull(r.br, buf); err != nil {
 		r.err = err
 		return
 	}
@@ -386,7 +398,7 @@ func (r *reader) readString() string {
 		return ""
 	}
 	buf := make([]byte, n)
-	if _, err := r.f.ReadAt(buf, r.pos); err != nil {
+	if _, err := io.ReadFull(r.br, buf); err != nil {
 		r.err = err
 		return ""
 	}

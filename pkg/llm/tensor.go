@@ -5,10 +5,37 @@ import (
 	"math"
 )
 
+// float16Table mapeia cada um dos 65536 padrões de bits de um half-float
+// para o float32 equivalente — construída uma vez em init() a partir de
+// float16ToFloat32Bits (a implementação de referência, bit a bit). Usada no
+// lugar de recalcular a conversão a cada elemento: MatMulF16 chama
+// Float16ToFloat32 nRows*nIn vezes por forward pass (o maior matmul do
+// modelo, vocab_size linhas) e era ~34% do tempo total de inferência antes
+// desta tabela — troca de aritmética+branches por um único acesso de
+// array, 256KB de memória (65536 * 4 bytes), pago uma vez no load do
+// processo.
+var float16Table = buildFloat16Table()
+
+func buildFloat16Table() [65536]float32 {
+	var t [65536]float32
+	for h := 0; h < 65536; h++ {
+		t[h] = float16ToFloat32Bits(uint16(h))
+	}
+	return t
+}
+
 // Float16ToFloat32 converte um half-float IEEE 754 (armazenado como uint16)
-// para float32. Implementação portável (sem instruções de CPU específicas),
-// necessária para permanecer 100% compatível entre linux/windows/macOS.
+// para float32 via tabela pré-computada (ver float16Table). Portável (sem
+// instruções de CPU específicas) — necessário para permanecer 100%
+// compatível entre linux/windows/macOS.
 func Float16ToFloat32(h uint16) float32 {
+	return float16Table[h]
+}
+
+// float16ToFloat32Bits é a conversão de referência bit a bit, usada só para
+// construir float16Table (e, em teste, para validar a tabela contra todos
+// os 65536 padrões possíveis exaustivamente).
+func float16ToFloat32Bits(h uint16) float32 {
 	sign := uint32(h&0x8000) << 16
 	rawExp := int32(h&0x7C00) >> 10
 	mant := int32(h & 0x03FF)
@@ -64,15 +91,24 @@ func EmbedRow(g *File, tensorName string, row, rowDim int) ([]float32, error) {
 // MatMulF16 calcula logits[v] = dot(x, row_v) para cada uma das nRows linhas
 // de um peso [nRows, nIn] armazenado em F16 (usado pela projeção de saída).
 // Paralelizado por faixa de linhas — nRows=vocab_size (131072), o maior
-// matmul do forward pass.
+// matmul do forward pass (~73% do tempo de um forward pass mesmo depois da
+// tabela de Float16ToFloat32). Em CPUs com F16C+FMA (Haswell/Excavator+),
+// dotF16BlocksAVX2 converte e acumula 8 valores por vez em hardware; o
+// restante (nIn não múltiplo de 8, ou CPU sem F16C/FMA) usa o caminho
+// escalar com a tabela.
 func MatMulF16(weightF16 []byte, nRows, nIn int, x []float32) []float32 {
 	out := make([]float32, nRows)
 	rowBytes := nIn * 2
+	nBlocks := nIn / 8
+	done := nBlocks * 8
 	parallelRows(nRows, func(r0, r1 int) {
 		for r := r0; r < r1; r++ {
 			row := weightF16[r*rowBytes : (r+1)*rowBytes]
 			var sum float32
-			for i := 0; i < nIn; i++ {
+			if hasF16CFMA && nBlocks > 0 {
+				sum = dotF16BlocksAVX2(row[:done*2], x[:done], nBlocks)
+			}
+			for i := done; i < nIn; i++ {
 				sum += Float16ToFloat32(binary.LittleEndian.Uint16(row[i*2:])) * x[i]
 			}
 			out[r] = sum

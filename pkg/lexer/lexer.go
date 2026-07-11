@@ -269,7 +269,16 @@ func (l *Lexer) Tokenize() ([]Token, error) {
 // BeginContent or the construct is malformed.
 func (l *Lexer) tryBeginContent(line, col int) bool {
 	const kw = "begincontent"
-	// Match the word BeginContent case-insensitively without consuming.
+	// Cheap first-byte check before the full EqualFold: this runs at EVERY
+	// identifier-start position in the whole file (isAlpha dispatch calls
+	// it before every tokenizeIdentifier), so for a multi-MB source the
+	// 12-byte Unicode-aware fold comparison — almost always immediately
+	// rejected anyway — was showing up in profiles. `|0x20` lowercases an
+	// ASCII letter cheaply; identifiers can't start with a digit/symbol
+	// that this would mis-fold, and BeginContent itself is pure ASCII.
+	if l.source[l.pos]|0x20 != 'b' {
+		return false
+	}
 	if l.pos+len(kw) > len(l.source) {
 		return false
 	}
