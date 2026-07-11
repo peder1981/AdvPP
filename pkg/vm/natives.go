@@ -886,8 +886,9 @@ func (v *VM) registerNatives() {
 
 		// --- Database stubs ---
 		"DBSELECTAREA": func(args []advplrt.Value) (advplrt.Value, error) {
+			alias := advplrt.ToString(getArg(args, 0))
+			v.currentAlias = alias
 			if v.dbEngine != nil {
-				alias := advplrt.ToString(getArg(args, 0))
 				return advplrt.Nil, v.dbEngine.SelectArea(alias)
 			}
 			return advplrt.Nil, nil
@@ -986,7 +987,28 @@ func (v *VM) registerNatives() {
 			return advplrt.NewNumber(0), nil
 		},
 		"ALIAS": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewString(""), nil
+			return advplrt.NewString(v.currentAlias), nil
+		},
+		"GETAREA": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(v.currentAlias), nil
+		},
+		"RESTAREA": func(args []advplrt.Value) (advplrt.Value, error) {
+			alias := advplrt.ToString(getArg(args, 0))
+			v.currentAlias = alias
+			if v.dbEngine != nil {
+				return advplrt.Nil, v.dbEngine.SelectArea(alias)
+			}
+			return advplrt.Nil, nil
+		},
+		// RETSQLNAME devolve o nome físico da tabela para um alias — em
+		// Protheus real, uma consulta ao dicionário SX2 (nome pode diferir
+		// do alias por filial/ambiente). Sem um dicionário SX2 carregado, o
+		// fallback correto é o próprio alias: é assim que as tabelas locais
+		// deste VM são nomeadas (CREATE TABLE <alias> via advcfg/adveditor),
+		// então RetSqlName("SB2") já "funciona" mesmo sem nenhum dicionário
+		// configurado, igual pedido explicitamente.
+		"RETSQLNAME": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(strings.ToUpper(advplrt.ToString(getArg(args, 0)))), nil
 		},
 		"USED": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.False, nil

@@ -57,6 +57,7 @@ type VM struct {
 	methodBodies map[string]interface{}
 	uiEnabled    bool
 	dbEngine     DBEngine
+	currentAlias string // último alias passado para DbSelectArea, para GetArea()/RestArea()
 	uiProvider   UIProvider
 	output       strings.Builder
 	namedArgs    []namedArgInfo // tracks named parameter info for current call
@@ -648,6 +649,7 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		// Error value is already stored in local by handleCatch
 		// This opcode is a no-op marker
 	case compiler.OP_DB_SELECT:
+		v.currentAlias = instr.Str
 		if v.dbEngine != nil {
 			v.dbEngine.SelectArea(instr.Str)
 		}

@@ -437,15 +437,15 @@ func runFile(sourceFile string, opts *Options) error {
 
 // attachDatabase conecta o VM ao banco SQLite compartilhado entre todas as
 // ferramentas AdvPP (mesmo resolver usado por advcfg/adveditor/advpp-ide).
-// Sem banco existente, o VM roda com os stubs — comportamento anterior.
+// O banco é sempre anexado, mesmo que o arquivo ainda não exista — o driver
+// SQLite cria um arquivo novo vazio no primeiro open (mesmo comportamento
+// que advcfg já usa para criar o dicionário). Isso permite que
+// RetSqlName/DbSelectArea/etc. funcionem assim que o usuário criar tabelas
+// nesse banco via advcfg/adveditor, sem exigir configuração prévia:
+// ResolveDatabasePath já resolve para um banco local (./advpp.db) do
+// diretório de trabalho atual quando nada foi configurado globalmente.
 func attachDatabase(v *vm.VM, opts *Options) {
 	dbPath := shared.ResolveDatabasePath(opts.dbPath)
-	if _, err := os.Stat(dbPath); err != nil {
-		if opts.dbPath != "" {
-			fmt.Fprintf(os.Stderr, "Warning: database not found: %s\n", dbPath)
-		}
-		return
-	}
 	// Fábrica: o VM principal e cada job do StartJob() abrem a própria
 	// conexão sobre o mesmo arquivo (WAL permite leitura concorrente).
 	v.SetDBFactory(func() vm.DBEngine {

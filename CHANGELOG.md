@@ -2,6 +2,51 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.10.0] — 2026-07-11
+
+### Banco de dados local automático — RetSqlName/DbSelectArea/GetArea funcionam sem dicionário configurado
+
+Pedido do usuário: funções de acesso a tabela (`RetSqlName`, `DbSelectArea`,
+...) deveriam funcionar independente de existir um dicionário de dados
+configurado, e cada diretório de trabalho deveria ganhar seu próprio banco
+SQLite automaticamente — sem exigir configuração prévia via `advcfg` — de
+forma que `advcfg`/`adveditor` rodados no MESMO diretório logo depois já
+enxerguem esse banco e permitam criar tabelas/campos/índices nele.
+
+- **`ResolveDatabasePath`** (`pkg/tools/shared`, usado por advplc/advcfg/
+  adveditor/advpp-ide): quando não há caminho explícito, variável de
+  ambiente `ADVPP_DB`, nem um `~/.advpp/advpp_config.json` que REALMENTE
+  exista em disco (antes o valor sintético que `LoadConfig` sempre devolve
+  mascarava "nada configurado" como se fosse o banco global já escolhido),
+  o padrão agora é um banco LOCAL `./advpp.db` no diretório de trabalho
+  atual — não mais o global `~/.advpp/ADVPP.db`. O banco global só volta a
+  valer depois que o usuário configura explicitamente via `advcfg`.
+  Removidos os candidatos legados `./data/ADVPP.db`/`./data/
+  advpl_dictionary.db` (simplificação).
+- **`OpenSQLite`** (ponto único de abertura, `pkg/tools/shared`): agora
+  cria um arquivo vazio ANTES de abrir quando o caminho não existe —
+  `sql.Open`+`Ping` sozinhos não garantiam que o arquivo aparecesse em
+  disco imediatamente (o driver só materializa no primeiro INSERT/CREATE
+  real, que podia nunca acontecer se a primeira operação fosse uma leitura
+  que falha por tabela inexistente). Sem isso, `advcfg`/`adveditor`
+  rodados logo em seguida no mesmo diretório não viam banco nenhum para
+  abrir.
+- **`attachDatabase`** (`cmd/advplc`): removido o `os.Stat` que pulava a
+  conexão inteira quando o arquivo ainda não existia — o VM agora sempre
+  anexa um banco (criado na hora se preciso), em vez de rodar sem nenhum
+  quando nada foi configurado.
+- **Novas nativas**: `RetSqlName(alias)` devolve o próprio alias em
+  maiúsculas (sem um dicionário SX2 carregado, é assim que as tabelas
+  locais deste VM são nomeadas — funciona mesmo sem dicionário nenhum,
+  como pedido). `GetArea()`/`RestArea(alias)` salvam/restauram a área de
+  trabalho atual. `Alias()` (antes sempre `""`) agora devolve a área atual
+  de verdade.
+
+`pkg/tools/shared` ganhou testes unitários pela primeira vez (isolados via
+`HOME`/diretório de trabalho temporários — nunca tocam a config real do
+usuário). Sem regressão: `go test ./...`, 30 fixtures, sweep completo do
+corpus de 500 arquivos.
+
 ## [1.9.1] — 2026-07-11
 
 ### 4 bugs reais de parser encontrados em validação fora do corpus de amostra

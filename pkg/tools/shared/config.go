@@ -34,12 +34,12 @@ func GetConfigPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("erro ao obter diretório home: %w", err)
 	}
-	
+
 	configDir := filepath.Join(homeDir, ".advpp")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return "", fmt.Errorf("erro ao criar diretório de configuração: %w", err)
 	}
-	
+
 	return filepath.Join(configDir, configFileName), nil
 }
 
@@ -49,24 +49,24 @@ func LoadConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Se o arquivo não existir, retorna configuração padrão
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return &Config{
 			DefaultDatabase: DefaultDatabasePath(),
 		}, nil
 	}
-	
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao ler arquivo de configuração: %w", err)
 	}
-	
+
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("erro ao decodificar configuração: %w", err)
 	}
-	
+
 	// Se o banco padrão não estiver definido, usa o padrão
 	if config.DefaultDatabase == "" {
 		config.DefaultDatabase = DefaultDatabasePath()
@@ -84,44 +84,57 @@ func DefaultDatabasePath() string {
 	return filepath.Join(homeDir, ".advpp", "ADVPP.db")
 }
 
+// LocalDatabaseName é o nome do banco SQLite local de um diretório de
+// trabalho (o "./advpp.db" que ResolveDatabasePath cria/procura quando
+// nada foi configurado globalmente) — cada diretório onde advplc
+// check/run/compile/serve (ou qualquer outra ferramenta AdvPP) roda ganha
+// seu próprio banco por padrão, sem exigir configuração prévia via advcfg.
+const LocalDatabaseName = "advpp.db"
+
 // ResolveDatabasePath resolve o caminho do banco compartilhado entre TODAS as
 // ferramentas, nesta ordem de precedência:
 //  1. caminho explícito (flag de linha de comando / seleção do usuário)
 //  2. variável de ambiente ADVPP_DB
-//  3. banco padrão configurado em ~/.advpp/advpp_config.json
-//  4. banco legado ./data/advpl_dictionary.db (se existir no diretório atual)
-//  5. padrão absoluto ~/.advpp/advpl_dictionary.db
+//  3. banco configurado em ~/.advpp/advpp_config.json — só se esse arquivo
+//     de config REALMENTE existir em disco (não o valor sintético que
+//     LoadConfig devolve quando não há config nenhuma, que apontaria
+//     silenciosamente para o banco global mesmo sem o usuário ter
+//     configurado nada)
+//  4. ./advpp.db — banco local do diretório de trabalho atual. Nada
+//     configurado e nada encontrado: cria (OpenSQLite materializa o
+//     arquivo no primeiro open) e usa um banco local aqui em vez do
+//     global ~/.advpp/ADVPP.db, para que `advplc run/check/compile/serve`
+//     sempre tenham um banco ali mesmo, e as demais ferramentas
+//     (advcfg/adveditor) rodadas no MESMO diretório enxerguem o mesmo
+//     arquivo automaticamente (mesmo resolver). O banco global só volta a
+//     valer depois que o usuário configura explicitamente via advcfg
+//     (passo 3).
 //
-// O resultado é sempre um caminho absoluto.
+// O resultado é sempre um caminho absoluto. A criação física do arquivo
+// (se ainda não existir) é feita por OpenSQLite no primeiro open, não
+// aqui — esta função só decide QUAL caminho usar.
 func ResolveDatabasePath(explicit string) string {
 	candidate := explicit
 	if candidate == "" {
 		candidate = os.Getenv("ADVPP_DB")
 	}
 	if candidate == "" {
-		if config, err := LoadConfig(); err == nil && config.DefaultDatabase != "" {
-			// Config legada pode conter caminho relativo que só existe no repo;
-			// só a usa se o arquivo realmente existir ou se for absoluta.
-			if filepath.IsAbs(config.DefaultDatabase) {
-				candidate = config.DefaultDatabase
-			} else if _, err := os.Stat(config.DefaultDatabase); err == nil {
-				candidate = config.DefaultDatabase
+		if configPath, err := GetConfigPath(); err == nil {
+			if _, statErr := os.Stat(configPath); statErr == nil {
+				if config, err := LoadConfig(); err == nil && config.DefaultDatabase != "" {
+					// Config legada pode conter caminho relativo que só existe no repo;
+					// só a usa se o arquivo realmente existir ou se for absoluta.
+					if filepath.IsAbs(config.DefaultDatabase) {
+						candidate = config.DefaultDatabase
+					} else if _, err := os.Stat(config.DefaultDatabase); err == nil {
+						candidate = config.DefaultDatabase
+					}
+				}
 			}
 		}
 	}
 	if candidate == "" {
-		for _, legacy := range []string{
-			filepath.Join("data", "ADVPP.db"),
-			filepath.Join("data", "advpl_dictionary.db"), // nome antigo
-		} {
-			if _, err := os.Stat(legacy); err == nil {
-				candidate = legacy
-				break
-			}
-		}
-	}
-	if candidate == "" {
-		candidate = DefaultDatabasePath()
+		candidate = LocalDatabaseName
 	}
 	if abs, err := filepath.Abs(candidate); err == nil {
 		return abs
@@ -135,16 +148,16 @@ func SaveConfig(config *Config) error {
 	if err != nil {
 		return err
 	}
-	
+
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("erro ao codificar configuração: %w", err)
 	}
-	
+
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return fmt.Errorf("erro ao escrever arquivo de configuração: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -154,7 +167,7 @@ func SetDefaultDatabase(dbPath string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	config.DefaultDatabase = dbPath
 	return SaveConfig(config)
 }
@@ -165,6 +178,6 @@ func GetDefaultDatabase() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	return config.DefaultDatabase, nil
 }
