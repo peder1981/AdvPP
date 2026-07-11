@@ -135,8 +135,44 @@ replace %s => %s
 		return fmt.Errorf("build failed: %v", err)
 	}
 
-	if err := os.Rename(filepath.Join(tempDir, tempOutput), outputFile); err != nil {
+	if err := moveFile(filepath.Join(tempDir, tempOutput), outputFile); err != nil {
 		return fmt.Errorf("cannot move executable: %v", err)
 	}
 	return nil
+}
+
+// moveFile moves src to dst, falling back to copy+remove when they're on
+// different volumes — os.Rename fails with "cannot move the file to a
+// different disk drive" on Windows in that case (e.g. the OS temp
+// directory and the caller's working directory are commonly on different
+// drives on GitHub Actions' windows-latest runners), and returns EXDEV on
+// Unix for the equivalent cross-filesystem case.
+func moveFile(src, dst string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	return os.Remove(src)
 }
