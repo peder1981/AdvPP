@@ -170,7 +170,17 @@ func (p *Parser) isFunctionBoundary(tok lexer.Token) bool {
 // isEndIf matches ENDIF or the generic Clipper block-closer "End", which
 // real code commonly uses to close an If instead of EndIf.
 func (p *Parser) isEndIf(tok lexer.Token) bool {
-	return p.isKeyword(tok, "ENDIF") || p.isKeyword(tok, "END")
+	if p.isKeyword(tok, "ENDIF") {
+		return true
+	}
+	if p.isKeyword(tok, "END") {
+		// `END REPORT QUERY <var>` — not an EndIf, it's a statement.
+		if p.isWord(p.peekAt(1), "REPORT") {
+			return false
+		}
+		return true
+	}
+	return false
 }
 
 func (p *Parser) isStatementBoundary(tok lexer.Token) bool {
@@ -188,6 +198,11 @@ func (p *Parser) isStatementBoundary(tok lexer.Token) bool {
 		"ENDCLASS", "ENDINTERFACE",
 	} {
 		if p.isKeyword(tok, kw) {
+			// `END REPORT QUERY <var>` — not a block terminator, handled
+			// as a statement in parseStatement.
+			if kw == "END" && p.isWord(p.peekAt(1), "REPORT") {
+				return false
+			}
 			return true
 		}
 	}
@@ -555,6 +570,14 @@ func (p *Parser) parseFunctionBody() ([]ast.Statement, ast.Expression, error) {
 
 	for p.peek().Type != lexer.TOKEN_EOF && !p.isFunctionBoundary(p.peek()) {
 		tok := p.peek()
+
+		// Orphaned block terminators (EndIf, End, EndDo, Next, etc.) sem
+		// bloco aberto correspondente — o Protheus real tolera. Consome e
+		// ignora em vez de falhar com "unexpected token".
+		if p.isStatementBoundary(tok) && !p.isFunctionBoundary(tok) {
+			p.advance()
+			continue
+		}
 
 		if p.isKeyword(tok, "RETURN") {
 			p.advance()

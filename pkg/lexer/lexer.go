@@ -55,10 +55,28 @@ func (l *Lexer) advance() byte {
 	return ch
 }
 
+// isNBSPAt reports whether a non-breaking space (U+00A0) starts at pos.
+// cmd/advplc converts CP-1252 source to UTF-8 before lexing, so the raw
+// 0xA0 byte occasionally pasted from text editors arrives here as the
+// 2-byte UTF-8 sequence 0xC2 0xA0, not a lone 0xA0 — isAlpha's ">= 0x80 is
+// an accented letter" rule would otherwise swallow the 0xC2 lead byte into
+// whatever identifier follows, corrupting tokenization.
+func (l *Lexer) isNBSPAt(pos int) bool {
+	return pos+1 < len(l.source) && l.source[pos] == 0xC2 && l.source[pos+1] == 0xA0
+}
+
 func (l *Lexer) skipWhitespace() {
 	for l.pos < len(l.source) {
 		ch := l.peek()
-		if ch == ' ' || ch == '\t' || ch == '\r' {
+		if l.isNBSPAt(l.pos) {
+			l.advance()
+			l.advance()
+			continue
+		}
+		// Lone 0xA0 (non-breaking space em CP-1252/Latin-1) — só alcançável
+		// se o source não passou pela conversão CP1252->UTF8 (ex.: chamado
+		// direto via lexer.Tokenize em testes/ferramentas).
+		if ch == ' ' || ch == '\t' || ch == '\r' || ch == 0xA0 {
 			l.advance()
 		} else if ch == '\n' {
 			l.tokens = append(l.tokens, Token{
@@ -92,8 +110,11 @@ func (l *Lexer) skipBlockComment() {
 func (l *Lexer) isAlpha(ch byte) bool {
 	// >= 0x80 covers CP-1252 accented letters (á, ã, ç, ...) — real source
 	// is CP-1252, not UTF-8, and occasionally has them in identifiers/const
-	// names outside comments/strings.
-	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_' || ch >= 0x80
+	// names outside comments/strings. 0xA0 is the exception: non-breaking
+	// space in both CP-1252 and Latin-1, not a letter — without excluding
+	// it here it gets swallowed mid-identifier before skipWhitespace ever
+	// sees it (e.g. `MSGET\xa0cBanco` lexing as one glued identifier).
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_' || (ch >= 0x80 && ch != 0xA0)
 }
 
 func (l *Lexer) isDigit(ch byte) bool {
@@ -486,6 +507,9 @@ func (l *Lexer) tryDotLiteral(line, col int) bool {
 func (l *Lexer) tokenizeIdentifier(line, col int) {
 	start := l.pos
 	for l.pos < len(l.source) {
+		if l.isNBSPAt(l.pos) {
+			break
+		}
 		ch := l.peek()
 		if l.isAlphaNum(ch) || ch == '_' {
 			l.advance()
