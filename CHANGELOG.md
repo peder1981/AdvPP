@@ -2,6 +2,64 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.10.3] — 2026-07-11
+
+### 3 bugs reais do executável standalone no Windows, encontrados testando de verdade
+
+Pedido do usuário depois da v1.10.2: "testar o binário standalone gerado no
+Windows também". Os binários das ferramentas (advplc.exe/adveditor.exe/
+advpp-ide.exe) já eram compilados nativamente no Windows pelo workflow de
+release, mas o RECURSO de gerar um executável standalone a partir de um
+programa AdvPL nunca tinha sido exercitado de verdade nesse SO — só
+localmente em Linux. Adicionado um step de CI dedicado (Windows apenas,
+`.github/workflows/test.yml`) que builda E RODA um executável standalone
+gerado a partir de um fixture simples (`tests/standalone_console_test.prw`)
+num runner `windows-latest` de verdade — não bastava só compilar, o teste
+efetivamente executa o binário e verifica a saída. Isso encontrou 3 bugs
+reais, um atrás do outro:
+
+1. **Mover o executável entre drives diferentes falhava**: `os.Rename`
+   dá erro `"cannot move the file to a different disk drive"` no Windows
+   quando origem e destino estão em volumes diferentes — exatamente o
+   layout dos runners `windows-latest` do GitHub Actions (temp em `C:`,
+   checkout em `D:`), plausível também em máquinas reais. Corrigido com
+   fallback copy+remove (`moveFile`) quando o rename falha — cobre também
+   o `EXDEV` equivalente no Unix para mounts diferentes.
+2. **O fallback de cópia então falhava ao remover a origem**: o handle do
+   arquivo de origem ainda estava aberto (só fechado via `defer`, que roda
+   DEPOIS do `return`) quando `os.Remove` tentava apagá-lo — o Windows
+   recusa apagar um arquivo com handle aberto (ao contrário do POSIX, que
+   permite `unlink` em arquivo aberto). Corrigido fechando o handle
+   explicitamente antes do `os.Remove`, não via `defer`.
+3. **O executável gerado rodava corretamente (MSDIALOG funcionava, saída
+   aparecia) mas nunca se fechava sozinho ao terminar** — ficava
+   pendurado precisando ser morto à força. Rastreado com um trace opt-in
+   (`ADVPP_STUB_TRACE=1`) instrumentando cada etapa do stub: `a.Quit()`
+   (chamado pela goroutine de fundo da VM ao terminar) retornava
+   normalmente, mas o event loop do Fyne/GLFW dentro de `w.ShowAndRun()`
+   nunca notava o canal de encerramento fechado e nunca retornava —
+   especificamente neste ambiente. Uma primeira tentativa (remover uma
+   chamada duplicada a `Show()` antes de `ShowAndRun()`, que também já
+   chama `Show()` internamente) não resolveu. Corrigido de forma mais
+   robusta: como o executável standalone é um script de vida curta, não
+   um app interativo de longa duração, não há necessidade de um handshake
+   gracioso de fechamento de janela via Fyne — a goroutine agora chama
+   `os.Exit(0)` diretamente assim que `v.Run()` termina, encerrando o
+   processo incondicionalmente independente do que `w.ShowAndRun()`
+   estiver fazendo. Caminho de erro inalterado: a janela continua aberta
+   para o usuário ver o erro, fechando manualmente.
+
+Cada um dos 3 bugs foi confirmado corrigido rodando de verdade no runner
+Windows do CI (não just localmente) antes de seguir para o próximo — o
+teste de CI também foi corrigido no meio do caminho para falhar
+corretamente quando o processo precisa ser morto à força (a versão
+anterior só conferia o conteúdo do log, deixando passar silenciosamente
+um hang que precisou de kill manual).
+
+Sem regressão: `go build ./...`, `go vet ./...`, `go test ./...`,
+`make test` (31 fixtures, incluindo o novo fixture de smoke test),
+sweep completo do corpus de 500 arquivos (500/500) a cada commit.
+
 ## [1.10.2] — 2026-07-11
 
 ### MSDIALOG renderiza de verdade no advpp-ide (não só no modo web)
