@@ -47,6 +47,8 @@ enxerguem esse banco e permitam criar tabelas/campos/índices nele.
 usuário). Sem regressão: `go test ./...`, 30 fixtures, sweep completo do
 corpus de 500 arquivos.
 
+## [1.10.1] — 2026-07-11
+
 ### Exclusão lógica (recno/D_E_L_E_T_/R_E_C_D_E_L_) e consolidação advcfg → adveditor
 
 Pedido do usuário: adotar o padrão clássico Protheus de exclusão lógica nas
@@ -149,6 +151,20 @@ evoluções do compilador até aqui.
 Sem regressão: `go build ./...`, `go vet ./...`, `go test ./...` (incluindo
 testes novos de `pkg/ui` para o tokenizer de highlight), `make test` (30
 fixtures), sweep completo do corpus de 500 arquivos (500/500).
+
+### Fix: testes de `ResolveDatabasePath` falhavam no CI do Windows
+
+`config_test.go` comparava o resultado de `ResolveDatabasePath` contra
+strings absolutas estilo Unix hardcoded (`/custom/path.db`), mas a função
+sempre normaliza via `filepath.Abs`, que no Windows reescreve esse literal
+como `C:\custom\path.db` (ancorado na unidade atual) em vez de preservar a
+string literal — e o teste que checava a prioridade do config real em disco
+usava um caminho que `filepath.IsAbs` nem reconhece como absoluto no
+Windows (sem letra de unidade), então o próprio código de produção caía no
+fallback local em vez de exercitar o caminho testado. Corrigido calculando
+o valor esperado com o mesmo `filepath.Abs` (não mais um literal Unix) e
+usando um caminho genuinamente absoluto (`t.TempDir()`) no teste do config.
+Confirmado verde nos 3 SOs via GitHub Actions após o fix.
 
 ## [1.9.1] — 2026-07-11
 
