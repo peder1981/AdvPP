@@ -52,8 +52,7 @@ func main() {
 
 	console := ui.NewOutputConsole()
 	w.SetContent(console.GetWidget())
-	w.Show()
-	tlog("window shown")
+	tlog("content set")
 
 	v := vm.NewVM(&bc, true)
 	v.SetOutputWriter(ui.NewConsoleWriter(console))
