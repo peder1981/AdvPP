@@ -471,7 +471,7 @@ func (c *Compiler) compileStoreTarget(target ast.Expression, line int) error {
 		// falhar a compilação (mesma tolerância do MacroExp acima).
 		c.emit(OP_POP, 0, 0, "", line)
 	default:
-		return fmt.Errorf("unsupported assignment target: %T", target)
+		return fmt.Errorf("unsupported assignment target: %T at line %d", target, line)
 	}
 	return nil
 }

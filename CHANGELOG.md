@@ -2,6 +2,37 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.9.1] — 2026-07-11
+
+### 4 bugs reais de parser encontrados em validação fora do corpus de amostra
+
+- `SET DATE FORMAT "dd/mm/yyyy"` (Clipper clássico sem `TO`) não era
+  reconhecido pelo dispatcher de `SET`, que só cobria `SET <opção>
+  TO/ON/OFF/OF ...`.
+- Nome de variável colidindo (case-insensitive) com uma keyword de tipo
+  TLPP (`Date`, `Array`, `Object`, ...) era rejeitado em posição de
+  declaração (`Local`/`Private`/`Public`/`Static`), que exigia
+  `TOKEN_IDENT` estrito em vez de aceitar keyword também — já aceito em
+  nome de parâmetro de função, agora consistente também em declaração.
+- Keyword-colisão como valor puro no fim de expressão (ex.: `Return
+  <nomeQueColideComKeyword>`, sem token de continuação depois na mesma
+  linha para o heurístico existente reconhecer) — fallback final
+  adicionado em `parsePrimary`: quando nenhuma outra forma bate, uma
+  keyword em posição de operando vira identificador comum.
+- `(ALIAS_MACRO)->campo := valor` onde `ALIAS_MACRO` é um `#define` para
+  uma STRING (idioma real e comum para nomear alias de tabela temporária)
+  — depois da expansão da macro, `alias->campo` só era reconhecido quando
+  o lado esquerdo do `->` era um `*ast.Ident`; com string literal, o
+  `->campo` era descartado silenciosamente e a atribuição sobrava com a
+  STRING como alvo ("unsupported assignment target: *ast.StringLit").
+  Corrigido em `parsePostfix` para os dois lugares que constroem
+  `FieldAccess` a partir do lado esquerdo de `->`.
+- Mensagem de erro do codegen para alvo de atribuição não suportado agora
+  inclui o número da linha (facilita bisseção de bugs reais).
+
+Sem regressão: `go test ./...`, 30 fixtures, sweep completo do corpus de
+500 arquivos.
+
 ## [1.9.0] — 2026-07-11
 
 ### Rodada de otimizações de performance (compilador, VM, motor de inferência LLM)
