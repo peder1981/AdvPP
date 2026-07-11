@@ -58,7 +58,7 @@ jobs:
           EXT=""
           [ "${{ runner.os }}" = "Windows" ] && EXT=".exe"
           mkdir -p out
-          for t in advplc advcfg adveditor advpp-ide; do
+          for t in advplc adveditor advpp-ide; do
             go build -trimpath -ldflags "-s -w -X main.version=v$VERSION" -o "out/$t$EXT" "./cmd/$t"
           done
       - name: Package (tar.gz / zip)
@@ -78,7 +78,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           PKG=pkgroot
           mkdir -p $PKG/DEBIAN $PKG/usr/bin
-          cp out/advplc out/advcfg out/adveditor out/advpp-ide $PKG/usr/bin/
+          cp out/advplc out/adveditor out/advpp-ide $PKG/usr/bin/
           cat > $PKG/DEBIAN/control <<EOF
           Package: advpp
           Version: $VERSION
@@ -88,9 +88,9 @@ jobs:
           Maintainer: AdvPP Team <peder1981@gmail.com>
           Depends: libc6, libgl1, libx11-6
           Description: AdvPL/TLPP Development Tools
-           Compiler (advplc), IDE (advpp-ide), dictionary manager (advcfg)
-           and database editor (adveditor) for the AdvPL/TLPP language.
-           All tools share the same SQLite database (~/.advpp/ADVPP.db).
+           Compiler (advplc), IDE (advpp-ide), and database/dictionary
+           editor (adveditor) for the AdvPL/TLPP language. All tools share
+           the same SQLite database (~/.advpp/ADVPP.db).
           EOF
           dpkg-deb --build --root-owner-group $PKG "dist/advpp_${VERSION}_amd64.deb"
       - uses: actions/upload-artifact@v4

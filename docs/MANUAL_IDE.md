@@ -235,18 +235,10 @@ Acesse **Ferramentas** → **Configurações** → **Dicionário**:
 
 ## Ferramentas Externas
 
-### AdvCfg (Configurador de Tabelas)
-
-Acesse através de **Ferramentas** → **AdvCfg**:
-
-- Gerenciamento de tabelas do dicionário
-- Definição de estrutura de campos
-- Configuração de índices
-- Definição de triggers
-
 ### AdvEditor (Editor de Banco de Dados)
 
-Acesse através de **Ferramentas** → **AdvEditor**:
+Acesse através de **Ferramentas** → **AdvEditor** — gerencia dados E
+estrutura (tabelas, campos, índices) do mesmo banco compartilhado:
 
 - Visualização de dados de tabelas
 - Edição de registros

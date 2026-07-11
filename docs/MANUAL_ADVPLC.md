@@ -146,8 +146,8 @@ as sessões do browser recarregam automaticamente; erro de compilação
 aparece no console do browser sem recarregar.
 
 A porta padrão pode ser fixada em `~/.advpp/advpp_config.json`
-(`"webui_port": "9000"`) — configuração compartilhada que futuramente
-será editável pelo AdvCfg.
+(`"webui_port": "9000"`) — configuração compartilhada entre todas as
+ferramentas AdvPP.
 
 Limitações atuais do MSDIALOG web: codeblocks não capturam variáveis
 locais (`ACTION {|| oDlg:End()}` não fecha o diálogo — qualquer clique
@@ -180,8 +180,11 @@ advplc version                # versão do compilador
 
 Sem `--db-path`, o runtime resolve o banco na mesma ordem de todas as
 ferramentas AdvPP: variável `ADVPP_DB` → config `~/.advpp/advpp_config.json`
-→ padrão `~/.advpp/ADVPP.db`. Assim `DBSelectArea`/`DBSeek`/`RecCount` etc.
-enxergam exatamente o mesmo banco que o AdvCfg e o AdvEditor.
+(só se esse arquivo já existir) → banco local `./advpp.db` no diretório de
+trabalho atual, criado automaticamente. Assim `DBSelectArea`/`DBSeek`/
+`RecCount`/`RetSqlName` etc. já funcionam sem nenhuma configuração prévia,
+e enxergam exatamente o mesmo banco que o AdvEditor (rodado no mesmo
+diretório) usa para criar/editar tabelas.
 
 ### Encoding CP-1252
 

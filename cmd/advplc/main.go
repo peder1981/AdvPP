@@ -436,12 +436,11 @@ func runFile(sourceFile string, opts *Options) error {
 }
 
 // attachDatabase conecta o VM ao banco SQLite compartilhado entre todas as
-// ferramentas AdvPP (mesmo resolver usado por advcfg/adveditor/advpp-ide).
+// ferramentas AdvPP (mesmo resolver usado por adveditor/advpp-ide).
 // O banco é sempre anexado, mesmo que o arquivo ainda não exista — o driver
-// SQLite cria um arquivo novo vazio no primeiro open (mesmo comportamento
-// que advcfg já usa para criar o dicionário). Isso permite que
+// SQLite cria um arquivo novo vazio no primeiro open. Isso permite que
 // RetSqlName/DbSelectArea/etc. funcionem assim que o usuário criar tabelas
-// nesse banco via advcfg/adveditor, sem exigir configuração prévia:
+// nesse banco via adveditor, sem exigir configuração prévia:
 // ResolveDatabasePath já resolve para um banco local (./advpp.db) do
 // diretório de trabalho atual quando nada foi configurado globalmente.
 func attachDatabase(v *vm.VM, opts *Options) {
@@ -782,7 +781,7 @@ Options:
   --db-path <path>              Path to SQLite database file
                                 (default: $ADVPP_DB, or the shared AdvPP
                                 database configured in ~/.advpp — the same
-                                database used by advcfg/adveditor/advpp-ide)
+                                database used by adveditor/advpp-ide)
   -o <file>                     Output file for compile command
   --port <n>                    Web mode port (default: webui_port in
                                 ~/.advpp/advpp_config.json, or 8080)

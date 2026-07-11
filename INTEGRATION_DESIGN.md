@@ -1,5 +1,10 @@
 # Integração AdvEditor, AdvCfg e advpp-ide
 
+> **Nota (2026-07-11):** AdvCfg foi descontinuada e sua funcionalidade
+> incorporada ao AdvEditor — ver `TOOLS_README.md` para o estado atual.
+> Este documento fica como registro histórico do design original de
+> integração entre as (então) três ferramentas.
+
 ## Visão Geral
 
 A integração entre as ferramentas AdvPP é fundamental para proporcionar uma experiência completa de desenvolvimento AdvPL/TLPP. As três ferramentas principais trabalham em conjunto:

@@ -156,7 +156,7 @@ Return .T.
 ## Compilação
 
 ```bash
-# Compilar todas as ferramentas (advplc, advcfg, adveditor, advpp-ide)
+# Compilar todas as ferramentas (advplc, adveditor, advpp-ide)
 make build
 
 # Rodar os testes (build + verificação de todos os fixtures em tests/)
@@ -181,13 +181,17 @@ pacotes (`.tar.gz`, `.zip`, `.deb`) e anexa tudo à Release automaticamente.
 
 ## Banco de dados compartilhado
 
-Todas as ferramentas (advplc, advcfg, adveditor, advpp-ide) enxergam o
-**mesmo** banco SQLite, resolvido nesta ordem:
+Todas as ferramentas (advplc, adveditor, advpp-ide) enxergam o **mesmo**
+banco SQLite, resolvido nesta ordem:
 
 1. Flag explícita (`advplc run prog.prw --db-path /caminho/banco.db`)
 2. Variável de ambiente `ADVPP_DB`
-3. Banco configurado em `~/.advpp/advpp_config.json`
-4. Padrão: `~/.advpp/ADVPP.db` (criado automaticamente pelo advcfg)
+3. Banco configurado em `~/.advpp/advpp_config.json` (só se esse arquivo
+   já existir — configurar isso é o que torna o banco "global")
+4. Padrão: `./advpp.db` no diretório de trabalho atual — criado
+   automaticamente (`RetSqlName`/`DbSelectArea`/etc. funcionam mesmo sem
+   nenhuma tabela ainda; use o AdvEditor no mesmo diretório para criar
+   tabelas, campos e índices nesse banco)
 
 O driver SQLite é 100% Go (modernc.org/sqlite) — sem CGO, sem dependências
 externas, idêntico em Linux, Windows e macOS.

@@ -47,6 +47,51 @@ enxerguem esse banco e permitam criar tabelas/campos/índices nele.
 usuário). Sem regressão: `go test ./...`, 30 fixtures, sweep completo do
 corpus de 500 arquivos.
 
+### Exclusão lógica (recno/D_E_L_E_T_/R_E_C_D_E_L_) e consolidação advcfg → adveditor
+
+Pedido do usuário: adotar o padrão clássico Protheus de exclusão lógica nas
+tabelas gerenciadas pelo compilador/ferramentas, e descontinuar o `advcfg`
+por ser funcionalmente redundante com o `adveditor` — mantendo só uma
+ferramenta gráfica de banco de dados, evoluída para cobrir tudo que o
+`advcfg` fazia (criar/editar/excluir tabelas, campos e índices), com o
+`adveditor` como ponto único de evolução futura (ex.: outros bancos além de
+SQLite).
+
+- **Exclusão lógica** (`pkg/tools/shared/database.go`): toda tabela criada
+  via `CreateTable` ganha 3 colunas de sistema automáticas —
+  `R_E_C_N_O_` (INTEGER PRIMARY KEY AUTOINCREMENT), `D_E_L_E_T_` (`' '`/`'*'`)
+  e `R_E_C_D_E_L_` (0/1, espelho booleano para filtro SQL nativo). Leituras
+  (`GetData`/`GetRecord`/`Count`/`Sum`) filtram `R_E_C_D_E_L_ = 0` por
+  padrão; `DeleteRecord` passou a fazer UPDATE (marca como excluído) em vez
+  de DELETE físico; `RecallRecord` reverte a exclusão; `Pack` purga
+  fisicamente os registros marcados e roda VACUUM. Colunas de sistema ficam
+  ocultas em `loadStructure()` e nomes de coluna são validados contra
+  SQL injection (`validIdentifier`) antes de entrar na query.
+- **`cmd/advcfg` removido inteiramente** (402 linhas) — assim como
+  `pkg/tools/shared/dictionary.go` (579 linhas, abstração SX2/SX3/SIX
+  específica do advcfg, sem uso fora dele) e `docs/MANUAL_ADVCFG.md`.
+  `Makefile` e o workflow de release não compilam/empacotam mais o binário.
+- **`cmd/adveditor` ganhou os métodos que faltavam**: CRUD completo de
+  registro (Incluir/Alterar/Excluir com diálogos de formulário), e um novo
+  menu "Tabela" com Nova Tabela (editor de campos dinâmico), Excluir
+  Tabela, Adicionar/Remover Coluna, Criar/Excluir Índice — tudo com
+  diálogos reais em vez de stubs.
+- **3 bugs reais encontrados por teste visual** (Xvfb + xdotool +
+  screenshot, não apenas `go build`/`go test`): a árvore de navegação
+  nunca havia renderizado nenhum dado nesta ferramenta — faltava
+  `ExtendBaseWidget` no widget customizado, e o código tratava a raiz da
+  árvore como um ID fixo em vez do ID vazio convencionado pelo framework
+  de UI; a grade de dados nunca era recarregada depois de
+  Incluir/Alterar/Excluir porque a rotina de reabrir tabela detectava
+  "já aberta" e devolvia dados obsoletos em vez de recarregar; o diálogo
+  de "ver estrutura" renderizava como uma fresta de ~1px por falta de
+  `Resize()` explícito no contêiner de rolagem, e perdia a formatação
+  porque reprocessava texto já convertido como se ainda fosse markdown.
+
+Sem regressão: `go build ./...`, `go vet ./...`, `go test ./...`,
+`make test` (30 fixtures), sweep completo do corpus de 500 arquivos
+(500/500).
+
 ## [1.9.1] — 2026-07-11
 
 ### 4 bugs reais de parser encontrados em validação fora do corpus de amostra

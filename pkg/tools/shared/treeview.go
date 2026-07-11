@@ -51,6 +51,11 @@ func NewTreeView(root *TreeNode) *TreeView {
 	)
 
 	tv.tree.OpenAllBranches()
+	// Obrigatório para widgets custom que embutem widget.BaseWidget — sem
+	// isso o Fyne nunca aprende a usar CreateRenderer deste tipo, e o
+	// widget renderiza com tamanho mínimo/errado (a raiz da árvore
+	// aparecer minúscula/cortada, mesmo com dados carregados certos).
+	tv.ExtendBaseWidget(tv)
 
 	return tv
 }
@@ -83,8 +88,15 @@ func (tv *TreeView) getChildren(nodeID widget.TreeNodeID) []widget.TreeNodeID {
 	return ids
 }
 
-// findNode encontra um nó pelo ID
+// findNode encontra um nó pelo ID. widget.Tree do Fyne usa "" (string
+// vazia) como o ID convencional do nó raiz — não o ID literal que o
+// TreeNode raiz recebeu ("root" neste pacote) — sem tratar esse caso à
+// parte, getChildren("") nunca encontrava o nó raiz de verdade e a árvore
+// aparecia permanentemente vazia, não importava quantos nós existissem.
 func (tv *TreeView) findNode(nodeID widget.TreeNodeID) *TreeNode {
+	if nodeID == "" {
+		return tv.root
+	}
 	return tv.findNodeRecursive(tv.root, string(nodeID))
 }
 
