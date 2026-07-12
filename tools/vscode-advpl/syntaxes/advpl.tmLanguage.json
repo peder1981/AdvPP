@@ -1,0 +1,122 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "AdvPL/TLPP",
+	"scopeName": "source.advpl",
+	"patterns": [
+		{ "include": "#comments" },
+		{ "include": "#preprocessor" },
+		{ "include": "#strings" },
+		{ "include": "#numbers" },
+		{ "include": "#keywords" },
+		{ "include": "#types" },
+		{ "include": "#classes" }
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.double-slash.advpl",
+					"match": "//.*$"
+				},
+				{
+					"name": "comment.block.advpl",
+					"begin": "/\\*",
+					"end": "\\*/"
+				}
+			]
+		},
+		"preprocessor": {
+			"patterns": [
+				{
+					"name": "meta.preprocessor.advpl",
+					"match": "^[ \\t]*#[A-Za-z]+.*$"
+				}
+			]
+		},
+		"strings": {
+			"patterns": [
+				{
+					"name": "string.quoted.double.advpl",
+					"begin": "\"",
+					"end": "\"",
+					"patterns": [{ "name": "constant.character.escape.advpl", "match": "\\\\." }]
+				},
+				{
+					"name": "string.quoted.single.advpl",
+					"begin": "'",
+					"end": "'"
+				},
+				{
+					"name": "string.quoted.bracket.advpl",
+					"begin": "\\[",
+					"end": "\\]"
+				}
+			]
+		},
+		"numbers": {
+			"patterns": [
+				{
+					"name": "constant.numeric.advpl",
+					"match": "\\b\\d+(\\.\\d+)?\\b"
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.advpl",
+					"match": "(?i)\\b(IF|ELSEIF|ELSE|ENDIF|FOR|TO|STEP|NEXT|WHILE|ENDDO|DO|CASE|OTHERWISE|ENDCASE|BEGIN|SEQUENCE|RECOVER|END|TRY|CATCH|FINALLY|ENDTRY|EXIT|LOOP|BREAK|THROW|RETURN)\\b"
+				},
+				{
+					"name": "keyword.declaration.advpl",
+					"match": "(?i)\\b(FUNCTION|USER|STATIC FUNCTION|LOCAL|PRIVATE|PUBLIC|STATIC|CLASS|ENDCLASS|DATA|METHOD|CONSTRUCTOR|NAMESPACE|USING|INTERFACE|ENDINTERFACE|IMPLEMENTS|FROM|AS)\\b"
+				},
+				{
+					"name": "keyword.other.advpl",
+					"match": "(?i)\\b(NEW|SELF|NIL)\\b"
+				},
+				{
+					"name": "keyword.operator.logical.advpl",
+					"match": "(?i)\\b(AND|OR|NOT)\\b"
+				},
+				{
+					"name": "keyword.operator.advpl",
+					"match": ":=|==|<=|>=|<>|!=|\\+\\+|--|\\+=|-=|\\*=|/=|\\^|\\*\\*|[+\\-*/%<>=]"
+				}
+			]
+		},
+		"types": {
+			"patterns": [
+				{
+					"name": "storage.type.advpl",
+					"match": "(?i)\\b(CHARACTER|NUMERIC|LOGICAL|DATE|ARRAY|INTEGER|DOUBLE|DECIMAL|CODEBLOCK|OBJECT|JSON|VARIANT|VARIADIC|STRING|BOOLEAN)\\b"
+				}
+			]
+		},
+		"classes": {
+			"patterns": [
+				{
+					"match": "(?i)\\b(CLASS)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+					"captures": {
+						"1": { "name": "keyword.declaration.advpl" },
+						"2": { "name": "entity.name.class.advpl" }
+					}
+				},
+				{
+					"match": "(?i)\\b(METHOD)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+					"captures": {
+						"1": { "name": "keyword.declaration.advpl" },
+						"2": { "name": "entity.name.function.advpl" }
+					}
+				},
+				{
+					"match": "(?i)\\b(FUNCTION)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+					"captures": {
+						"1": { "name": "keyword.declaration.advpl" },
+						"2": { "name": "entity.name.function.advpl" }
+					}
+				}
+			]
+		}
+	}
+}

@@ -1,0 +1,31 @@
+{
+	"comments": {
+		"lineComment": "//",
+		"blockComment": ["/*", "*/"]
+	},
+	"brackets": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"]
+	],
+	"autoClosingPairs": [
+		{ "open": "{", "close": "}" },
+		{ "open": "[", "close": "]" },
+		{ "open": "(", "close": ")" },
+		{ "open": "\"", "close": "\"", "notIn": ["string"] },
+		{ "open": "'", "close": "'", "notIn": ["string"] }
+	],
+	"surroundingPairs": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"],
+		["\"", "\""],
+		["'", "'"]
+	],
+	"folding": {
+		"markers": {
+			"start": "^\\s*(FUNCTION|USER FUNCTION|STATIC FUNCTION|METHOD|CLASS|IF|DO CASE|WHILE|FOR|BEGIN SEQUENCE|TRY)\\b",
+			"end": "^\\s*(RETURN|END\\s*(CLASS|CASE|IF|DO)?|ENDCLASS|ENDIF|ENDDO|NEXT|END SEQUENCE|ENDTRY)\\b"
+		}
+	}
+}
