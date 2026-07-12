@@ -1,0 +1,156 @@
+{
+	"name": "advpl-tlpp",
+	"displayName": "AdvPL/TLPP",
+	"description": "Syntax highlighting, compiler commands, keybindings and a real debugger (breakpoints/step/variables, launch and web/PO-UI attach modes) for AdvPL and TLPP (TOTVS Protheus)",
+	"version": "1.3.2",
+	"publisher": "PederMunksgaard",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/peder1981/AdvPP"
+	},
+	"engines": {
+		"vscode": "^1.0.0"
+	},
+	"categories": [
+		"Programming Languages"
+	],
+	"main": "./extension.js",
+	"activationEvents": [],
+	"contributes": {
+		"languages": [
+			{
+				"id": "advpl",
+				"aliases": [
+					"AdvPL/TLPP",
+					"advpl",
+					"tlpp"
+				],
+				"extensions": [
+					".prw",
+					".prg",
+					".prx",
+					".tlpp",
+					".ch",
+					".th",
+					".aph"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "advpl",
+				"scopeName": "source.advpl",
+				"path": "./syntaxes/advpl.tmLanguage.json"
+			}
+		],
+		"commands": [
+			{ "command": "advpl.check", "title": "AdvPL: Check current file", "category": "AdvPL" },
+			{ "command": "advpl.run", "title": "AdvPL: Run current file", "category": "AdvPL" },
+			{ "command": "advpl.compile", "title": "AdvPL: Compile current file (bytecode)", "category": "AdvPL" },
+			{ "command": "advpl.build", "title": "AdvPL: Build standalone executable", "category": "AdvPL" },
+			{ "command": "advpl.serve", "title": "AdvPL: Serve current file (web / PO-UI)", "category": "AdvPL" },
+			{ "command": "advpl.attachServeDebug", "title": "AdvPL: Attach debugger to running serve session", "category": "AdvPL" }
+		],
+		"keybindings": [
+			{ "command": "advpl.build", "key": "ctrl+f9", "when": "editorLangId == advpl" },
+			{ "command": "advpl.run", "key": "f9", "when": "editorLangId == advpl" },
+			{ "command": "advpl.compile", "key": "ctrl+shift+f9", "when": "editorLangId == advpl" },
+			{ "command": "advpl.serve", "key": "ctrl+alt+f9", "when": "editorLangId == advpl" }
+		],
+		"debuggers": [
+			{
+				"type": "advpl",
+				"label": "AdvPL/TLPP Debug",
+				"languages": ["advpl"],
+				"configurationAttributes": {
+					"launch": {
+						"required": ["program"],
+						"properties": {
+							"program": {
+								"type": "string",
+								"description": "Path to the .prw/.prg/.tlpp file to compile and debug.",
+								"default": "${file}"
+							},
+							"stopOnEntry": {
+								"type": "boolean",
+								"description": "Pause on the first executed line.",
+								"default": false
+							}
+						}
+					},
+					"attach": {
+						"properties": {
+							"port": {
+								"type": "number",
+								"description": "Debug port of a running 'advplc serve --debug-port' session.",
+								"default": 4711
+							},
+							"host": {
+								"type": "string",
+								"description": "Host of the running serve session.",
+								"default": "localhost"
+							}
+						}
+					}
+				},
+				"initialConfigurations": [
+					{
+						"type": "advpl",
+						"request": "launch",
+						"name": "Debug current AdvPL file",
+						"program": "${file}",
+						"stopOnEntry": false
+					},
+					{
+						"type": "advpl",
+						"request": "attach",
+						"name": "Attach to AdvPL serve session (web / PO-UI)",
+						"port": 4711,
+						"host": "localhost"
+					}
+				],
+				"configurationSnippets": [
+					{
+						"label": "AdvPL: Debug current file",
+						"description": "Compile and debug the currently open .prw/.prg/.tlpp file",
+						"body": {
+							"type": "advpl",
+							"request": "launch",
+							"name": "Debug current AdvPL file",
+							"program": "^\"\\${file}\"",
+							"stopOnEntry": false
+						}
+					},
+					{
+						"label": "AdvPL: Attach to serve session (web / PO-UI)",
+						"description": "Attach the debugger to a running 'advplc serve --debug-port' session — breakpoints hit on the next browser page load/reload",
+						"body": {
+							"type": "advpl",
+							"request": "attach",
+							"name": "Attach to AdvPL serve session (web / PO-UI)",
+							"port": 4711,
+							"host": "localhost"
+						}
+					}
+				]
+			}
+		],
+		"configuration": {
+			"title": "AdvPL/TLPP",
+			"properties": {
+				"advpl.compilerPath": {
+					"type": "string",
+					"default": "",
+					"description": "Path to the advplc binary. Leave empty to auto-detect: searches upward from the open file for an 'advplc' binary, falling back to PATH."
+				},
+				"advpl.debugPort": {
+					"type": "number",
+					"default": 4711,
+					"description": "Port used for 'AdvPL: Serve current file' to accept debugger attach connections (advplc serve --debug-port)."
+				}
+			}
+		}
+	}
+}

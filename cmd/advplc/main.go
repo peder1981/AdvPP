@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/advpl/compiler/pkg/compiler"
+	"github.com/advpl/compiler/pkg/dap"
 	"github.com/advpl/compiler/pkg/db"
 	"github.com/advpl/compiler/pkg/lexer"
 	"github.com/advpl/compiler/pkg/parser"
@@ -156,6 +159,18 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "debug":
+		// Adaptador DAP (Debug Adapter Protocol) sobre stdio — sem arquivo
+		// fixo na linha de comando: o fonte a compilar vem do campo
+		// "program" do request "launch", enviado pelo editor. Flags de
+		// compilação (--include, --define, --db, ...) valem como padrão
+		// para qualquer "program" recebido.
+		opts := parseOptions(os.Args[2:])
+		if err := runDebugAdapter(opts); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		fmt.Printf("advplc %s\n", version)
 
@@ -177,6 +192,7 @@ type Options struct {
 	dbBackend string
 	port      string
 	watch     bool
+	debugPort string // advplc serve --debug-port: liga um listener DAP TCP (attach)
 }
 
 func parseOptions(args []string) *Options {
@@ -223,6 +239,11 @@ func parseOptions(args []string) *Options {
 			}
 		case "--watch", "-w":
 			opts.watch = true
+		case "--debug-port":
+			if i+1 < len(args) {
+				opts.debugPort = args[i+1]
+				i++
+			}
 		}
 	}
 	return opts
@@ -474,13 +495,32 @@ func serveFile(sourceFile string, opts *Options) error {
 	var current atomic.Pointer[compiler.Bytecode]
 	current.Store(bc)
 
+	// dbgSrv: sessão DAP "attach" conectada agora, se houver (--debug-port).
+	// Um ponteiro atômico simples — só a conexão mais recente é considerada;
+	// reconectar (ex.: reload do editor) substitui a anterior sem problema.
+	var dbgSrv atomic.Pointer[dap.Server]
+
 	srv := webui.New(filepath.Base(sourceFile),
 		func(ui *webui.Provider, console *webui.OutWriter) error {
 			v := vm.NewVM(current.Load(), true)
 			v.SetUIProvider(ui)
-			v.SetOutputWriter(console)
 			attachDatabase(v, opts)
+
+			var release func(error)
+			if ds := dbgSrv.Load(); ds != nil {
+				if claimed, r := ds.OfferSession(v); claimed {
+					release = r
+					v.SetOutputWriter(io.MultiWriter(console, ds.OutputWriter()))
+				}
+			}
+			if release == nil {
+				v.SetOutputWriter(console)
+			}
+
 			_, err := v.Run()
+			if release != nil {
+				release(err)
+			}
 			return err
 		})
 
@@ -488,8 +528,37 @@ func serveFile(sourceFile string, opts *Options) error {
 		go watchSource(sourceFile, opts, &current, srv)
 	}
 
+	if opts.debugPort != "" {
+		go serveDebugAttach(opts.debugPort, sourceFile, &dbgSrv)
+	}
+
 	port := shared.ResolveWebUIPort(opts.port)
 	return srv.Serve("localhost:" + port)
+}
+
+// serveDebugAttach escuta conexões DAP (attach) numa porta TCP separada da
+// porta HTTP do modo web — é isso que "advplc serve --debug-port N" liga.
+// Cada conexão vira uma sessão attach independente (uma por vez de verdade
+// importa: OfferSession só entrega sessões de browser pro dbgSrv atual).
+func serveDebugAttach(port, sourceFile string, dbgSrv *atomic.Pointer[dap.Server]) {
+	ln, err := net.Listen("tcp", "localhost:"+port)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "debug-port: %v\n", err)
+		return
+	}
+	defer ln.Close()
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		srv := dap.NewAttachServer(dap.NewConn(conn, conn), sourceFile)
+		dbgSrv.Store(srv)
+		go func() {
+			defer conn.Close()
+			srv.Run()
+		}()
+	}
 }
 
 // watchSource observa o fonte (polling de mtime, sem dependências) e, a cada
@@ -517,6 +586,36 @@ func watchSource(sourceFile string, opts *Options, current *atomic.Pointer[compi
 		fmt.Printf("watch: %s recompilado, recarregando sessões\n", filepath.Base(sourceFile))
 		srv.Broadcast("reload", "fonte alterado")
 	}
+}
+
+// runDebugAdapter serve uma sessão DAP (Debug Adapter Protocol) sobre
+// stdin/stdout — é isso que "advplc debug" spawna quando o editor inicia
+// uma sessão de debug (F5). O fonte a compilar chega via o request "launch"
+// (campo "program"); opts fornece os defaults de compilação (--include,
+// --define, --db, ...) vindos da linha de comando do próprio adaptador.
+func runDebugAdapter(opts *Options) error {
+	// CONOUT/CONOUTW (pkg/vm/natives.go) sempre espelham em os.Stdout, além
+	// do writer opcional via SetOutputWriter — correto para run/serve, mas
+	// aqui os.Stdout É o transporte DAP (frames Content-Length). Sem isso,
+	// o primeiro ConOut() do programa debugado corrompe o stream JSON no
+	// meio da sessão. Guarda o stdout real pro DAP e redireciona o global
+	// os.Stdout (o que fmt.Println usa) pro /dev/null; a saída do programa
+	// ainda chega ao usuário via evento "output" (outputWriter em server.go).
+	realStdout := os.Stdout
+	if devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0); err == nil {
+		os.Stdout = devNull
+	}
+
+	conn := dap.NewConn(os.Stdin, realStdout)
+	srv := dap.NewServer(conn,
+		func(sourceFile string) (*compiler.Bytecode, error) {
+			return loadAndCompile(sourceFile, opts)
+		},
+		func(v *vm.VM) {
+			attachDatabase(v, opts)
+		},
+	)
+	return srv.Run()
 }
 
 // checkFilesParallel verifica N arquivos com um pool de workers (1 por CPU).
@@ -690,6 +789,8 @@ Commands:
   exec      Execute a compiled bytecode file
   check     Validate syntax without executing (accepts multiple files)
   serve     Run the program with the UI rendered in the browser (web mode)
+  debug     Serve a Debug Adapter Protocol (DAP) session over stdio, for
+            editor "Run and Debug" integration (breakpoints, step, locals)
   ast       Print the AST structure
   bytecode  Print the compiled bytecode
 

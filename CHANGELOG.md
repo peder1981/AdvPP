@@ -2,6 +2,63 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.11.0] — 2026-07-11
+
+### Debugger real via DAP (breakpoints/step/variáveis) — launch e attach
+
+Pedido do usuário: testes de compilação/debug completos antes de estender o
+mesmo suporte ao plugin de VS Code na frente web. Resultado: `advplc` ganha
+um adaptador completo de Debug Adapter Protocol, cobrindo os dois modos de
+execução que o compilador já suportava.
+
+- **`advplc debug`** (modo *launch*, sobre stdio): compila e executa um
+  único fonte com breakpoints, step over/in/out, call stack e inspeção de
+  variáveis locais. Implementado como hook por instrução na `runLoop` da VM
+  (`pkg/vm/debug.go`) — usa a linha-fonte que cada instrução de bytecode já
+  carregava e o call-frame stack já existente, custo zero quando nenhum
+  debugger está anexado (`if v.debugger != nil`). Servidor DAP em
+  `pkg/dap/`, stdlib puro, mesmo padrão de framing do LSP
+  (Content-Length). `os.Stdout` é redirecionado para `/dev/null` dentro do
+  adaptador — `ConOut`/`ConOutW` sempre espelham no stdout real, que aqui é
+  o próprio transporte DAP; sem isso o primeiro `ConOut()` do programa
+  depurado corrompia o stream JSON no meio da sessão.
+- **`advplc serve --debug-port N`** (modo *attach*): `advplc serve` é um
+  processo de vida longa com uma VM por sessão de browser — arquitetura
+  diferente de `debug`, que expõe um listener TCP DAP separado da porta
+  HTTP. Cada nova sessão de browser oferece sua VM ao servidor DAP anexado
+  (`dap.Server.OfferSession`), que só assume a VM depois que o cliente
+  concluiu `attach` + `configurationDone` — deliberadamente **uma sessão
+  depurada por vez** (sem multiplexação de threads DAP; uma segunda aba
+  conectando durante uma depuração roda normal, sem debugger). Saída do
+  console espelha simultaneamente no browser e no Debug Console do editor.
+- Testado ponta a ponta duas vezes: cliente DAP bruto em Python (breakpoint
+  bate na linha certa, variáveis corretas ANTES da instrução executar, call
+  stack aninhado correto) e ao vivo pela GUI real do NeuralInverse/VS Code
+  (toolbar mostra ícone de "disconnect" pra attach vs "stop" pra launch —
+  o editor distingue os dois modos automaticamente).
+
+### Extensão VS Code (`advpl-tlpp`) publicada no Marketplace
+
+`tools/vscode-advpl/` — antes só sideload via `.vsix`, agora publicada em
+`marketplace.visualstudio.com/items?itemName=PederMunksgaard.advpl-tlpp`.
+Cobre: syntax highlighting completo, keybindings reais (`Ctrl+F9` build,
+`F9` run, `Ctrl+Shift+F9` compile, `Ctrl+Alt+F9` serve), e o debugger DAP
+(launch zero-config via `F5`, attach via comando dedicado). Motivo deste
+release: a extensão publicada já chamava `advplc debug`/`--debug-port`, que
+não existiam no compilador oficial (v1.10.3) — esse release fecha essa
+lacuna entre o que estava publicado no Marketplace e o que o compilador
+publicado sabia fazer.
+
+### Verificação antes do release
+
+Sweep completo contra os 2 corpora reais (811R4 + Protheus 12.1.2510, 500
+arquivos amostrados): 96,2% de aprovação, **as mesmas 19 falhas** que já
+existiam no v1.10.3 publicado — zero regressão introduzida. Cross-compile
+verificado para os 4 alvos oficiais (linux/amd64, linux/arm64,
+windows/amd64, darwin/arm64). Diff revisado linha a linha contra v1.10.3:
+mudanças estritamente aditivas, nenhum caminho existente (`run`/`compile`/
+`build`/`check`/`ast`/`bytecode`) alterado.
+
 ## [1.10.3] — 2026-07-11
 
 ### 3 bugs reais do executável standalone no Windows, encontrados testando de verdade

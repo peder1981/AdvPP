@@ -70,6 +70,7 @@ type VM struct {
 	jobs         sync.WaitGroup  // jobs em background pendentes
 	outWriter    io.Writer       // espelho opcional da saída de console (modo web)
 	curDialog    *webDialog      // MSDIALOG em construção (fase 4 do renderer web)
+	debugger     *Debugger       // hook opcional (advplc debug); nil em execução normal
 }
 
 type namedArgInfo struct {
@@ -328,6 +329,10 @@ func (v *VM) runLoop() (advplrt.Value, error) {
 
 		instr := v.current.Code[v.current.IP]
 		v.current.IP++
+
+		if v.debugger != nil {
+			v.debugger.checkBreak(v, instr)
+		}
 
 		if err := v.execute(instr); err != nil {
 			// Check try/catch
