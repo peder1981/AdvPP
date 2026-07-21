@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -71,6 +72,9 @@ type VM struct {
 	outWriter    io.Writer       // espelho opcional da saída de console (modo web)
 	curDialog    *webDialog      // MSDIALOG em construção (fase 4 do renderer web)
 	debugger     *Debugger       // hook opcional (advplc debug); nil em execução normal
+	fileHandles  map[int]*os.File // handles abertos por FOpen/FCreate
+	nextFH       int              // próximo handle a distribuir
+	lastFError   int              // último erro de IO (FError())
 }
 
 type namedArgInfo struct {
@@ -114,6 +118,8 @@ func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 		mvcViews:     make(map[int]*mvc.FWFormView),
 		mvcBrowses:   make(map[int]*mvc.FWFormBrowse),
 		mvcNextID:    1,
+		fileHandles:  make(map[int]*os.File),
+		nextFH:       1,
 	}
 	v.registerClasses()
 	v.registerNatives()
@@ -469,6 +475,17 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		return v.opComparison(func(a, b advplrt.Value) bool { return advplrt.ToFloat(a) <= advplrt.ToFloat(b) }, "")
 	case compiler.OP_GTE:
 		return v.opComparison(func(a, b advplrt.Value) bool { return advplrt.ToFloat(a) >= advplrt.ToFloat(b) }, "")
+	case compiler.OP_FORLOOP_CMP:
+		step := advplrt.ToFloat(v.pop())
+		end := advplrt.ToFloat(v.pop())
+		vv := advplrt.ToFloat(v.pop())
+		var cont bool
+		if step >= 0 {
+			cont = vv <= end
+		} else {
+			cont = vv >= end
+		}
+		v.push(advplrt.NewBool(cont))
 	case compiler.OP_AND:
 		return v.opLogic(true)
 	case compiler.OP_OR:
@@ -498,8 +515,9 @@ func (v *VM) execute(instr compiler.Instruction) error {
 				v.push(advplrt.Nil)
 			}
 		} else if o, ok := arr.(*advplrt.ObjectValue); ok {
+			// Chave de bracket em JsonObject/hash: case-sensitive (semantica JSON).
 			if s, ok := idx.(*advplrt.StringValue); ok {
-				if val, exists := o.Props[strings.ToUpper(s.Val)]; exists {
+				if val, exists := o.Props[s.Val]; exists {
 					v.push(val)
 				} else {
 					v.push(advplrt.Nil)
@@ -520,8 +538,9 @@ func (v *VM) execute(instr compiler.Instruction) error {
 				a.Elements[i-1] = val
 			}
 		} else if o, ok := arr.(*advplrt.ObjectValue); ok {
+			// Chave de bracket em JsonObject/hash: case-sensitive (semantica JSON).
 			if s, ok := idx.(*advplrt.StringValue); ok {
-				o.Props[strings.ToUpper(s.Val)] = val
+				o.Props[s.Val] = val
 			}
 		}
 	case compiler.OP_ARRAY_LEN:

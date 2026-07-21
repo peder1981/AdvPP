@@ -5,6 +5,8 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -1353,6 +1355,156 @@ func (v *VM) registerNatives() {
 		},
 		"WSADVVALUE": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewString(""), nil
+		},
+
+		// --- I/O de disco ---
+		// MemoRead(cArq): le o arquivo inteiro como string; "" se nao existir.
+		"MEMOREAD": func(args []advplrt.Value) (advplrt.Value, error) {
+			data, err := os.ReadFile(getArgString(args, 0, ""))
+			if err != nil {
+				return advplrt.NewString(""), nil
+			}
+			return advplrt.NewString(string(data)), nil
+		},
+		// MemoWrite(cArq, cTexto): grava a string no arquivo; .T. em sucesso.
+		"MEMOWRITE": func(args []advplrt.Value) (advplrt.Value, error) {
+			err := os.WriteFile(getArgString(args, 0, ""), []byte(getArgString(args, 1, "")), 0644)
+			return advplrt.NewBool(err == nil), nil
+		},
+		"MEMOWRIT": func(args []advplrt.Value) (advplrt.Value, error) {
+			err := os.WriteFile(getArgString(args, 0, ""), []byte(getArgString(args, 1, "")), 0644)
+			return advplrt.NewBool(err == nil), nil
+		},
+		// FErase(cArq): apaga o arquivo; 0 em sucesso, -1 em erro.
+		"FERASE": func(args []advplrt.Value) (advplrt.Value, error) {
+			if os.Remove(getArgString(args, 0, "")) != nil {
+				return advplrt.NewNumber(-1), nil
+			}
+			return advplrt.NewNumber(0), nil
+		},
+
+		// --- API de handle de arquivo (streaming) ---
+		// FCreate(cArq[, nAttr]): cria/trunca; retorna handle (>=1) ou -1.
+		"FCREATE": func(args []advplrt.Value) (advplrt.Value, error) {
+			f, err := os.OpenFile(getArgString(args, 0, ""), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+			if err != nil {
+				v.lastFError = 2
+				return advplrt.NewNumber(-1), nil
+			}
+			h := v.nextFH
+			v.nextFH++
+			v.fileHandles[h] = f
+			v.lastFError = 0
+			return advplrt.NewNumber(float64(h)), nil
+		},
+		// FOpen(cArq[, nMode]): abre existente. nMode bit0=escrita (0=leitura). Handle ou -1.
+		"FOPEN": func(args []advplrt.Value) (advplrt.Value, error) {
+			flag := os.O_RDONLY
+			if int(advplrt.ToFloat(getArg(args, 1)))&1 != 0 {
+				flag = os.O_RDWR
+			}
+			f, err := os.OpenFile(getArgString(args, 0, ""), flag, 0644)
+			if err != nil {
+				v.lastFError = 2
+				return advplrt.NewNumber(-1), nil
+			}
+			h := v.nextFH
+			v.nextFH++
+			v.fileHandles[h] = f
+			v.lastFError = 0
+			return advplrt.NewNumber(float64(h)), nil
+		},
+		// FReadStr(nHandle, nBytes): le ate nBytes e retorna como string ("" no fim). Forma AdvPL sem byref.
+		"FREADSTR": func(args []advplrt.Value) (advplrt.Value, error) {
+			f, ok := v.fileHandles[int(advplrt.ToFloat(getArg(args, 0)))]
+			if !ok {
+				v.lastFError = 6
+				return advplrt.NewString(""), nil
+			}
+			n := int(advplrt.ToFloat(getArg(args, 1)))
+			if n <= 0 {
+				return advplrt.NewString(""), nil
+			}
+			buf := make([]byte, n)
+			r, _ := f.Read(buf)
+			v.lastFError = 0
+			return advplrt.NewString(string(buf[:r])), nil
+		},
+		// FWrite(nHandle, cBuffer[, nBytes]): grava; retorna nº de bytes escritos.
+		"FWRITE": func(args []advplrt.Value) (advplrt.Value, error) {
+			f, ok := v.fileHandles[int(advplrt.ToFloat(getArg(args, 0)))]
+			if !ok {
+				v.lastFError = 6
+				return advplrt.NewNumber(0), nil
+			}
+			data := []byte(getArgString(args, 1, ""))
+			if len(args) > 2 {
+				if nb := int(advplrt.ToFloat(getArg(args, 2))); nb >= 0 && nb < len(data) {
+					data = data[:nb]
+				}
+			}
+			w, err := f.Write(data)
+			if err != nil {
+				v.lastFError = 2
+			} else {
+				v.lastFError = 0
+			}
+			return advplrt.NewNumber(float64(w)), nil
+		},
+		// FSeek(nHandle, nOffset[, nOrigin]): 0=inicio,1=atual,2=fim. Retorna nova posicao.
+		"FSEEK": func(args []advplrt.Value) (advplrt.Value, error) {
+			f, ok := v.fileHandles[int(advplrt.ToFloat(getArg(args, 0)))]
+			if !ok {
+				v.lastFError = 6
+				return advplrt.NewNumber(-1), nil
+			}
+			whence := int(advplrt.ToFloat(getArg(args, 2))) // default 0 = início
+			pos, err := f.Seek(int64(advplrt.ToFloat(getArg(args, 1))), whence)
+			if err != nil {
+				v.lastFError = 2
+				return advplrt.NewNumber(-1), nil
+			}
+			v.lastFError = 0
+			return advplrt.NewNumber(float64(pos)), nil
+		},
+		// FClose(nHandle): fecha; .T./.F.
+		"FCLOSE": func(args []advplrt.Value) (advplrt.Value, error) {
+			h := int(advplrt.ToFloat(getArg(args, 0)))
+			f, ok := v.fileHandles[h]
+			if !ok {
+				v.lastFError = 6
+				return advplrt.NewBool(false), nil
+			}
+			err := f.Close()
+			delete(v.fileHandles, h)
+			v.lastFError = 0
+			return advplrt.NewBool(err == nil), nil
+		},
+		// FError(): código do último erro de IO (0 = sem erro).
+		"FERROR": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewNumber(float64(v.lastFError)), nil
+		},
+
+		// --- Chamada de sistema ---
+		// WaitRun(cCmd): executa o comando no shell do SO, herda stdio, espera e
+		// retorna o exit code (0 = sucesso). Redirecione para arquivo + MemoRead
+		// para capturar a saida.
+		"WAITRUN": func(args []advplrt.Value) (advplrt.Value, error) {
+			cmdStr := getArgString(args, 0, "")
+			var cmd *exec.Cmd
+			if runtime.GOOS == "windows" {
+				cmd = exec.Command("cmd", "/c", cmdStr)
+			} else {
+				cmd = exec.Command("sh", "-c", cmdStr)
+			}
+			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+			if err := cmd.Run(); err != nil {
+				if ee, ok := err.(*exec.ExitError); ok {
+					return advplrt.NewNumber(float64(ee.ExitCode())), nil
+				}
+				return advplrt.NewNumber(-1), nil
+			}
+			return advplrt.NewNumber(0), nil
 		},
 	}
 
