@@ -12,6 +12,7 @@ Um compilador e interpretador totalmente funcional para as linguagens de program
 - **Executáveis Standalone**: Constrói executáveis autossuficientes com bytecode embutido usando go:embed
 - **Máquina Virtual**: VM completa com todos os opcodes implementados
 - **Runtime**: Funções nativas (ConOut, MsgInfo, AllTrim, Str, Val, aAdd, aScan, Len, etc.)
+- **I/O de disco, arquivo e sistema**: `MemoRead`/`MemoWrite`/`FErase`, API de handle para streaming (`FOpen`/`FCreate`/`FReadStr`/`FWrite`/`FSeek`/`FClose`/`FError`) e chamada de sistema `WaitRun` — ver seção [Funções de I/O, arquivo e sistema](#funções-de-io-arquivo-e-sistema)
 - **IDE Gráfica**: Ambiente de Desenvolvimento Gráfico usando Fyne com editor de código, navegador de arquivos e compilador integrado
 - **Framework UI**: Aplicações gráficas usando Fyne (diálogos, formulários, grids, botões, menus)
 - **Banco de Dados**: Operações de banco de dados baseadas em Workarea (DbSelectArea, DbSeek, DbSkip, RecLock, etc.)
@@ -244,7 +245,8 @@ A IDE gráfica fornece:
 ### Recursos AdvPL
 - User Function, Static Function, Function declarations
 - Escopos de variável Local, Private, Public, Static
-- If/ElseIf/Else/EndIf, For/Next, While/EndDo, Do Case/EndCase
+- If/ElseIf/Else/EndIf, For/Next (inclusive `Step` negativo/descendente), While/EndDo, Do Case/EndCase
+- `Loop` (continue) e `Exit` (break) em loops, com aninhamento correto
 - Tratamento de erro Begin Sequence/Recover/End Sequence
 - Blocos de código `{|| expr }`
 - Class/EndClass com Data, Method, Constructor
@@ -265,3 +267,71 @@ A IDE gráfica fornece:
 - Parsing de sintaxe WSRESTFUL/WSSERVICE
 
 **Nota**: Anotações REST e sintaxe WSRESTFUL são parseadas mas não executadas. Integração de servidor HTTP necessária para execução de endpoints REST.
+
+## Funções de I/O, arquivo e sistema
+
+O runtime expõe I/O de disco, uma API de handle de arquivo para streaming e uma
+chamada de sistema — todas com semântica AdvPL nativa, em Go puro (sem CGO).
+
+### I/O de disco (arquivo inteiro)
+
+| Função | Descrição |
+|--------|-----------|
+| `MemoRead(cArq)` | Lê o arquivo inteiro e retorna como string (`""` se não existir) |
+| `MemoWrite(cArq, cTexto)` | Grava a string no arquivo; retorna `.T.` em sucesso (alias: `MemoWrit`) |
+| `FErase(cArq)` | Apaga o arquivo; `0` em sucesso, `-1` em erro |
+
+### Handle de arquivo (streaming — arquivos grandes)
+
+| Função | Descrição |
+|--------|-----------|
+| `FCreate(cArq[, nAttr])` | Cria/trunca o arquivo; retorna handle (`>=1`) ou `-1` |
+| `FOpen(cArq[, nMode])` | Abre existente; bit `0` de `nMode` = escrita (`0` = leitura). Handle ou `-1` |
+| `FReadStr(nH, nBytes)` | Lê até `nBytes` e **retorna string** (`""` no fim do arquivo) |
+| `FWrite(nH, cBuffer[, nBytes])` | Grava; retorna nº de bytes escritos |
+| `FSeek(nH, nOffset[, nOrigin])` | `0`=início, `1`=atual, `2`=fim; retorna a nova posição |
+| `FClose(nH)` | Fecha o handle; `.T.`/`.F.` |
+| `FError()` | Código do último erro de I/O (`0` = sem erro) |
+
+> A leitura usa `FReadStr` (retorna a string lida) em vez do `FRead` com buffer
+> por referência — os natives da VM recebem valores, não lvalues, então byref em
+> uma `Local` string não propagaria. `FReadStr` é a forma AdvPL genuína para isso.
+
+```advpl
+// Streaming de um arquivo grande em blocos de 4 KB
+Local nH := FOpen("dados.txt", 0)
+Local cBloco := FReadStr(nH, 4096)
+While Len(cBloco) > 0
+    // ... processa cBloco ...
+    cBloco := FReadStr(nH, 4096)
+End
+FClose(nH)
+```
+
+### Chamada de sistema
+
+| Função | Descrição |
+|--------|-----------|
+| `WaitRun(cCmd)` | Executa `cCmd` no shell do SO (cross-platform `sh -c` / `cmd /c`), herda stdio, espera e retorna o *exit code* (`0` = sucesso) |
+
+Para **capturar** a saída de um comando, use o padrão AdvPL de redirecionar para
+arquivo e ler — com a API de handle isso funciona para saída arbitrariamente
+grande, em streaming:
+
+```advpl
+WaitRun("gerar_relatorio.sh > saida.txt")
+Local nH := FOpen("saida.txt", 0)
+Local cSaida := FReadStr(nH, 65536)  // ou em blocos, para arquivos enormes
+FClose(nH)
+```
+
+## Exemplo: LLM em AdvPL puro (`pt_llm.prw`)
+
+`pt_llm.prw` (na raiz do repositório) é um modelo de linguagem pequeno escrito
+**inteiramente em AdvPL** — uma cadeia de Markov de ordem variável em nível de
+byte (ordens 1–6 numa mesma hash, com backoff) que lê e gera português do
+Brasil. Diferente da classe `LLM` (que carrega um GGUF pronto), aqui o modelo é
+construído na própria linguagem: treina lendo o corpus, condiciona no prompt
+("lê") e continua o texto ("fala"). Roda com `advplc run pt_llm.prw` e inclui
+auto-teste. Exercita `Loop`, `For Step -1`, hash com chave case-sensitive e
+(opcionalmente) `MemoRead` para treinar de um `.txt` externo.

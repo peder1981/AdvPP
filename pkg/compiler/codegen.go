@@ -17,6 +17,14 @@ type Compiler struct {
 	nextFuncIdx     int
 	namespace       string
 	usingNamespaces []string
+	loopStack       []*loopContext
+}
+
+// loopContext acumula os jumps de Exit (break) e Loop (continue) pendentes de
+// patch dentro do loop atual. Sao resolvidos ao final de compileFor/compileWhile.
+type loopContext struct {
+	breakJumps    []int // patch -> fim do loop
+	continueJumps []int // patch -> alvo de continuacao (incremento/condicao)
 }
 
 type funcContext struct {
@@ -340,10 +348,18 @@ func (c *Compiler) compileStatement(stmt ast.Statement) error {
 	case *ast.ReturnStmt:
 		return c.compileReturn(s)
 	case *ast.ExitStmt:
-		c.emit(OP_JUMP, -999, 0, "exit", s.Loc.Line)
+		if len(c.loopStack) == 0 {
+			return fmt.Errorf("Exit fora de um loop (linha %d)", s.Loc.Line)
+		}
+		top := c.loopStack[len(c.loopStack)-1]
+		top.breakJumps = append(top.breakJumps, c.emitJump(OP_JUMP, s.Loc.Line))
 		return nil
 	case *ast.LoopStmt:
-		c.emit(OP_JUMP, -998, 0, "loop", s.Loc.Line)
+		if len(c.loopStack) == 0 {
+			return fmt.Errorf("Loop fora de um loop (linha %d)", s.Loc.Line)
+		}
+		top := c.loopStack[len(c.loopStack)-1]
+		top.continueJumps = append(top.continueJumps, c.emitJump(OP_JUMP, s.Loc.Line))
 		return nil
 	case *ast.BreakStmt:
 		if s.Value != nil {
@@ -527,39 +543,11 @@ func (c *Compiler) compileFor(s *ast.ForStmt) error {
 	if err := c.compileExpr(s.Start); err != nil {
 		return err
 	}
-	idx := c.addLocal(s.VarName)
-	if idx&0x8000 != 0 {
-		c.emit(OP_STORE_GLOBAL, idx&0x7FFF, 0, s.VarName, s.Loc.Line)
-	} else {
-		c.emit(OP_STORE_LOCAL, idx, 0, s.VarName, s.Loc.Line)
-	}
+	c.emitStore(s.VarName, s.Loc.Line)
 
-	// Condition: var <= end
-	loopStart := len(c.bc.Code)
-	if idx, ok := c.resolveLocal(s.VarName); ok {
-		c.emit(OP_LOAD_LOCAL, idx, 0, s.VarName, s.Loc.Line)
-	} else {
-		c.emit(OP_LOAD_GLOBAL, idx&0x7FFF, 0, s.VarName, s.Loc.Line)
-	}
-	if err := c.compileExpr(s.End); err != nil {
-		return err
-	}
-	c.emit(OP_LTE, 0, 0, "", s.Loc.Line)
-	exitJump := c.emitJump(OP_JUMP_IF_FALSE, s.Loc.Line)
-
-	// Body
-	for _, stmt := range s.Body {
-		if err := c.compileStatement(stmt); err != nil {
-			return err
-		}
-	}
-
-	// Increment: var = var + step (or 1)
-	if idx, ok := c.resolveLocal(s.VarName); ok {
-		c.emit(OP_LOAD_LOCAL, idx, 0, s.VarName, s.Loc.Line)
-	} else {
-		c.emit(OP_LOAD_GLOBAL, idx&0x7FFF, 0, s.VarName, s.Loc.Line)
-	}
+	// Avalia o step UMA vez numa local escondida (evita reavaliar expressoes com
+	// efeito colateral a cada iteracao e permite comparar pelo sinal do step).
+	stepVar := s.VarName + " step" // espaco: nome impossivel de colidir com identificador do usuario
 	if s.Step != nil {
 		if err := c.compileExpr(s.Step); err != nil {
 			return err
@@ -567,17 +555,69 @@ func (c *Compiler) compileFor(s *ast.ForStmt) error {
 	} else {
 		c.emit(OP_NUMBER, c.addNumberConst(1), 0, "", s.Loc.Line)
 	}
-	c.emit(OP_ADD, 0, 0, "", s.Loc.Line)
-	if idx, ok := c.resolveLocal(s.VarName); ok {
-		c.emit(OP_STORE_LOCAL, idx, 0, s.VarName, s.Loc.Line)
-	} else {
-		c.emit(OP_STORE_GLOBAL, idx&0x7FFF, 0, s.VarName, s.Loc.Line)
+	c.emitStore(stepVar, s.Loc.Line)
+
+	// Condition: step>=0 ? var<=end : var>=end (via OP_FORLOOP_CMP)
+	loopStart := len(c.bc.Code)
+	c.emitLoad(s.VarName, s.Loc.Line)
+	if err := c.compileExpr(s.End); err != nil {
+		return err
+	}
+	c.emitLoad(stepVar, s.Loc.Line)
+	c.emit(OP_FORLOOP_CMP, 0, 0, "", s.Loc.Line)
+	exitJump := c.emitJump(OP_JUMP_IF_FALSE, s.Loc.Line)
+
+	// Body
+	ctx := &loopContext{}
+	c.loopStack = append(c.loopStack, ctx)
+	for _, stmt := range s.Body {
+		if err := c.compileStatement(stmt); err != nil {
+			return err
+		}
+	}
+	c.loopStack = c.loopStack[:len(c.loopStack)-1]
+
+	// Loop (continue) cai aqui: no incremento.
+	continueTarget := len(c.bc.Code)
+	for _, j := range ctx.continueJumps {
+		c.patchJump(j, continueTarget)
 	}
 
+	// Increment: var = var + step
+	c.emitLoad(s.VarName, s.Loc.Line)
+	c.emitLoad(stepVar, s.Loc.Line)
+	c.emit(OP_ADD, 0, 0, "", s.Loc.Line)
+	c.emitStore(s.VarName, s.Loc.Line)
+
 	c.emit(OP_JUMP, loopStart, 0, "", s.Loc.Line)
-	c.patchJump(exitJump, len(c.bc.Code))
+
+	// Fim do loop: alvo do exitJump e dos Exit (break).
+	loopEnd := len(c.bc.Code)
+	c.patchJump(exitJump, loopEnd)
+	for _, j := range ctx.breakJumps {
+		c.patchJump(j, loopEnd)
+	}
 
 	return nil
+}
+
+// emitLoad/emitStore resolvem local vs global e emitem o opcode certo.
+func (c *Compiler) emitLoad(name string, line int) {
+	if idx, ok := c.resolveLocal(name); ok {
+		c.emit(OP_LOAD_LOCAL, idx, 0, name, line)
+	} else {
+		idx := c.addLocal(name)
+		c.emit(OP_LOAD_GLOBAL, idx&0x7FFF, 0, name, line)
+	}
+}
+
+func (c *Compiler) emitStore(name string, line int) {
+	idx := c.addLocal(name)
+	if idx&0x8000 != 0 {
+		c.emit(OP_STORE_GLOBAL, idx&0x7FFF, 0, name, line)
+	} else {
+		c.emit(OP_STORE_LOCAL, idx, 0, name, line)
+	}
 }
 
 func (c *Compiler) compileWhile(s *ast.WhileStmt) error {
@@ -587,14 +627,27 @@ func (c *Compiler) compileWhile(s *ast.WhileStmt) error {
 	}
 	exitJump := c.emitJump(OP_JUMP_IF_FALSE, s.Loc.Line)
 
+	ctx := &loopContext{}
+	c.loopStack = append(c.loopStack, ctx)
 	for _, stmt := range s.Body {
 		if err := c.compileStatement(stmt); err != nil {
 			return err
 		}
 	}
+	c.loopStack = c.loopStack[:len(c.loopStack)-1]
+
+	// Loop (continue) reavalia a condicao.
+	for _, j := range ctx.continueJumps {
+		c.patchJump(j, loopStart)
+	}
 
 	c.emit(OP_JUMP, loopStart, 0, "", s.Loc.Line)
-	c.patchJump(exitJump, len(c.bc.Code))
+
+	loopEnd := len(c.bc.Code)
+	c.patchJump(exitJump, loopEnd)
+	for _, j := range ctx.breakJumps {
+		c.patchJump(j, loopEnd)
+	}
 	return nil
 }
 

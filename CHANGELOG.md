@@ -2,6 +2,66 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.12.0] — 2026-07-21
+
+Fechamento de lacunas da VM/compilador descobertas ao escrever um LLM de Markov
+em AdvPL puro (`pt_llm.prw`): três bugs de controle de fluxo e a ausência de I/O
+de disco e chamada de sistema.
+
+### Correções de controle de fluxo
+
+- **`Loop` (continue) e `Exit` (break) agora funcionam** — `pkg/compiler/codegen.go`.
+  Antes, ambos emitiam um `OP_JUMP` para sentinelas `-998`/`-999` que **nunca
+  eram corrigidas**, então `Loop` estourava a VM com índice de instrução
+  negativo e `Exit` saltava para lixo. Adicionada uma pilha de `loopContext`
+  que acumula os jumps de break/continue de cada loop e os corrige no fim de
+  `compileFor`/`compileWhile` (continue → incremento/condição, break → fim do
+  loop). Funciona com loops aninhados — `Exit` quebra apenas o loop interno.
+- **`For ... Step` negativo (descendente) agora itera** — novo opcode
+  `OP_FORLOOP_CMP`. A condição de continuação era fixa em `var <= end`
+  (`OP_LTE`), então qualquer `For i := N To 1 Step -1` executava zero vezes. O
+  novo opcode recebe `[var, end, step]` e escolhe `<=` ou `>=` **pelo sinal do
+  step em tempo de execução** — cobre `Step -1`, `Step -2` e até step com valor
+  variável. Como efeito colateral, o step passou a ser avaliado uma única vez
+  (numa local escondida), em vez de reavaliado a cada iteração.
+
+### Correção de semântica de hash
+
+- **Chaves de `JsonObject` por bracket agora são case-sensitive** —
+  `pkg/vm/vm.go`. `OP_ARRAY_GET`/`OP_ARRAY_SET` aplicavam `strings.ToUpper` na
+  chave, colapsando `h["Brasil"]` e `h["brasil"]` na mesma entrada e inutilizando
+  o objeto como dicionário. Removido o upper apenas do acesso por bracket; o
+  acesso por ponto (`obj:Prop`) continua case-insensitive (semântica correta de
+  objeto AdvPL). Efeito colateral positivo: `toJson()` agora preserva o case
+  original das chaves.
+
+### Novas funções nativas — I/O de disco, arquivo e sistema
+
+- **I/O de disco**: `MemoRead(cArq)`, `MemoWrite(cArq, cTexto)` (+ alias
+  `MemoWrit`), `FErase(cArq)`.
+- **API de handle de arquivo (streaming)**: `FCreate`, `FOpen`, `FReadStr`,
+  `FWrite`, `FSeek`, `FClose`, `FError` — com tabela de handles na VM
+  (`fileHandles map[int]*os.File`). Permite ler/gravar arquivos grandes em
+  blocos sem carregar tudo na memória. A leitura usa `FReadStr` (retorna a
+  string) em vez de `FRead` com buffer por referência, porque os natives da VM
+  recebem valores, não lvalues.
+- **Chamada de sistema**: `WaitRun(cCmd)` executa no shell do SO
+  (cross-platform `sh -c` / `cmd /c`), herda stdio, espera e retorna o exit
+  code. A captura de stdout é feita pelo padrão AdvPL de redirecionar para
+  arquivo e ler com a API de handle (funciona em streaming, para saída grande).
+
+### Exemplo novo
+
+- **`pt_llm.prw`** — modelo de linguagem de Markov de ordem variável (nível de
+  byte, ordens 1–6 com backoff) escrito inteiramente em AdvPL, que lê e gera
+  português do Brasil. Roda com `advplc run pt_llm.prw`, com auto-teste incluído.
+
+### Testes
+
+- Suíte Go completa verde (`go test ./...`): `pkg/compiler`, `pkg/vm` (via
+  `cmd/advplc`), `pkg/runtime` e todos os demais pacotes. Fixtures `.prw` novos
+  cobrindo os três bugs de loop, o case-sensitivity, e as APIs de I/O/handle/sistema.
+
 ## [1.11.0] — 2026-07-11
 
 ### Debugger real via DAP (breakpoints/step/variáveis) — launch e attach

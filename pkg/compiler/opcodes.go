@@ -97,6 +97,11 @@ const (
 	OP_POP_AND_JUMP
 
 	OP_NAMED_ARG
+
+	// OP_FORLOOP_CMP: compara [var, end, step] no topo da pilha e empilha o
+	// resultado da condicao de continuacao do For: step>=0 ? var<=end : var>=end.
+	// Permite For descendente (Step negativo) sem fixar o operador em tempo de compilacao.
+	OP_FORLOOP_CMP
 )
 
 var opcodeNames = map[Opcode]string{
@@ -134,6 +139,7 @@ var opcodeNames = map[Opcode]string{
 	OP_MVC_GET_PROPERTY:     "MVC_GET_PROPERTY",
 	OP_MVC_VALIDATE:         "MVC_VALIDATE",
 	OP_MVC_SHOW:             "MVC_SHOW",
+	OP_FORLOOP_CMP:          "FORLOOP_CMP",
 }
 
 func (op Opcode) String() string {
