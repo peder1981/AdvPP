@@ -2,20 +2,34 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
-## [Não lançado]
+## [1.15.0] — 2026-07-22
 
 ### Robustez da linguagem (Sub-projeto 1)
 
 - **`If()`/`IIF()` curto-circuito** — com 3 argumentos, avaliam só o ramo escolhido
   (forma especial no compilador); antes o native avaliava os dois ramos.
 - **`GetNames(oJson)`** — itera as chaves de um `JsonObject` na ordem de inserção
-  (o `ObjectValue` passou a manter a ordem via `SetProp`).
+  (native e método OO), com `ObjectValue` mantendo a ordem via `SetProp`/`DelProp`.
 - **Closures aninhadas** — upvalues tipados (LOCAL/UPVAL) com resolução recursiva;
   um codeblock dentro de codeblock captura Locais N níveis acima por referência.
 - **`Private`/`Public` com escopo dinâmico** — variáveis dinâmicas visíveis às
   funções chamadas até o declarante retornar (ambiente dinâmico na VM +
-  `OP_LOAD_DYN`/`OP_STORE_DYN`/`OP_DECL_DYN`). Nome não declarado dentro de função
-  passa a resolver dinamicamente (semântica AdvPL correta).
+  `OP_LOAD_DYN`/`OP_STORE_DYN`/`OP_DECL_DYN`, restauração em todos os caminhos de
+  unwind). Nome não declarado dentro de função passa a resolver dinamicamente
+  (semântica AdvPL correta).
+- **`Try/Catch` cross-frame** — uma exceção lançada numa função mais funda que o
+  `Try/Catch` agora é capturada no nível certo (antes abortava o programa); o
+  desenrolamento de pilha restaura os bindings dinâmicos corretamente.
+
+Desenvolvido via pipeline spec → plano → execução por subagentes com revisão em
+dois estágios por task e revisão final de branch inteira (ver
+`docs/superpowers/`).
+
+**Known-issues** (não bloqueiam; documentados): a forma especial `If`/`IIF`
+sombreia uma `User Function If()`/`IIF()` homônima de 3 argumentos (AdvPL reserva
+esses nomes); `Try/Catch` **aninhado na mesma função** captura no handler errado e
+`Finally` não roda no caminho de sucesso — ambos **pré-existentes**, não
+introduzidos neste ciclo.
 
 ## [1.14.1] — 2026-07-22
 
