@@ -985,6 +985,25 @@ func (c *Compiler) compileUnaryOp(e *ast.UnaryOp) error {
 }
 
 func (c *Compiler) compileCallExpr(e *ast.CallExpr) error {
+	// If()/IIF() com 3 argumentos: forma especial de curto-circuito — avalia só
+	// o ramo escolhido (o native avaliaria os dois, pois args são calculados antes).
+	if up := strings.ToUpper(e.Name); (up == "IF" || up == "IIF") && len(e.Args) == 3 {
+		if err := c.compileExpr(e.Args[0]); err != nil {
+			return err
+		}
+		jFalse := c.emitJump(OP_JUMP_IF_FALSE, e.Loc.Line)
+		if err := c.compileExpr(e.Args[1]); err != nil {
+			return err
+		}
+		jEnd := c.emitJump(OP_JUMP, e.Loc.Line)
+		c.patchJump(jFalse, len(c.bc.Code))
+		if err := c.compileExpr(e.Args[2]); err != nil {
+			return err
+		}
+		c.patchJump(jEnd, len(c.bc.Code))
+		return nil
+	}
+
 	// Check if this is a class constructor call (e.g., Calculator():New())
 	if _, isClass := c.bc.Classes[e.Name]; isClass {
 		c.compileArgs(e.Args)
