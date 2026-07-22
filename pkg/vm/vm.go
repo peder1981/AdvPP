@@ -807,16 +807,25 @@ func (v *VM) execute(instr compiler.Instruction) error {
 			Params:   params,
 			FuncName: funcName,
 		}
-		// Closure: captura por referência os slots do frame atual que o bloco usa.
-		if info, ok := v.bc.Functions[funcName]; ok && len(info.UpvalSlots) > 0 && v.current != nil {
-			cb.Upvalues = make([]*advplrt.Value, len(info.UpvalSlots))
-			for i, slot := range info.UpvalSlots {
-				if slot >= 0 && slot < len(v.current.Locals) {
-					cb.Upvalues[i] = &v.current.Locals[slot]
+		// Closure: captura por referência os slots do frame atual (LOCAL) ou os
+		// upvalues do bloco pai (UPVAL, encadeando níveis).
+		if info, ok := v.bc.Functions[funcName]; ok && len(info.Upvals) > 0 && v.current != nil {
+			cb.Upvalues = make([]*advplrt.Value, len(info.Upvals))
+			parentCb, _ := v.current.Locals[0].(*advplrt.CodeBlockValue)
+			for i, d := range info.Upvals {
+				if d.Kind == compiler.UpvalParent {
+					if parentCb != nil && d.Index >= 0 && d.Index < len(parentCb.Upvalues) {
+						cb.Upvalues[i] = parentCb.Upvalues[d.Index]
+						continue
+					}
 				} else {
-					var box advplrt.Value = advplrt.Nil
-					cb.Upvalues[i] = &box
+					if d.Index >= 0 && d.Index < len(v.current.Locals) {
+						cb.Upvalues[i] = &v.current.Locals[d.Index]
+						continue
+					}
 				}
+				var box advplrt.Value = advplrt.Nil
+				cb.Upvalues[i] = &box
 			}
 		}
 		v.push(cb)
