@@ -23,16 +23,6 @@ func (a *Tensor) mat2D() ([][]float64, int, error) {
 	return m, n, nil
 }
 
-// fromMat2D empacota uma [][]float64 [n,n] num Tensor float64.
-func fromMat2D(m [][]float64) *Tensor {
-	n := len(m)
-	out := NewDType([]int{n, n}, Float64)
-	for i := 0; i < n; i++ {
-		copy(out.Data64[i*n:(i+1)*n], m[i])
-	}
-	return out
-}
-
 // luDecompose faz a decomposição LU de m [n,n] in-place (Doolittle, pivô parcial).
 // Devolve o vetor de permutação perm e o sinal das trocas. Erro se singular.
 func luDecompose(m [][]float64, n int) (perm []int, sign float64, err error) {
@@ -254,4 +244,103 @@ func (a *Tensor) QR() (q *Tensor, r *Tensor, err error) {
 		copy(rt.Data64[i*n:(i+1)*n], R[i])
 	}
 	return qt, rt, nil
+}
+
+const (
+	jacobiMaxSweeps = 100
+	jacobiEps       = 1e-14
+	symTol          = 1e-9 // tolerância p/ verificar simetria
+)
+
+// EigSym calcula autovalores e autovetores de uma matriz SIMÉTRICA [n,n] por
+// rotações de Jacobi cíclicas. Devolve {valores [n], vetores [n,n]} (float64), com
+// os autovalores em ordem decrescente e as COLUNAS de vetores como autovetores.
+func (a *Tensor) EigSym() (values *Tensor, vectors *Tensor, err error) {
+	m, n, err := a.mat2D()
+	if err != nil {
+		return nil, nil, err
+	}
+	// exige simetria
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			if math.Abs(m[i][j]-m[j][i]) > symTol {
+				return nil, nil, fmt.Errorf("EigSym: matriz não é simétrica em (%d,%d)", i, j)
+			}
+		}
+	}
+	// V = identidade (acumula autovetores)
+	V := make([][]float64, n)
+	for i := 0; i < n; i++ {
+		V[i] = make([]float64, n)
+		V[i][i] = 1
+	}
+	for sweep := 0; sweep < jacobiMaxSweeps; sweep++ {
+		// soma dos off-diagonais ao quadrado
+		var off float64
+		for i := 0; i < n; i++ {
+			for j := i + 1; j < n; j++ {
+				off += m[i][j] * m[i][j]
+			}
+		}
+		if off < jacobiEps {
+			break
+		}
+		for p := 0; p < n; p++ {
+			for q := p + 1; q < n; q++ {
+				if math.Abs(m[p][q]) < jacobiEps {
+					continue
+				}
+				// ângulo de rotação que zera m[p][q]
+				theta := (m[q][q] - m[p][p]) / (2 * m[p][q])
+				tsign := 1.0
+				if theta < 0 {
+					tsign = -1.0
+				}
+				tval := tsign / (math.Abs(theta) + math.Sqrt(theta*theta+1))
+				c := 1 / math.Sqrt(tval*tval+1)
+				s := tval * c
+				// aplica rotação em M: linhas/colunas p,q
+				for i := 0; i < n; i++ {
+					mip := m[i][p]
+					miq := m[i][q]
+					m[i][p] = c*mip - s*miq
+					m[i][q] = s*mip + c*miq
+				}
+				for i := 0; i < n; i++ {
+					mpi := m[p][i]
+					mqi := m[q][i]
+					m[p][i] = c*mpi - s*mqi
+					m[q][i] = s*mpi + c*mqi
+				}
+				// acumula em V
+				for i := 0; i < n; i++ {
+					vip := V[i][p]
+					viq := V[i][q]
+					V[i][p] = c*vip - s*viq
+					V[i][q] = s*vip + c*viq
+				}
+			}
+		}
+	}
+	// autovalores na diagonal; ordena desc levando os autovetores junto
+	idx := make([]int, n)
+	for i := range idx {
+		idx[i] = i
+	}
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			if m[idx[j]][idx[j]] > m[idx[i]][idx[i]] {
+				idx[i], idx[j] = idx[j], idx[i]
+			}
+		}
+	}
+	values = NewDType([]int{n}, Float64)
+	vectors = NewDType([]int{n, n}, Float64)
+	for k, id := range idx {
+		values.Data64[k] = m[id][id]
+		for i := 0; i < n; i++ {
+			vectors.Data64[i*n+k] = V[i][id]
+		}
+	}
+	return values, vectors, nil
 }
