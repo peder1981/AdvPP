@@ -353,8 +353,12 @@ Honram um bloco de código `{|...| ... }` de verdade (avaliado pela VM):
 | `AScan(aArr, uVal\|bBloco, [nIni], [nQtd])` | Posição do 1º elemento igual a `uVal` ou onde `bBloco(elem)` é `.T.`; `0` se não achar |
 | `File(cArq)` | `.T.` se o arquivo existe (não-diretório) |
 
-> Limitação atual: os blocos **não capturam Locais externos** (closures de
-> verdade); use apenas os parâmetros do bloco. Ex.: `ASort(a,,,{|x,y| x[2] > y[2]})`.
+Os blocos são **closures de verdade**: capturam Locais do escopo envolvente por
+referência — leitura e escrita — inclusive quando o bloco escapa da função que o
+criou (estado persistente). Ex.: `AEval(a, {|x| nSoma := nSoma + x})` acumula no
+`nSoma` externo; `{|| nN := nN + 1}` retornado por uma função vira um contador com
+estado próprio. (Captura em profundidade — bloco-dentro-de-bloco alcançando um
+Local dois níveis acima — ainda não é suportada.)
 
 ## Exemplos de IA em AdvPL puro
 

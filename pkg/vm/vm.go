@@ -807,7 +807,30 @@ func (v *VM) execute(instr compiler.Instruction) error {
 			Params:   params,
 			FuncName: funcName,
 		}
+		// Closure: captura por referência os slots do frame atual que o bloco usa.
+		if info, ok := v.bc.Functions[funcName]; ok && len(info.UpvalSlots) > 0 && v.current != nil {
+			cb.Upvalues = make([]*advplrt.Value, len(info.UpvalSlots))
+			for i, slot := range info.UpvalSlots {
+				if slot >= 0 && slot < len(v.current.Locals) {
+					cb.Upvalues[i] = &v.current.Locals[slot]
+				} else {
+					var box advplrt.Value = advplrt.Nil
+					cb.Upvalues[i] = &box
+				}
+			}
+		}
 		v.push(cb)
+	case compiler.OP_LOAD_UPVAL:
+		if cb, ok := v.blockSelf().(*advplrt.CodeBlockValue); ok && instr.Arg < len(cb.Upvalues) && cb.Upvalues[instr.Arg] != nil {
+			v.push(*cb.Upvalues[instr.Arg])
+		} else {
+			v.push(advplrt.Nil)
+		}
+	case compiler.OP_STORE_UPVAL:
+		val := v.pop()
+		if cb, ok := v.blockSelf().(*advplrt.CodeBlockValue); ok && instr.Arg < len(cb.Upvalues) && cb.Upvalues[instr.Arg] != nil {
+			*cb.Upvalues[instr.Arg] = val
+		}
 	case compiler.OP_EVAL_CODEBLOCK:
 		argCount := instr.Arg2
 		args := make([]advplrt.Value, argCount)
@@ -1478,8 +1501,7 @@ func (v *VM) getMVCBrowse(id int) *mvc.FWFormBrowse {
 // retorna o valor de retorno do bloco. Usado por natives de ordem superior
 // (ASort/AEval/AScan com bloco). Roda um loop aninhado que executa instruções
 // até o frame do bloco retornar (profundidade de frames volta ao base).
-// Nota: blocos aqui não capturam Locais externos — o bloco deve usar só seus
-// parâmetros.
+// O bloco pode capturar Locais do escopo envolvente (closures via Upvalues).
 func (v *VM) callBlockSync(cb advplrt.Value, args ...advplrt.Value) (advplrt.Value, error) {
 	block, ok := cb.(*advplrt.CodeBlockValue)
 	if !ok {
@@ -1529,6 +1551,15 @@ func (v *VM) callBlockSync(cb advplrt.Value, args ...advplrt.Value) (advplrt.Val
 		return v.pop(), nil
 	}
 	return advplrt.Nil, nil
+}
+
+// blockSelf devolve o CodeBlockValue em execução (self = Locals[0] do frame do
+// bloco), usado pelos opcodes de upvalue para achar os slots capturados.
+func (v *VM) blockSelf() advplrt.Value {
+	if v.current != nil && len(v.current.Locals) > 0 {
+		return v.current.Locals[0]
+	}
+	return advplrt.Nil
 }
 
 func (v *VM) doReturn(val advplrt.Value) error {

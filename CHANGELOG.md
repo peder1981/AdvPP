@@ -2,6 +2,26 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [Não lançado]
+
+### Closures de verdade nos codeblocks
+
+- Os codeblocks `{|...| ...}` agora **capturam Locais do escopo envolvente por
+  referência** (upvalues) — fecha a limitação anotada na v1.14.0. Funciona para
+  leitura e escrita, e o estado sobrevive ao retorno da função que criou o bloco
+  (closure que escapa). Implementação:
+  - Compilador (`pkg/compiler`): quando um bloco referencia um nome que é Local
+    do contexto envolvente, resolve como **upvalue** e emite `OP_LOAD_UPVAL` /
+    `OP_STORE_UPVAL`; a lista de slots capturados vai em `FunctionInfo.UpvalSlots`.
+  - VM (`pkg/vm`): `OP_NEW_CODEBLOCK` captura `&frame.Locals[slot]` de cada
+    upvalue no `CodeBlockValue.Upvalues`; os opcodes de upvalue leem/escrevem
+    através desses ponteiros. O GC do Go mantém o frame vivo enquanto o bloco
+    existir, então funciona mesmo para closures que escapam.
+  - Fixture `tests/closures_test.prw` (acumulador externo, múltiplas capturas,
+    contador com estado persistente).
+  - Limitação restante: captura em profundidade (bloco-dentro-de-bloco
+    alcançando um Local dois níveis acima) ainda não é suportada.
+
 ## [1.14.1] — 2026-07-22
 
 - **Corpus externo grande de verdade**: `corpus.txt` agora é *Dom Casmurro* de
