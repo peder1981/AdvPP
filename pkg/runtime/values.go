@@ -172,7 +172,8 @@ type CodeBlockValue struct {
 	Params   []string
 	Body     interface{}
 	Env      *Environment
-	FuncName string // for bytecode VM
+	FuncName string  // for bytecode VM
+	Upvalues []*Value // closures: ponteiros para os slots capturados do frame envolvente
 }
 
 func (c *CodeBlockValue) Type() string   { return "B" }

@@ -33,6 +33,33 @@ type funcContext struct {
 	locals    map[string]int
 	nextLocal int
 	offset    int
+	// closures: contexto envolvente e variáveis livres capturadas (upvalues)
+	parent     *funcContext
+	upvals     map[string]int // nome da variável livre → índice de upvalue
+	upvalSlots []int          // índice de upvalue → slot no frame envolvente
+}
+
+// resolveUpvalue: se `name` não é local deste bloco mas é um LOCAL do contexto
+// envolvente imediato, aloca (ou reusa) um upvalue e retorna seu índice. É o que
+// faz o codeblock capturar variáveis do escopo de fora por referência (closure).
+func (c *Compiler) resolveUpvalue(name string) (int, bool) {
+	fc := c.currentFunc
+	if fc == nil || fc.parent == nil {
+		return 0, false
+	}
+	if idx, ok := fc.upvals[name]; ok {
+		return idx, true
+	}
+	if slot, ok := fc.parent.locals[name]; ok && slot&0x8000 == 0 {
+		idx := len(fc.upvalSlots)
+		if fc.upvals == nil {
+			fc.upvals = make(map[string]int)
+		}
+		fc.upvals[name] = idx
+		fc.upvalSlots = append(fc.upvalSlots, slot)
+		return idx, true
+	}
+	return 0, false
 }
 
 func New() *Compiler {
@@ -450,6 +477,8 @@ func (c *Compiler) compileStoreTarget(target ast.Expression, line int) error {
 	case *ast.Ident:
 		if idx, ok := c.resolveLocal(target.Name); ok {
 			c.emit(OP_STORE_LOCAL, idx, 0, target.Name, line)
+		} else if uidx, ok := c.resolveUpvalue(target.Name); ok {
+			c.emit(OP_STORE_UPVAL, uidx, 0, target.Name, line)
 		} else {
 			idx := c.addLocal(target.Name)
 			if idx&0x8000 != 0 {
@@ -808,6 +837,8 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 	case *ast.Ident:
 		if idx, ok := c.resolveLocal(e.Name); ok {
 			c.emit(OP_LOAD_LOCAL, idx, 0, e.Name, e.Loc.Line)
+		} else if uidx, ok := c.resolveUpvalue(e.Name); ok {
+			c.emit(OP_LOAD_UPVAL, uidx, 0, e.Name, e.Loc.Line)
 		} else {
 			idx := c.addLocal(e.Name)
 			if idx&0x8000 != 0 {
@@ -1029,6 +1060,8 @@ func (c *Compiler) compileCodeBlock(e *ast.CodeBlock) error {
 		name:      funcName,
 		locals:    make(map[string]int),
 		nextLocal: 1,
+		parent:    savedFunc, // escopo envolvente, para capturar upvalues (closures)
+		upvals:    make(map[string]int),
 	}
 
 	for _, param := range e.Params {
@@ -1067,6 +1100,7 @@ func (c *Compiler) compileCodeBlock(e *ast.CodeBlock) error {
 	}
 
 	info.NumLocals = c.currentFunc.nextLocal
+	info.UpvalSlots = c.currentFunc.upvalSlots // slots do frame envolvente a capturar
 	c.bc.Functions[funcName] = info
 
 	// Patch the jump to skip over the codeblock body

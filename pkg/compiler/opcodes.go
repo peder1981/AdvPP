@@ -102,6 +102,11 @@ const (
 	// resultado da condicao de continuacao do For: step>=0 ? var<=end : var>=end.
 	// Permite For descendente (Step negativo) sem fixar o operador em tempo de compilacao.
 	OP_FORLOOP_CMP
+
+	// Closures: acessam variaveis capturadas do frame envolvente (upvalues).
+	// Arg = indice na lista Upvalues do CodeBlockValue (self = Locals[0]).
+	OP_LOAD_UPVAL
+	OP_STORE_UPVAL
 )
 
 var opcodeNames = map[Opcode]string{
@@ -140,6 +145,8 @@ var opcodeNames = map[Opcode]string{
 	OP_MVC_VALIDATE:         "MVC_VALIDATE",
 	OP_MVC_SHOW:             "MVC_SHOW",
 	OP_FORLOOP_CMP:          "FORLOOP_CMP",
+	OP_LOAD_UPVAL:           "LOAD_UPVAL",
+	OP_STORE_UPVAL:          "STORE_UPVAL",
 }
 
 func (op Opcode) String() string {
@@ -177,6 +184,7 @@ type FunctionInfo struct {
 	ParamNames  []string
 	LocalNames  map[string]int // nome da local → slot (writeback do @ GET web)
 	Annotations []AnnotationInfo
+	UpvalSlots  []int // closures: slots do frame envolvente capturados por este codeblock
 }
 
 // AnnotationInfo stores annotation metadata
