@@ -169,6 +169,28 @@ func TestGradActivations(t *testing.T) {
 	})
 }
 
+func TestGradIndexRows(t *testing.T) {
+	// tabela [3,2]; colhe linhas [2,0,2]; grad w.r.t. a tabela (scatter-add)
+	gradCheck(t, "indexrows", mustT([]float32{1, 2, 3, 4, 5, 6}, []int{3, 2}), func(x *Variable) *Variable {
+		y, err := x.IndexRows([]int{2, 0, 2})
+		if err != nil {
+			panic(err)
+		}
+		return y.Sum()
+	})
+}
+
+func TestGradSoftmaxCE(t *testing.T) {
+	// logits [2,3]; alvos [0,2]; grad w.r.t. logits
+	gradCheck(t, "softmaxce", mustT([]float32{2, 1, 0.1, 0.3, 0.2, 3}, []int{2, 3}), func(x *Variable) *Variable {
+		l, err := x.SoftmaxCE([]int{0, 2})
+		if err != nil {
+			panic(err)
+		}
+		return l
+	})
+}
+
 func TestSGDStepReducesLoss(t *testing.T) {
 	// loss = sum(p*p) = Σp²; grad = 2p; um passo com lr=0.1 encolhe p e reduz a loss.
 	p := NewLeaf(mustT([]float32{3, -4}, []int{2}))
