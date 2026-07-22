@@ -50,15 +50,27 @@ func binOp(a, b *Tensor, f func(x, y float32) float32) (*Tensor, error) {
 }
 
 func (a *Tensor) Add(b *Tensor) (*Tensor, error) {
+	if a.DType == Float64 || b.DType == Float64 {
+		return binOp64(a, b, func(x, y float64) float64 { return x + y })
+	}
 	return binOp(a, b, func(x, y float32) float32 { return x + y })
 }
 func (a *Tensor) Sub(b *Tensor) (*Tensor, error) {
+	if a.DType == Float64 || b.DType == Float64 {
+		return binOp64(a, b, func(x, y float64) float64 { return x - y })
+	}
 	return binOp(a, b, func(x, y float32) float32 { return x - y })
 }
 func (a *Tensor) Mul(b *Tensor) (*Tensor, error) {
+	if a.DType == Float64 || b.DType == Float64 {
+		return binOp64(a, b, func(x, y float64) float64 { return x * y })
+	}
 	return binOp(a, b, func(x, y float32) float32 { return x * y })
 }
 func (a *Tensor) Div(b *Tensor) (*Tensor, error) {
+	if a.DType == Float64 || b.DType == Float64 {
+		return binOp64(a, b, func(x, y float64) float64 { return x / y })
+	}
 	return binOp(a, b, func(x, y float32) float32 { return x / y })
 }
 
@@ -171,6 +183,9 @@ func (a *Tensor) IndexRows(idx []int) (*Tensor, error) {
 
 // MatMul: [M,K]x[K,N]->[M,N]; matvec [M,K]x[K]->[M]. Ordem i-k-j (cache).
 func (a *Tensor) MatMul(b *Tensor) (*Tensor, error) {
+	if a.DType == Float64 || b.DType == Float64 {
+		return matMul64(a, b)
+	}
 	if len(a.Shape) == 2 && len(b.Shape) == 1 && a.Shape[1] == b.Shape[0] {
 		m, k := a.Shape[0], a.Shape[1]
 		out := New([]int{m})
@@ -205,6 +220,15 @@ func (a *Tensor) Transpose() (*Tensor, error) {
 		return nil, fmt.Errorf("Transpose: requer 2D, tem %v", a.Shape)
 	}
 	m, n := a.Shape[0], a.Shape[1]
+	if a.DType == Float64 {
+		out := NewDType([]int{n, m}, Float64)
+		for i := 0; i < m; i++ {
+			for j := 0; j < n; j++ {
+				out.Data64[j*m+i] = a.Data64[i*n+j]
+			}
+		}
+		return out, nil
+	}
 	out := New([]int{n, m})
 	for i := 0; i < m; i++ {
 		for j := 0; j < n; j++ {
@@ -214,10 +238,13 @@ func (a *Tensor) Transpose() (*Tensor, error) {
 	return out, nil
 }
 
-// Reshape: mesma Data, nova forma (produto deve casar).
+// Reshape: mesmos dados, nova forma (produto deve casar). Preserva o dtype.
 func (a *Tensor) Reshape(shape []int) (*Tensor, error) {
 	if Prod(shape) != a.Size() {
 		return nil, fmt.Errorf("Reshape: forma %v incompatível com size %d", shape, a.Size())
+	}
+	if a.DType == Float64 {
+		return &Tensor{Shape: copyInts(shape), Data64: append([]float64(nil), a.Data64...), DType: Float64}, nil
 	}
 	return &Tensor{Shape: copyInts(shape), Data: append([]float32(nil), a.Data...)}, nil
 }
