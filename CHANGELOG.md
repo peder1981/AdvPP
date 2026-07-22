@@ -4,23 +4,18 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
-### Closures de verdade nos codeblocks
+### Robustez da linguagem (Sub-projeto 1)
 
-- Os codeblocks `{|...| ...}` agora **capturam Locais do escopo envolvente por
-  referência** (upvalues) — fecha a limitação anotada na v1.14.0. Funciona para
-  leitura e escrita, e o estado sobrevive ao retorno da função que criou o bloco
-  (closure que escapa). Implementação:
-  - Compilador (`pkg/compiler`): quando um bloco referencia um nome que é Local
-    do contexto envolvente, resolve como **upvalue** e emite `OP_LOAD_UPVAL` /
-    `OP_STORE_UPVAL`; a lista de slots capturados vai em `FunctionInfo.UpvalSlots`.
-  - VM (`pkg/vm`): `OP_NEW_CODEBLOCK` captura `&frame.Locals[slot]` de cada
-    upvalue no `CodeBlockValue.Upvalues`; os opcodes de upvalue leem/escrevem
-    através desses ponteiros. O GC do Go mantém o frame vivo enquanto o bloco
-    existir, então funciona mesmo para closures que escapam.
-  - Fixture `tests/closures_test.prw` (acumulador externo, múltiplas capturas,
-    contador com estado persistente).
-  - Limitação restante: captura em profundidade (bloco-dentro-de-bloco
-    alcançando um Local dois níveis acima) ainda não é suportada.
+- **`If()`/`IIF()` curto-circuito** — com 3 argumentos, avaliam só o ramo escolhido
+  (forma especial no compilador); antes o native avaliava os dois ramos.
+- **`GetNames(oJson)`** — itera as chaves de um `JsonObject` na ordem de inserção
+  (o `ObjectValue` passou a manter a ordem via `SetProp`).
+- **Closures aninhadas** — upvalues tipados (LOCAL/UPVAL) com resolução recursiva;
+  um codeblock dentro de codeblock captura Locais N níveis acima por referência.
+- **`Private`/`Public` com escopo dinâmico** — variáveis dinâmicas visíveis às
+  funções chamadas até o declarante retornar (ambiente dinâmico na VM +
+  `OP_LOAD_DYN`/`OP_STORE_DYN`/`OP_DECL_DYN`). Nome não declarado dentro de função
+  passa a resolver dinamicamente (semântica AdvPL correta).
 
 ## [1.14.1] — 2026-07-22
 
