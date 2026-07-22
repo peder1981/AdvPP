@@ -177,6 +177,24 @@ func (a *Variable) IndexRows(idx []int) (*Variable, error) {
 	return out, nil
 }
 
+// Reshape muda a forma preservando os dados e a ordem. Backward reshapa o
+// gradiente de volta à forma original (a correspondência é 1:1 elemento a elemento).
+func (a *Variable) Reshape(shape []int) (*Variable, error) {
+	y, err := a.Value.Reshape(shape)
+	if err != nil {
+		return nil, err
+	}
+	out := &Variable{Value: y, parents: []*Variable{a}}
+	out.backward = func() {
+		dg, err := out.Grad.Reshape(a.Value.Shape)
+		if err != nil {
+			return
+		}
+		addGrad(a, dg)
+	}
+	return out, nil
+}
+
 // SoftmaxCE: A = logits [N,C]; targets = N índices de classe (0-based).
 // loss = média_i(-log softmax(A)[i, t_i]) (estável); dA = (softmax − onehot)/N.
 func (a *Variable) SoftmaxCE(targets []int) (*Variable, error) {

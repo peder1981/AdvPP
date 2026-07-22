@@ -87,6 +87,42 @@ func gradCheck(t *testing.T, name string, x *tensor.Tensor, f func(*Variable) *V
 	}
 }
 
+func TestGradReshape(t *testing.T) {
+	// f(A) = sum(reshape(A[2,3] -> [3,2]) · W[2,2]); checa grad em A via diferenças finitas.
+	W := mustT([]float32{0.5, -0.3, 0.2, 0.4}, []int{2, 2})
+	gradCheck(t, "reshape", mustT([]float32{1, 2, 3, 4, 5, 6}, []int{2, 3}), func(a *Variable) *Variable {
+		r, err := a.Reshape([]int{3, 2})
+		if err != nil {
+			panic(err)
+		}
+		y, err := r.MatMul(NewLeaf(W))
+		if err != nil {
+			panic(err)
+		}
+		return y.Sum()
+	})
+}
+
+func TestReshapeShapeAndBackward(t *testing.T) {
+	x := NewLeaf(mustT([]float32{1, 2, 3, 4, 5, 6}, []int{2, 3}))
+	r, err := x.Reshape([]int{3, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tensor.ShapeEq(r.Value.Shape, []int{3, 2}) {
+		t.Fatalf("forma pós-reshape = %v, quer [3 2]", r.Value.Shape)
+	}
+	if err := r.Sum().Backward(); err != nil {
+		t.Fatal(err)
+	}
+	if !tensor.ShapeEq(x.Grad.Shape, []int{2, 3}) {
+		t.Fatalf("grad volta na forma original = %v, quer [2 3]", x.Grad.Shape)
+	}
+	if _, err := x.Reshape([]int{4, 4}); err == nil {
+		t.Fatal("reshape com contagem incompatível deveria falhar")
+	}
+}
+
 func TestGradMatMul(t *testing.T) {
 	W := mustT([]float32{0.5, -0.3, 0.2, 0.1, 0.4, -0.6}, []int{3, 2}) // [3,2]
 	// f(A) = sum(A[2,3] · W[3,2]); checa grad em A
