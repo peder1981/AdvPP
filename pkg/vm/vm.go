@@ -1258,6 +1258,10 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callMCPServerMethod(obj, upperMethod, args)
 	case "Tensor":
 		return v.callTensorMethod(obj, upperMethod, args)
+	case "Variable":
+		return v.callVariableMethod(obj, upperMethod, args)
+	case "SGD":
+		return v.callSGDMethod(obj, upperMethod, args)
 	default:
 		return fmt.Errorf("unknown method %s on object %s", method, obj.ClassName)
 	}
@@ -1399,6 +1403,12 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "TENSOR":
 			v.push(newTensorObject())
+			return nil
+		case "VARIABLE":
+			v.push(newVariableObject())
+			return nil
+		case "SGD":
+			v.push(newSGDObject())
 			return nil
 		case "ERRORCLASS":
 			obj := advplrt.NewObject("ErrorClass", cls)
