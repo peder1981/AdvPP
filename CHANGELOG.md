@@ -4,6 +4,25 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+## [1.18.0] — 2026-07-22
+
+Modelo de código AdvPL orientado a desenvolvimento (`dev_nn`, token-level) + biblioteca
+de 25 algoritmos, e três correções na VM/compilador descobertas ao construí-lo
+(relacional de string, `HasProperty`, `NamedParam`).
+
+### Correções na VM / compilador
+
+- **Operadores relacionais em strings agora são lexicográficos.** `<`, `>`, `<=`, `>=`
+  comparam strings por byte (via `strings.Compare`) quando ambos os operandos são
+  strings; antes jogavam tudo em `ToFloat` (→ 0), fazendo `" " >= "A"` retornar `.T.`.
+  Comparação numérica inalterada. (`pkg/vm/relcmp_test.go`.)
+- **`JsonObject:HasProperty()` agora é case-sensitive**, consistente com o bracket
+  (`oJ[k]`), `SetProp`, `DelName` e `GetNames` — todo o namespace de chaves JSON.
+  Antes fazia `ToUpper` na chave, falhando para qualquer chave com letras (ex.:
+  contar/deduplicar tokens com chave em variável).
+- **`NamedParam` (`ident := valor`) tratado em chamadas de self-método (`::m(...)`) e
+  `New(...)`**, roteando esses args por `compileArgs` como os demais calls.
+
 ### Modelo de código AdvPL orientado a desenvolvimento (Sub-projeto 5)
 
 - **`tests/llm/dev_nn.prw`** — LM neural de **código AdvPL, token-level**, treinado
