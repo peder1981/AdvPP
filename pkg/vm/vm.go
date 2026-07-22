@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"math"
@@ -75,6 +76,7 @@ type VM struct {
 	fileHandles  map[int]*os.File // handles abertos por FOpen/FCreate
 	nextFH       int              // próximo handle a distribuir
 	lastFError   int              // último erro de IO (FError())
+	stdinReader  *bufio.Reader    // leitor de linha do stdin (ConIn), lazy
 }
 
 type namedArgInfo struct {

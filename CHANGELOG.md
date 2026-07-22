@@ -2,6 +2,43 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.13.0] — 2026-07-21
+
+BLAS ternária, console interativo e três modelos de IA escritos inteiramente em
+AdvPL — culminando num LLM híbrido Markov + rede neural ternária que treina e
+infere sem multiplicação, sem sair da linguagem.
+
+### Novas funções nativas
+
+- **`MatVecTern(aMat, aVecTern)`** (`pkg/vm/natives.go`) — BLAS ternária:
+  produto matriz-vetor *multiply-free* onde o vetor é ternário (`-1`/`0`/`+1`),
+  `result[i] = Σ_j sign(vec[j])·mat[i][j]` (só soma/subtração, o kernel do
+  BitNet exposto ao AdvPL). Base para redes neurais ternárias sem BLAS de ponto
+  flutuante nem GPU.
+- **`ConIn([cPrompt])`** (`pkg/vm/vm.go`, `pkg/vm/natives.go`) — lê uma linha do
+  stdin (contraparte de `ConOut`), viabilizando programas de console interativos
+  (REPL, chat). Leitor bufferizado por VM, inicializado sob demanda.
+
+### Modelos de IA em AdvPL puro (exemplos)
+
+- **`pt_chat.prw`** — respondedor por recuperação (retrieval): normaliza a
+  pergunta (minúsculas + remoção de acentos), tokeniza, descarta stopwords e
+  pontua uma base de conhecimento por sobreposição de palavras-conteúdo. Lê e
+  **responde** em PT-BR, num REPL via `ConIn`, com fallback educado.
+- **`pt_nn.prw`** — LLM híbrido **Markov + rede neural ternária** (Extreme
+  Learning Machine): camada escondida = projeção aleatória ternária fixa com
+  contexto posicional (via `MatVecTern`), ativação ternária `sign(...)`, e
+  camada de saída treinada por **perceptron multiclasse** (puro add/sub, sem
+  gradiente/float). A geração mistura Markov (prior local, por frequência) com o
+  rerank aprendido da rede, com anti-repetição e amostragem com sharpening.
+  Treina e infere 100% em AdvPL; o aprendizado é medível (erros do perceptron
+  caem ~85% ao longo das passadas). Corpus embutido, escalável via `MemoRead`.
+
+### Testes
+
+- Fixture `tests/ternary_ai_test.prw` exercitando `MatVecTern` e `ConIn`.
+- Suíte Go verde; `make test` com os fixtures novos.
+
 ## [1.12.0] — 2026-07-21
 
 Fechamento de lacunas da VM/compilador descobertas ao escrever um LLM de Markov

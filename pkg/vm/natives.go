@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"bufio"
 	"fmt"
 	"math"
 	"math/rand"
@@ -1355,6 +1356,71 @@ func (v *VM) registerNatives() {
 		},
 		"WSADVVALUE": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewString(""), nil
+		},
+
+		// ConIn([cPrompt]): le uma linha do stdin (sem o \n); "" no EOF.
+		// Contraparte de ConOut para programas de console interativos.
+		"CONIN": func(args []advplrt.Value) (advplrt.Value, error) {
+			if p := getArgString(args, 0, ""); p != "" {
+				fmt.Print(p)
+			}
+			if v.stdinReader == nil {
+				v.stdinReader = bufio.NewReader(os.Stdin)
+			}
+			line, err := v.stdinReader.ReadString('\n')
+			line = strings.TrimRight(line, "\r\n")
+			if err != nil && line == "" {
+				return advplrt.NewString(""), nil
+			}
+			return advplrt.NewString(line), nil
+		},
+
+		// --- BLAS ternária (multiply-free) ---
+		// MatVecTern(aMat, aVecTern): produto matriz-vetor onde o VETOR é ternário
+		// (-1/0/+1). result[i] = Σ_j sign(vec[j]) * mat[i][j] — só soma/subtração,
+		// sem multiplicação (kernel escalar estilo BitNet/I2_S). aMat é um array de
+		// M linhas, cada linha um array de N números; aVecTern tem N entradas.
+		"MATVECTERN": func(args []advplrt.Value) (advplrt.Value, error) {
+			mat, ok1 := getArg(args, 0).(*advplrt.ArrayValue)
+			vec, ok2 := getArg(args, 1).(*advplrt.ArrayValue)
+			if !ok1 || !ok2 {
+				return advplrt.NewArray([]advplrt.Value{}), nil
+			}
+			// Índices não-nulos do vetor ternário (esparso = rápido).
+			type nz struct {
+				idx int
+				pos bool
+			}
+			nzs := make([]nz, 0, len(vec.Elements))
+			for j, e := range vec.Elements {
+				t := advplrt.ToFloat(e)
+				if t > 0 {
+					nzs = append(nzs, nz{j, true})
+				} else if t < 0 {
+					nzs = append(nzs, nz{j, false})
+				}
+			}
+			res := make([]advplrt.Value, len(mat.Elements))
+			for i, rowV := range mat.Elements {
+				row, ok := rowV.(*advplrt.ArrayValue)
+				if !ok {
+					res[i] = advplrt.NewNumber(0)
+					continue
+				}
+				var acc float64
+				for _, z := range nzs {
+					if z.idx < len(row.Elements) {
+						v := advplrt.ToFloat(row.Elements[z.idx])
+						if z.pos {
+							acc += v
+						} else {
+							acc -= v
+						}
+					}
+				}
+				res[i] = advplrt.NewNumber(acc)
+			}
+			return advplrt.NewArray(res), nil
 		},
 
 		// --- I/O de disco ---
