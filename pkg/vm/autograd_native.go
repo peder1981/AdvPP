@@ -18,6 +18,9 @@ func wrapVariable(v *autograd.Variable) *advplrt.ObjectValue {
 	return obj
 }
 
+// verr rotula um erro de operação de Variable com o prefixo "Variable: ".
+func verr(err error) error { return advplrt.NewError("Variable: " + err.Error()) }
+
 // argVariable lê o *autograd.Variable de um argumento que deve ser um objeto Variable.
 func argVariable(args []advplrt.Value, i int) (*autograd.Variable, error) {
 	o, ok := getArg(args, i).(*advplrt.ObjectValue)
@@ -54,7 +57,7 @@ func (v *VM) callVariableMethod(obj *advplrt.ObjectValue, method string, args []
 		}
 		tt, err := tensor.FromData(floatsFromArg(getArg(args, 0)), shp)
 		if err != nil {
-			return terr(err)
+			return verr(err)
 		}
 		obj.Native = autograd.NewLeaf(tt)
 		v.push(obj)
@@ -76,7 +79,7 @@ func (v *VM) callVariableMethod(obj *advplrt.ObjectValue, method string, args []
 			r, err = self.MSE(b)
 		}
 		if err != nil {
-			return terr(err)
+			return verr(err)
 		}
 		v.push(wrapVariable(r))
 	case "RELU":
@@ -87,7 +90,9 @@ func (v *VM) callVariableMethod(obj *advplrt.ObjectValue, method string, args []
 		v.push(wrapVariable(self.Mean()))
 
 	case "BACKWARD":
-		self.Backward()
+		if err := self.Backward(); err != nil {
+			return verr(err)
+		}
 		v.push(obj)
 	case "VALUE":
 		v.push(wrapTensor(self.Value))
