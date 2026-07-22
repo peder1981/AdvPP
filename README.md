@@ -342,6 +342,20 @@ Base para redes neurais ternárias em AdvPL: peso/ativação em `{-1,0,+1}`
 eliminam a multiplicação, viabilizando treino e inferência sem BLAS de ponto
 flutuante nem GPU (ver `pt_nn.prw`).
 
+### Funções de array de ordem superior (com bloco de código)
+
+Honram um bloco de código `{|...| ... }` de verdade (avaliado pela VM):
+
+| Função | Descrição |
+|--------|-----------|
+| `ASort(aArr, [nIni], [nQtd], [bOrder])` | Ordena in-place; `bOrder(x,y)` retorna `.T.` se `x` vem antes de `y` (sem bloco: ascendente) |
+| `AEval(aArr, bBloco, [nIni], [nQtd])` | Aplica `bBloco(elem, i)` a cada elemento |
+| `AScan(aArr, uVal\|bBloco, [nIni], [nQtd])` | Posição do 1º elemento igual a `uVal` ou onde `bBloco(elem)` é `.T.`; `0` se não achar |
+| `File(cArq)` | `.T.` se o arquivo existe (não-diretório) |
+
+> Limitação atual: os blocos **não capturam Locais externos** (closures de
+> verdade); use apenas os parâmetros do bloco. Ex.: `ASort(a,,,{|x,y| x[2] > y[2]})`.
+
 ## Exemplos de IA em AdvPL puro
 
 Três modelos escritos **inteiramente em AdvPL** (rodam com `advplc run <arq>`,
@@ -352,12 +366,22 @@ aqui o modelo é construído na própria linguagem.
 |---------|---------|---------------|
 | `pt_llm.prw` | Cadeia de **Markov** de ordem variável em nível de byte (ordens 1–6, backoff) | Lê o prompt e **continua** o texto em PT-BR |
 | `pt_chat.prw` | Respondedor por **recuperação**: normaliza (minúsculas + sem acento), tokeniza, descarta stopwords e pontua uma base de conhecimento por sobreposição de palavras | Lê a pergunta e **responde** com o item mais relevante (REPL via `ConIn`) |
-| `pt_nn.prw` | **Híbrido Markov + rede neural ternária** (ELM): projeção aleatória ternária fixa + camada de saída treinada por perceptron (add/sub), misturada com Markov na geração | Treina e gera PT-BR; usa a **BLAS ternária** `MatVecTern` |
+| `pt_nn.prw` | **Híbrido Markov + rede neural ternária** (ELM) com **janela longa** (entrada e saída até 4096 tokens): contexto local posicional + bag long-context, perceptron médio, suavização interpolada e amostragem nucleus | Lê um seed de até 4096 tokens e gera um **documento multi-frase** de até 4096 tokens |
 
-O `pt_nn.prw` é o "topo" do que se treina e roda **sem sair do AdvPL**: a
-projeção ternária e a saída perceptron são multiply-free (via `MatVecTern`), o
-aprendizado é medível (os erros do perceptron caem a cada passada) e o Markov
-dá o prior local enquanto a rede generaliza para contextos não vistos. Não é uma
-rede neural de ponto flutuante nem um transformer — é o limite honesto do que a
-linguagem permite treinar e executar por conta própria. A qualidade escala com o
-corpus: troque `Corpus()` embutido por `MemoRead("corpus.txt")`.
+O `pt_nn.prw` é o "topo" do que se treina e roda **sem sair do AdvPL**. A
+projeção ternária e a saída perceptron são multiply-free (via `MatVecTern`); o
+aprendizado é medível (os erros do perceptron caem a cada passada); o Markov
+interpolado dá o prior local enquanto a rede, com o **bag long-context** (janela
+de até 4096 tokens, mantida incrementalmente em O(1) amortizado), condiciona a
+geração. Algoritmos modernos: **perceptron médio** (Collins 2002), **suavização
+interpolada** (Jelinek-Mercer), **amostragem nucleus** (top-p), **vocabulário
+limitado** por frequência (top-N + `<unk>`) e **amostra de treino por stride** —
+os dois últimos deixam o custo do treino limitado, independente do tamanho do
+corpus. Gera **documentos multi-frase** de até 4096 tokens a partir de um seed de
+até 4096 tokens.
+
+Não é uma rede de ponto flutuante nem um transformer — atenção real sobre 4096
+tokens exigiria float (inviável multiply-free em AdvPL); o bag é a aproximação de
+custo limitado. É o limite honesto do que a linguagem permite treinar e executar
+por conta própria. A qualidade e o contexto útil escalam com o corpus: forneça um
+`corpus.txt` grande (carregado automaticamente via `MemoRead`).

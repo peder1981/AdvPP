@@ -4,29 +4,47 @@
  * Arquitetura (Caminho B - "topo" que fica integralmente em AdvPL):
  *   - Camada escondida = projeção aleatória TERNÁRIA fixa (W_proj em {-1,0,+1}).
  *     Não é treinada; projeta o contexto em add/sub via o native BLAS MatVecTern.
- *     Contexto POSICIONAL: x tem NCTX blocos de V dims (a ordem importa,
- *     "a tecnologia" != "tecnologia a").
  *   - Ativação ternária: h = sign(W_proj . x)  em {-1,0,+1}.
- *   - Camada de saída U (aprendida) treinada por PERCEPTRON multiclasse — puro
- *     add/sub, sem gradiente/float. scores = U . h  (também via MatVecTern).
+ *   - Camada de saída U (aprendida) treinada por PERCEPTRON MÉDIO (Collins 2002)
+ *     — puro add/sub, sem gradiente/float. scores = U . h (também via MatVecTern).
  *   Isto é uma Extreme Learning Machine ternária: hidden aleatório, saída linear
  *   aprendida — treina E infere sem multiplicação, tudo em AdvPL.
- *   - Markov n-grama (nível de palavra) dá o prior local; a rede generaliza para
- *     contextos não vistos. A geração MISTURA os dois.
+ *   - Markov n-grama (nível de palavra) INTERPOLADO (Jelinek-Mercer: mistura as
+ *     ordens 1..NCTX) dá o prior; a rede generaliza para contextos não vistos.
+ *     A geração mistura os dois e amostra por NUCLEUS (top-p).
+ *
+ * JANELA LONGA (entrada e saída até CTXMAX=4096 tokens CADA):
+ *   - Entrada ternária = NCTX blocos LOCAIS posicionais (a ordem importa,
+ *     "a tecnologia" != "tecnologia a") + 1 bloco BAG de presença sobre as
+ *     últimas BAGW (até 4096) palavras — o long-context. O bag é mantido
+ *     INCREMENTALMENTE (contagem por palavra, desliza a janela em O(delta)),
+ *     custo amortizado O(1) por token.
+ *   - SeedSeq aceita um seed de até CTXMAX tokens; Gera produz um DOCUMENTO
+ *     multi-frase de até CTXMAX tokens.
+ *   Nota honesta: atenção real sobre 4096 tokens exigiria ponto flutuante
+ *   (inviável multiply-free em AdvPL); o bag é a aproximação de custo limitado.
+ *
+ * Algoritmos modernos: perceptron médio, suavização interpolada, amostragem
+ * nucleus, contexto posicional + bag long-context, vocabulário limitado por
+ * frequência (top-N + <unk>) e amostra de treino por stride — os dois últimos
+ * deixam o custo do treino LIMITADO, independente do tamanho do corpus.
  *
  * O "BLAS ternário" é o native MatVecTern(aMat, aVecTern): result[i] =
  * Σ_j sign(vec[j])*mat[i][j], multiply-free. Estado do modelo vive num JsonObject
  * passado explícito (a VM não propaga Private entre chamadas).
  *
+ * Corpus: usa corpus.txt (via MemoRead) se existir; senão o Corpus() embutido.
  * Rodar/testar: ./advplc run pt_nn.prw
- *
- * ponytail: dims modestas (hidden 32, contexto 2 palavras) e corpus embutido;
- * qualidade escala com dados — troque Corpus() por MemoRead("corpus.txt").
  */
 
-#define NHID   64
-#define NCTX   2
-#define PASSES 30
+#define NHID     64
+#define NCTX     3        // ordem do Markov e contexto local posicional do neural
+#define BAGW     4096     // janela do "saco de contexto" (long-context do neural): até 4096 tokens
+#define CTXMAX   4096     // máximo de tokens de ENTRADA (seed) e de SAÍDA (geração)
+#define PASSES   20
+#define MAXVOCAB 1200     // teto do vocabulário (top-N por frequência; resto -> <unk>)
+#define MAXTRAIN 1000     // teto de posições de treino do perceptron (stride no corpus)
+#define TOPP     0.92     // amostragem nucleus: menor conjunto com massa >= TOPP
 
 User Function PtNN()
     Local oM := JsonObject():New()
@@ -40,17 +58,17 @@ User Function PtNN()
 
     InitParams(oM)
     BuildMarkov(oM, oM["stream"])
-    ConOut("Projeção ternária " + Str(NHID,3) + "x" + Str(NCTX * oM["V"],5) + " (posicional) | saída U " + Str(oM["V"],4) + "x" + Str(NHID,3))
+    ConOut("Entrada ternária " + Str(NHID,3) + "x" + Str((NCTX + 1) * oM["V"],6) + " (" + Str(NCTX,1) + " blocos locais + bag ate " + Str(BAGW,4) + " tokens) | saída U " + Str(oM["V"],4) + "x" + Str(NHID,3))
+    ConOut("Janela: contexto até " + Str(CTXMAX,4) + " tokens (entrada) e geração até " + Str(CTXMAX,4) + " tokens (saída).")
     ConOut("")
 
     Train(oM)
     ConOut("")
 
-    ConOut("--- Geração híbrida (Markov + rede ternária) ---")
-    Gera(oM, "o brasil")
-    Gera(oM, "a tecnologia")
-    Gera(oM, "na cidade")
-    ConOut("")
+    ConOut("--- Geração híbrida (documento multi-frase, janela até " + Str(CTXMAX,4) + " tokens) ---")
+    Gera(oM, "o brasil", 200)                                        // saída longa
+    Gera(oM, "a ciencia e a tecnologia transformam a sociedade", 120) // seed/entrada maior
+    Gera(oM, "na cidade", 120)
 
     SelfTest(oM)
 Return
@@ -63,25 +81,55 @@ Static Function LoadCorpus()
 Return Corpus()
 
 // ---------------------------------------------------------------- Vocabulário
+// Conta frequências, mantém as MAXVOCAB palavras mais frequentes (ASort por
+// contagem) e mapeia o resto para <unk>. Vocabulário limitado => custo por
+// passo do forward fixo, independente do tamanho do corpus.
 Static Function BuildVocab(oM, cCorpus)
     Local aTok := Tokenize(cCorpus)
+    Local jSeen := JsonObject():New()   // palavra -> índice em aPairs
+    Local aPairs := {}                  // { palavra, contagem }
     Local jW2Id := JsonObject():New()
     Local aId2W := {}
     Local aStream := {}
     Local i := 0
     Local cW := ""
+    Local nIx := 0
 
-    // id 1 reservado para <s> (início de frase / padding de contexto)
-    aAdd(aId2W, "<s>")
-    jW2Id["<s>"] := 1
+    // conta frequências (uma passada)
+    For i := 1 To Len(aTok)
+        cW := aTok[i]
+        If ValType(jSeen[cW]) == "U"
+            aAdd(aPairs, {cW, 1})
+            jSeen[cW] := Len(aPairs)
+        Else
+            nIx := jSeen[cW]
+            aPairs[nIx][2] := aPairs[nIx][2] + 1
+        EndIf
+    Next i
 
+    // ordena por frequência decrescente (bloco só-parâmetro)
+    ASort(aPairs, , , {|x, y| x[2] > y[2] })
+
+    // ids reservados: 1=<s> (padding), 2=<unk> (fora do vocabulário)
+    aAdd(aId2W, "<s>")  ; jW2Id["<s>"]  := 1
+    aAdd(aId2W, "<unk>"); jW2Id["<unk>"] := 2
+    For i := 1 To Len(aPairs)
+        If Len(aId2W) >= MAXVOCAB + 2
+            Exit
+        EndIf
+        cW := aPairs[i][1]
+        aAdd(aId2W, cW)
+        jW2Id[cW] := Len(aId2W)
+    Next i
+
+    // stream de ids; palavra fora do vocabulário vira <unk> (2)
     For i := 1 To Len(aTok)
         cW := aTok[i]
         If ValType(jW2Id[cW]) == "U"
-            aAdd(aId2W, cW)
-            jW2Id[cW] := Len(aId2W)
+            aAdd(aStream, 2)
+        Else
+            aAdd(aStream, jW2Id[cW])
         EndIf
-        aAdd(aStream, jW2Id[cW])
     Next i
 
     oM["V"]      := Len(aId2W)
@@ -140,9 +188,10 @@ Static Function InitParams(oM)
     Local aRow := {}
     Local nR := 0
 
+    // Entrada = NCTX blocos locais posicionais + 1 bloco "bag" (long-context).
     For i := 1 To NHID
         aRow := {}
-        For j := 1 To NCTX * nV             // contexto posicional: NCTX blocos de nV
+        For j := 1 To (NCTX + 1) * nV
             nR := Random(3)                 // 1,2,3
             aAdd(aRow, If(nR == 1, -1, If(nR == 2, 0, 1)))
         Next j
@@ -159,51 +208,93 @@ Static Function InitParams(oM)
 
     oM["wproj"] := aWP
     oM["U"]     := aU
+
+    oM["xbuf"] := Array((NCTX + 1) * nV)    // buffer de entrada reutilizado no Forward
+    AFill(oM["xbuf"], 0)
+    oM["xactloc"] := {}                     // posições ativas dos blocos LOCAIS (limpas por forward)
+
+    // Estado incremental do bag (long-context): contagem por palavra na janela.
+    oM["bagcnt"] := Array(nV)               // quantos tokens da janela == cada id
+    AFill(oM["bagcnt"], 0)
+    oM["bagend"] := 0                       // tEnd que o bag reflete no momento
 Return
 
 // ------------------------------------------------------------------- Markov
-// Hash "id1 id2" -> array de próximos ids (multiset = frequência embutida).
+// Guarda uma hash por ordem k=1..NCTX. mk[k][chave-de-k-palavras] -> próximos
+// ids (multiset = frequência). A geração faz BACKOFF da ordem NCTX até a 1.
 Static Function BuildMarkov(oM, aStream)
-    Local jM := JsonObject():New()
+    Local aMk := {}
+    Local k := 0
     Local i := 0
     Local cKey := ""
     Local nNext := 0
 
+    For k := 1 To NCTX
+        aAdd(aMk, JsonObject():New())
+    Next k
+
     For i := 1 To Len(aStream) - NCTX
-        cKey := CtxKey(aStream, i)
         nNext := aStream[i + NCTX]
-        If ValType(jM[cKey]) == "U"
-            jM[cKey] := {}
-        EndIf
-        aAdd(jM[cKey], nNext)
+        For k := 1 To NCTX                         // últimas k palavras do contexto
+            cKey := KeyRange(aStream, i + NCTX - k, k)
+            If ValType(aMk[k][cKey]) == "U"
+                aMk[k][cKey] := {}
+            EndIf
+            aAdd(aMk[k][cKey], nNext)
+        Next k
     Next i
-    oM["markov"] := jM
+    oM["mk"] := aMk
 Return
 
-Static Function CtxKey(aStream, nPos)
+// Chave = nLen ids consecutivos a partir de nStart.
+Static Function KeyRange(aStream, nStart, nLen)
     Local c := ""
-    Local k := 0
-    For k := 0 To NCTX - 1
-        c += Str(aStream[nPos + k], 5) + " "
-    Next k
+    Local i := 0
+    For i := 0 To nLen - 1
+        c += Str(aStream[nStart + i], 5) + " "
+    Next i
 Return c
 
 // ------------------------------------------------------------------ Forward
-// Retorna { aScores (nV), aH (NHID ternário) } para um array de ids de contexto.
-Static Function Forward(oM, aCtxIds)
+// Prediz o token após a posição tEnd em aSeq. Entrada ternária =
+//   NCTX blocos LOCAIS posicionais (últimas NCTX palavras, ordem importa)
+//   + 1 bloco BAG de presença sobre as últimas BAGW palavras (long-context,
+//     até CTXMAX tokens). Tudo {0,1} => multiply-free na BLAS.
+// Retorna { aScores (nV), aH (NHID ternário) }.
+Static Function Forward(oM, aSeq, tEnd)
     Local nV := oM["V"]
-    Local aX := Array(NCTX * nV)
+    Local aX := oM["xbuf"]
+    Local aOld := oM["xactloc"]
+    Local aNew := {}
     Local aHraw := Nil
     Local aH := {}
     Local aScores := Nil
     Local i := 0
+    Local p := 0
+    Local id := 0
+    Local nPos := 0
 
-    AFill(aX, 0)
-    For i := 1 To Len(aCtxIds)              // posição i -> bloco (i-1)*nV
-        If aCtxIds[i] >= 1 .And. aCtxIds[i] <= nV
-            aX[(i - 1) * nV + aCtxIds[i]] := 1
-        EndIf
+    BagSyncTo(oM, aSeq, tEnd)               // mantém o bloco bag (long-context) incremental
+
+    For i := 1 To Len(aOld)                 // limpa só os blocos LOCAIS do forward anterior
+        aX[aOld[i]] := 0
     Next i
+    // Blocos locais: posição p = 1..NCTX (p=NCTX é a palavra mais recente).
+    For p := 1 To NCTX
+        i := tEnd - (NCTX - p)              // índice em aSeq da palavra do bloco p
+        id := 1                             // <s> (padding) se antes do início
+        If i >= 1 .And. i <= tEnd
+            id := aSeq[i]
+        EndIf
+        If id >= 1 .And. id <= nV
+            nPos := (p - 1) * nV + id
+            If aX[nPos] == 0
+                aX[nPos] := 1
+                aAdd(aNew, nPos)
+            EndIf
+        EndIf
+    Next p
+    oM["xactloc"] := aNew
 
     aHraw := MatVecTern(oM["wproj"], aX)        // BLAS ternária: W_proj . x
     For i := 1 To Len(aHraw)
@@ -212,6 +303,54 @@ Static Function Forward(oM, aCtxIds)
 
     aScores := MatVecTern(oM["U"], aH)          // BLAS ternária: U . h
 Return {aScores, aH}
+
+// BagSyncTo: mantém o bloco "bag" do xbuf refletindo a presença de cada palavra
+// nas últimas BAGW posições de aSeq[1..tEnd]. Desliza a janela em O(delta) quando
+// tEnd avança (caso comum: treino/geração monotônicos); reconstrói só quando há
+// salto para trás ou muito grande. Custo amortizado O(1) por token.
+Static Function BagSyncTo(oM, aSeq, tEnd)
+    Local aCnt := oM["bagcnt"]
+    Local aX   := oM["xbuf"]
+    Local nBase := NCTX * oM["V"]
+    Local nPrev := oM["bagend"]
+    Local nStart := 0
+    Local t := 0
+    Local tOut := 0
+    Local id := 0
+
+    If tEnd < nPrev .Or. tEnd - nPrev > BAGW
+        // reconstrói do zero (raro: início de passada/geração)
+        AFill(aCnt, 0)
+        For id := 1 To oM["V"]
+            aX[nBase + id] := 0
+        Next id
+        nStart := tEnd - BAGW + 1
+        If nStart < 1
+            nStart := 1
+        EndIf
+        For t := nStart To tEnd
+            id := aSeq[t]
+            aCnt[id] := aCnt[id] + 1
+            aX[nBase + id] := 1
+        Next t
+    Else
+        // desliza para frente: adiciona os novos, remove os que saíram da janela
+        For t := nPrev + 1 To tEnd
+            id := aSeq[t]
+            aCnt[id] := aCnt[id] + 1
+            aX[nBase + id] := 1
+            tOut := t - BAGW
+            If tOut >= 1
+                id := aSeq[tOut]
+                aCnt[id] := aCnt[id] - 1
+                If aCnt[id] <= 0
+                    aX[nBase + id] := 0
+                EndIf
+            EndIf
+        Next t
+    EndIf
+    oM["bagend"] := tEnd
+Return
 
 Static Function Argmax(aScores)
     Local nBest := aScores[1]
@@ -226,15 +365,24 @@ Static Function Argmax(aScores)
 Return nIdx
 
 // -------------------------------------------------------------------- Treino
-// Perceptron multiclasse: erra -> U[alvo]+=h, U[previsto]-=h. Puro add/sub.
+// Perceptron multiclasse MÉDIO (Collins 2002): erra -> U[alvo]+=h, U[prev]-=h,
+// e mantém um acumulador Uc[..]+=t*delta; ao final usa a média U-Uc/T, que
+// generaliza melhor que os pesos finais. Tudo add/sub (h é ternário).
+// Para escalar a corpus grande, treina numa AMOSTRA por stride (teto MAXTRAIN);
+// o Markov já usa o corpus inteiro. Custo do treino neural fica limitado.
 Static Function Train(oM)
     Local aStream := oM["stream"]
-    Local aU := oM["U"]
+    Local aU  := oM["U"]
+    Local nV  := oM["V"]
+    Local aUc := ZeroMatrix(nV, NHID)      // acumulador do perceptron médio
     Local nP := 0
     Local i := 0
     Local j := 0
     Local nErr := 0
     Local nErr1 := -1
+    Local nT := 0                          // contador global de exemplos (peso da média)
+    Local nPos := Len(aStream) - NCTX
+    Local nStep := 1
     Local aCtx := {}
     Local aFwd := Nil
     Local aH := Nil
@@ -242,18 +390,22 @@ Static Function Train(oM)
     Local nAlvo := 0
     Local aRowA := Nil
     Local aRowP := Nil
+    Local aCcA := Nil
+    Local aCcP := Nil
 
-    ConOut("Treinando (perceptron ternário, " + Str(PASSES,2) + " passadas):")
+    If nPos > MAXTRAIN
+        nStep := Int((nPos - 1) / MAXTRAIN) + 1   // divisão-teto: amostra <= MAXTRAIN posições
+    EndIf
+
+    ConOut("Treinando (perceptron médio ternário, " + Str(PASSES,2) + " passadas, stride " + Str(nStep,2) + "):")
     For nP := 1 To PASSES
         nErr := 0
-        For i := 1 To Len(aStream) - NCTX
-            aCtx := {}
-            For j := 0 To NCTX - 1
-                aAdd(aCtx, aStream[i + j])
-            Next j
-            nAlvo := aStream[i + NCTX]
+        i := 1
+        While i <= nPos
+            nT++
+            nAlvo := aStream[i + NCTX]        // alvo = palavra após o contexto
 
-            aFwd := Forward(oM, aCtx)
+            aFwd := Forward(oM, aStream, i + NCTX - 1)   // contexto termina em i+NCTX-1
             nPred := Argmax(aFwd[1])
             aH := aFwd[2]
 
@@ -261,12 +413,17 @@ Static Function Train(oM)
                 nErr++
                 aRowA := aU[nAlvo]
                 aRowP := aU[nPred]
+                aCcA := aUc[nAlvo]
+                aCcP := aUc[nPred]
                 For j := 1 To NHID
                     aRowA[j] := aRowA[j] + aH[j]
                     aRowP[j] := aRowP[j] - aH[j]
+                    aCcA[j]  := aCcA[j]  + nT * aH[j]
+                    aCcP[j]  := aCcP[j]  - nT * aH[j]
                 Next j
             EndIf
-        Next i
+            i += nStep
+        End
         If nErr1 == -1
             nErr1 := nErr
         EndIf
@@ -274,81 +431,137 @@ Static Function Train(oM)
             ConOut("  passada " + Str(nP,2) + ": " + Str(nErr,5) + " erros")
         EndIf
     Next nP
+
+    // Pesos médios: U := U - Uc / T
+    If nT > 0
+        For i := 1 To nV
+            aRowA := aU[i]
+            aCcA := aUc[i]
+            For j := 1 To NHID
+                aRowA[j] := aRowA[j] - aCcA[j] / nT
+            Next j
+        Next i
+    EndIf
+
     oM["err_first"] := nErr1
     oM["err_last"]  := nErr
 Return
 
+// ZeroMatrix: matriz nR x nC preenchida com zeros.
+Static Function ZeroMatrix(nR, nC)
+    Local a := {}
+    Local i := 0
+    Local j := 0
+    Local aRow := Nil
+    For i := 1 To nR
+        aRow := {}
+        For j := 1 To nC
+            aAdd(aRow, 0)
+        Next j
+        aAdd(a, aRow)
+    Next i
+Return a
+
 // ------------------------------------------------------------------ Geração
-// A cada passo mistura Markov (frequência) + rede ternária (rerank aprendido),
-// com anti-repetição e sharpening, e amostra proporcional ao peso.
-Static Function Gera(oM, cSeed)
-    Local aCtx := SeedCtx(oM, cSeed)
+// Gera um DOCUMENTO de até nMax tokens (multi-frase) a partir de um seed que
+// pode ter até CTXMAX tokens. Mantém a sequência inteira aSeq, que alimenta o
+// contexto local (últimas NCTX palavras) e o bag (últimas BAGW). Continua após
+// cada ".", começando nova frase, até atingir nMax.
+Static Function Gera(oM, cSeed, nMax)
+    Local aSeq := SeedSeq(oM, cSeed)       // ids do seed (aceita seed longo)
     Local cOut := cSeed
     Local i := 0
     Local nNext := 0
     Local nPrev := 0
+    Local nSent := 0                       // palavras na frase atual (libera "." após >=4)
 
-    For i := 1 To 30
-        nNext := NextWord(oM, aCtx, nPrev, i > 5)   // so permite "." apos 5 palavras
-        If nNext == 0 .Or. oM["id2w"][nNext] == "."
-            cOut += "."
+    If nMax > CTXMAX
+        nMax := CTXMAX
+    EndIf
+    For i := 1 To nMax
+        nNext := NextWord(oM, aSeq, nPrev, nSent >= 4)
+        If nNext == 0
             Exit
         EndIf
-        cOut += " " + oM["id2w"][nNext]
+        aAdd(aSeq, nNext)
         nPrev := nNext
-        aCtx := ShiftCtx(AClone(aCtx), nNext)
+        If oM["id2w"][nNext] == "."
+            cOut += "."
+            nSent := 0
+        Else
+            cOut += " " + oM["id2w"][nNext]
+            nSent++
+        EndIf
     Next i
-    ConOut("  [" + cSeed + "] -> " + cOut)
+    ConOut("  [" + cSeed + "] (" + Str(i - 1, 4) + " tokens):")
+    ConOut("  " + cOut)
+    ConOut("")
 Return
 
-// NextWord: constrói pesos por candidato e amostra. Markov dá peso = frequência;
-// a rede soma um bônus por rank (top-K); penaliza a palavra anterior (anti-loop);
-// sharpening (peso^2) reduz ruído. Contexto não visto => só a rede decide.
-Static Function NextWord(oM, aCtx, nPrev, lAllowEnd)
-    Local jM      := oM["markov"]
-    Local aScores := Forward(oM, aCtx)[1]
+// NextWord: mistura Markov INTERPOLADO (Jelinek-Mercer: combina TODAS as ordens
+// 1..NCTX, cada uma normalizada por frequência e pesada por lambda_k favorecendo
+// a ordem maior) com o rerank aprendido da rede ternária; aplica anti-repetição
+// e sharpening, e amostra por NUCLEUS (top-p). <s>/<unk> nunca são gerados.
+Static Function NextWord(oM, aSeq, nPrev, lAllowEnd)
+    Local nEnd    := Len(aSeq)
+    Local aMkAll  := oM["mk"]
+    Local aScores := Forward(oM, aSeq, nEnd)[1]
     Local aTop    := TopK(aScores, 6)
     Local cKey    := ""
     Local aMk     := Nil
     Local aIds    := {}    // candidatos únicos
     Local aW      := {}    // peso paralelo
     Local j       := 0
+    Local k       := 0
     Local id      := 0
-    Local nPeriod := 0
+    Local nPeriod := IdOf(oM, ".")
+    Local nUnk    := 2
+    Local nLambda := 0
 
-    If ValType(oM["w2id"]["."]) != "U"
-        nPeriod := oM["w2id"]["."]
-    EndIf
-
-    For j := 1 To NCTX
-        cKey += Str(aCtx[j], 5) + " "
-    Next j
-
-    // Markov: cada ocorrência soma 1.0 ao peso do id
-    aMk := jM[cKey]
-    If ValType(aMk) == "A"
-        For j := 1 To Len(aMk)
-            AddCand(aIds, aW, aMk[j], 1.0)
+    // Interpolação: soma a contribuição de cada ordem k (maior ordem = maior peso).
+    For k := NCTX To 1 Step -1
+        cKey := ""
+        For j := nEnd - k + 1 To nEnd            // últimas k palavras da sequência
+            id := 1
+            If j >= 1
+                id := aSeq[j]
+            EndIf
+            cKey += Str(id, 5) + " "
         Next j
-    EndIf
-    // Rede ternária: bônus por rank (top-1 vale mais). Peso 1.6 calibra vs Markov.
+        aMk := aMkAll[k][cKey]
+        If ValType(aMk) == "A" .And. Len(aMk) > 0
+            nLambda := k * 2.0 / Len(aMk)        // lambda_k ~ k, normalizado pela contagem total
+            For j := 1 To Len(aMk)
+                AddCand(aIds, aW, aMk[j], nLambda)
+            Next j
+        EndIf
+    Next k
+
+    // Rede ternária: bônus por rank (top-1 vale mais); cobre contexto não visto.
     For j := 1 To Len(aTop)
-        AddCand(aIds, aW, aTop[j], 1.6 * (Len(aTop) - j + 1) / Len(aTop))
+        AddCand(aIds, aW, aTop[j], 1.0 * (Len(aTop) - j + 1) / Len(aTop))
     Next j
 
-    // Anti-repetição + descarta <s>; sharpening por quadrado.
+    // Filtros: descarta <s>/<unk>; segura ponto final; anti-repetição; sharpening.
     For j := 1 To Len(aIds)
         id := aIds[j]
-        If id == 1                          // <s> nunca é gerado
+        If id == 1 .Or. id == nUnk
             aW[j] := 0
         ElseIf id == nPeriod .And. !lAllowEnd
-            aW[j] := 0                       // frase curta demais: sem ponto final ainda
+            aW[j] := 0
         ElseIf id == nPrev
-            aW[j] := aW[j] * 0.10           // pune repetir a palavra anterior
+            aW[j] := aW[j] * 0.10
         EndIf
-        aW[j] := aW[j] * aW[j]              // sharpening: favorece os fortes
+        aW[j] := aW[j] * aW[j]                   // sharpening: favorece os fortes
     Next j
-Return WSample(aIds, aW)
+Return NucleusSample(aIds, aW, TOPP)
+
+// IdOf: id de uma palavra (0 se não existir no vocabulário).
+Static Function IdOf(oM, cW)
+    If ValType(oM["w2id"][cW]) == "U"
+        Return 0
+    EndIf
+Return oM["w2id"][cW]
 
 // AddCand: acumula peso do id na lista de candidatos (in-place).
 Static Function AddCand(aIds, aW, id, nAdd)
@@ -361,52 +574,74 @@ Static Function AddCand(aIds, aW, id, nAdd)
     EndIf
 Return
 
-// WSample: amostra um id proporcional ao peso (roleta). 0 se lista vazia.
-Static Function WSample(aIds, aW)
+// NucleusSample (top-p): ordena por peso desc, mantém o menor conjunto cuja
+// massa acumulada atinge nP da massa total, e amostra proporcional dentro dele.
+// Corta a cauda de baixa probabilidade — a técnica moderna de amostragem.
+Static Function NucleusSample(aIds, aW, nP)
+    Local aPar := {}
     Local nTot := 0
-    Local i := 0
-    Local nR := 0
     Local nAcc := 0
-    For i := 1 To Len(aW)
-        nTot += aW[i]
+    Local nCut := 0
+    Local nR := 0
+    Local i := 0
+
+    For i := 1 To Len(aIds)
+        If aW[i] > 0
+            aAdd(aPar, {aIds[i], aW[i]})
+            nTot += aW[i]
+        EndIf
     Next i
-    If nTot <= 0
+    If nTot <= 0 .Or. Len(aPar) == 0
         Return If(Len(aIds) > 0, aIds[1], 0)
     EndIf
-    nR := (Random(100000) / 100000) * nTot
-    For i := 1 To Len(aIds)
-        nAcc += aW[i]
-        If nR <= nAcc
-            Return aIds[i]
+
+    ASort(aPar, , , {|x, y| x[2] > y[2] })       // maior peso primeiro
+    // núcleo: menor prefixo com massa >= nP * total
+    nCut := Len(aPar)
+    For i := 1 To Len(aPar)
+        nAcc += aPar[i][2]
+        If nAcc >= nP * nTot
+            nCut := i
+            Exit
         EndIf
     Next i
-Return aIds[Len(aIds)]
 
-Static Function SeedCtx(oM, cSeed)
+    // amostra proporcional dentro do núcleo (1..nCut)
+    nTot := 0
+    For i := 1 To nCut
+        nTot += aPar[i][2]
+    Next i
+    nR := (Random(100000) / 100000) * nTot
+    nAcc := 0
+    For i := 1 To nCut
+        nAcc += aPar[i][2]
+        If nR <= nAcc
+            Return aPar[i][1]
+        EndIf
+    Next i
+Return aPar[1][1]
+
+// SeedSeq: converte o seed (de qualquer tamanho, até CTXMAX) num array de ids,
+// com NCTX <s> de padding à esquerda. Palavra fora do vocabulário vira <unk>.
+Static Function SeedSeq(oM, cSeed)
     Local aTok := Tokenize(cSeed)
     Local jW := oM["w2id"]
-    Local aCtx := {}
+    Local aSeq := {}
     Local i := 0
-    Local id := 0
-    // preenche com <s> (id 1) à esquerda se o seed for curto
     For i := 1 To NCTX
-        aAdd(aCtx, 1)
+        aAdd(aSeq, 1)                      // padding <s>
     Next i
     For i := 1 To Len(aTok)
-        If ValType(jW[aTok[i]]) != "U"
-            id := jW[aTok[i]]
-            aCtx := ShiftCtx(aCtx, id)
+        If i > CTXMAX
+            Exit
+        EndIf
+        If ValType(jW[aTok[i]]) == "U"
+            aAdd(aSeq, 2)                  // <unk>
+        Else
+            aAdd(aSeq, jW[aTok[i]])
         EndIf
     Next i
-Return aCtx
-
-Static Function ShiftCtx(aCtx, nNew)
-    Local i := 0
-    For i := 1 To NCTX - 1
-        aCtx[i] := aCtx[i + 1]
-    Next i
-    aCtx[NCTX] := nNew
-Return aCtx
+Return aSeq
 
 Static Function TopK(aScores, k)
     Local aIdx := {}
@@ -444,8 +679,8 @@ Static Function SelfTest(oM)
         ConOut("FALHA: MatVecTern incorreto"); nFail++
     EndIf
 
-    // 2. Forward produz vetores dos tamanhos certos
-    aFwd := Forward(oM, {1, 1})
+    // 2. Forward produz vetores dos tamanhos certos (aSeq com padding, tEnd=NCTX)
+    aFwd := Forward(oM, {1, 1, 1}, NCTX)
     If Len(aFwd[1]) != oM["V"] .Or. Len(aFwd[2]) != NHID
         ConOut("FALHA: dimensoes do forward"); nFail++
     EndIf
@@ -505,4 +740,68 @@ Static Function Corpus()
     c += "o conhecimento se constroi com estudo trabalho e muita dedicacao diaria. "
     c += "a energia solar e uma fonte limpa que cresce no brasil a cada ano. "
     c += "as criancas aprendem brincando e descobrindo o mundo ao seu redor. "
+    c += "a capital do brasil e brasilia uma cidade planejada no centro do pais. "
+    c += "sao paulo e a maior cidade do pais e um grande centro financeiro e cultural. "
+    c += "o rio de janeiro e conhecido por suas praias suas montanhas e sua alegria. "
+    c += "a cidade de salvador guarda muito da historia e da cultura afro brasileira. "
+    c += "o nordeste do brasil tem praias lindas um sol forte e um povo acolhedor. "
+    c += "o sul do pais tem um clima mais frio e uma forte tradicao europeia. "
+    c += "a regiao amazonica concentra a maior floresta tropical de todo o planeta. "
+    c += "o cerrado e o pantanal abrigam uma fauna e uma flora muito ricas e variadas. "
+    c += "os rios da amazonia sao imensos e cortam a floresta por milhares de quilometros. "
+    c += "muitas especies de animais e de plantas ainda esperam para ser descobertas. "
+    c += "a natureza do brasil e um patrimonio que pertence a toda a humanidade. "
+    c += "proteger o meio ambiente e uma tarefa de todos os cidadaos e governos. "
+    c += "o desmatamento ameaca a floresta e a vida de muitas comunidades locais. "
+    c += "a reciclagem do lixo ajuda a preservar os recursos naturais do planeta. "
+    c += "o sol o vento e a agua sao fontes de energia limpa e renovavel. "
+    c += "a ciencia estuda a natureza para entender o mundo e melhorar a vida. "
+    c += "os pesquisadores das universidades produzem conhecimento novo todos os anos. "
+    c += "a medicina moderna salva vidas e aumenta o tempo de vida das pessoas. "
+    c += "as vacinas protegem as criancas contra muitas doencas perigosas. "
+    c += "a alimentacao saudavel e a pratica de exercicios trazem mais qualidade de vida. "
+    c += "beber agua dormir bem e caminhar todos os dias fazem bem para o corpo. "
+    c += "o computador e o celular fazem parte da rotina de quase todas as pessoas. "
+    c += "os programas de computador resolvem problemas e automatizam tarefas do dia a dia. "
+    c += "a inteligencia artificial aprende com os dados e ajuda em muitas areas. "
+    c += "escrever um bom programa exige logica clareza e muita atencao aos detalhes. "
+    c += "a linguagem advpl e usada para criar sistemas de gestao nas empresas. "
+    c += "um compilador traduz o codigo escrito pelo programador em instrucoes da maquina. "
+    c += "o brasil produz cafe soja milho e muitos outros alimentos para o mundo. "
+    c += "a agricultura e a pecuaria movimentam boa parte da economia nacional. "
+    c += "o comercio e a industria geram empregos nas cidades grandes e pequenas. "
+    c += "as pequenas empresas sao muito importantes para a economia de cada regiao. "
+    c += "o trabalho honesto e a educacao abrem portas para um futuro melhor. "
+    c += "muitos jovens estudam a noite e trabalham durante o dia para vencer na vida. "
+    c += "a escola prepara as criancas e os jovens para os desafios do futuro. "
+    c += "ler bons livros desde cedo desperta a curiosidade e a imaginacao das criancas. "
+    c += "a literatura brasileira tem autores famosos lidos em todo o mundo. "
+    c += "a musica popular brasileira mistura ritmos de muitas origens diferentes. "
+    c += "o samba o forro e a bossa nova nasceram da alma criativa do povo. "
+    c += "o carnaval e a maior festa popular do brasil e atrai turistas de todo lugar. "
+    c += "as festas juninas animam o interior com comidas dancas e muita fogueira. "
+    c += "a comida brasileira e rica variada e cheia de sabores de cada regiao. "
+    c += "o arroz com feijao e o prato mais presente nas mesas das familias. "
+    c += "a feijoada a moqueca e o acaraje sao pratos famosos da cozinha do pais. "
+    c += "as frutas tropicais como a manga o caju e o maracuja encantam quem prova. "
+    c += "o futebol reune amigos nos campos nas praias e nas ruas de todo o brasil. "
+    c += "a selecao brasileira e a maior campea da copa do mundo de futebol. "
+    c += "o esporte ensina disciplina trabalho em equipe e respeito ao adversario. "
+    c += "praticar um esporte melhora a saude o humor e a disposicao das pessoas. "
+    c += "as familias se reunem nos fins de semana para almocar e conversar juntas. "
+    c += "os avos contam historias antigas que passam de uma geracao para outra. "
+    c += "a amizade e a solidariedade tornam a vida em comunidade mais leve e feliz. "
+    c += "ajudar o proximo e cuidar de quem precisa e um gesto de grandeza. "
+    c += "viajar pelo pais e uma forma de conhecer novas paisagens e novas culturas. "
+    c += "cada estado do brasil tem sua propria historia seus costumes e sua beleza. "
+    c += "as cidades historicas de minas gerais guardam igrejas antigas e ruas de pedra. "
+    c += "o pantanal atrai visitantes que buscam observar animais em seu ambiente natural. "
+    c += "o povo brasileiro e conhecido pela hospitalidade e pela alegria de viver. "
+    c += "a diversidade de povos e de culturas e uma das maiores riquezas do brasil. "
+    c += "o respeito as diferencas fortalece a democracia e a paz entre as pessoas. "
+    c += "o voto e um direito e um dever de todo cidadao consciente e responsavel. "
+    c += "a informacao de qualidade ajuda as pessoas a tomar melhores decisoes. "
+    c += "a internet aproxima as pessoas mas exige atencao e uso responsavel. "
+    c += "o futuro do pais depende da educacao da ciencia e do trabalho de todos. "
+    c += "sonhar estudar e trabalhar com dedicacao transforma a vida das pessoas. "
 Return c
