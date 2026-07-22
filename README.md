@@ -24,6 +24,7 @@ Um compilador e interpretador totalmente funcional para as linguagens de program
 - **Renderer web (PO-UI)**: `advplc serve programa.prw` executa o programa no servidor e renderiza a interface no browser com PO-UI (embutido no binário): console e diálogos em tempo real, `FWMBrowse`→`po-table` com dicionário SX3, formulários `po-dynamic-form`, MSDIALOG legado (`@ SAY/GET/BUTTON`) como modal por heurística de grade e hot reload com `--watch`
 - **Motor de inferência LLM** (`pkg/llm` + classe `LLM`): carrega modelos GGUF quantizados em I2_S (BitNet/Falcon3-1.58bit) e gera texto direto do AdvPL/TLPP — 100% Go, sem CGO, com kernel SIMD AVX2 em amd64 e fallback escalar em qualquer outra arquitetura
 - **Servidor MCP nativo** (`pkg/mcp` + classe `MCPServer`): expõe funções AdvPL/TLPP como "tools" de um servidor MCP real (JSON-RPC 2.0 sobre stdio) — funciona de verdade (ao contrário do REST, que só reconhece a sintaxe), validado com o SDK oficial do MCP
+- **Núcleo de Tensor (float32)**: classe `Tensor` acelerada em Go (`pkg/tensor`) — `MatMul`, elementwise com broadcast, reduções, ativações, `Softmax`, `Argmax`, `IndexRows` — para construir e rodar modelos float com o AdvPL orquestrando; ver [Núcleo de Tensor](#núcleo-de-tensor)
 
 ## Servidor MCP (`MCPServer`)
 
@@ -362,6 +363,29 @@ referência — leitura e escrita — inclusive quando o bloco escapa da funçã
 criou (estado persistente). Ex.: `AEval(a, {|x| nSoma := nSoma + x})` acumula no
 `nSoma` externo; `{|| nN := nN + 1}` retornado por uma função vira um contador com
 estado próprio. Captura em profundidade funciona completamente — bloco-dentro-de-bloco captura Locais N níveis acima por referência.
+
+## Núcleo de Tensor
+
+A classe `Tensor` (float32) guarda os dados como `[]float32` plano em Go — fora da
+representação *boxed* de `Value` — e roda kernels de forward em Go puro. O AdvPL
+orquestra; o Go faz a conta.
+
+```advpl
+Local oX  := Tensor():FromArray({1,2}, {1,2})
+Local oW  := Tensor():Rand({2,3}, 0.1)
+Local oH  := oX:MatMul(oW):Relu()          // [1,3]
+Local oY  := oH:Softmax(2)                  // softmax por linha
+Local nId := oY:Argmax()                    // classe prevista (1-based)
+```
+
+Construtores: `New(aForma)`, `FromArray(aDados, aForma)`, `Rand(aForma, nEscala)`.
+Métodos: `Shape`, `Size`, `Get`/`Set`, `ToArray`; `Add`/`Sub`/`Mul`/`Div` (com
+broadcast de escalar e linha/coluna), `AddScalar`/`MulScalar`; `MatMul`,
+`Transpose`, `Reshape`; `Sum`/`Mean`/`Max`/`Argmax` (sem eixo → número; com eixo →
+Tensor); `Exp`/`Log`/`Sqrt`/`Relu`/`Tanh`/`Sigmoid`/`Gelu`; `Softmax`; `IndexRows`
+(lookup de embedding). Erros de forma são capturáveis por `Try/Catch`.
+
+Este ciclo entrega o **forward** (inferência). Autodiff/treino é um ciclo futuro.
 
 ## Exemplos de IA em AdvPL puro
 
