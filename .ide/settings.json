@@ -1,0 +1,11 @@
+{
+	"files.associations": {
+		"*.prw": "advpl", "*.prg": "advpl", "*.prx": "advpl",
+		"*.tlpp": "advpl", "*.ch": "advpl", "*.th": "advpl"
+	},
+	"[advpl]": {
+		"files.encoding": "windows1252",
+		"editor.tabSize": 4,
+		"editor.insertSpaces": false
+	}
+}
