@@ -413,6 +413,11 @@ entrega o motor + SGD; softmax/cross-entropy, Adam, embedding e módulos vêm no
 próximos ciclos. Corretude validada por verificação numérica de gradiente
 (diferenças finitas) no `go test`.
 
+Loss de classificação e otimizador robusto: `oLoss := oLogits:SoftmaxCE(aAlvo)`
+(softmax + cross-entropy, alvo por índices de classe); `Adam():New(aParams, nLR)`
+(`Step`/`ZeroGrad`). Ativações diferenciáveis `Tanh`/`Sigmoid`/`Gelu` e `IndexRows`
+(embedding, com backward scatter-add). Ver `tests/classifier_demo.prw`.
+
 ## Exemplos de IA em AdvPL puro
 
 Três modelos escritos **inteiramente em AdvPL** (rodam com `advplc run <arq>`,

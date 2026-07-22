@@ -27,6 +27,15 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
   treina um MLP e a loss cai bem abaixo da inicial. Softmax-CE, Adam, embedding e
   módulos ficam para os próximos ciclos.
 
+### Loss de LM + Adam (Sub-projeto 3b)
+
+- Autograd ganhou a loss de classificação **`SoftmaxCE`** (softmax + cross-entropy
+  fundida, estável; gradiente `softmax − onehot`), o otimizador **Adam** (com
+  correção de viés), o backward de **embedding** (`IndexRows` diferenciável,
+  scatter-add) e das ativações **Tanh/Sigmoid/Gelu**. Classes AdvPL: métodos novos
+  em `Variable` + classe `Adam`. Aceite: `tests/classifier_demo.prw` treina um
+  classificador (loss cai, acurácia 100%). Módulos e trainer ficam para o S3c.
+
 ## [1.15.0] — 2026-07-22
 
 ### Robustez da linguagem (Sub-projeto 1)
