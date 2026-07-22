@@ -200,6 +200,22 @@ func (o *ObjectValue) SetProp(key string, val Value) {
 	o.Props[key] = val
 }
 
+// DelProp remove uma propriedade de Props e de Keys, mantendo os dois em
+// sincronia (contraparte de SetProp). Retorna false se a chave não existia.
+func (o *ObjectValue) DelProp(key string) bool {
+	if _, exists := o.Props[key]; !exists {
+		return false
+	}
+	delete(o.Props, key)
+	for i, k := range o.Keys {
+		if k == key {
+			o.Keys = append(o.Keys[:i], o.Keys[i+1:]...)
+			break
+		}
+	}
+	return true
+}
+
 func (o *ObjectValue) Type() string   { return "O" }
 func (o *ObjectValue) String() string { return fmt.Sprintf("Object:%s", o.ClassName) }
 func (o *ObjectValue) IsTruthy() bool { return true }

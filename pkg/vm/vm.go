@@ -961,19 +961,34 @@ func (v *VM) tryOperatorOverload(left, right advplrt.Value, operatorMethod strin
 	// After callMethod sets up the frame, we need to run it
 	// But callMethod changes v.current to the method's frame
 	// We need to execute the method and get the return value
-	// Save current frame and run the method
-	savedFrame := v.current
-	for v.current != savedFrame && v.current != nil {
+	//
+	// Termina por PROFUNDIDADE de pilha (savedDepth), não por identidade de
+	// frame (v.current == savedFrame): o método do operador pode chamar
+	// outros métodos (que empurram/removem frames livremente), e um
+	// Try/Catch num frame ANCESTRAL a este (fora do operador) pode capturar
+	// uma exceção lançada aqui dentro via handleCatch, desenrolando
+	// v.frames abaixo de savedDepth e substituindo v.current por esse frame
+	// ancestral. Nesse caso o frame do operador nunca mais reaparece por
+	// identidade, e a antiga condição `v.current != savedFrame` rodaria
+	// bytecode de frames alheios indefinidamente (lixo). Comparar por
+	// profundidade detecta esse desenrolamento e aborta sem tocar a pilha
+	// de operandos do frame ancestral já resolvido pelo handleCatch.
+	savedDepth := len(v.frames)
+	for len(v.frames) >= savedDepth && v.current != nil {
 		instr := v.current.Code[v.current.IP]
 		v.current.IP++
 		if err := v.execute(instr); err != nil {
-			// Error or return - check if we're back to saved frame
-			if v.current == savedFrame {
-				break
-			}
 			// Try/catch might handle it
 			if advErr, ok := err.(*advplrt.ErrorValue); ok {
 				if v.handleCatch(advErr) {
+					if len(v.frames) < savedDepth {
+						// O catch resolvido está num frame ancestral ao do
+						// operador: a pilha já desenrolou para além do
+						// nosso ponto de entrada e v.current já foi
+						// reposicionado corretamente pelo handleCatch.
+						// Aborta sem empilhar valor de retorno.
+						return advplrt.Nil, true
+					}
 					continue
 				}
 			}
@@ -1297,18 +1312,18 @@ func (v *VM) callJsonObjectMethod(obj *advplrt.ObjectValue, method string, args 
 		v.push(advplrt.Nil)
 		return nil
 	case "GETNAMES":
-		elems := make([]advplrt.Value, 0)
-		for k := range obj.Props {
-			elems = append(elems, advplrt.NewString(k))
+		// Ordem de inserção das chaves (mesma semântica do native GetNames).
+		elems := make([]advplrt.Value, len(obj.Keys))
+		for i, k := range obj.Keys {
+			elems[i] = advplrt.NewString(k)
 		}
 		v.push(advplrt.NewArray(elems))
 		return nil
 	case "DELNAME":
 		if len(args) > 0 {
 			if s, ok := args[0].(*advplrt.StringValue); ok {
-				key := strings.ToUpper(s.Val)
-				if _, exists := obj.Props[key]; exists {
-					delete(obj.Props, key)
+				// Chave case-sensitive, consistente com SetProp/bracket (semântica JSON).
+				if obj.DelProp(s.Val) {
 					v.push(advplrt.True)
 					return nil
 				}
