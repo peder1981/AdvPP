@@ -542,7 +542,7 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		} else if o, ok := arr.(*advplrt.ObjectValue); ok {
 			// Chave de bracket em JsonObject/hash: case-sensitive (semantica JSON).
 			if s, ok := idx.(*advplrt.StringValue); ok {
-				o.Props[s.Val] = val
+				o.SetProp(s.Val, val)
 			}
 		}
 	case compiler.OP_ARRAY_LEN:
@@ -561,7 +561,7 @@ func (v *VM) execute(instr compiler.Instruction) error {
 			val := v.pop()
 			key := v.pop()
 			if s, ok := key.(*advplrt.StringValue); ok {
-				obj.Props[strings.ToUpper(s.Val)] = val
+				obj.SetProp(strings.ToUpper(s.Val), val)
 			}
 		}
 		v.push(obj)
@@ -593,7 +593,7 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		obj := v.pop()
 		val := v.pop()
 		if o, ok := obj.(*advplrt.ObjectValue); ok {
-			o.Props[strings.ToUpper(propName)] = val
+			o.SetProp(strings.ToUpper(propName), val)
 		} else if e, ok := obj.(*advplrt.ErrorValue); ok {
 			switch strings.ToUpper(propName) {
 			case "DESCRIPTION":

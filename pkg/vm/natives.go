@@ -1420,6 +1420,18 @@ func (v *VM) registerNatives() {
 			return advplrt.NewString(""), nil
 		},
 
+		// GetNames(oJson): array com as chaves do hash, na ordem de inserção.
+		"GETNAMES": func(args []advplrt.Value) (advplrt.Value, error) {
+			if o, ok := getArg(args, 0).(*advplrt.ObjectValue); ok {
+				elems := make([]advplrt.Value, len(o.Keys))
+				for i, k := range o.Keys {
+					elems[i] = advplrt.NewString(k)
+				}
+				return advplrt.NewArray(elems), nil
+			}
+			return advplrt.NewArray([]advplrt.Value{}), nil
+		},
+
 		// ConIn([cPrompt]): le uma linha do stdin (sem o \n); "" no EOF.
 		// Contraparte de ConOut para programas de console interativos.
 		"CONIN": func(args []advplrt.Value) (advplrt.Value, error) {
