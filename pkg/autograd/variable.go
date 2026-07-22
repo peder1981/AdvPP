@@ -3,7 +3,11 @@
 // Backward propaga gradientes de trás pra frente.
 package autograd
 
-import "github.com/advpl/compiler/pkg/tensor"
+import (
+	"fmt"
+
+	"github.com/advpl/compiler/pkg/tensor"
+)
 
 type Variable struct {
 	Value    *tensor.Tensor
@@ -69,7 +73,13 @@ func reduceGradTo(g *tensor.Tensor, shape []int) *tensor.Tensor {
 }
 
 // Backward propaga gradientes a partir desta Variable (deve ser escalar).
-func (v *Variable) Backward() {
+// Retorna erro se v não for escalar (size 1) — chamar Backward sobre uma
+// Variable não-reduzida a escalar computaria silenciosamente o gradiente de
+// sum(v), o que mascara losses mal formadas.
+func (v *Variable) Backward() error {
+	if v.Value.Size() != 1 {
+		return fmt.Errorf("Backward: requer Variable escalar (size 1), tem shape %v", v.Value.Shape)
+	}
 	var topo []*Variable
 	visited := map[*Variable]bool{}
 	var build func(n *Variable)
@@ -90,4 +100,5 @@ func (v *Variable) Backward() {
 			topo[i].backward()
 		}
 	}
+	return nil
 }
