@@ -436,6 +436,8 @@ carrega um GGUF pronto — aqui o modelo é construído na própria linguagem.
 | `tests/llm/pt_chat.prw` | Respondedor por **recuperação**: normaliza (minúsculas + sem acento), tokeniza, descarta stopwords e pontua uma base de conhecimento por sobreposição de palavras | Lê a pergunta e **responde** com o item mais relevante (REPL via `ConIn`) |
 | `tests/llm/pt_nn.prw` | **Híbrido Markov + rede neural ternária** (ELM) com **janela longa** (entrada e saída até 4096 tokens): contexto local posicional + bag long-context, perceptron médio, suavização interpolada e amostragem nucleus | Lê um seed de até 4096 tokens e gera um **documento multi-frase** de até 4096 tokens |
 | `tests/llm/pt_neural.prw` | **LM neural char-level treinado por gradiente** (NPLM estilo Bengio): `Embedding → Reshape → Linear → Tanh → Linear → SoftmaxCE`, treinado com **Adam via `Fit`** sobre `corpus.txt` — o único que **aprende os pesos por backprop**, 100% sobre o stack de ML do AdvPP (S2+S3) | Lê um seed e gera texto PT-BR char-a-char por amostragem com temperatura |
+| `tests/llm/dev_nn.prw` | **LM neural de código AdvPL, token-level** (dev-oriented): lexer AdvPL próprio → NPLM sobre tokens (vocab top-N + `<unk>`), treinado no código do repo + `algos_advpl.prw`. Gera/completa código AdvPL; tem **REPL de autocomplete** | Lê um prefixo AdvPL e continua gerando código token a token |
+| `tests/llm/algos_advpl.prw` | **Biblioteca de 25 algoritmos** (lógica/leetcode/script) em AdvPL puro: ordenação, busca, recursão, strings, DP (troca de moedas, LCS), Kadane, two-sum, FizzBuzz… cada um testável | Auto-teste com asserts (`OK: todos passaram`); serve de corpus de código |
 
 O `tests/llm/pt_nn.prw` é o "topo" do que se treina e roda **sem sair do AdvPL**. A
 projeção ternária e a saída perceptron são multiply-free (via `MatVecTern`); o
@@ -489,3 +491,30 @@ e amostra o próximo byte. No mini-corpus determinístico (auto-teste) a loss ca
 interpretado — decora a amostra de treino e emerge estrutura do português, mas não é
 fluente. É o "modelo neural completo em AdvPP", ponta a ponta (tokenizar → treinar →
 gerar), provando que o stack float treina um LM de verdade.
+
+### `dev_nn.prw` — LM de código AdvPL orientado a desenvolvimento
+
+Mesmo motor do `pt_neural`, mas a unidade é o **token AdvPL** (não o byte): um **lexer
+AdvPL escrito em AdvPL** quebra o fonte em keywords/identificadores/números/strings/
+operadores, o vocabulário é os **top-N tokens por frequência + `<unk>`**, e o NPLM
+prevê o próximo token. Treina no código do próprio repo (montado por
+`tests/llm/build_corpus.sh` em `code_corpus.txt`) somado à biblioteca
+`algos_advpl.prw` — 25 algoritmos clássicos (ordenação, busca, recursão, DP, Kadane,
+two-sum, FizzBuzz…) que dão o **viés de lógica/leetcode**. Gera/completa código AdvPL
+e traz um **REPL de autocomplete** (`ConIn`): digite um prefixo, recebe a continuação.
+
+```
+advpl> Local aLista := {}
+       Local a3rdRow, 1,; oSize
+       If SubStr( ?, i [ nLen Upper Len ...
+advpl> For i := 1 To Len( ?)) ConOut( ?) Local ? := {} ...
+```
+
+No corpus real (46 mil tokens, vocab 301) a loss cai de ~5.70 para ~0.31 em ~90s, e a
+geração reproduz idiomas AdvPL (`For..To Len()`, `ConOut()`, `Local := {}`,
+`If/Else/Endif`, `dbSelectArea()`), com identificadores raros como `?` (`<unk>`).
+**Teto honesto:** é um modelo pequeno num VM interpretado — aprende a *estrutura* de
+tokens e os idiomas algorítmicos do corpus e gera código plausível enviesado a lógica,
+mas **não raciocina nem resolve problemas novos de leetcode** (isso exige um LLM grande
+pré-treinado). A "habilidade em lógica" vem do corpus curado + token-level, não de
+capacidade de raciocínio. Escala com corpus/k/H maiores e mais camadas.

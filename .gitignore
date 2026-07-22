@@ -42,3 +42,6 @@ web/.angular/
 
 # executáveis standalone gerados dos modelos LM
 tests/llm/bin/
+
+# corpus de codigo derivado (gerado por build_corpus.sh)
+tests/llm/code_corpus.txt
