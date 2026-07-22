@@ -1432,6 +1432,22 @@ func (v *VM) registerNatives() {
 			return advplrt.NewArray([]advplrt.Value{}), nil
 		},
 
+		// Fit(bPasso, nEpocas): avalia o codeblock bPasso nEpocas vezes e devolve o
+		// valor da última avaliação (a loss final). Laço de treino conciso.
+		"FIT": func(args []advplrt.Value) (advplrt.Value, error) {
+			cb := getArg(args, 0)
+			nEpocas := int(advplrt.ToFloat(getArg(args, 1)))
+			var last advplrt.Value = advplrt.Nil
+			for i := 0; i < nEpocas; i++ {
+				r, err := v.callBlockSync(cb)
+				if err != nil {
+					return advplrt.Nil, err
+				}
+				last = r
+			}
+			return last, nil
+		},
+
 		// ConIn([cPrompt]): le uma linha do stdin (sem o \n); "" no EOF.
 		// Contraparte de ConOut para programas de console interativos.
 		"CONIN": func(args []advplrt.Value) (advplrt.Value, error) {

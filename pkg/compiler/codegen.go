@@ -1089,6 +1089,8 @@ var builtinClasses = map[string]bool{
 	"VARIABLE":      true,
 	"SGD":           true,
 	"ADAM":          true,
+	"LINEAR":        true,
+	"EMBEDDING":     true,
 }
 
 func isBuiltinClass(name string) bool {
