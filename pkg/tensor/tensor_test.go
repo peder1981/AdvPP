@@ -1,6 +1,11 @@
 package tensor
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
+
+func almost(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-4 }
 
 func TestNewAndSize(t *testing.T) {
 	x := New([]int{2, 3})
@@ -161,5 +166,61 @@ func TestReduceAxis(t *testing.T) {
 	am, _ := a.ArgmaxAxis(1) // por linha -> [2,2] (0-based)
 	if am.Data[0] != 2 || am.Data[1] != 2 {
 		t.Fatalf("ArgmaxAxis(1) errado: %v", am.Data)
+	}
+}
+
+func TestActivations(t *testing.T) {
+	a, _ := FromData([]float32{-1, 0, 2}, []int{3})
+	r := a.Relu()
+	if r.Data[0] != 0 || r.Data[2] != 2 {
+		t.Fatalf("Relu errado: %v", r.Data)
+	}
+	e := a.Exp()
+	if !almost(e.Data[1], 1) {
+		t.Fatalf("Exp(0)=%v quer 1", e.Data[1])
+	}
+}
+
+func TestSoftmax(t *testing.T) {
+	a, _ := FromData([]float32{1, 2, 3, 1, 2, 3}, []int{2, 3})
+	s, err := a.Softmax(1) // por linha
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row0 float32
+	for j := 0; j < 3; j++ {
+		row0 += s.Data[j]
+	}
+	if !almost(row0, 1) {
+		t.Fatalf("softmax linha não soma 1: %v", row0)
+	}
+	if !(s.Data[2] > s.Data[0]) {
+		t.Fatalf("softmax deve favorecer o maior logit")
+	}
+}
+
+func TestSoftmaxStable(t *testing.T) {
+	a, _ := FromData([]float32{1000, 1001, 1002}, []int{3})
+	s, _ := a.Softmax(0)
+	var sum float32
+	for _, v := range s.Data {
+		sum += v
+		if math.IsNaN(float64(v)) {
+			t.Fatal("softmax instável (NaN)")
+		}
+	}
+	if !almost(sum, 1) {
+		t.Fatalf("softmax 1D não soma 1: %v", sum)
+	}
+}
+
+func TestIndexRows(t *testing.T) {
+	a, _ := FromData([]float32{10, 11, 20, 21, 30, 31}, []int{3, 2})
+	g, err := a.IndexRows([]int{2, 0}) // linhas 2 e 0 (0-based)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ShapeEq(g.Shape, []int{2, 2}) || g.Data[0] != 30 || g.Data[3] != 11 {
+		t.Fatalf("IndexRows errado: %v %v", g.Shape, g.Data)
 	}
 }
