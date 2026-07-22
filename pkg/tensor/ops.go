@@ -236,6 +236,9 @@ func (a *Tensor) MeanAll() float32 {
 	return a.SumAll() / float32(len(a.Data))
 }
 func (a *Tensor) MaxAll() float32 {
+	if len(a.Data) == 0 {
+		return 0
+	}
 	m := a.Data[0]
 	for _, v := range a.Data[1:] {
 		if v > m {
@@ -253,7 +256,6 @@ func (a *Tensor) ArgmaxAll() int {
 			bi = i
 		}
 	}
-	_ = a.Data[0]
 	return bi
 }
 

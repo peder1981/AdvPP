@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"fmt"
+
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 	"github.com/advpl/compiler/pkg/tensor"
 )
@@ -75,6 +77,17 @@ func argTensor(args []advplrt.Value, i int) (*tensor.Tensor, error) {
 // terr converte um erro de kernel num ErrorValue catchável.
 func terr(err error) error { return advplrt.NewError("Tensor: " + err.Error()) }
 
+// validShape rejeita formas com dimensão negativa, evitando panic em make()
+// dentro dos kernels de tensor.New/tensor.Rand.
+func validShape(shape []int) error {
+	for _, d := range shape {
+		if d < 0 {
+			return fmt.Errorf("forma com dimensão negativa: %v", shape)
+		}
+	}
+	return nil
+}
+
 // axisArg lê nAxis (1-based) e devolve 0-based, e se foi informado.
 func axisArg(args []advplrt.Value, i int) (axis int, given bool) {
 	if i >= len(args) {
@@ -91,21 +104,33 @@ func (v *VM) callTensorMethod(obj *advplrt.ObjectValue, method string, args []ad
 
 	switch method {
 	case "NEW":
-		obj.Native = tensor.New(shapeFromArg(getArg(args, 0)))
+		shape := shapeFromArg(getArg(args, 0))
+		if err := validShape(shape); err != nil {
+			return terr(err)
+		}
+		obj.Native = tensor.New(shape)
 		v.push(obj)
 	case "FROMARRAY":
-		nt, err := tensor.FromData(floatsFromArg(getArg(args, 0)), shapeFromArg(getArg(args, 1)))
+		shape := shapeFromArg(getArg(args, 1))
+		if err := validShape(shape); err != nil {
+			return terr(err)
+		}
+		nt, err := tensor.FromData(floatsFromArg(getArg(args, 0)), shape)
 		if err != nil {
 			return terr(err)
 		}
 		obj.Native = nt
 		v.push(obj)
 	case "RAND":
+		shape := shapeFromArg(getArg(args, 0))
+		if err := validShape(shape); err != nil {
+			return terr(err)
+		}
 		scale := float32(1)
 		if _, ok := getArg(args, 1).(*advplrt.NumberValue); ok {
 			scale = float32(advplrt.ToFloat(getArg(args, 1)))
 		}
-		obj.Native = tensor.Rand(shapeFromArg(getArg(args, 0)), scale)
+		obj.Native = tensor.Rand(shape, scale)
 		v.push(obj)
 
 	case "SHAPE":
@@ -177,6 +202,9 @@ func (v *VM) callTensorMethod(obj *advplrt.ObjectValue, method string, args []ad
 	case "SUM", "MEAN", "MAX", "ARGMAX":
 		axis, given := axisArg(args, 0)
 		if !given {
+			if t.Size() == 0 {
+				return terr(fmt.Errorf("tensor vazio"))
+			}
 			switch method {
 			case "SUM":
 				v.push(advplrt.NewNumber(float64(t.SumAll())))
@@ -225,6 +253,9 @@ func (v *VM) callTensorMethod(obj *advplrt.ObjectValue, method string, args []ad
 		v.push(wrapTensor(t.Gelu()))
 
 	case "SOFTMAX":
+		if t.Size() == 0 {
+			return terr(fmt.Errorf("tensor vazio"))
+		}
 		axis, given := axisArg(args, 0)
 		if !given {
 			axis = len(t.Shape) - 1 // última dim, 0-based
