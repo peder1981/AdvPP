@@ -78,3 +78,56 @@ func (a *Tensor) MulScalar(s float32) *Tensor {
 }
 
 var _ = math.Exp // math será usado nas ativações (Task 5)
+
+// MatMul: [M,K]x[K,N]->[M,N]; matvec [M,K]x[K]->[M]. Ordem i-k-j (cache).
+func (a *Tensor) MatMul(b *Tensor) (*Tensor, error) {
+	if len(a.Shape) == 2 && len(b.Shape) == 1 && a.Shape[1] == b.Shape[0] {
+		m, k := a.Shape[0], a.Shape[1]
+		out := New([]int{m})
+		for i := 0; i < m; i++ {
+			var s float32
+			for p := 0; p < k; p++ {
+				s += a.Data[i*k+p] * b.Data[p]
+			}
+			out.Data[i] = s
+		}
+		return out, nil
+	}
+	if len(a.Shape) == 2 && len(b.Shape) == 2 && a.Shape[1] == b.Shape[0] {
+		m, k, n := a.Shape[0], a.Shape[1], b.Shape[1]
+		out := New([]int{m, n})
+		for i := 0; i < m; i++ {
+			for p := 0; p < k; p++ {
+				aip := a.Data[i*k+p]
+				for j := 0; j < n; j++ {
+					out.Data[i*n+j] += aip * b.Data[p*n+j]
+				}
+			}
+		}
+		return out, nil
+	}
+	return nil, fmt.Errorf("MatMul: dims incompatíveis %v x %v", a.Shape, b.Shape)
+}
+
+// Transpose: transposta 2D.
+func (a *Tensor) Transpose() (*Tensor, error) {
+	if len(a.Shape) != 2 {
+		return nil, fmt.Errorf("Transpose: requer 2D, tem %v", a.Shape)
+	}
+	m, n := a.Shape[0], a.Shape[1]
+	out := New([]int{n, m})
+	for i := 0; i < m; i++ {
+		for j := 0; j < n; j++ {
+			out.Data[j*m+i] = a.Data[i*n+j]
+		}
+	}
+	return out, nil
+}
+
+// Reshape: mesma Data, nova forma (produto deve casar).
+func (a *Tensor) Reshape(shape []int) (*Tensor, error) {
+	if Prod(shape) != a.Size() {
+		return nil, fmt.Errorf("Reshape: forma %v incompatível com size %d", shape, a.Size())
+	}
+	return &Tensor{Shape: copyInts(shape), Data: append([]float32(nil), a.Data...)}, nil
+}
