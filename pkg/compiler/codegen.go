@@ -891,11 +891,7 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 		}
 	case *ast.SelfMethodCall:
 		c.emit(OP_LOAD_SELF, 0, 0, "", e.Loc.Line)
-		for _, arg := range e.Args {
-			if err := c.compileExpr(arg); err != nil {
-				return err
-			}
-		}
+		c.compileArgs(e.Args) // via compileArgs p/ tratar NamedParam como nos demais calls
 		c.emit(OP_CALL_METHOD, 0, len(e.Args), e.Method, e.Loc.Line)
 	case *ast.FieldAccess:
 		c.emit(OP_FIELD_GET, 0, 0, e.Field, e.Loc.Line)
@@ -917,11 +913,7 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 	case *ast.CodeBlock:
 		return c.compileCodeBlock(e)
 	case *ast.NewExpr:
-		for _, arg := range e.Args {
-			if err := c.compileExpr(arg); err != nil {
-				return err
-			}
-		}
+		c.compileArgs(e.Args) // via compileArgs p/ tratar NamedParam como nos demais calls
 		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), e.ClassName, e.Loc.Line)
 	case *ast.MacroExp:
 		if err := c.compileExpr(e.Expr); err != nil {

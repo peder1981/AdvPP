@@ -498,13 +498,13 @@ func (v *VM) execute(instr compiler.Instruction) error {
 	case compiler.OP_NEQ:
 		return v.opComparison(func(a, b advplrt.Value) bool { return !a.Equals(b) }, "")
 	case compiler.OP_LT:
-		return v.opComparison(func(a, b advplrt.Value) bool { return advplrt.ToFloat(a) < advplrt.ToFloat(b) }, "")
+		return v.opComparison(func(a, b advplrt.Value) bool { return relCmp(a, b) < 0 }, "")
 	case compiler.OP_GT:
-		return v.opComparison(func(a, b advplrt.Value) bool { return advplrt.ToFloat(a) > advplrt.ToFloat(b) }, "")
+		return v.opComparison(func(a, b advplrt.Value) bool { return relCmp(a, b) > 0 }, "")
 	case compiler.OP_LTE:
-		return v.opComparison(func(a, b advplrt.Value) bool { return advplrt.ToFloat(a) <= advplrt.ToFloat(b) }, "")
+		return v.opComparison(func(a, b advplrt.Value) bool { return relCmp(a, b) <= 0 }, "")
 	case compiler.OP_GTE:
-		return v.opComparison(func(a, b advplrt.Value) bool { return advplrt.ToFloat(a) >= advplrt.ToFloat(b) }, "")
+		return v.opComparison(func(a, b advplrt.Value) bool { return relCmp(a, b) >= 0 }, "")
 	case compiler.OP_FORLOOP_CMP:
 		step := advplrt.ToFloat(v.pop())
 		end := advplrt.ToFloat(v.pop())
@@ -1013,6 +1013,26 @@ func (v *VM) opBinary(fn func(a, b float64) float64, operatorMethod string) erro
 	return nil
 }
 
+// relCmp compara dois valores para os operadores relacionais (<, >, <=, >=).
+// Quando AMBOS são strings, compara lexicograficamente por byte (semântica AdvPL
+// para strings — o operador não é aritmético); caso contrário compara numericamente.
+// Antes, strings eram jogadas em ToFloat (→ 0), fazendo " " >= "A" retornar .T.
+func relCmp(a, b advplrt.Value) int {
+	if sa, ok := a.(*advplrt.StringValue); ok {
+		if sb, ok := b.(*advplrt.StringValue); ok {
+			return strings.Compare(sa.Val, sb.Val)
+		}
+	}
+	fa, fb := advplrt.ToFloat(a), advplrt.ToFloat(b)
+	if fa < fb {
+		return -1
+	}
+	if fa > fb {
+		return 1
+	}
+	return 0
+}
+
 func (v *VM) opComparison(fn func(a, b advplrt.Value) bool, operatorMethod string) error {
 	right := v.pop()
 	left := v.pop()
@@ -1305,7 +1325,9 @@ func (v *VM) callJsonObjectMethod(obj *advplrt.ObjectValue, method string, args 
 	case "HASPROPERTY":
 		if len(args) > 0 {
 			if s, ok := args[0].(*advplrt.StringValue); ok {
-				_, exists := obj.Props[strings.ToUpper(s.Val)]
+				// Case-sensitive, consistente com o bracket (oJ[k]), SetProp,
+				// DelName e GetNames — todo o namespace de chaves JSON.
+				_, exists := obj.Props[s.Val]
 				v.push(advplrt.NewBool(exists))
 				return nil
 			}
