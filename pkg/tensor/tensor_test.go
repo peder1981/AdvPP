@@ -267,3 +267,67 @@ func TestDTypeInfra(t *testing.T) {
 		t.Fatalf("AsDType errado: dtype=%v get0=%v", z64.DType, z64.Get(0))
 	}
 }
+
+func TestFloat64Ops(t *testing.T) {
+	// Add/Mul em f64
+	a, _ := FromData64([]float64{1, 2, 3, 4}, []int{2, 2})
+	b, _ := FromData64([]float64{5, 6, 7, 8}, []int{2, 2})
+	sum, _ := a.Add(b)
+	if sum.DType != Float64 || sum.Get(3) != 12 {
+		t.Fatalf("Add f64: dtype=%v get3=%v", sum.DType, sum.Get(3))
+	}
+	// MatMul f64
+	mm, _ := a.MatMul(b) // [[1,2],[3,4]]·[[5,6],[7,8]] = [[19,22],[43,50]]
+	if mm.DType != Float64 || mm.Get(0) != 19 || mm.Get(3) != 50 {
+		t.Fatalf("MatMul f64 errado: %v %v", mm.Get(0), mm.Get(3))
+	}
+	// Transpose f64
+	tp, _ := a.Transpose()
+	if tp.Get(1) != 3 { // a=[[1,2],[3,4]] -> T=[[1,3],[2,4]], idx1 = 3
+		t.Fatalf("Transpose f64 idx1 = %v, quer 3", tp.Get(1))
+	}
+	// Reshape preserva dtype
+	rs, _ := a.Reshape([]int{4})
+	if rs.DType != Float64 || rs.Get(2) != 3 {
+		t.Fatalf("Reshape f64: dtype=%v get2=%v", rs.DType, rs.Get(2))
+	}
+	// promoção: f32 MatMul f64 -> f64
+	af32, _ := FromData([]float32{1, 2, 3, 4}, []int{2, 2})
+	pr, _ := af32.MatMul(b)
+	if pr.DType != Float64 {
+		t.Fatalf("MatMul f32×f64 deveria promover a f64, veio %v", pr.DType)
+	}
+	// Dot e Norm
+	d, _ := a.Dot(b) // 1*5+2*6+3*7+4*8 = 70
+	if d != 70 {
+		t.Fatalf("Dot = %v, quer 70", d)
+	}
+	c, _ := FromData64([]float64{3, 4}, []int{2})
+	if c.Norm() != 5 {
+		t.Fatalf("Norm = %v, quer 5", c.Norm())
+	}
+}
+
+func TestFloat64Precision(t *testing.T) {
+	// Somar 1 a um valor grande e subtrair: f64 preserva melhor que f32.
+	// Constrói vetor [1e8, 1, -1e8] e soma via Dot com vetor de 1s.
+	big := 1e8
+	dataF64 := []float64{big, 1, -big}
+	ones64, _ := FromData64([]float64{1, 1, 1}, []int{3})
+	v64, _ := FromData64(dataF64, []int{3})
+	got64, _ := v64.Dot(ones64) // esperado exatamente 1.0 em f64
+
+	dataF32 := []float32{float32(big), 1, float32(-big)}
+	ones32, _ := FromData([]float32{1, 1, 1}, []int{3})
+	v32, _ := FromData(dataF32, []int{3})
+	got32, _ := v32.Dot(ones32)
+
+	errF64 := math.Abs(got64 - 1.0)
+	errF32 := math.Abs(got32 - 1.0)
+	if errF64 >= errF32 {
+		t.Fatalf("f64 deveria ter erro menor: errF64=%v errF32=%v", errF64, errF32)
+	}
+	if errF64 > 1e-6 {
+		t.Fatalf("f64 impreciso demais: erro=%v (got=%v)", errF64, got64)
+	}
+}
