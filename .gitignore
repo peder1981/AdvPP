@@ -39,3 +39,6 @@ web/.angular/
 /demo1.bytecode
 /hello_exec
 /ui-test
+
+# executáveis standalone gerados dos modelos LM
+tests/llm/bin/
