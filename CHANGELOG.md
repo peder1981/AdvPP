@@ -4,6 +4,16 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Kernel matemático — Álgebra linear (Sub-projeto 6b)
+
+- **Álgebra linear float64** (`pkg/tensor/linalg.go`, não-diferenciável): decomposição
+  **LU** (pivô parcial) e, sobre ela, **`Det`** (determinante), **`Solve`** (`A·x=b`,
+  b vetor ou matriz) e **`Inv`** (inversa). **`QR`** por refletores de Householder
+  (`{Q,R}`), e **`EigSym`** (autovalores/autovetores de matriz simétrica por rotações
+  de Jacobi, `{valores, vetores}`). VM: `oA:Det()/Solve(oB)/Inv()/QR()/EigSym()`. Erros
+  (não-quadrada, singular, não-simétrica) são `ErrorValue`. SVD e autovalores
+  não-simétricos ficam para um ciclo posterior.
+
 ### Kernel matemático — Tensor float64 (Sub-projeto 6a)
 
 - **Precisão dupla selecionável por tensor** no kernel de Tensor: `DType`
