@@ -4,6 +4,25 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Modelo de código AdvPL orientado a desenvolvimento (Sub-projeto 5)
+
+- **`tests/llm/dev_nn.prw`** — LM neural de **código AdvPL, token-level**, treinado
+  100% em AdvPP sobre o stack de ML (nenhuma op de motor nova). Um **lexer AdvPL
+  escrito em AdvPL** quebra o fonte em tokens (keywords, identificadores, números,
+  strings, operadores multi/mono-char, `<nl>`); vocabulário top-N por frequência +
+  `<unk>` (hash via `JsonObject`); mesmo NPLM do `pt_neural`
+  (`Embedding → Reshape → Linear → Tanh → Linear → SoftmaxCE`, Adam via `Fit`) sobre
+  tokens. Geração com des-tokenização + **REPL de autocomplete** (`ConIn`). No corpus
+  real (46k tokens, vocab 301) a loss cai ~5.70 → ~0.31, gerando idiomas AdvPL.
+- **`tests/llm/algos_advpl.prw`** — biblioteca de **25 algoritmos** de lógica/leetcode/
+  script em AdvPL puro (ordenação, busca, recursão, strings, DP: troca de moedas e LCS,
+  Kadane, two-sum, FizzBuzz, parênteses balanceados…), cada um testável, com auto-teste.
+  Dá o viés algorítmico ao corpus do `dev_nn`.
+- **`tests/llm/build_corpus.sh`** — monta `code_corpus.txt` concatenando os fontes
+  AdvPL/TLPP do repo (derivado; fora do git).
+- Teto honesto documentado: modelo pequeno em VM interpretado — gera código plausível
+  enviesado a lógica, não resolve problemas novos de leetcode.
+
 ## [1.17.0] — 2026-07-22
 
 Capstone da missão original: um **LM neural treinado por gradiente, 100% em AdvPP**,
