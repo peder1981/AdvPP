@@ -2,6 +2,20 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [Não lançado]
+
+### Núcleo de Tensor (Sub-projeto 2, forward)
+
+- Classe **`Tensor`** (float32) acelerada em Go (`pkg/tensor`): dados `[]float32`
+  planos fora da representação *boxed* de `Value`, com kernels de forward em Go
+  puro — `MatMul`/matvec, elementwise com broadcast limitado (escalar, linha,
+  coluna), `Transpose`, `Reshape`, reduções (`Sum`/`Mean`/`Max`/`Argmax`, com e
+  sem eixo), ativações (`Exp`/`Log`/`Sqrt`/`Relu`/`Tanh`/`Sigmoid`/`Gelu`),
+  `Softmax` estável e `IndexRows` (embedding). O AdvPL orquestra; o Go faz a conta.
+  Ligada à VM no padrão de classe nativa (`ObjectValue.Native`); erros de forma são
+  `ErrorValue` capturáveis por `Try/Catch`. Aceite: `tests/mlp_demo.prw` roda o
+  forward de um MLP float. Autodiff/treino fica para um ciclo futuro.
+
 ## [1.15.0] — 2026-07-22
 
 ### Robustez da linguagem (Sub-projeto 1)
