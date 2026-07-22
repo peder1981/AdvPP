@@ -374,20 +374,39 @@ func (v *VM) runLoop() (advplrt.Value, error) {
 	return advplrt.Nil, nil
 }
 
+// handleCatch procura um Try/Catch ativo a partir do frame corrente,
+// desenrolando (descartando) frames sem Try/Catch pendente até encontrar um
+// que capture o erro, ou até esvaziar a pilha de frames. Cada frame
+// descartado nesse desenrolamento tem seus bindings dinâmicos
+// (Private/Public) restaurados via restoreDynFrame antes de ser removido,
+// para que um Throw dentro de uma chamada aninhada capturado por um
+// Try/Catch do chamador não deixe o dynEnv corrompido.
 func (v *VM) handleCatch(errVal *advplrt.ErrorValue) bool {
-	frame := v.current
-	for i := len(frame.TryCatches) - 1; i >= 0; i-- {
-		tc := frame.TryCatches[i]
-		frame.TryCatches = frame.TryCatches[:i]
-		if len(v.stack) > tc.StackBase {
-			v.stack = v.stack[:tc.StackBase]
+	for len(v.frames) > 0 {
+		frame := v.frames[len(v.frames)-1]
+		if len(frame.TryCatches) > 0 {
+			i := len(frame.TryCatches) - 1
+			tc := frame.TryCatches[i]
+			frame.TryCatches = frame.TryCatches[:i]
+			if len(v.stack) > tc.StackBase {
+				v.stack = v.stack[:tc.StackBase]
+			}
+			if tc.CatchVarIdx >= 0 && tc.CatchVarIdx < len(frame.Locals) {
+				frame.Locals[tc.CatchVarIdx] = errVal
+			}
+			frame.IP = tc.CatchIP
+			v.current = frame
+			return true
 		}
-		if tc.CatchVarIdx >= 0 && tc.CatchVarIdx < len(frame.Locals) {
-			frame.Locals[tc.CatchVarIdx] = errVal
+		// Este frame não tem Try/Catch ativo: descarta e sobe para o
+		// chamador, restaurando os bindings dinâmicos declarados nele.
+		v.restoreDynFrame(frame)
+		v.frames = v.frames[:len(v.frames)-1]
+		if len(v.stack) > frame.StackBase {
+			v.stack = v.stack[:frame.StackBase]
 		}
-		frame.IP = tc.CatchIP
-		return true
 	}
+	v.current = nil
 	return false
 }
 
@@ -1567,7 +1586,7 @@ func (v *VM) callBlockSync(cb advplrt.Value, args ...advplrt.Value) (advplrt.Val
 		instr := v.current.Code[v.current.IP]
 		v.current.IP++
 		if err := v.execute(instr); err != nil {
-			v.frames = v.frames[:baseDepth]
+			v.unwindFramesTo(baseDepth)
 			v.current = savedCurrent
 			return advplrt.Nil, err
 		}
@@ -1576,7 +1595,7 @@ func (v *VM) callBlockSync(cb advplrt.Value, args ...advplrt.Value) (advplrt.Val
 		}
 	}
 	if len(v.frames) > baseDepth {
-		v.frames = v.frames[:baseDepth]
+		v.unwindFramesTo(baseDepth)
 	}
 	v.current = savedCurrent
 	if len(v.stack) > 0 {
@@ -1594,18 +1613,44 @@ func (v *VM) blockSelf() advplrt.Value {
 	return advplrt.Nil
 }
 
-func (v *VM) doReturn(val advplrt.Value) error {
-	// Pop frame
-	oldFrame := v.current
-	// restaura os bindings dinâmicos (Private/Public) criados neste frame
-	for i := len(oldFrame.dynRestore) - 1; i >= 0; i-- {
-		b := oldFrame.dynRestore[i]
+// restoreDynFrame desfaz (LIFO) todos os bindings dinâmicos (Private/Public)
+// declarados no frame f, restaurando o valor anterior sombreado (ou
+// removendo a chave, se não havia binding anterior). Deve ser chamado para
+// TODO frame descartado da pilha, seja por retorno normal (doReturn) seja
+// por qualquer caminho de desenrolamento por erro (callBlockSync,
+// handleCatch), para que o dynEnv nunca fique com bindings órfãos de um
+// frame que já não existe.
+func (v *VM) restoreDynFrame(f *CallFrame) {
+	for i := len(f.dynRestore) - 1; i >= 0; i-- {
+		b := f.dynRestore[i]
 		if b.had {
 			v.dynEnv[b.name] = b.prev
 		} else {
 			delete(v.dynEnv, b.name)
 		}
 	}
+	f.dynRestore = nil
+}
+
+// unwindFramesTo descarta v.frames[baseDepth:] em ordem LIFO (do topo até
+// baseDepth+1), restaurando os bindings dinâmicos de cada frame descartado
+// via restoreDynFrame, e então trunca v.frames para baseDepth. Usado pelos
+// caminhos de desistência de frame que não passam por doReturn (ex.: erro
+// dentro de callBlockSync).
+func (v *VM) unwindFramesTo(baseDepth int) {
+	for i := len(v.frames) - 1; i >= baseDepth; i-- {
+		v.restoreDynFrame(v.frames[i])
+	}
+	if len(v.frames) > baseDepth {
+		v.frames = v.frames[:baseDepth]
+	}
+}
+
+func (v *VM) doReturn(val advplrt.Value) error {
+	// Pop frame
+	oldFrame := v.current
+	// restaura os bindings dinâmicos (Private/Public) criados neste frame
+	v.restoreDynFrame(oldFrame)
 	v.frames = v.frames[:len(v.frames)-1]
 	if len(v.frames) > 0 {
 		v.current = v.frames[len(v.frames)-1]
