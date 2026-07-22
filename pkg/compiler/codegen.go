@@ -430,6 +430,17 @@ func (c *Compiler) compileStatement(stmt ast.Statement) error {
 }
 
 func (c *Compiler) compileVarDecl(s *ast.VarDecl) error {
+	scope := strings.ToLower(s.Scope)
+	if scope == "private" || scope == "public" {
+		c.emit(OP_DECL_DYN, 0, 0, s.Name, s.Loc.Line)
+		if s.Value != nil {
+			if err := c.compileExpr(s.Value); err != nil {
+				return err
+			}
+			c.emit(OP_STORE_DYN, 0, 0, s.Name, s.Loc.Line)
+		}
+		return nil
+	}
 	if s.Value != nil {
 		if err := c.compileExpr(s.Value); err != nil {
 			return err
@@ -488,13 +499,15 @@ func (c *Compiler) compileStoreTarget(target ast.Expression, line int) error {
 			c.emit(OP_STORE_LOCAL, idx, 0, target.Name, line)
 		} else if uidx, ok := c.resolveUpvalue(target.Name); ok {
 			c.emit(OP_STORE_UPVAL, uidx, 0, target.Name, line)
-		} else {
+		} else if c.currentFunc == nil {
 			idx := c.addLocal(target.Name)
 			if idx&0x8000 != 0 {
 				c.emit(OP_STORE_GLOBAL, idx&0x7FFF, 0, target.Name, line)
 			} else {
 				c.emit(OP_STORE_LOCAL, idx, 0, target.Name, line)
 			}
+		} else {
+			c.emit(OP_STORE_DYN, 0, 0, target.Name, line)
 		}
 	case *ast.PropertyAccess:
 		if err := c.compileExpr(target.Object); err != nil {
@@ -848,13 +861,15 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 			c.emit(OP_LOAD_LOCAL, idx, 0, e.Name, e.Loc.Line)
 		} else if uidx, ok := c.resolveUpvalue(e.Name); ok {
 			c.emit(OP_LOAD_UPVAL, uidx, 0, e.Name, e.Loc.Line)
-		} else {
+		} else if c.currentFunc == nil {
 			idx := c.addLocal(e.Name)
 			if idx&0x8000 != 0 {
 				c.emit(OP_LOAD_GLOBAL, idx&0x7FFF, 0, e.Name, e.Loc.Line)
 			} else {
 				c.emit(OP_LOAD_LOCAL, idx, 0, e.Name, e.Loc.Line)
 			}
+		} else {
+			c.emit(OP_LOAD_DYN, 0, 0, e.Name, e.Loc.Line)
 		}
 	case *ast.BinaryOp:
 		return c.compileBinaryOp(e)
