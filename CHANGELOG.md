@@ -4,6 +4,23 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+## [1.19.0] — 2026-07-22
+
+**Kernel matemático** completo em AdvPP: precisão dupla selecionável no Tensor (S6a),
+álgebra linear (S6b: LU/Det/Solve/Inv/QR/EigSym), geometria espacial (S6c) e
+aritmética/estatística (S6d). O ML segue rápido em float32; o float64 entra sob demanda
+para cálculo exato.
+
+### Kernel matemático — Geometria + Aritmética/Estatística (Sub-projetos 6c/6d)
+
+- **Geometria espacial** (`pkg/vm/geometry_native.go`): vetores/pontos 2D/3D (arrays
+  AdvPL, float64) — `VecDot`, `VecCross` (3D), `VecNorm`, `VecNormalize`, `VecDist`,
+  `VecAngle`, `VecAdd`/`VecSub`/`VecScale`, `RotateVec2`, `RotateVec3` (eixo x/y/z).
+- **Aritmética + estatística** (`pkg/vm/mathstat_native.go`): `Atan2`, `Log10`, `Pow`,
+  `Ceil`, `Sign`, `Sinh`/`Cosh`/`Tanh`, `Gcd`, `Lcm`, `Fact`; `Mean`, `Variance`,
+  `StdDev`, `Median`, `LinReg` (mínimos quadrados), `Interp` (linear). Fecham o kernel
+  matemático (S6a f64 → S6b álgebra → S6c geometria → S6d aritmética/estatística).
+
 ### Kernel matemático — Álgebra linear (Sub-projeto 6b)
 
 - **Álgebra linear float64** (`pkg/tensor/linalg.go`, não-diferenciável): decomposição

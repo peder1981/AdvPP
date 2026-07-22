@@ -435,6 +435,32 @@ Local aEig := oS:EigSym()                       // {valores[n], vetores[n,n]} de
 Erros (não-quadrada, singular, não-simétrica, dims incompatíveis) são `ErrorValue`
 capturáveis. **Follow-up** (ciclo posterior): SVD e autovalores de matriz não-simétrica.
 
+### Geometria espacial
+
+Funções nativas sobre vetores/pontos como arrays (`{x,y}`/`{x,y,z}`), em float64:
+
+```advpl
+? VecCross({1,0,0}, {0,1,0})       // produto vetorial 3D -> {0,0,1}
+? VecDot({1,2,3}, {4,5,6})          // produto escalar
+? VecNorm({3,4})                     // magnitude -> 5
+? VecDist({0,0}, {3,4})              // distância euclidiana -> 5
+? VecAngle({1,0}, {0,1})            // ângulo (rad) -> π/2
+Local aU := VecNormalize({3,4})     // vetor unitário
+Local aR := RotateVec2({1,0}, nTheta)              // rotação 2D
+Local aP := RotateVec3({1,0,0}, "z", nTheta)       // rotação 3D em torno de x/y/z
+```
+
+Também `VecAdd`, `VecSub`, `VecScale`. Erros (dims incompatíveis, cross fora de 3D) são capturáveis.
+
+### Aritmética e estatística
+
+Funções escalares adicionais: `Atan2(y,x)`, `Log10(x)`, `Pow(b,e)`, `Ceil(x)`,
+`Sign(x)`, `Sinh/Cosh/Tanh(x)`, `Gcd(a,b)`, `Lcm(a,b)`, `Fact(n)`.
+
+Estatística sobre arrays: `Mean(a)`, `Variance(a)`, `StdDev(a)` (amostrais), `Median(a)`,
+`LinReg(aX, aY)` → `{a, b}` de `y = a + b·x` (mínimos quadrados), `Interp(aX, aY, x)`
+(interpolação linear).
+
 ## Autodiff e treino
 
 Sobre o núcleo de Tensor, a classe `Variable` grava um tape de operações e
