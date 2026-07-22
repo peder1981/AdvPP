@@ -4,6 +4,19 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Álgebra linear — SVD, autovalores não-simétricos + correção de parser
+
+- **`SVD()`** (decomposição em valores singulares por Jacobi de um lado): `{U, S, V}`
+  com `A ≈ U·diag(S)·Vᵀ`, `S` decrescente, suporta matrizes retangulares.
+- **`Eig()`** — autovalores de matriz **não-simétrica** real (redução a Hessenberg +
+  QR de duplo shift à la EISPACK/hqr), devolvendo `{reais, imag}` com **pares complexos
+  conjugados** corretos. VM: `oA:SVD()` e `oA:Eig()`. Fecham os follow-ups do S6b.
+- **Correção de parser**: `ident = expr` como argumento de chamada agora é **comparação**
+  (semântica AdvPL do `=`), não parâmetro nomeado — só `ident := expr` é named param.
+  Corrige a compilação de fontes Protheus reais (ex.: `If(cAlias1 = cAlias, .T., .F.)`);
+  `tests/real_protheus_test.prw` passa a compilar. Mensagem de erro de codegen agora
+  inclui a linha.
+
 ## [1.19.0] — 2026-07-22
 
 **Kernel matemático** completo em AdvPP: precisão dupla selecionável no Tensor (S6a),
