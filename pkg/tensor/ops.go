@@ -131,3 +131,129 @@ func (a *Tensor) Reshape(shape []int) (*Tensor, error) {
 	}
 	return &Tensor{Shape: copyInts(shape), Data: append([]float32(nil), a.Data...)}, nil
 }
+
+func (a *Tensor) SumAll() float32 {
+	var s float32
+	for _, v := range a.Data {
+		s += v
+	}
+	return s
+}
+func (a *Tensor) MeanAll() float32 {
+	if len(a.Data) == 0 {
+		return 0
+	}
+	return a.SumAll() / float32(len(a.Data))
+}
+func (a *Tensor) MaxAll() float32 {
+	m := a.Data[0]
+	for _, v := range a.Data[1:] {
+		if v > m {
+			m = v
+		}
+	}
+	return m
+}
+
+// ArgmaxAll devolve o offset (0-based) do máximo global.
+func (a *Tensor) ArgmaxAll() int {
+	bi := 0
+	for i, v := range a.Data {
+		if v > a.Data[bi] {
+			bi = i
+		}
+	}
+	_ = a.Data[0]
+	return bi
+}
+
+// reduceAxis2D reduz um tensor 2D ao longo de axis (0 ou 1) com f (acumulador).
+func (a *Tensor) reduceAxis2D(axis int, init float32, f func(acc, x float32) float32) (*Tensor, error) {
+	if len(a.Shape) != 2 {
+		return nil, fmt.Errorf("redução por eixo requer 2D, tem %v", a.Shape)
+	}
+	m, n := a.Shape[0], a.Shape[1]
+	switch axis {
+	case 0:
+		out := New([]int{n})
+		for j := 0; j < n; j++ {
+			acc := init
+			for i := 0; i < m; i++ {
+				acc = f(acc, a.Data[i*n+j])
+			}
+			out.Data[j] = acc
+		}
+		return out, nil
+	case 1:
+		out := New([]int{m})
+		for i := 0; i < m; i++ {
+			acc := init
+			for j := 0; j < n; j++ {
+				acc = f(acc, a.Data[i*n+j])
+			}
+			out.Data[i] = acc
+		}
+		return out, nil
+	}
+	return nil, fmt.Errorf("axis inválido: %d", axis)
+}
+
+func (a *Tensor) SumAxis(axis int) (*Tensor, error) {
+	return a.reduceAxis2D(axis, 0, func(acc, x float32) float32 { return acc + x })
+}
+func (a *Tensor) MaxAxis(axis int) (*Tensor, error) {
+	return a.reduceAxis2D(axis, float32(math.Inf(-1)), func(acc, x float32) float32 {
+		if x > acc {
+			return x
+		}
+		return acc
+	})
+}
+func (a *Tensor) MeanAxis(axis int) (*Tensor, error) {
+	s, err := a.SumAxis(axis)
+	if err != nil {
+		return nil, err
+	}
+	var cnt float32
+	if axis == 0 {
+		cnt = float32(a.Shape[0])
+	} else {
+		cnt = float32(a.Shape[1])
+	}
+	return s.MulScalar(1 / cnt), nil
+}
+
+// ArgmaxAxis: índices (0-based, como float32) do máximo por linha (axis 1) ou coluna (axis 0).
+func (a *Tensor) ArgmaxAxis(axis int) (*Tensor, error) {
+	if len(a.Shape) != 2 {
+		return nil, fmt.Errorf("ArgmaxAxis requer 2D, tem %v", a.Shape)
+	}
+	m, n := a.Shape[0], a.Shape[1]
+	switch axis {
+	case 0:
+		out := New([]int{n})
+		for j := 0; j < n; j++ {
+			bi := 0
+			for i := 1; i < m; i++ {
+				if a.Data[i*n+j] > a.Data[bi*n+j] {
+					bi = i
+				}
+			}
+			out.Data[j] = float32(bi)
+		}
+		return out, nil
+	case 1:
+		out := New([]int{m})
+		for i := 0; i < m; i++ {
+			bi := 0
+			for j := 1; j < n; j++ {
+				if a.Data[i*n+j] > a.Data[i*n+bi] {
+					bi = j
+				}
+			}
+			out.Data[i] = float32(bi)
+		}
+		return out, nil
+	}
+	return nil, fmt.Errorf("axis inválido: %d", axis)
+}

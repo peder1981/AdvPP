@@ -137,3 +137,29 @@ func TestTransposeReshape(t *testing.T) {
 		t.Fatal("esperava erro de reshape incompatível")
 	}
 }
+
+func TestReduceAll(t *testing.T) {
+	a, _ := FromData([]float32{1, 5, 2, 4}, []int{2, 2})
+	if a.SumAll() != 12 || a.MaxAll() != 5 || a.MeanAll() != 3 {
+		t.Fatalf("reduce all errado: sum=%v max=%v mean=%v", a.SumAll(), a.MaxAll(), a.MeanAll())
+	}
+	if a.ArgmaxAll() != 1 { // 0-based: o 5 está no offset 1
+		t.Fatalf("ArgmaxAll=%d quer 1", a.ArgmaxAll())
+	}
+}
+
+func TestReduceAxis(t *testing.T) {
+	a, _ := FromData([]float32{1, 2, 3, 4, 5, 6}, []int{2, 3})
+	s0, _ := a.SumAxis(0) // sobre linhas -> [5,7,9]
+	if !ShapeEq(s0.Shape, []int{3}) || s0.Data[0] != 5 || s0.Data[2] != 9 {
+		t.Fatalf("SumAxis(0) errado: %v %v", s0.Shape, s0.Data)
+	}
+	s1, _ := a.SumAxis(1) // sobre colunas -> [6,15]
+	if !ShapeEq(s1.Shape, []int{2}) || s1.Data[1] != 15 {
+		t.Fatalf("SumAxis(1) errado: %v %v", s1.Shape, s1.Data)
+	}
+	am, _ := a.ArgmaxAxis(1) // por linha -> [2,2] (0-based)
+	if am.Data[0] != 2 || am.Data[1] != 2 {
+		t.Fatalf("ArgmaxAxis(1) errado: %v", am.Data)
+	}
+}
