@@ -108,3 +108,32 @@ func TestQR(t *testing.T) {
 		}
 	}
 }
+
+func TestEigSym(t *testing.T) {
+	// [[2,0],[0,3]] -> autovalores 3,2 (desc); autovetores = eixos
+	vals, vecs, err := m64([]float64{2, 0, 0, 3}, 2, 2).EigSym()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !close64(vals.Get(0), 3) || !close64(vals.Get(1), 2) {
+		t.Fatalf("autovalores = [%v,%v], quer [3,2]", vals.Get(0), vals.Get(1))
+	}
+	// matriz simétrica geral: A·v = λ·v para cada par; soma autovalores = traço
+	a := m64([]float64{4, 1, 1, 3}, 2, 2) // traço 7
+	vals, vecs, _ = a.EigSym()
+	if !close64(vals.Get(0)+vals.Get(1), 7) {
+		t.Fatalf("soma autovalores = %v, quer 7 (traço)", vals.Get(0)+vals.Get(1))
+	}
+	for k := 0; k < 2; k++ {
+		vk := m64([]float64{vecs.Get(0*2 + k), vecs.Get(1*2 + k)}, 2)
+		av, _ := a.MatMul(vk)                              // A·v
+		lam := vals.Get(k)
+		if math.Abs(av.Get(0)-lam*vk.Get(0)) > 1e-6 || math.Abs(av.Get(1)-lam*vk.Get(1)) > 1e-6 {
+			t.Fatalf("A·v != λ·v para autovetor %d", k)
+		}
+	}
+	// não-simétrica -> erro
+	if _, _, err := m64([]float64{1, 2, 3, 4}, 2, 2).EigSym(); err == nil {
+		t.Fatal("EigSym de não-simétrica deveria falhar")
+	}
+}
