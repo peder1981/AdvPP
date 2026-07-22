@@ -176,3 +176,82 @@ func (a *Tensor) Inv() (*Tensor, error) {
 	}
 	return out, nil
 }
+
+// QR decompõe A [m,n] (m>=n) em Q [m,m] ortogonal e R [m,n] triangular superior,
+// por refletores de Householder. Devolve {Q, R} (float64).
+func (a *Tensor) QR() (q *Tensor, r *Tensor, err error) {
+	if len(a.Shape) != 2 {
+		return nil, nil, fmt.Errorf("QR: requer 2D, veio %v", a.Shape)
+	}
+	m, n := a.Shape[0], a.Shape[1]
+	if m < n {
+		return nil, nil, fmt.Errorf("QR: requer m>=n, veio [%d,%d]", m, n)
+	}
+	f := a.AsDType(Float64)
+	// R começa como cópia de A; Q como identidade [m,m].
+	R := make([][]float64, m)
+	Q := make([][]float64, m)
+	for i := 0; i < m; i++ {
+		R[i] = make([]float64, n)
+		copy(R[i], f.Data64[i*n:(i+1)*n])
+		Q[i] = make([]float64, m)
+		Q[i][i] = 1
+	}
+	for k := 0; k < n && k < m-1; k++ {
+		// vetor de Householder da coluna k (linhas k..m-1)
+		var norm float64
+		for i := k; i < m; i++ {
+			norm += R[i][k] * R[i][k]
+		}
+		norm = math.Sqrt(norm)
+		if norm < luEps {
+			continue
+		}
+		if R[k][k] > 0 {
+			norm = -norm
+		}
+		v := make([]float64, m)
+		v[k] = R[k][k] - norm
+		for i := k + 1; i < m; i++ {
+			v[i] = R[i][k]
+		}
+		var vnorm2 float64
+		for i := k; i < m; i++ {
+			vnorm2 += v[i] * v[i]
+		}
+		if vnorm2 < luEps {
+			continue
+		}
+		// R := (I - 2 v vᵀ / vᵀv) R
+		for j := 0; j < n; j++ {
+			var dot float64
+			for i := k; i < m; i++ {
+				dot += v[i] * R[i][j]
+			}
+			f2 := 2 * dot / vnorm2
+			for i := k; i < m; i++ {
+				R[i][j] -= f2 * v[i]
+			}
+		}
+		// Q := Q (I - 2 v vᵀ / vᵀv)
+		for i := 0; i < m; i++ {
+			var dot float64
+			for j := k; j < m; j++ {
+				dot += Q[i][j] * v[j]
+			}
+			f2 := 2 * dot / vnorm2
+			for j := k; j < m; j++ {
+				Q[i][j] -= f2 * v[j]
+			}
+		}
+	}
+	qt := NewDType([]int{m, m}, Float64)
+	for i := 0; i < m; i++ {
+		copy(qt.Data64[i*m:(i+1)*m], Q[i])
+	}
+	rt := NewDType([]int{m, n}, Float64)
+	for i := 0; i < m; i++ {
+		copy(rt.Data64[i*n:(i+1)*n], R[i])
+	}
+	return qt, rt, nil
+}
