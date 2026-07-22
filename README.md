@@ -12,7 +12,8 @@ Um compilador e interpretador totalmente funcional para as linguagens de program
 - **Executáveis Standalone**: Constrói executáveis autossuficientes com bytecode embutido usando go:embed
 - **Máquina Virtual**: VM completa com todos os opcodes implementados
 - **Runtime**: Funções nativas (ConOut, MsgInfo, AllTrim, Str, Val, aAdd, aScan, Len, etc.)
-- **I/O de disco, arquivo e sistema**: `MemoRead`/`MemoWrite`/`FErase`, API de handle para streaming (`FOpen`/`FCreate`/`FReadStr`/`FWrite`/`FSeek`/`FClose`/`FError`) e chamada de sistema `WaitRun` — ver seção [Funções de I/O, arquivo e sistema](#funções-de-io-arquivo-e-sistema)
+- **I/O de disco, arquivo e sistema**: `MemoRead`/`MemoWrite`/`FErase`, API de handle para streaming (`FOpen`/`FCreate`/`FReadStr`/`FWrite`/`FSeek`/`FClose`/`FError`), console interativo `ConIn` e chamada de sistema `WaitRun` — ver seção [Funções de I/O, arquivo e sistema](#funções-de-io-arquivo-e-sistema)
+- **BLAS ternária + IA em AdvPL puro**: kernel *multiply-free* `MatVecTern` (produto matriz-vetor ternário estilo BitNet) e três modelos escritos inteiramente em AdvPL — Markov (`pt_llm`), respondedor por recuperação (`pt_chat`) e híbrido Markov+rede neural ternária (`pt_nn`); ver [Exemplos de IA em AdvPL puro](#exemplos-de-ia-em-advpl-puro)
 - **IDE Gráfica**: Ambiente de Desenvolvimento Gráfico usando Fyne com editor de código, navegador de arquivos e compilador integrado
 - **Framework UI**: Aplicações gráficas usando Fyne (diálogos, formulários, grids, botões, menus)
 - **Banco de Dados**: Operações de banco de dados baseadas em Workarea (DbSelectArea, DbSeek, DbSkip, RecLock, etc.)
@@ -281,6 +282,12 @@ chamada de sistema — todas com semântica AdvPL nativa, em Go puro (sem CGO).
 | `MemoWrite(cArq, cTexto)` | Grava a string no arquivo; retorna `.T.` em sucesso (alias: `MemoWrit`) |
 | `FErase(cArq)` | Apaga o arquivo; `0` em sucesso, `-1` em erro |
 
+### Console interativo
+
+| Função | Descrição |
+|--------|-----------|
+| `ConIn([cPrompt])` | Lê uma linha do stdin (sem o `\n`); `""` no EOF. Contraparte de `ConOut` para programas de console interativos (REPL, chat) |
+
 ### Handle de arquivo (streaming — arquivos grandes)
 
 | Função | Descrição |
@@ -325,13 +332,32 @@ Local cSaida := FReadStr(nH, 65536)  // ou em blocos, para arquivos enormes
 FClose(nH)
 ```
 
-## Exemplo: LLM em AdvPL puro (`pt_llm.prw`)
+### Álgebra linear ternária (BLAS)
 
-`pt_llm.prw` (na raiz do repositório) é um modelo de linguagem pequeno escrito
-**inteiramente em AdvPL** — uma cadeia de Markov de ordem variável em nível de
-byte (ordens 1–6 numa mesma hash, com backoff) que lê e gera português do
-Brasil. Diferente da classe `LLM` (que carrega um GGUF pronto), aqui o modelo é
-construído na própria linguagem: treina lendo o corpus, condiciona no prompt
-("lê") e continua o texto ("fala"). Roda com `advplc run pt_llm.prw` e inclui
-auto-teste. Exercita `Loop`, `For Step -1`, hash com chave case-sensitive e
-(opcionalmente) `MemoRead` para treinar de um `.txt` externo.
+| Função | Descrição |
+|--------|-----------|
+| `MatVecTern(aMat, aVecTern)` | Produto matriz-vetor *multiply-free* onde o vetor é **ternário** (`-1`/`0`/`+1`): `result[i] = Σ_j sign(vec[j])·mat[i][j]` — só soma/subtração, o kernel do BitNet. `aMat` é um array de M linhas (cada uma um array de N números); `aVecTern` tem N entradas |
+
+Base para redes neurais ternárias em AdvPL: peso/ativação em `{-1,0,+1}`
+eliminam a multiplicação, viabilizando treino e inferência sem BLAS de ponto
+flutuante nem GPU (ver `pt_nn.prw`).
+
+## Exemplos de IA em AdvPL puro
+
+Três modelos escritos **inteiramente em AdvPL** (rodam com `advplc run <arq>`,
+cada um com auto-teste). Diferente da classe `LLM` — que carrega um GGUF pronto —
+aqui o modelo é construído na própria linguagem.
+
+| Arquivo | O que é | Lê / Responde |
+|---------|---------|---------------|
+| `pt_llm.prw` | Cadeia de **Markov** de ordem variável em nível de byte (ordens 1–6, backoff) | Lê o prompt e **continua** o texto em PT-BR |
+| `pt_chat.prw` | Respondedor por **recuperação**: normaliza (minúsculas + sem acento), tokeniza, descarta stopwords e pontua uma base de conhecimento por sobreposição de palavras | Lê a pergunta e **responde** com o item mais relevante (REPL via `ConIn`) |
+| `pt_nn.prw` | **Híbrido Markov + rede neural ternária** (ELM): projeção aleatória ternária fixa + camada de saída treinada por perceptron (add/sub), misturada com Markov na geração | Treina e gera PT-BR; usa a **BLAS ternária** `MatVecTern` |
+
+O `pt_nn.prw` é o "topo" do que se treina e roda **sem sair do AdvPL**: a
+projeção ternária e a saída perceptron são multiply-free (via `MatVecTern`), o
+aprendizado é medível (os erros do perceptron caem a cada passada) e o Markov
+dá o prior local enquanto a rede generaliza para contextos não vistos. Não é uma
+rede neural de ponto flutuante nem um transformer — é o limite honesto do que a
+linguagem permite treinar e executar por conta própria. A qualidade escala com o
+corpus: troque `Corpus()` embutido por `MemoRead("corpus.txt")`.
