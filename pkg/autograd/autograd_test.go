@@ -227,3 +227,26 @@ func TestZeroGrad(t *testing.T) {
 		t.Fatal("ZeroGrad deveria limpar o grad")
 	}
 }
+
+func TestAdamReducesLoss(t *testing.T) {
+	p := NewLeaf(mustT([]float32{3, -4}, []int{2}))
+	lossOf := func() float32 {
+		sq, _ := p.Value.Mul(p.Value)
+		return sq.SumAll()
+	}
+	before := lossOf()
+	opt := NewAdam([]*Variable{p}, 0.1)
+	for i := 0; i < 10; i++ {
+		opt.ZeroGrad()
+		l, _ := p.Mul(p)
+		l.Sum().Backward()
+		opt.Step()
+	}
+	after := lossOf()
+	if !(after < before) {
+		t.Fatalf("Adam nao reduziu a loss: antes=%v depois=%v", before, after)
+	}
+	if opt.t != 10 {
+		t.Fatalf("t esperado 10, veio %d", opt.t)
+	}
+}
