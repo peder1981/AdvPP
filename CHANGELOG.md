@@ -4,6 +4,13 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+## [1.16.0] — 2026-07-22
+
+Ciclo de ML: núcleo de Tensor float32 + motor de autodiff completo + treino. Fecha
+os Sub-projetos 2 (Tensor forward) e 3 (autodiff/treino: S3a motor+SGD → S3b
+softmax-CE+Adam+embedding → S3c módulos+trainer), permitindo definir e treinar um
+modelo float de verdade em poucas linhas de AdvPL, com o Go fazendo a conta.
+
 ### Núcleo de Tensor (Sub-projeto 2, forward)
 
 - Classe **`Tensor`** (float32) acelerada em Go (`pkg/tensor`): dados `[]float32`
