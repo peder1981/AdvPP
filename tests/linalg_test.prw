@@ -5,6 +5,8 @@ User Function LinAlgTst()
     Local oX := Nil
     Local aQR := {}
     Local aEig := {}
+    Local aSVD := {}
+    Local aEig2 := {}
     Local nFail := 0
     Local lPegou := .F.
     Local i := 0
@@ -44,6 +46,24 @@ User Function LinAlgTst()
         nFail++
     EndIf
 
+    // SVD: {U,S,V}; valores singulares de diag(3,2,1) = {3,2,1}
+    aSVD := Tensor():FromArray({3,0,0, 0,-2,0, 0,0,1}, {3,3}, "float64"):SVD()
+    If Len(aSVD) != 3
+        ConOut("FALHA: SVD nao devolveu {U,S,V}")
+        nFail++
+    EndIf
+    If Abs(aSVD[2]:ToArray()[1] - 3) > 0.0001 .Or. Abs(aSVD[2]:ToArray()[3] - 1) > 0.0001
+        ConOut("FALHA: SVD valores singulares")
+        nFail++
+    EndIf
+
+    // Eig nao-simetrica: [[0,-1],[1,0]] -> ±i (partes reais 0, |imag| 1)
+    aEig2 := Tensor():FromArray({0,-1,1,0}, {2,2}, "float64"):Eig()
+    If Abs(aEig2[1]:ToArray()[1]) > 0.0001 .Or. Abs(Abs(aEig2[2]:ToArray()[1]) - 1) > 0.0001
+        ConOut("FALHA: Eig complexo (rotacao)")
+        nFail++
+    EndIf
+
     // erro capturavel: Inv de singular
     Begin Sequence
         Tensor():FromArray({1,2,2,4},{2,2},"float64"):Inv()
@@ -57,7 +77,7 @@ User Function LinAlgTst()
     EndIf
 
     If nFail == 0
-        ConOut("OK: algebra linear (Det/Solve/Inv/QR/EigSym) verificada.")
+        ConOut("OK: algebra linear (Det/Solve/Inv/QR/EigSym/SVD/Eig) verificada.")
     Else
         ConOut("TESTE FALHOU: " + Str(nFail,2))
     EndIf

@@ -227,6 +227,18 @@ func (v *VM) callTensorMethod(obj *advplrt.ObjectValue, method string, args []ad
 			return terr(err)
 		}
 		v.push(advplrt.NewArray([]advplrt.Value{wrapTensor(vals), wrapTensor(vecs)}))
+	case "SVD":
+		u, s, vv, err := t.SVD()
+		if err != nil {
+			return terr(err)
+		}
+		v.push(advplrt.NewArray([]advplrt.Value{wrapTensor(u), wrapTensor(s), wrapTensor(vv)}))
+	case "EIG":
+		re, im, err := t.Eig()
+		if err != nil {
+			return terr(err)
+		}
+		v.push(advplrt.NewArray([]advplrt.Value{wrapTensor(re), wrapTensor(im)}))
 	case "GET":
 		val, err := t.At(idxFromArg(getArg(args, 0)))
 		if err != nil {
