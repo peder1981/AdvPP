@@ -386,7 +386,30 @@ broadcast de escalar e linha/coluna), `AddScalar`/`MulScalar`; `MatMul`,
 Tensor); `Exp`/`Log`/`Sqrt`/`Relu`/`Tanh`/`Sigmoid`/`Gelu`; `Softmax`; `IndexRows`
 (lookup de embedding). Erros de forma são capturáveis por `Try/Catch`.
 
-Este ciclo entrega o **forward** (inferência). Autodiff/treino é um ciclo futuro.
+### Precisão selecionável (float32 / float64)
+
+O dtype é escolhível **por tensor**: `float32` é o default (rápido, usado pelo ML) e
+`float64` entra sob demanda para cálculo que exige exatidão (base do kernel de álgebra
+linear/geometria). A precisão escalar do AdvPL já é float64; isto leva a dupla precisão
+ao kernel de Tensor.
+
+```advpl
+Local oA := Tensor():New({2,2}, "float64")             // dtype float64
+Local oB := Tensor():FromArray({1,2,3,4}, {2,2}, "float64")
+? oB:DType()                                            // "float64"
+Local oC := oA:ToFloat64()                              // converte f32 -> f64
+? oB:Dot(oB)                                            // produto interno
+? Tensor():FromArray({3,4},{2},"float64"):Norm()        // norma L2 = 5
+```
+
+Métodos de dtype: `DType()` (`"float32"`/`"float64"`), `ToFloat32()`/`ToFloat64()`,
+`Dot(oOutro)` (produto interno) e `Norm()` (L2). As ops (`Add`/`MatMul`/… ) respeitam
+o dtype e **promovem a float64** se qualquer operando for f64; o caminho float32
+permanece idêntico (o ML não é afetado). Propagação de f64 pelo autodiff fica para um
+ciclo futuro (álgebra/geometria não usam gradiente).
+
+Este ciclo entrega o **forward** (inferência) + precisão dupla. Autodiff/treino veio em
+ciclos seguintes.
 
 ## Autodiff e treino
 
