@@ -79,3 +79,32 @@ func TestInv(t *testing.T) {
 		t.Fatal("Det de não-quadrada deveria falhar")
 	}
 }
+
+func TestQR(t *testing.T) {
+	a := m64([]float64{12, -51, 4, 6, 167, -68, -4, 24, -41}, 3, 3)
+	q, r, err := a.QR()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Q·R ≈ A
+	qr, _ := q.MatMul(r)
+	for i := 0; i < 9; i++ {
+		if math.Abs(qr.Get(i)-a.Get(i)) > 1e-6 {
+			t.Fatalf("Q·R[%d] = %v, quer %v", i, qr.Get(i), a.Get(i))
+		}
+	}
+	// Qᵀ·Q ≈ I
+	qt, _ := q.Transpose()
+	qtq, _ := qt.MatMul(q)
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			want := 0.0
+			if i == j {
+				want = 1
+			}
+			if math.Abs(qtq.Get(i*3+j)-want) > 1e-9 {
+				t.Fatalf("QᵀQ[%d,%d] = %v, quer %v", i, j, qtq.Get(i*3+j), want)
+			}
+		}
+	}
+}
