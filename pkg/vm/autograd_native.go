@@ -120,6 +120,13 @@ func (v *VM) callVariableMethod(obj *advplrt.ObjectValue, method string, args []
 			return verr(err)
 		}
 		v.push(wrapVariable(r))
+	case "RESHAPE":
+		shp := shapeFromArg(getArg(args, 0))
+		r, err := self.Reshape(shp)
+		if err != nil {
+			return verr(err)
+		}
+		v.push(wrapVariable(r))
 	case "SOFTMAXCE":
 		tg := shapeFromArg(getArg(args, 0))
 		for i := range tg {
