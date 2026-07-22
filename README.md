@@ -431,9 +431,14 @@ Local aEig := oS:EigSym()                       // {valores[n], vetores[n,n]} de
 - **`QR()`** → `{Q, R}` por refletores de Householder (`Q` ortogonal, `R` triangular sup.).
 - **`EigSym()`** → `{valores, vetores}` de matriz **simétrica** por rotações de Jacobi
   (autovalores decrescentes; colunas de `vetores` = autovetores). Não-simétrica → erro.
+- **`SVD()`** → `{U, S, V}` (decomposição em valores singulares, Jacobi de um lado;
+  `A ≈ U·diag(S)·Vᵀ`, `S` decrescente, suporta retangular m×n).
+- **`Eig()`** → `{reais, imag}` — **todos** os autovalores de matriz **não-simétrica**
+  (real), incluindo **pares complexos conjugados**, via redução a Hessenberg + QR de
+  duplo shift (Francis/hqr). Para autovalor complexo, `imag` traz o par ±.
 
-Erros (não-quadrada, singular, não-simétrica, dims incompatíveis) são `ErrorValue`
-capturáveis. **Follow-up** (ciclo posterior): SVD e autovalores de matriz não-simétrica.
+Erros (não-quadrada, singular, não-simétrica em `EigSym`, dims incompatíveis) são
+`ErrorValue` capturáveis.
 
 ### Geometria espacial
 
