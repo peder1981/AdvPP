@@ -45,6 +45,36 @@ func floatsFromArg(val advplrt.Value) []float32 {
 	return out
 }
 
+// floats64FromArg lê um array AdvPL de números como []float64.
+func floats64FromArg(val advplrt.Value) []float64 {
+	a, ok := val.(*advplrt.ArrayValue)
+	if !ok {
+		return nil
+	}
+	out := make([]float64, len(a.Elements))
+	for i, e := range a.Elements {
+		out[i] = advplrt.ToFloat(e)
+	}
+	return out
+}
+
+// dtypeFromArg lê "float64"/"float32" de um argumento string (default Float32).
+func dtypeFromArg(val advplrt.Value) tensor.DType {
+	if s, ok := val.(*advplrt.StringValue); ok && s.Val == "float64" {
+		return tensor.Float64
+	}
+	return tensor.Float32
+}
+
+// tensorToAdvplArray serializa os elementos (dtype-neutro) como array AdvPL.
+func tensorToAdvplArray(t *tensor.Tensor) *advplrt.ArrayValue {
+	el := make([]advplrt.Value, t.Size())
+	for i := range el {
+		el[i] = advplrt.NewNumber(t.Get(i))
+	}
+	return advplrt.NewArray(el)
+}
+
 func intsToAdvplArray(xs []int) *advplrt.ArrayValue {
 	el := make([]advplrt.Value, len(xs))
 	for i, x := range xs {
@@ -108,14 +138,20 @@ func (v *VM) callTensorMethod(obj *advplrt.ObjectValue, method string, args []ad
 		if err := validShape(shape); err != nil {
 			return terr(err)
 		}
-		obj.Native = tensor.New(shape)
+		obj.Native = tensor.NewDType(shape, dtypeFromArg(getArg(args, 1)))
 		v.push(obj)
 	case "FROMARRAY":
 		shape := shapeFromArg(getArg(args, 1))
 		if err := validShape(shape); err != nil {
 			return terr(err)
 		}
-		nt, err := tensor.FromData(floatsFromArg(getArg(args, 0)), shape)
+		var nt *tensor.Tensor
+		var err error
+		if dtypeFromArg(getArg(args, 2)) == tensor.Float64 {
+			nt, err = tensor.FromData64(floats64FromArg(getArg(args, 0)), shape)
+		} else {
+			nt, err = tensor.FromData(floatsFromArg(getArg(args, 0)), shape)
+		}
 		if err != nil {
 			return terr(err)
 		}
@@ -138,7 +174,25 @@ func (v *VM) callTensorMethod(obj *advplrt.ObjectValue, method string, args []ad
 	case "SIZE":
 		v.push(advplrt.NewNumber(float64(t.Size())))
 	case "TOARRAY":
-		v.push(floatsToAdvplArray(t.Data))
+		v.push(tensorToAdvplArray(t))
+	case "DTYPE":
+		v.push(advplrt.NewString(t.DType.String()))
+	case "TOFLOAT64":
+		v.push(wrapTensor(t.AsDType(tensor.Float64)))
+	case "TOFLOAT32":
+		v.push(wrapTensor(t.AsDType(tensor.Float32)))
+	case "DOT":
+		b, err := argTensor(args, 0)
+		if err != nil {
+			return err
+		}
+		d, err := t.Dot(b)
+		if err != nil {
+			return terr(err)
+		}
+		v.push(advplrt.NewNumber(d))
+	case "NORM":
+		v.push(advplrt.NewNumber(t.Norm()))
 	case "GET":
 		val, err := t.At(idxFromArg(getArg(args, 0)))
 		if err != nil {
