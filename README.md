@@ -385,3 +385,10 @@ tokens exigiria float (inviável multiply-free em AdvPL); o bag é a aproximaç�
 custo limitado. É o limite honesto do que a linguagem permite treinar e executar
 por conta própria. A qualidade e o contexto útil escalam com o corpus: forneça um
 `corpus.txt` grande (carregado automaticamente via `MemoRead`).
+
+O `corpus.txt` incluído é **_Dom Casmurro_ de Machado de Assis** (domínio
+público, via [Project Gutenberg](https://www.gutenberg.org/ebooks/55752)),
+~72 mil tokens — treina em ~30s e produz texto temático/machadiano. Remova o
+`corpus.txt` para cair no corpus factual curado embutido (prosa mais limpa, porém
+simples). Ressalva honesta: prosa literária complexa excede a capacidade de um
+modelo n-grama+ELM — a saída fica temática mas não totalmente coerente.

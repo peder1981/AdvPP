@@ -45,6 +45,8 @@
 #define MAXVOCAB 1200     // teto do vocabulário (top-N por frequência; resto -> <unk>)
 #define MAXTRAIN 1000     // teto de posições de treino do perceptron (stride no corpus)
 #define TOPP     0.92     // amostragem nucleus: menor conjunto com massa >= TOPP
+#define REPWIN   14       // janela de anti-repetição (palavras recentes)
+#define REPPEN   9        // força da penalidade de repetição por ocorrência recente
 
 User Function PtNN()
     Local oM := JsonObject():New()
@@ -66,9 +68,9 @@ User Function PtNN()
     ConOut("")
 
     ConOut("--- Geração híbrida (documento multi-frase, janela até " + Str(CTXMAX,4) + " tokens) ---")
-    Gera(oM, "o brasil", 200)                                        // saída longa
-    Gera(oM, "a ciencia e a tecnologia transformam a sociedade", 120) // seed/entrada maior
-    Gera(oM, "na cidade", 120)
+    Gera(oM, "uma noite", 200)                 // seeds ajustados ao corpus atual
+    Gera(oM, "os olhos", 120)
+    Gera(oM, "minha mae", 120)
 
     SelfTest(oM)
 Return
@@ -542,19 +544,35 @@ Static Function NextWord(oM, aSeq, nPrev, lAllowEnd)
         AddCand(aIds, aW, aTop[j], 1.0 * (Len(aTop) - j + 1) / Len(aTop))
     Next j
 
-    // Filtros: descarta <s>/<unk>; segura ponto final; anti-repetição; sharpening.
+    // Filtros: descarta <s>/<unk>; segura ponto final; penaliza repetição na
+    // janela recente (mata loops "se se se"); sharpening.
     For j := 1 To Len(aIds)
         id := aIds[j]
         If id == 1 .Or. id == nUnk
             aW[j] := 0
         ElseIf id == nPeriod .And. !lAllowEnd
             aW[j] := 0
-        ElseIf id == nPrev
-            aW[j] := aW[j] * 0.10
+        Else
+            aW[j] := aW[j] / (1 + REPPEN * RecentCount(aSeq, nEnd, id))
         EndIf
         aW[j] := aW[j] * aW[j]                   // sharpening: favorece os fortes
     Next j
 Return NucleusSample(aIds, aW, TOPP)
+
+// RecentCount: quantas vezes id aparece nas últimas REPWIN posições de aSeq.
+Static Function RecentCount(aSeq, nEnd, id)
+    Local n := 0
+    Local r := nEnd - REPWIN + 1
+    If r < 1
+        r := 1
+    EndIf
+    While r <= nEnd
+        If aSeq[r] == id
+            n++
+        EndIf
+        r++
+    End
+Return n
 
 // IdOf: id de uma palavra (0 se não existir no vocabulário).
 Static Function IdOf(oM, cW)
