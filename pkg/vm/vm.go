@@ -1256,6 +1256,8 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callLLMMethod(obj, upperMethod, args)
 	case "MCPServer":
 		return v.callMCPServerMethod(obj, upperMethod, args)
+	case "Tensor":
+		return v.callTensorMethod(obj, upperMethod, args)
 	default:
 		return fmt.Errorf("unknown method %s on object %s", method, obj.ClassName)
 	}
@@ -1394,6 +1396,9 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "MCPSERVER":
 			v.push(newMCPServerObject())
+			return nil
+		case "TENSOR":
+			v.push(newTensorObject())
 			return nil
 		case "ERRORCLASS":
 			obj := advplrt.NewObject("ErrorClass", cls)
