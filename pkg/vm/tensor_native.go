@@ -193,6 +193,40 @@ func (v *VM) callTensorMethod(obj *advplrt.ObjectValue, method string, args []ad
 		v.push(advplrt.NewNumber(d))
 	case "NORM":
 		v.push(advplrt.NewNumber(t.Norm()))
+	case "DET":
+		d, err := t.Det()
+		if err != nil {
+			return terr(err)
+		}
+		v.push(advplrt.NewNumber(d))
+	case "SOLVE":
+		b, err := argTensor(args, 0)
+		if err != nil {
+			return err
+		}
+		x, err := t.Solve(b)
+		if err != nil {
+			return terr(err)
+		}
+		v.push(wrapTensor(x))
+	case "INV":
+		inv, err := t.Inv()
+		if err != nil {
+			return terr(err)
+		}
+		v.push(wrapTensor(inv))
+	case "QR":
+		q, r, err := t.QR()
+		if err != nil {
+			return terr(err)
+		}
+		v.push(advplrt.NewArray([]advplrt.Value{wrapTensor(q), wrapTensor(r)}))
+	case "EIGSYM":
+		vals, vecs, err := t.EigSym()
+		if err != nil {
+			return terr(err)
+		}
+		v.push(advplrt.NewArray([]advplrt.Value{wrapTensor(vals), wrapTensor(vecs)}))
 	case "GET":
 		val, err := t.At(idxFromArg(getArg(args, 0)))
 		if err != nil {
