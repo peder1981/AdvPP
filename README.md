@@ -418,6 +418,12 @@ Loss de classificação e otimizador robusto: `oLoss := oLogits:SoftmaxCE(aAlvo)
 (`Step`/`ZeroGrad`). Ativações diferenciáveis `Tanh`/`Sigmoid`/`Gelu` e `IndexRows`
 (embedding, com backward scatter-add). Ver `tests/classifier_demo.prw`.
 
+Módulos e trainer: `Linear():New(nIn, nOut)` e `Embedding():New(nVocab, nDim)`
+encapsulam parâmetros + `Forward`; `oMod:Params()` devolve os pesos para o
+otimizador; `Fit(bPasso, nEpocas)` roda o laço de treino avaliando um codeblock por
+época. Assim dá para definir e treinar um modelo em poucas linhas — ver
+`tests/nn_demo.prw`.
+
 ## Exemplos de IA em AdvPL puro
 
 Três modelos escritos **inteiramente em AdvPL** (rodam com `advplc run <arq>`,
