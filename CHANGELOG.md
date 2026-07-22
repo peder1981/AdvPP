@@ -2,7 +2,7 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
-## [Não lançado]
+## [1.14.1] — 2026-07-22
 
 - **Corpus externo grande de verdade**: `corpus.txt` agora é *Dom Casmurro* de
   Machado de Assis (domínio público, via Project Gutenberg) — ~72 mil tokens,
