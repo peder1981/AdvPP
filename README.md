@@ -345,7 +345,7 @@ FClose(nH)
 
 Base para redes neurais ternárias em AdvPL: peso/ativação em `{-1,0,+1}`
 eliminam a multiplicação, viabilizando treino e inferência sem BLAS de ponto
-flutuante nem GPU (ver `pt_nn.prw`).
+flutuante nem GPU (ver `tests/llm/pt_nn.prw`).
 
 ### Funções de array de ordem superior (com bloco de código)
 
@@ -426,17 +426,17 @@ otimizador; `Fit(bPasso, nEpocas)` roda o laço de treino avaliando um codeblock
 
 ## Exemplos de IA em AdvPL puro
 
-Três modelos escritos **inteiramente em AdvPL** (rodam com `advplc run <arq>`,
-cada um com auto-teste). Diferente da classe `LLM` — que carrega um GGUF pronto —
-aqui o modelo é construído na própria linguagem.
+Modelos escritos **inteiramente em AdvPL** (rodam com `advplc run <arq>`, cada um
+com auto-teste), reunidos em **`tests/llm/`**. Diferente da classe `LLM` — que
+carrega um GGUF pronto — aqui o modelo é construído na própria linguagem.
 
 | Arquivo | O que é | Lê / Responde |
 |---------|---------|---------------|
-| `pt_llm.prw` | Cadeia de **Markov** de ordem variável em nível de byte (ordens 1–6, backoff) | Lê o prompt e **continua** o texto em PT-BR |
-| `pt_chat.prw` | Respondedor por **recuperação**: normaliza (minúsculas + sem acento), tokeniza, descarta stopwords e pontua uma base de conhecimento por sobreposição de palavras | Lê a pergunta e **responde** com o item mais relevante (REPL via `ConIn`) |
-| `pt_nn.prw` | **Híbrido Markov + rede neural ternária** (ELM) com **janela longa** (entrada e saída até 4096 tokens): contexto local posicional + bag long-context, perceptron médio, suavização interpolada e amostragem nucleus | Lê um seed de até 4096 tokens e gera um **documento multi-frase** de até 4096 tokens |
+| `tests/llm/pt_llm.prw` | Cadeia de **Markov** de ordem variável em nível de byte (ordens 1–6, backoff) | Lê o prompt e **continua** o texto em PT-BR |
+| `tests/llm/pt_chat.prw` | Respondedor por **recuperação**: normaliza (minúsculas + sem acento), tokeniza, descarta stopwords e pontua uma base de conhecimento por sobreposição de palavras | Lê a pergunta e **responde** com o item mais relevante (REPL via `ConIn`) |
+| `tests/llm/pt_nn.prw` | **Híbrido Markov + rede neural ternária** (ELM) com **janela longa** (entrada e saída até 4096 tokens): contexto local posicional + bag long-context, perceptron médio, suavização interpolada e amostragem nucleus | Lê um seed de até 4096 tokens e gera um **documento multi-frase** de até 4096 tokens |
 
-O `pt_nn.prw` é o "topo" do que se treina e roda **sem sair do AdvPL**. A
+O `tests/llm/pt_nn.prw` é o "topo" do que se treina e roda **sem sair do AdvPL**. A
 projeção ternária e a saída perceptron são multiply-free (via `MatVecTern`); o
 aprendizado é medível (os erros do perceptron caem a cada passada); o Markov
 interpolado dá o prior local enquanto a rede, com o **bag long-context** (janela

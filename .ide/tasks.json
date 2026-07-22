@@ -1,0 +1,73 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "AdvPP: Build compiler",
+			"type": "shell",
+			"command": "go build -o advplc ./cmd/advplc",
+			"options": { "cwd": "${workspaceFolder}" },
+			"group": "build",
+			"presentation": { "reveal": "silent", "panel": "shared" },
+			"problemMatcher": []
+		},
+		{
+			"label": "AdvPL: Check current file",
+			"type": "shell",
+			"command": "./advplc check \"${file}\"",
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOn": ["AdvPP: Build compiler"],
+			"group": "build",
+			"presentation": { "reveal": "always", "panel": "shared" },
+			"problemMatcher": []
+		},
+		{
+			"label": "AdvPL: Run current file",
+			"type": "shell",
+			"command": "./advplc run \"${file}\"",
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOn": ["AdvPP: Build compiler"],
+			"group": "build",
+			"presentation": { "reveal": "always", "panel": "shared" },
+			"problemMatcher": []
+		},
+		{
+			"label": "AdvPL: Compile current file (bytecode)",
+			"type": "shell",
+			"command": "./advplc compile \"${file}\"",
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOn": ["AdvPP: Build compiler"],
+			"group": "build",
+			"presentation": { "reveal": "always", "panel": "shared" },
+			"problemMatcher": []
+		},
+		{
+			"label": "AdvPL: Build standalone executable",
+			"type": "shell",
+			"command": "./advplc build \"${file}\" -o \"${fileDirname}/${fileBasenameNoExtension}\"",
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOn": ["AdvPP: Build compiler"],
+			"group": "build",
+			"presentation": { "reveal": "always", "panel": "shared" },
+			"problemMatcher": []
+		},
+		{
+			"label": "AdvPL: Serve current file (web)",
+			"type": "shell",
+			"command": "./advplc serve \"${file}\"",
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOn": ["AdvPP: Build compiler"],
+			"group": "build",
+			"presentation": { "reveal": "always", "panel": "shared" },
+			"problemMatcher": []
+		},
+		{
+			"label": "AdvPP: Full corpus sweep (500 fixtures)",
+			"type": "shell",
+			"command": "make test",
+			"options": { "cwd": "${workspaceFolder}" },
+			"group": "test",
+			"presentation": { "reveal": "always", "panel": "shared" },
+			"problemMatcher": []
+		}
+	]
+}
