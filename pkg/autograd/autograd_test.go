@@ -48,3 +48,111 @@ func TestBackwardManualAndAccumulate(t *testing.T) {
 		t.Fatalf("x.Grad esperado 5, veio %v", x.Grad)
 	}
 }
+
+func close32(a, b float32) bool {
+	d := a - b
+	if d < 0 {
+		d = -d
+	}
+	m := float64(a)
+	if m < 0 {
+		m = -m
+	}
+	m2 := float64(b)
+	if m2 < 0 {
+		m2 = -m2
+	}
+	return float64(d) <= 1e-2+5e-2*(m+m2)/2
+}
+
+// gradCheck compara o grad analítico (Backward) de f em x com diferenças finitas.
+// f constrói o grafo a partir de uma Variable e devolve a loss escalar {1}.
+func gradCheck(t *testing.T, name string, x *tensor.Tensor, f func(*Variable) *Variable) {
+	xv := NewLeaf(mustT(x.Data, x.Shape))
+	f(xv).Backward()
+	analytic := xv.Grad
+	const eps = 1e-2
+	for i := range x.Data {
+		orig := x.Data[i]
+		xp := mustT(x.Data, x.Shape)
+		xp.Data[i] = orig + eps
+		xm := mustT(x.Data, x.Shape)
+		xm.Data[i] = orig - eps
+		lp := f(NewLeaf(xp)).Value.Data[0]
+		lm := f(NewLeaf(xm)).Value.Data[0]
+		num := (lp - lm) / (2 * eps)
+		if !close32(analytic.Data[i], num) {
+			t.Fatalf("%s grad[%d]: analitico=%v numerico=%v", name, i, analytic.Data[i], num)
+		}
+	}
+}
+
+func TestGradMatMul(t *testing.T) {
+	W := mustT([]float32{0.5, -0.3, 0.2, 0.1, 0.4, -0.6}, []int{3, 2}) // [3,2]
+	// f(A) = sum(A[2,3] · W[3,2]); checa grad em A
+	gradCheck(t, "matmul-A", mustT([]float32{1, 2, 3, 4, 5, 6}, []int{2, 3}), func(a *Variable) *Variable {
+		y, err := a.MatMul(NewLeaf(W))
+		if err != nil {
+			panic(err)
+		}
+		return y.Sum()
+	})
+	A := mustT([]float32{1, 2, 3, 4, 5, 6}, []int{2, 3}) // [2,3]
+	// f(B) = sum(A · B[3,2]); checa grad em B
+	gradCheck(t, "matmul-B", mustT([]float32{0.5, -0.3, 0.2, 0.1, 0.4, -0.6}, []int{3, 2}), func(b *Variable) *Variable {
+		y, err := NewLeaf(A).MatMul(b)
+		if err != nil {
+			panic(err)
+		}
+		return y.Sum()
+	})
+}
+
+func TestGradAddBroadcast(t *testing.T) {
+	base := mustT([]float32{1, 2, 3, 4, 5, 6}, []int{2, 3})
+	// bias linha [3]: f(b) = sum(base + b)
+	gradCheck(t, "add-row", mustT([]float32{0.1, 0.2, 0.3}, []int{3}), func(b *Variable) *Variable {
+		y, err := NewLeaf(base).Add(b)
+		if err != nil {
+			panic(err)
+		}
+		return y.Sum()
+	})
+	// bias coluna [2,1]
+	gradCheck(t, "add-col", mustT([]float32{0.5, 0.7}, []int{2, 1}), func(b *Variable) *Variable {
+		y, err := NewLeaf(base).Add(b)
+		if err != nil {
+			panic(err)
+		}
+		return y.Sum()
+	})
+}
+
+func TestGradMulReluSumMeanMSE(t *testing.T) {
+	B := mustT([]float32{2, -1, 0.5, 3}, []int{2, 2})
+	gradCheck(t, "mul", mustT([]float32{1, 2, 3, 4}, []int{2, 2}), func(x *Variable) *Variable {
+		y, err := x.Mul(NewLeaf(B))
+		if err != nil {
+			panic(err)
+		}
+		return y.Sum()
+	})
+	// Relu: valores longe de 0 (não-diferenciável só em 0)
+	gradCheck(t, "relu", mustT([]float32{-2, 1, -0.5, 3}, []int{2, 2}), func(x *Variable) *Variable {
+		return x.Relu().Sum()
+	})
+	gradCheck(t, "sum", mustT([]float32{1, 2, 3}, []int{3}), func(x *Variable) *Variable {
+		return x.Sum()
+	})
+	gradCheck(t, "mean", mustT([]float32{1, 2, 3, 4}, []int{4}), func(x *Variable) *Variable {
+		return x.Mean()
+	})
+	target := mustT([]float32{1, 0, 2, 1}, []int{2, 2})
+	gradCheck(t, "mse", mustT([]float32{1.5, 0.2, 1.8, 0.9}, []int{2, 2}), func(x *Variable) *Variable {
+		l, err := x.MSE(NewLeaf(target))
+		if err != nil {
+			panic(err)
+		}
+		return l
+	})
+}
