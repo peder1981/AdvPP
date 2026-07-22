@@ -4,6 +4,19 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Kernel matemático — Tensor float64 (Sub-projeto 6a)
+
+- **Precisão dupla selecionável por tensor** no kernel de Tensor: `DType`
+  (`float32` default / `float64`) com armazenamento `Data64 []float64`; acessores
+  neutros `Get`/`Set`, construtores `NewDType`/`FromData64`/`RandDType`,
+  `AsDType`/`SameDType`. Ops `Add`/`Sub`/`Mul`/`Div`/`MatMul`/`Transpose`/`Reshape`
+  ganham caminho float64 por **dispatch no topo** (o caminho float32 fica
+  byte-idêntico — o ML não é afetado) e **promovem a float64** se qualquer operando
+  for f64. Novos `Dot` (produto interno) e `Norm` (L2). VM: `Tensor():New(aForma
+  [, cDType])`, `FromArray(...[, cDType])`, `DType()`, `ToFloat32()`/`ToFloat64()`,
+  `Dot`/`Norm`. Base do kernel de álgebra linear (S6b) e geometria (S6c). Propagação
+  de f64 pelo autodiff adiada (álgebra/geometria são não-diferenciáveis).
+
 ## [1.18.0] — 2026-07-22
 
 Modelo de código AdvPL orientado a desenvolvimento (`dev_nn`, token-level) + biblioteca
