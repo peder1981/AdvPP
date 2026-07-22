@@ -156,3 +156,40 @@ func TestGradMulReluSumMeanMSE(t *testing.T) {
 		return l
 	})
 }
+
+func TestSGDStepReducesLoss(t *testing.T) {
+	// loss = sum(p*p) = Σp²; grad = 2p; um passo com lr=0.1 encolhe p e reduz a loss.
+	p := NewLeaf(mustT([]float32{3, -4}, []int{2}))
+	lossBefore := func() float32 {
+		sq, _ := p.Value.Mul(p.Value)
+		return sq.SumAll()
+	}
+	before := lossBefore()
+
+	opt := NewSGD([]*Variable{p}, 0.1)
+	opt.ZeroGrad()
+	l, _ := p.Mul(p)
+	l.Sum().Backward()
+	opt.Step()
+
+	after := lossBefore()
+	if !(after < before) {
+		t.Fatalf("SGD nao reduziu a loss: antes=%v depois=%v", before, after)
+	}
+	// grad esperado 2p = [6,-8]; passo p -= 0.1*grad => [2.4,-3.2]
+	if !close32(p.Value.Data[0], 2.4) || !close32(p.Value.Data[1], -3.2) {
+		t.Fatalf("passo do SGD errado: %v", p.Value.Data)
+	}
+}
+
+func TestZeroGrad(t *testing.T) {
+	p := NewLeaf(mustT([]float32{1, 2}, []int{2}))
+	p.Sum().Backward()
+	if p.Grad == nil {
+		t.Fatal("esperava grad apos backward")
+	}
+	NewSGD([]*Variable{p}, 0.1).ZeroGrad()
+	if p.Grad != nil {
+		t.Fatal("ZeroGrad deveria limpar o grad")
+	}
+}
