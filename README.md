@@ -255,6 +255,9 @@ A IDE gráfica fornece:
 - Acesso a campo de alias `SA1->A1_NOME`
 - Auto-referência `::property`
 - Todos os tipos de dados AdvPL: Character, Numeric, Logical, Date, Array, Code Block, Nil, Object
+- `If()`/`IIF()` com 3 argumentos fazem curto-circuito (avaliam só o ramo escolhido)
+- `Private`/`Public` com escopo dinâmico (visíveis às funções chamadas)
+- Closures aninhadas: codeblocks capturam Locais N níveis acima por referência
 
 ### Recursos Adicionais TLPP
 - Tipagem estática com palavra-chave `as`
@@ -352,13 +355,13 @@ Honram um bloco de código `{|...| ... }` de verdade (avaliado pela VM):
 | `AEval(aArr, bBloco, [nIni], [nQtd])` | Aplica `bBloco(elem, i)` a cada elemento |
 | `AScan(aArr, uVal\|bBloco, [nIni], [nQtd])` | Posição do 1º elemento igual a `uVal` ou onde `bBloco(elem)` é `.T.`; `0` se não achar |
 | `File(cArq)` | `.T.` se o arquivo existe (não-diretório) |
+| `GetNames(oJson)` | Array com as chaves de um JsonObject, na ordem de inserção |
 
 Os blocos são **closures de verdade**: capturam Locais do escopo envolvente por
 referência — leitura e escrita — inclusive quando o bloco escapa da função que o
 criou (estado persistente). Ex.: `AEval(a, {|x| nSoma := nSoma + x})` acumula no
 `nSoma` externo; `{|| nN := nN + 1}` retornado por uma função vira um contador com
-estado próprio. (Captura em profundidade — bloco-dentro-de-bloco alcançando um
-Local dois níveis acima — ainda não é suportada.)
+estado próprio. Captura em profundidade funciona completamente — bloco-dentro-de-bloco captura Locais N níveis acima por referência.
 
 ## Exemplos de IA em AdvPL puro
 
