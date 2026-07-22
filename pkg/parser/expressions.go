@@ -3327,10 +3327,12 @@ func (p *Parser) parseArguments() ([]ast.Expression, error) {
 		if p.peek().Type == lexer.TOKEN_COMMA || p.peek().Type == lexer.TOKEN_RPAREN {
 			tok := p.peek()
 			args = append(args, &ast.NilLit{Loc: p.posFromToken(tok)})
-		} else if p.peek().Type == lexer.TOKEN_IDENT && p.peekAt(1).Type == lexer.TOKEN_ASSIGN {
-			// Check for named parameter: ident = expr
+		} else if p.peek().Type == lexer.TOKEN_IDENT && p.peekAt(1).Type == lexer.TOKEN_ASSIGN && p.peekAt(1).Value == ":=" {
+			// Parâmetro nomeado: `ident := expr` (SÓ com `:=`). Com `=` (single)
+			// é COMPARAÇÃO em AdvPL — ex.: `If(cAlias1 = cAlias, .T., .F.)` — e deve
+			// cair no else (parseAssignableExpr), não virar NamedParam.
 			nameTok := p.advance()
-			p.advance() // consume =
+			p.advance() // consume :=
 			valExpr, err := p.parseExpression()
 			if err != nil {
 				return nil, err

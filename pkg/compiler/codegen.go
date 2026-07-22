@@ -936,7 +936,7 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 		}
 		c.emit(OP_NEW_OBJECT, len(e.Pairs), 0, "json", e.Loc.Line)
 	default:
-		return fmt.Errorf("unsupported expression type: %T", expr)
+		return fmt.Errorf("unsupported expression type: %T (linha %d)", expr, expr.Pos().Line)
 	}
 	return nil
 }
