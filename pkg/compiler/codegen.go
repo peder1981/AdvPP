@@ -36,14 +36,16 @@ type funcContext struct {
 	// closures: contexto envolvente e variáveis livres capturadas (upvalues)
 	parent     *funcContext
 	upvals     map[string]int // nome da variável livre → índice de upvalue
-	upvalSlots []int          // índice de upvalue → slot no frame envolvente
+	upvalDescs []UpvalDesc    // índice de upvalue → origem (LOCAL/UPVAL)
 }
 
-// resolveUpvalue: se `name` não é local deste bloco mas é um LOCAL do contexto
-// envolvente imediato, aloca (ou reusa) um upvalue e retorna seu índice. É o que
-// faz o codeblock capturar variáveis do escopo de fora por referência (closure).
+// resolveUpvalue: se `name` é capturável do escopo envolvente (Local do pai ou
+// upvalue do pai, recursivamente), aloca/reusa um upvalue e retorna seu índice.
 func (c *Compiler) resolveUpvalue(name string) (int, bool) {
-	fc := c.currentFunc
+	return c.resolveUpvalueIn(c.currentFunc, name)
+}
+
+func (c *Compiler) resolveUpvalueIn(fc *funcContext, name string) (int, bool) {
 	if fc == nil || fc.parent == nil {
 		return 0, false
 	}
@@ -51,15 +53,22 @@ func (c *Compiler) resolveUpvalue(name string) (int, bool) {
 		return idx, true
 	}
 	if slot, ok := fc.parent.locals[name]; ok && slot&0x8000 == 0 {
-		idx := len(fc.upvalSlots)
-		if fc.upvals == nil {
-			fc.upvals = make(map[string]int)
-		}
-		fc.upvals[name] = idx
-		fc.upvalSlots = append(fc.upvalSlots, slot)
-		return idx, true
+		return c.addUpval(fc, name, UpvalDesc{Kind: UpvalLocal, Index: slot})
+	}
+	if pidx, ok := c.resolveUpvalueIn(fc.parent, name); ok {
+		return c.addUpval(fc, name, UpvalDesc{Kind: UpvalParent, Index: pidx})
 	}
 	return 0, false
+}
+
+func (c *Compiler) addUpval(fc *funcContext, name string, d UpvalDesc) (int, bool) {
+	idx := len(fc.upvalDescs)
+	if fc.upvals == nil {
+		fc.upvals = make(map[string]int)
+	}
+	fc.upvals[name] = idx
+	fc.upvalDescs = append(fc.upvalDescs, d)
+	return idx, true
 }
 
 func New() *Compiler {
@@ -1068,7 +1077,12 @@ func isBuiltinClass(name string) bool {
 }
 
 func (c *Compiler) compileCodeBlock(e *ast.CodeBlock) error {
-	funcName := fmt.Sprintf("__codeblock_%d", len(c.bc.Functions))
+	// Nome único monotônico: não usar len(c.bc.Functions) aqui, pois um
+	// codeblock aninhado é compilado (e registrado) ANTES de seu pai (a
+	// compilação do corpo do pai roda antes do próprio pai se registrar em
+	// c.bc.Functions), o que colidiria os nomes de pai e filho.
+	funcName := fmt.Sprintf("__codeblock_%d", c.nextFuncIdx)
+	c.nextFuncIdx++
 
 	savedFunc := c.currentFunc
 
@@ -1119,7 +1133,7 @@ func (c *Compiler) compileCodeBlock(e *ast.CodeBlock) error {
 	}
 
 	info.NumLocals = c.currentFunc.nextLocal
-	info.UpvalSlots = c.currentFunc.upvalSlots // slots do frame envolvente a capturar
+	info.Upvals = c.currentFunc.upvalDescs // origem dos upvalues (closures aninhadas)
 	c.bc.Functions[funcName] = info
 
 	// Patch the jump to skip over the codeblock body

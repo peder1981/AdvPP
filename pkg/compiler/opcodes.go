@@ -184,8 +184,19 @@ type FunctionInfo struct {
 	ParamNames  []string
 	LocalNames  map[string]int // nome da local → slot (writeback do @ GET web)
 	Annotations []AnnotationInfo
-	UpvalSlots  []int // closures: slots do frame envolvente capturados por este codeblock
+	Upvals      []UpvalDesc // closures: origem de cada upvalue capturado por este codeblock
 }
+
+// UpvalDesc descreve a origem de um upvalue capturado por um codeblock (closure).
+type UpvalDesc struct {
+	Kind  uint8 // UpvalLocal (slot do frame envolvente) ou UpvalParent (upvalue do bloco pai)
+	Index int
+}
+
+const (
+	UpvalLocal  uint8 = 0 // captura frame.Locals[Index]
+	UpvalParent uint8 = 1 // captura parentBlock.Upvalues[Index]
+)
 
 // AnnotationInfo stores annotation metadata
 type AnnotationInfo struct {
