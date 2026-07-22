@@ -1086,6 +1086,8 @@ var builtinClasses = map[string]bool{
 	"LLM":           true,
 	"MCPSERVER":     true,
 	"TENSOR":        true,
+	"VARIABLE":      true,
+	"SGD":           true,
 }
 
 func isBuiltinClass(name string) bool {
