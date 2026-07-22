@@ -157,6 +157,18 @@ func TestGradMulReluSumMeanMSE(t *testing.T) {
 	})
 }
 
+func TestGradActivations(t *testing.T) {
+	gradCheck(t, "tanh", mustT([]float32{-1, 0.5, 2, -0.3}, []int{2, 2}), func(x *Variable) *Variable {
+		return x.Tanh().Sum()
+	})
+	gradCheck(t, "sigmoid", mustT([]float32{-1, 0.5, 2, -0.3}, []int{2, 2}), func(x *Variable) *Variable {
+		return x.Sigmoid().Sum()
+	})
+	gradCheck(t, "gelu", mustT([]float32{-1, 0.5, 2, -0.3}, []int{2, 2}), func(x *Variable) *Variable {
+		return x.Gelu().Sum()
+	})
+}
+
 func TestSGDStepReducesLoss(t *testing.T) {
 	// loss = sum(p*p) = Σp²; grad = 2p; um passo com lr=0.1 encolhe p e reduz a loss.
 	p := NewLeaf(mustT([]float32{3, -4}, []int{2}))

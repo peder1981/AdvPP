@@ -2,6 +2,7 @@ package autograd
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/advpl/compiler/pkg/tensor"
 )
@@ -100,6 +101,56 @@ func (a *Variable) Mean() *Variable {
 		for i := range dg.Data {
 			dg.Data[i] = g
 		}
+		addGrad(a, dg)
+	}
+	return out
+}
+
+// Tanh. dA = dY ⊙ (1 - tanh(A)²).
+func (a *Variable) Tanh() *Variable {
+	y := a.Value.Tanh()
+	out := &Variable{Value: y, parents: []*Variable{a}}
+	out.backward = func() {
+		d := tensor.New(y.Shape)
+		for i, yv := range y.Data {
+			d.Data[i] = 1 - yv*yv
+		}
+		dg, _ := out.Grad.Mul(d)
+		addGrad(a, dg)
+	}
+	return out
+}
+
+// Sigmoid. dA = dY ⊙ σ(1-σ).
+func (a *Variable) Sigmoid() *Variable {
+	y := a.Value.Sigmoid()
+	out := &Variable{Value: y, parents: []*Variable{a}}
+	out.backward = func() {
+		d := tensor.New(y.Shape)
+		for i, yv := range y.Data {
+			d.Data[i] = yv * (1 - yv)
+		}
+		dg, _ := out.Grad.Mul(d)
+		addGrad(a, dg)
+	}
+	return out
+}
+
+// Gelu (aproximação tanh). dA = dY ⊙ gelu'(A).
+func (a *Variable) Gelu() *Variable {
+	y := a.Value.Gelu()
+	out := &Variable{Value: y, parents: []*Variable{a}}
+	out.backward = func() {
+		const c = 0.7978845608
+		d := tensor.New(a.Value.Shape)
+		for i, xv := range a.Value.Data {
+			x := float64(xv)
+			u := c * (x + 0.044715*x*x*x)
+			tv := math.Tanh(u)
+			dg := 0.5*(1+tv) + 0.5*x*(1-tv*tv)*c*(1+3*0.044715*x*x)
+			d.Data[i] = float32(dg)
+		}
+		dg, _ := out.Grad.Mul(d)
 		addGrad(a, dg)
 	}
 	return out
