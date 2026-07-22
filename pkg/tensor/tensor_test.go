@@ -224,3 +224,46 @@ func TestIndexRows(t *testing.T) {
 		t.Fatalf("IndexRows errado: %v %v", g.Shape, g.Data)
 	}
 }
+
+func TestDTypeInfra(t *testing.T) {
+	x := NewDType([]int{2, 2}, Float64)
+	if x.DType != Float64 {
+		t.Fatalf("DType = %v, quer Float64", x.DType)
+	}
+	if x.Size() != 4 {
+		t.Fatalf("Size = %d, quer 4", x.Size())
+	}
+	x.Set(0, 1.5)
+	if x.Get(0) != 1.5 {
+		t.Fatalf("Get(0) = %v, quer 1.5", x.Get(0))
+	}
+	if err := x.SetAt([]int{1, 1}, 9); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := x.At([]int{1, 1}); v != 9 {
+		t.Fatalf("At(1,1) = %v, quer 9", v)
+	}
+
+	y, err := FromData64([]float64{1, 2, 3}, []int{3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if y.DType != Float64 || y.Get(2) != 3 {
+		t.Fatalf("FromData64 errado: dtype=%v get2=%v", y.DType, y.Get(2))
+	}
+	if _, err := FromData64([]float64{1, 2}, []int{3}); err == nil {
+		t.Fatal("FromData64 com mismatch deveria falhar")
+	}
+
+	// default é Float32
+	z := New([]int{2})
+	if z.DType != Float32 {
+		t.Fatalf("New deve ser Float32 por default, veio %v", z.DType)
+	}
+	// AsDType converte f32->f64 preservando valores
+	z.Data[0] = 2.5
+	z64 := z.AsDType(Float64)
+	if z64.DType != Float64 || z64.Get(0) != 2.5 {
+		t.Fatalf("AsDType errado: dtype=%v get0=%v", z64.DType, z64.Get(0))
+	}
+}
