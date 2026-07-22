@@ -39,6 +39,13 @@ type CallFrame struct {
 	Self       advplrt.Value
 	TryDepth   int
 	TryCatches []*TryCatch
+	dynRestore []dynBinding // bindings dinâmicos a restaurar quando este frame retornar
+}
+
+type dynBinding struct {
+	name string
+	had  bool
+	prev advplrt.Value
 }
 
 type TryCatch struct {
@@ -77,6 +84,7 @@ type VM struct {
 	nextFH       int              // próximo handle a distribuir
 	lastFError   int              // último erro de IO (FError())
 	stdinReader  *bufio.Reader    // leitor de linha do stdin (ConIn), lazy
+	dynEnv       map[string]advplrt.Value // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
 }
 
 type namedArgInfo struct {
@@ -122,6 +130,7 @@ func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 		mvcNextID:    1,
 		fileHandles:  make(map[int]*os.File),
 		nextFH:       1,
+		dynEnv:       make(map[string]advplrt.Value),
 	}
 	v.registerClasses()
 	v.registerNatives()
@@ -840,6 +849,20 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		if cb, ok := v.blockSelf().(*advplrt.CodeBlockValue); ok && instr.Arg < len(cb.Upvalues) && cb.Upvalues[instr.Arg] != nil {
 			*cb.Upvalues[instr.Arg] = val
 		}
+	case compiler.OP_LOAD_DYN:
+		if val, ok := v.dynEnv[instr.Str]; ok {
+			v.push(val)
+		} else {
+			v.push(advplrt.Nil)
+		}
+	case compiler.OP_STORE_DYN:
+		v.dynEnv[instr.Str] = v.pop()
+	case compiler.OP_DECL_DYN:
+		prev, had := v.dynEnv[instr.Str]
+		if v.current != nil {
+			v.current.dynRestore = append(v.current.dynRestore, dynBinding{name: instr.Str, had: had, prev: prev})
+		}
+		v.dynEnv[instr.Str] = advplrt.Nil
 	case compiler.OP_EVAL_CODEBLOCK:
 		argCount := instr.Arg2
 		args := make([]advplrt.Value, argCount)
@@ -1574,6 +1597,15 @@ func (v *VM) blockSelf() advplrt.Value {
 func (v *VM) doReturn(val advplrt.Value) error {
 	// Pop frame
 	oldFrame := v.current
+	// restaura os bindings dinâmicos (Private/Public) criados neste frame
+	for i := len(oldFrame.dynRestore) - 1; i >= 0; i-- {
+		b := oldFrame.dynRestore[i]
+		if b.had {
+			v.dynEnv[b.name] = b.prev
+		} else {
+			delete(v.dynEnv, b.name)
+		}
+	}
 	v.frames = v.frames[:len(v.frames)-1]
 	if len(v.frames) > 0 {
 		v.current = v.frames[len(v.frames)-1]

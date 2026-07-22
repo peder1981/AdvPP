@@ -107,6 +107,12 @@ const (
 	// Arg = indice na lista Upvalues do CodeBlockValue (self = Locals[0]).
 	OP_LOAD_UPVAL
 	OP_STORE_UPVAL
+
+	// Variáveis dinâmicas (Private/Public e nomes não declarados dentro de função).
+	// Str = nome. DECL cria/sombra o binding (com restauração no return da função).
+	OP_LOAD_DYN
+	OP_STORE_DYN
+	OP_DECL_DYN
 )
 
 var opcodeNames = map[Opcode]string{
@@ -147,6 +153,9 @@ var opcodeNames = map[Opcode]string{
 	OP_FORLOOP_CMP:          "FORLOOP_CMP",
 	OP_LOAD_UPVAL:           "LOAD_UPVAL",
 	OP_STORE_UPVAL:          "STORE_UPVAL",
+	OP_LOAD_DYN:             "LOAD_DYN",
+	OP_STORE_DYN:            "STORE_DYN",
+	OP_DECL_DYN:             "DECL_DYN",
 }
 
 func (op Opcode) String() string {
