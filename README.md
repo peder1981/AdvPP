@@ -411,6 +411,30 @@ ciclo futuro (álgebra/geometria não usam gradiente).
 Este ciclo entrega o **forward** (inferência) + precisão dupla. Autodiff/treino veio em
 ciclos seguintes.
 
+### Álgebra linear (float64)
+
+Sobre o Tensor float64, operações de álgebra linear em Go puro (não-diferenciáveis —
+cálculo, não treino):
+
+```advpl
+Local oA := Tensor():FromArray({4,7,2,6}, {2,2}, "float64")
+? oA:Det()                                  // determinante
+Local oX := oA:Solve(oB)                     // resolve A·x = b (b vetor [n] ou [n,k])
+Local oInv := oA:Inv()                        // inversa (A·Inv ≈ I)
+Local aQR := oA:QR()                           // {Q, R} — Householder (Q·R ≈ A)
+Local aEig := oS:EigSym()                       // {valores[n], vetores[n,n]} de matriz simétrica (Jacobi)
+```
+
+- **`Det()`** determinante via LU (pivô parcial); singular → 0.
+- **`Solve(oB)`** resolve `A·x = b` por substituição direta/reversa sobre a LU.
+- **`Inv()`** inversa resolvendo `A·X = I`; singular → erro capturável.
+- **`QR()`** → `{Q, R}` por refletores de Householder (`Q` ortogonal, `R` triangular sup.).
+- **`EigSym()`** → `{valores, vetores}` de matriz **simétrica** por rotações de Jacobi
+  (autovalores decrescentes; colunas de `vetores` = autovetores). Não-simétrica → erro.
+
+Erros (não-quadrada, singular, não-simétrica, dims incompatíveis) são `ErrorValue`
+capturáveis. **Follow-up** (ciclo posterior): SVD e autovalores de matriz não-simétrica.
+
 ## Autodiff e treino
 
 Sobre o núcleo de Tensor, a classe `Variable` grava um tape de operações e
