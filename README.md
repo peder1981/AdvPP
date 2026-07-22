@@ -25,6 +25,7 @@ Um compilador e interpretador totalmente funcional para as linguagens de program
 - **Motor de inferência LLM** (`pkg/llm` + classe `LLM`): carrega modelos GGUF quantizados em I2_S (BitNet/Falcon3-1.58bit) e gera texto direto do AdvPL/TLPP — 100% Go, sem CGO, com kernel SIMD AVX2 em amd64 e fallback escalar em qualquer outra arquitetura
 - **Servidor MCP nativo** (`pkg/mcp` + classe `MCPServer`): expõe funções AdvPL/TLPP como "tools" de um servidor MCP real (JSON-RPC 2.0 sobre stdio) — funciona de verdade (ao contrário do REST, que só reconhece a sintaxe), validado com o SDK oficial do MCP
 - **Núcleo de Tensor (float32)**: classe `Tensor` acelerada em Go (`pkg/tensor`) — `MatMul`, elementwise com broadcast, reduções, ativações, `Softmax`, `Argmax`, `IndexRows` — para construir e rodar modelos float com o AdvPL orquestrando; ver [Núcleo de Tensor](#núcleo-de-tensor)
+- **Autodiff + treino (float32)**: motor de diferenciação reversa (`pkg/autograd`) com a classe `Variable` (tape + `Backward`), ops diferenciáveis (MatMul, Add, Mul, Relu, Sum, Mean, MSE) e otimizador `SGD` — treina modelos float com o AdvPL orquestrando; ver [Autodiff e treino](#autodiff-e-treino)
 
 ## Servidor MCP (`MCPServer`)
 
@@ -386,6 +387,31 @@ Tensor); `Exp`/`Log`/`Sqrt`/`Relu`/`Tanh`/`Sigmoid`/`Gelu`; `Softmax`; `IndexRow
 (lookup de embedding). Erros de forma são capturáveis por `Try/Catch`.
 
 Este ciclo entrega o **forward** (inferência). Autodiff/treino é um ciclo futuro.
+
+## Autodiff e treino
+
+Sobre o núcleo de Tensor, a classe `Variable` grava um tape de operações e
+`Backward()` propaga gradientes (reverse-mode autodiff). Com o otimizador `SGD`
+dá pra TREINAR um modelo float — o AdvPL orquestra o laço; o Go faz forward e
+backward.
+
+```advpl
+Local oW  := Variable():FromArray(aPesos, {nIn, nOut})
+Local oB  := Variable():FromArray(aBias, {nOut})
+Local oOpt := SGD():New({oW, oB}, 0.05)
+// laço de treino:
+Local oPred := oX:MatMul(oW):Add(oB):Relu()
+Local oLoss := oPred:MSE(oY)
+oOpt:ZeroGrad()
+oLoss:Backward()          // preenche oW:Grad(), oB:Grad()
+oOpt:Step()               // oW := oW - lr*grad
+```
+
+Ops diferenciáveis: `MatMul`, `Add` (com broadcast), `Mul`, `Relu`, `Sum`, `Mean`,
+`MSE`. `oV:Value()`/`oV:Grad()` devolvem o `Tensor` de valor/gradiente. Este ciclo
+entrega o motor + SGD; softmax/cross-entropy, Adam, embedding e módulos vêm nos
+próximos ciclos. Corretude validada por verificação numérica de gradiente
+(diferenças finitas) no `go test`.
 
 ## Exemplos de IA em AdvPL puro
 

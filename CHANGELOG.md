@@ -16,6 +16,17 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
   `ErrorValue` capturáveis por `Try/Catch`. Aceite: `tests/mlp_demo.prw` roda o
   forward de um MLP float. Autodiff/treino fica para um ciclo futuro.
 
+### Autodiff + treino (Sub-projeto 3a)
+
+- Motor de **diferenciação reversa** (`pkg/autograd`): classe `Variable` (valor +
+  grad + tape de ops) e `Backward()` em ordem topológica reversa; ops
+  diferenciáveis MatMul, Add (broadcast), Mul, Relu, Sum, Mean e a loss MSE, todas
+  reusando os kernels do `pkg/tensor` (S2, intocado). Otimizador **SGD**
+  (`Step`/`ZeroGrad`). Classes AdvPL `Variable` e `SGD`. Corretude por verificação
+  numérica de gradiente (diferenças finitas) no `go test`; aceite `tests/train_demo.prw`
+  treina um MLP e a loss cai bem abaixo da inicial. Softmax-CE, Adam, embedding e
+  módulos ficam para os próximos ciclos.
+
 ## [1.15.0] — 2026-07-22
 
 ### Robustez da linguagem (Sub-projeto 1)
