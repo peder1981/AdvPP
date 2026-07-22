@@ -187,8 +187,17 @@ func (c *CodeBlockValue) Equals(other Value) bool {
 type ObjectValue struct {
 	ClassName string
 	Props     map[string]Value
+	Keys      []string // ordem de inserção das chaves (para GetNames)
 	Class     *ClassDef
 	Native    interface{} // estado Go de classes de framework nativas (ex.: FWGridProcess)
+}
+
+// SetProp grava uma propriedade preservando a ordem de inserção das chaves.
+func (o *ObjectValue) SetProp(key string, val Value) {
+	if _, exists := o.Props[key]; !exists {
+		o.Keys = append(o.Keys, key)
+	}
+	o.Props[key] = val
 }
 
 func (o *ObjectValue) Type() string   { return "O" }
