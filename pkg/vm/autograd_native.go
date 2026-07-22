@@ -103,6 +103,33 @@ func (v *VM) callVariableMethod(obj *advplrt.ObjectValue, method string, args []
 			v.push(wrapTensor(self.Grad))
 		}
 
+	case "TANH":
+		v.push(wrapVariable(self.Tanh()))
+	case "SIGMOID":
+		v.push(wrapVariable(self.Sigmoid()))
+	case "GELU":
+		v.push(wrapVariable(self.Gelu()))
+	case "INDEXROWS":
+		idx := shapeFromArg(getArg(args, 0))
+		for i := range idx {
+			idx[i]--
+		}
+		r, err := self.IndexRows(idx)
+		if err != nil {
+			return verr(err)
+		}
+		v.push(wrapVariable(r))
+	case "SOFTMAXCE":
+		tg := shapeFromArg(getArg(args, 0))
+		for i := range tg {
+			tg[i]--
+		}
+		r, err := self.SoftmaxCE(tg)
+		if err != nil {
+			return verr(err)
+		}
+		v.push(wrapVariable(r))
+
 	default:
 		return advplrt.NewError("Variable: método desconhecido " + method)
 	}
@@ -155,6 +182,54 @@ func (v *VM) callSGDMethod(obj *advplrt.ObjectValue, method string, args []advpl
 		v.push(obj)
 	default:
 		return advplrt.NewError("SGD: método desconhecido " + method)
+	}
+	return nil
+}
+
+// --- Adam ---
+
+type adamState struct{ opt *autograd.Adam }
+
+func newAdamObject() *advplrt.ObjectValue {
+	obj := advplrt.NewObject("Adam", nil)
+	obj.Native = &adamState{}
+	return obj
+}
+
+func (v *VM) callAdamMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
+	st, _ := obj.Native.(*adamState)
+	switch method {
+	case "NEW":
+		arr, ok := getArg(args, 0).(*advplrt.ArrayValue)
+		if !ok {
+			return advplrt.NewError("Adam:New requer um array de Variables")
+		}
+		params := make([]*autograd.Variable, 0, len(arr.Elements))
+		for _, e := range arr.Elements {
+			o, ok := e.(*advplrt.ObjectValue)
+			if !ok {
+				return advplrt.NewError("Adam:New: elemento não é Variable")
+			}
+			vv, ok := o.Native.(*autograd.Variable)
+			if !ok {
+				return advplrt.NewError("Adam:New: elemento não é Variable")
+			}
+			params = append(params, vv)
+		}
+		st.opt = autograd.NewAdam(params, float32(advplrt.ToFloat(getArg(args, 1))))
+		v.push(obj)
+	case "STEP":
+		if st.opt != nil {
+			st.opt.Step()
+		}
+		v.push(obj)
+	case "ZEROGRAD":
+		if st.opt != nil {
+			st.opt.ZeroGrad()
+		}
+		v.push(obj)
+	default:
+		return advplrt.NewError("Adam: método desconhecido " + method)
 	}
 	return nil
 }

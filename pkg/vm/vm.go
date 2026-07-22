@@ -1262,6 +1262,8 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callVariableMethod(obj, upperMethod, args)
 	case "SGD":
 		return v.callSGDMethod(obj, upperMethod, args)
+	case "Adam":
+		return v.callAdamMethod(obj, upperMethod, args)
 	default:
 		return fmt.Errorf("unknown method %s on object %s", method, obj.ClassName)
 	}
@@ -1409,6 +1411,9 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "SGD":
 			v.push(newSGDObject())
+			return nil
+		case "ADAM":
+			v.push(newAdamObject())
 			return nil
 		case "ERRORCLASS":
 			obj := advplrt.NewObject("ErrorClass", cls)
