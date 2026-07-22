@@ -156,6 +156,69 @@ func (a *Variable) Gelu() *Variable {
 	return out
 }
 
+// IndexRows: colhe linhas de A[R,C] nos índices idx (0-based) -> [K,C].
+// backward (scatter-add): dA[idx[k],:] += dY[k,:].
+func (a *Variable) IndexRows(idx []int) (*Variable, error) {
+	y, err := a.Value.IndexRows(idx)
+	if err != nil {
+		return nil, err
+	}
+	out := &Variable{Value: y, parents: []*Variable{a}}
+	out.backward = func() {
+		c := a.Value.Shape[1]
+		dA := tensor.New(a.Value.Shape)
+		for k, r := range idx {
+			for j := 0; j < c; j++ {
+				dA.Data[r*c+j] += out.Grad.Data[k*c+j]
+			}
+		}
+		addGrad(a, dA)
+	}
+	return out, nil
+}
+
+// SoftmaxCE: A = logits [N,C]; targets = N índices de classe (0-based).
+// loss = média_i(-log softmax(A)[i, t_i]) (estável); dA = (softmax − onehot)/N.
+func (a *Variable) SoftmaxCE(targets []int) (*Variable, error) {
+	if len(a.Value.Shape) != 2 {
+		return nil, fmt.Errorf("SoftmaxCE: logits devem ser 2D [N,C]")
+	}
+	n, c := a.Value.Shape[0], a.Value.Shape[1]
+	if len(targets) != n {
+		return nil, fmt.Errorf("SoftmaxCE: %d alvos para %d linhas", len(targets), n)
+	}
+	sm, err := a.Value.Softmax(1)
+	if err != nil {
+		return nil, err
+	}
+	var loss float32
+	for i := 0; i < n; i++ {
+		ti := targets[i]
+		if ti < 0 || ti >= c {
+			return nil, fmt.Errorf("SoftmaxCE: alvo %d fora de faixa (0..%d)", ti, c-1)
+		}
+		loss += -float32(math.Log(float64(sm.Data[i*c+ti]) + 1e-12))
+	}
+	loss /= float32(n)
+	y, _ := tensor.FromData([]float32{loss}, []int{1})
+	out := &Variable{Value: y, parents: []*Variable{a}}
+	out.backward = func() {
+		g := out.Grad.Data[0] / float32(n)
+		dA := tensor.New(a.Value.Shape)
+		for i := 0; i < n; i++ {
+			for j := 0; j < c; j++ {
+				val := sm.Data[i*c+j]
+				if j == targets[i] {
+					val -= 1
+				}
+				dA.Data[i*c+j] = g * val
+			}
+		}
+		addGrad(a, dA)
+	}
+	return out, nil
+}
+
 // MSE(ŷ=a, alvo constante) -> escalar {1}. dŶ = (2/N)(Ŷ−alvo). O alvo não recebe grad.
 func (a *Variable) MSE(target *Variable) (*Variable, error) {
 	diff, err := a.Value.Sub(target.Value)
