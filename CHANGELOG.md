@@ -2,6 +2,20 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [Não lançado]
+
+- **Corpus externo grande de verdade**: `corpus.txt` agora é *Dom Casmurro* de
+  Machado de Assis (domínio público, via Project Gutenberg) — ~72 mil tokens,
+  patamar expressivo. O pipeline treina sobre ele em ~30s (vocabulário capado em
+  top-N + `<unk>`, treino por stride, bag long-context incremental). A saída fica
+  temática/machadiana (Capitu, Escobar, Bentinho, "olhos de ressaca"); nota
+  honesta: prosa literária complexa excede a capacidade de um modelo n-grama+ELM,
+  então o texto é temático mas não totalmente coerente — o corpus factual curado
+  (embutido em `Corpus()`, usado como fallback) gera prosa mais limpa.
+- **Penalidade de repetição em janela** (`pt_nn.prw`): pune palavras repetidas
+  nas últimas REPWIN posições, eliminando loops de palavras funcionais ("se se
+  se"). Melhora qualquer corpus.
+
 ## [1.14.0] — 2026-07-22
 
 Evolução do LLM híbrido para **janela longa (entrada e saída até 4096 tokens
