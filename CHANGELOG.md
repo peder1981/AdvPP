@@ -4,6 +4,13 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+## [1.17.0] — 2026-07-22
+
+Capstone da missão original: um **LM neural treinado por gradiente, 100% em AdvPP**,
+sobre o stack de ML lançado na v1.16.0. Adiciona a op `Reshape` diferenciável e o
+modelo `pt_neural.prw` (tokenizar → treinar → gerar), e reúne os modelos de LM em
+AdvPL puro em `tests/llm/`.
+
 ### LM neural char-level treinado por gradiente (Sub-projeto 4)
 
 - **Op `Reshape` diferenciável** no autograd (`Variable:Reshape(aShape)`): forward via
