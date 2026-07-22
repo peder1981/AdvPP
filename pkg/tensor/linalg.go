@@ -344,3 +344,360 @@ func (a *Tensor) EigSym() (values *Tensor, vectors *Tensor, err error) {
 	}
 	return values, vectors, nil
 }
+
+const (
+	svdMaxSweeps = 60
+	svdEps       = 1e-14
+)
+
+// SVD decompõe A [m,n] em U [m,n] (colunas ortonormais), S [k] (valores singulares
+// decrescentes, k=min(m,n)) e V [n,n] (ortogonal), tal que A ≈ U·diag(S)·Vᵀ.
+// Usa Jacobi de um lado (estável). Devolve {U, S, V} (float64).
+func (a *Tensor) SVD() (u *Tensor, s *Tensor, vt *Tensor, err error) {
+	if len(a.Shape) != 2 {
+		return nil, nil, nil, fmt.Errorf("SVD: requer 2D, veio %v", a.Shape)
+	}
+	m, n := a.Shape[0], a.Shape[1]
+	// Para m<n, calcula SVD de Aᵀ (=V Σ Uᵀ) e troca U<->V.
+	if m < n {
+		at, _ := a.Transpose()
+		uu, ss, vv, e := at.SVD()
+		return vv, ss, uu, e
+	}
+	f := a.AsDType(Float64)
+	// U := cópia de A (colunas serão ortogonalizadas); V := I.
+	U := make([][]float64, m)
+	for i := 0; i < m; i++ {
+		U[i] = make([]float64, n)
+		copy(U[i], f.Data64[i*n:(i+1)*n])
+	}
+	V := make([][]float64, n)
+	for i := 0; i < n; i++ {
+		V[i] = make([]float64, n)
+		V[i][i] = 1
+	}
+	for sweep := 0; sweep < svdMaxSweeps; sweep++ {
+		off := 0.0
+		for i := 0; i < n-1; i++ {
+			for j := i + 1; j < n; j++ {
+				var alpha, beta, gamma float64
+				for r := 0; r < m; r++ {
+					alpha += U[r][i] * U[r][i]
+					beta += U[r][j] * U[r][j]
+					gamma += U[r][i] * U[r][j]
+				}
+				off += math.Abs(gamma)
+				if math.Abs(gamma) < svdEps*math.Sqrt(alpha*beta) || alpha == 0 || beta == 0 {
+					continue
+				}
+				zeta := (beta - alpha) / (2 * gamma)
+				tsign := 1.0
+				if zeta < 0 {
+					tsign = -1.0
+				}
+				tval := tsign / (math.Abs(zeta) + math.Sqrt(zeta*zeta+1))
+				c := 1 / math.Sqrt(tval*tval+1)
+				sn := c * tval
+				for r := 0; r < m; r++ {
+					ui, uj := U[r][i], U[r][j]
+					U[r][i] = c*ui - sn*uj
+					U[r][j] = sn*ui + c*uj
+				}
+				for r := 0; r < n; r++ {
+					vi, vj := V[r][i], V[r][j]
+					V[r][i] = c*vi - sn*vj
+					V[r][j] = sn*vi + c*vj
+				}
+			}
+		}
+		if off < svdEps {
+			break
+		}
+	}
+	// valores singulares = normas das colunas de U; normaliza U.
+	sig := make([]float64, n)
+	for j := 0; j < n; j++ {
+		var nrm float64
+		for r := 0; r < m; r++ {
+			nrm += U[r][j] * U[r][j]
+		}
+		sig[j] = math.Sqrt(nrm)
+		if sig[j] > svdEps {
+			for r := 0; r < m; r++ {
+				U[r][j] /= sig[j]
+			}
+		}
+	}
+	// ordena por sigma desc (leva colunas de U e V junto)
+	idx := make([]int, n)
+	for i := range idx {
+		idx[i] = i
+	}
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			if sig[idx[j]] > sig[idx[i]] {
+				idx[i], idx[j] = idx[j], idx[i]
+			}
+		}
+	}
+	uOut := NewDType([]int{m, n}, Float64)
+	sOut := NewDType([]int{n}, Float64)
+	vOut := NewDType([]int{n, n}, Float64)
+	for k, id := range idx {
+		sOut.Data64[k] = sig[id]
+		for r := 0; r < m; r++ {
+			uOut.Data64[r*n+k] = U[r][id]
+		}
+		for r := 0; r < n; r++ {
+			vOut.Data64[r*n+k] = V[r][id]
+		}
+	}
+	return uOut, sOut, vOut, nil
+}
+
+const eigMaxIter = 100
+
+// toHessenberg reduz a [n,n] (in-place) à forma de Hessenberg superior por
+// similaridade de Householder (preserva os autovalores).
+func toHessenberg(a [][]float64, n int) {
+	for k := 0; k < n-2; k++ {
+		var alpha float64
+		for i := k + 1; i < n; i++ {
+			alpha += a[i][k] * a[i][k]
+		}
+		alpha = math.Sqrt(alpha)
+		if alpha == 0 {
+			continue
+		}
+		if a[k+1][k] > 0 {
+			alpha = -alpha
+		}
+		v := make([]float64, n)
+		v[k+1] = a[k+1][k] - alpha
+		for i := k + 2; i < n; i++ {
+			v[i] = a[i][k]
+		}
+		var vv float64
+		for i := k + 1; i < n; i++ {
+			vv += v[i] * v[i]
+		}
+		if vv == 0 {
+			continue
+		}
+		for j := 0; j < n; j++ { // esquerda: A := (I - 2vvᵀ/vv) A
+			var s float64
+			for i := k + 1; i < n; i++ {
+				s += v[i] * a[i][j]
+			}
+			s = 2 * s / vv
+			for i := k + 1; i < n; i++ {
+				a[i][j] -= s * v[i]
+			}
+		}
+		for i := 0; i < n; i++ { // direita: A := A (I - 2vvᵀ/vv)
+			var s float64
+			for j := k + 1; j < n; j++ {
+				s += a[i][j] * v[j]
+			}
+			s = 2 * s / vv
+			for j := k + 1; j < n; j++ {
+				a[i][j] -= s * v[j]
+			}
+		}
+	}
+}
+
+// hqr encontra os autovalores (reais e complexos conjugados) de uma matriz de
+// Hessenberg superior real h [n,n] pelo algoritmo QR de duplo shift (Francis),
+// à la EISPACK/Numerical Recipes. Devolve as partes real (wr) e imaginária (wi).
+func hqr(h [][]float64, n int) (wr, wi []float64, ok bool) {
+	wr = make([]float64, n)
+	wi = make([]float64, n)
+	var anorm float64
+	for i := 0; i < n; i++ {
+		lo := i - 1
+		if lo < 0 {
+			lo = 0
+		}
+		for j := lo; j < n; j++ {
+			anorm += math.Abs(h[i][j])
+		}
+	}
+	nn := n - 1
+	t := 0.0
+	for nn >= 0 {
+		its := 0
+		for {
+			var l int
+			for l = nn; l >= 1; l-- {
+				s := math.Abs(h[l-1][l-1]) + math.Abs(h[l][l])
+				if s == 0 {
+					s = anorm
+				}
+				if math.Abs(h[l][l-1])+s == s {
+					h[l][l-1] = 0
+					break
+				}
+			}
+			x := h[nn][nn]
+			if l == nn { // 1 raiz real
+				wr[nn] = x + t
+				wi[nn] = 0
+				nn--
+				break
+			}
+			y := h[nn-1][nn-1]
+			w := h[nn][nn-1] * h[nn-1][nn]
+			if l == nn-1 { // bloco 2x2 -> 2 raízes
+				p := 0.5 * (y - x)
+				q := p*p + w
+				z := math.Sqrt(math.Abs(q))
+				x += t
+				if q >= 0 { // par real
+					if p >= 0 {
+						z = p + z
+					} else {
+						z = p - z
+					}
+					wr[nn-1] = x + z
+					wr[nn] = wr[nn-1]
+					if z != 0 {
+						wr[nn] = x - w/z
+					}
+					wi[nn-1] = 0
+					wi[nn] = 0
+				} else { // par complexo conjugado
+					wr[nn-1] = x + p
+					wr[nn] = x + p
+					wi[nn-1] = -z
+					wi[nn] = z
+				}
+				nn -= 2
+				break
+			}
+			if its == eigMaxIter {
+				return wr, wi, false
+			}
+			if its == 10 || its == 20 { // shift excepcional
+				t += x
+				for i := 0; i <= nn; i++ {
+					h[i][i] -= x
+				}
+				s := math.Abs(h[nn][nn-1]) + math.Abs(h[nn-1][nn-2])
+				y = 0.75 * s
+				x = y
+				w = -0.4375 * s * s
+			}
+			its++
+			// dois subdiagonais consecutivos pequenos
+			var mm int
+			var p, q, r float64
+			for mm = nn - 2; mm >= l; mm-- {
+				z := h[mm][mm]
+				rr := x - z
+				ss := y - z
+				p = (rr*ss-w)/h[mm+1][mm] + h[mm][mm+1]
+				q = h[mm+1][mm+1] - z - rr - ss
+				r = h[mm+2][mm+1]
+				sc := math.Abs(p) + math.Abs(q) + math.Abs(r)
+				p /= sc
+				q /= sc
+				r /= sc
+				if mm == l {
+					break
+				}
+				u := math.Abs(h[mm][mm-1]) * (math.Abs(q) + math.Abs(r))
+				vv := math.Abs(p) * (math.Abs(h[mm-1][mm-1]) + math.Abs(z) + math.Abs(h[mm+1][mm+1]))
+				if u+vv == vv {
+					break
+				}
+			}
+			for i := mm + 2; i <= nn; i++ {
+				h[i][i-2] = 0
+				if i != mm+2 {
+					h[i][i-3] = 0
+				}
+			}
+			// varredura QR de duplo shift (bulge chasing)
+			for k := mm; k <= nn-1; k++ {
+				if k != mm {
+					p = h[k][k-1]
+					q = h[k+1][k-1]
+					r = 0
+					if k != nn-1 {
+						r = h[k+2][k-1]
+					}
+					x = math.Abs(p) + math.Abs(q) + math.Abs(r)
+					if x != 0 {
+						p /= x
+						q /= x
+						r /= x
+					}
+				}
+				s := math.Sqrt(p*p + q*q + r*r)
+				if p < 0 {
+					s = -s
+				}
+				if s == 0 {
+					continue
+				}
+				if k == mm {
+					if l != mm {
+						h[k][k-1] = -h[k][k-1]
+					}
+				} else {
+					h[k][k-1] = -s * x
+				}
+				p += s
+				x = p / s
+				y = q / s
+				z := r / s
+				q /= p
+				r /= p
+				for j := k; j <= nn; j++ { // modificação de linha
+					p = h[k][j] + q*h[k+1][j]
+					if k != nn-1 {
+						p += r * h[k+2][j]
+						h[k+2][j] -= p * z
+					}
+					h[k+1][j] -= p * y
+					h[k][j] -= p * x
+				}
+				mmin := nn
+				if k+3 < nn {
+					mmin = k + 3
+				}
+				for i := l; i <= mmin; i++ { // modificação de coluna
+					p = x*h[i][k] + y*h[i][k+1]
+					if k != nn-1 {
+						p += z * h[i][k+2]
+						h[i][k+2] -= p * r
+					}
+					h[i][k+1] -= p * q
+					h[i][k] -= p
+				}
+			}
+		}
+	}
+	return wr, wi, true
+}
+
+// Eig calcula TODOS os autovalores (reais e complexos) de uma matriz [n,n] real,
+// não necessariamente simétrica, via redução a Hessenberg + QR de duplo shift.
+// Devolve {reais [n], imag [n]} — para autovalor complexo, aparece o par conjugado.
+func (a *Tensor) Eig() (real *Tensor, imag *Tensor, err error) {
+	m, n, err := a.mat2D()
+	if err != nil {
+		return nil, nil, err
+	}
+	toHessenberg(m, n)
+	wr, wi, ok := hqr(m, n)
+	if !ok {
+		return nil, nil, fmt.Errorf("Eig: não convergiu em %d iterações", eigMaxIter)
+	}
+	real = NewDType([]int{n}, Float64)
+	imag = NewDType([]int{n}, Float64)
+	copy(real.Data64, wr)
+	copy(imag.Data64, wi)
+	return real, imag, nil
+}
