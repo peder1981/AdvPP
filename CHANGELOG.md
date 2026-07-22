@@ -2,6 +2,34 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [1.14.0] — 2026-07-22
+
+Evolução do LLM híbrido para **janela longa (entrada e saída até 4096 tokens
+cada)** e funções nativas que faltavam, implementadas no compilador conforme
+necessário.
+
+### Novas funções nativas / correções na VM
+
+- **Funções de array de ordem superior com bloco de código** — `ASort` (era
+  no-op quanto ao comparador), `AEval` (era no-op) e `AScan` (era só por valor)
+  agora avaliam de verdade um `{|...| ...}`. Implementadas com um novo helper
+  `callBlockSync` na VM, que roda um bloco de forma síncrona no VM atual (loop
+  aninhado até o frame do bloco retornar). Limitação conhecida: blocos não
+  capturam Locais externos (closures reais) — usar só os parâmetros do bloco.
+- **`File(cArq)`** — checagem real de existência via `os.Stat` (era um stub que
+  retornava sempre `.F.`).
+
+### LLM híbrido — janela longa
+
+- **`pt_nn.prw`** evoluído para **janela longa**: contexto local posicional +
+  **bag long-context** sobre uma janela de até 4096 tokens (mantido
+  incrementalmente, O(1) amortizado por token); aceita seed de até 4096 tokens e
+  gera **documento multi-frase** de até 4096 tokens. Algoritmos modernos:
+  perceptron médio (Collins 2002), suavização interpolada (Jelinek-Mercer),
+  amostragem nucleus (top-p), vocabulário limitado por frequência (top-N +
+  `<unk>`) e amostra de treino por stride (custo do treino independente do
+  tamanho do corpus). Carrega `corpus.txt` grande via `MemoRead` se presente.
+
 ## [1.13.0] — 2026-07-21
 
 BLAS ternária, console interativo e três modelos de IA escritos inteiramente em

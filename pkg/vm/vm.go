@@ -1474,6 +1474,63 @@ func (v *VM) getMVCBrowse(id int) *mvc.FWFormBrowse {
 	return v.mvcBrowses[id]
 }
 
+// callBlockSync avalia um CodeBlockValue no VM atual (sem spawnar worker) e
+// retorna o valor de retorno do bloco. Usado por natives de ordem superior
+// (ASort/AEval/AScan com bloco). Roda um loop aninhado que executa instruções
+// até o frame do bloco retornar (profundidade de frames volta ao base).
+// Nota: blocos aqui não capturam Locais externos — o bloco deve usar só seus
+// parâmetros.
+func (v *VM) callBlockSync(cb advplrt.Value, args ...advplrt.Value) (advplrt.Value, error) {
+	block, ok := cb.(*advplrt.CodeBlockValue)
+	if !ok {
+		return advplrt.Nil, fmt.Errorf("valor não é um bloco de código")
+	}
+	info, ok := v.bc.Functions[block.FuncName]
+	if !ok {
+		return advplrt.Nil, fmt.Errorf("codeblock function %s not found", block.FuncName)
+	}
+	locals := make([]advplrt.Value, info.NumLocals)
+	locals[0] = cb // convenção: locals[0] = o próprio bloco (self)
+	for i := 0; i < len(args) && i+1 < info.NumParams; i++ {
+		locals[i+1] = args[i]
+	}
+	baseDepth := len(v.frames)
+	savedCurrent := v.current
+	frame := &CallFrame{
+		FuncName:  block.FuncName,
+		Code:      v.bc.Code,
+		IP:        info.Offset,
+		Locals:    locals,
+		StackBase: len(v.stack),
+	}
+	v.frames = append(v.frames, frame)
+	v.current = frame
+
+	for len(v.frames) > baseDepth {
+		if v.current == nil || v.current.IP >= len(v.current.Code) {
+			break
+		}
+		instr := v.current.Code[v.current.IP]
+		v.current.IP++
+		if err := v.execute(instr); err != nil {
+			v.frames = v.frames[:baseDepth]
+			v.current = savedCurrent
+			return advplrt.Nil, err
+		}
+		if instr.Op == compiler.OP_HALT {
+			break
+		}
+	}
+	if len(v.frames) > baseDepth {
+		v.frames = v.frames[:baseDepth]
+	}
+	v.current = savedCurrent
+	if len(v.stack) > 0 {
+		return v.pop(), nil
+	}
+	return advplrt.Nil, nil
+}
+
 func (v *VM) doReturn(val advplrt.Value) error {
 	// Pop frame
 	oldFrame := v.current

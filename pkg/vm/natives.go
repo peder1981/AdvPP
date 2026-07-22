@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -707,12 +708,30 @@ func (v *VM) registerNatives() {
 			}
 			return advplrt.Nil, nil
 		},
+		// AScan(aArray, uSearch|bBlock, [nStart], [nCount]): posição do 1º elemento
+		// igual a uSearch, ou onde bBlock(elem) -> .T.; 0 se não achar.
 		"ASCAN": func(args []advplrt.Value) (advplrt.Value, error) {
-			if a, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
+			a, ok := getArg(args, 0).(*advplrt.ArrayValue)
+			if !ok {
+				return advplrt.NewNumber(0), nil
+			}
+			n := len(a.Elements)
+			start, count := subRange(args, 2, 3, n)
+			if cb, ok := getArg(args, 1).(*advplrt.CodeBlockValue); ok {
+				for i := start; i <= start+count-1; i++ {
+					r, err := v.callBlockSync(cb, a.Elements[i-1], advplrt.NewNumber(float64(i)))
+					if err != nil {
+						return advplrt.Nil, err
+					}
+					if r.IsTruthy() {
+						return advplrt.NewNumber(float64(i)), nil
+					}
+				}
+			} else {
 				search := getArg(args, 1)
-				for i, elem := range a.Elements {
-					if elem.Equals(search) {
-						return advplrt.NewNumber(float64(i + 1)), nil
+				for i := start; i <= start+count-1; i++ {
+					if a.Elements[i-1].Equals(search) {
+						return advplrt.NewNumber(float64(i)), nil
 					}
 				}
 			}
@@ -761,17 +780,58 @@ func (v *VM) registerNatives() {
 			}
 			return advplrt.Nil, nil
 		},
+		// ASort(aArray, [nStart], [nCount], [bOrder]): ordena in-place. Com bloco
+		// bOrder(x,y) -> .T. se x vem antes de y; sem bloco, ordem ascendente.
 		"ASORT": func(args []advplrt.Value) (advplrt.Value, error) {
-			if a, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
-				sortValues(a.Elements)
+			a, ok := getArg(args, 0).(*advplrt.ArrayValue)
+			if !ok {
+				return getArg(args, 0), nil
 			}
-			return advplrt.Nil, nil
+			n := len(a.Elements)
+			start, count := subRange(args, 1, 2, n)
+			if count <= 0 {
+				return a, nil
+			}
+			sub := a.Elements[start-1 : start-1+count]
+			if cb, ok := getArg(args, 3).(*advplrt.CodeBlockValue); ok {
+				var sErr error
+				sort.SliceStable(sub, func(i, j int) bool {
+					if sErr != nil {
+						return false
+					}
+					r, err := v.callBlockSync(cb, sub[i], sub[j])
+					if err != nil {
+						sErr = err
+						return false
+					}
+					return r.IsTruthy()
+				})
+				if sErr != nil {
+					return advplrt.Nil, sErr
+				}
+			} else {
+				sortValues(sub)
+			}
+			return a, nil
 		},
+		// AEval(aArray, bBlock, [nStart], [nCount]): aplica bBlock(elem, i) a cada.
 		"AEVAL": func(args []advplrt.Value) (advplrt.Value, error) {
-			if a, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
-				_ = a
+			a, ok := getArg(args, 0).(*advplrt.ArrayValue)
+			if !ok {
+				return getArg(args, 0), nil
 			}
-			return advplrt.Nil, nil
+			cb, ok := getArg(args, 1).(*advplrt.CodeBlockValue)
+			if !ok {
+				return a, nil
+			}
+			n := len(a.Elements)
+			start, count := subRange(args, 2, 3, n)
+			for i := start; i <= start+count-1; i++ {
+				if _, err := v.callBlockSync(cb, a.Elements[i-1], advplrt.NewNumber(float64(i))); err != nil {
+					return advplrt.Nil, err
+				}
+			}
+			return a, nil
 		},
 
 		// --- Logic / Type ---
@@ -874,8 +934,10 @@ func (v *VM) registerNatives() {
 			name := advplrt.ToString(getArg(args, 0))
 			return advplrt.NewString(getEnvOrDefault(name, advplrt.ToString(getArg(args, 1)))), nil
 		},
+		// File(cArq): .T. se o arquivo existe (e não é diretório).
 		"FILE": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.False, nil
+			info, err := os.Stat(getArgString(args, 0, ""))
+			return advplrt.NewBool(err == nil && !info.IsDir()), nil
 		},
 		"MAKEDIR": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.Nil, nil
@@ -1600,6 +1662,25 @@ func makeArray(dims []advplrt.Value) advplrt.Value {
 		}
 	}
 	return advplrt.NewArray(elems)
+}
+
+// subRange resolve os args opcionais nStart/nCount (posições idxStart/idxCount)
+// de natives de array (ASort/AEval/AScan) para um intervalo 1-based válido em n.
+func subRange(args []advplrt.Value, idxStart, idxCount, n int) (start, count int) {
+	start = 1
+	if s, ok := getArg(args, idxStart).(*advplrt.NumberValue); ok && int(s.Val) >= 1 {
+		start = int(s.Val)
+	}
+	if start > n {
+		return start, 0
+	}
+	count = n - start + 1
+	if c, ok := getArg(args, idxCount).(*advplrt.NumberValue); ok && int(c.Val) >= 0 {
+		if int(c.Val) < count {
+			count = int(c.Val)
+		}
+	}
+	return start, count
 }
 
 func getArg(args []advplrt.Value, idx int) advplrt.Value {
