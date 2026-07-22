@@ -75,9 +75,12 @@ User Function PtNN()
     SelfTest(oM)
 Return
 
-// Corpus externo (corpus.txt) se existir, senão o embutido. Escala via MemoRead.
+// Corpus externo se existir, senão o embutido. Escala via MemoRead.
+// Procura tests/llm/corpus.txt (rodando da raiz) e corpus.txt (rodando da pasta).
 Static Function LoadCorpus()
-    If File("corpus.txt")
+    If File("tests/llm/corpus.txt")
+        Return MemoRead("tests/llm/corpus.txt")
+    ElseIf File("corpus.txt")
         Return MemoRead("corpus.txt")
     EndIf
 Return Corpus()

@@ -435,6 +435,7 @@ carrega um GGUF pronto — aqui o modelo é construído na própria linguagem.
 | `tests/llm/pt_llm.prw` | Cadeia de **Markov** de ordem variável em nível de byte (ordens 1–6, backoff) | Lê o prompt e **continua** o texto em PT-BR |
 | `tests/llm/pt_chat.prw` | Respondedor por **recuperação**: normaliza (minúsculas + sem acento), tokeniza, descarta stopwords e pontua uma base de conhecimento por sobreposição de palavras | Lê a pergunta e **responde** com o item mais relevante (REPL via `ConIn`) |
 | `tests/llm/pt_nn.prw` | **Híbrido Markov + rede neural ternária** (ELM) com **janela longa** (entrada e saída até 4096 tokens): contexto local posicional + bag long-context, perceptron médio, suavização interpolada e amostragem nucleus | Lê um seed de até 4096 tokens e gera um **documento multi-frase** de até 4096 tokens |
+| `tests/llm/pt_neural.prw` | **LM neural char-level treinado por gradiente** (NPLM estilo Bengio): `Embedding → Reshape → Linear → Tanh → Linear → SoftmaxCE`, treinado com **Adam via `Fit`** sobre `corpus.txt` — o único que **aprende os pesos por backprop**, 100% sobre o stack de ML do AdvPP (S2+S3) | Lê um seed e gera texto PT-BR char-a-char por amostragem com temperatura |
 
 O `tests/llm/pt_nn.prw` é o "topo" do que se treina e roda **sem sair do AdvPL**. A
 projeção ternária e a saída perceptron são multiply-free (via `MatVecTern`); o
@@ -460,3 +461,31 @@ público, via [Project Gutenberg](https://www.gutenberg.org/ebooks/55752)),
 `corpus.txt` para cair no corpus factual curado embutido (prosa mais limpa, porém
 simples). Ressalva honesta: prosa literária complexa excede a capacidade de um
 modelo n-grama+ELM — a saída fica temática mas não totalmente coerente.
+
+### `pt_neural.prw` — o LM neural treinado por gradiente
+
+Enquanto `pt_nn` usa uma rede ternária *sem* backprop, o `tests/llm/pt_neural.prw`
+é o **capstone**: um LM neural char-level (byte-level, seguro para UTF-8/acentos)
+**treinado de verdade por descida de gradiente**, montado 100% sobre o stack de ML
+do AdvPP (Tensor S2 + autodiff/treino S3). Arquitetura NPLM (Bengio 2003):
+
+```advpl
+oEmb := Embedding():New(V, D)            // tabela de embeddings [V, D]
+oL1  := Linear():New(k*D, H)
+oL2  := Linear():New(H, V)
+// forward de um lote de N exemplos (contexto de k chars -> próximo char):
+oLog := oL2:Forward( oL1:Forward( oEmb:Forward(aX):Reshape({N, k*D}) ):Tanh() )
+oLoss := oLog:SoftmaxCE(aAlvo)           // perda de próximo-char
+// treino: Adam sobre Params() dos 3 módulos, via Fit(bPasso, nEpocas)
+```
+
+A única peça de motor que este ciclo adicionou é a op **`Variable:Reshape(aShape)`**
+diferenciável — para concatenar os `k` embeddings de contexto num vetor por exemplo.
+Geração char-a-char: dado um seed, faz forward com N=1, aplica temperatura + softmax
+e amostra o próximo byte. No mini-corpus determinístico (auto-teste) a loss cai de
+~2.77 para ~0.04 e o modelo reproduz o texto aprendido; no `corpus.txt` real
+(_Dom Casmurro_, vocab 97) treina uma amostra em ~1min e a loss cai de ~4.58 para
+~0.06, gerando morfologia PT-BR. Ressalva honesta: é um modelo pequeno num VM
+interpretado — decora a amostra de treino e emerge estrutura do português, mas não é
+fluente. É o "modelo neural completo em AdvPP", ponta a ponta (tokenizar → treinar →
+gerar), provando que o stack float treina um LM de verdade.
