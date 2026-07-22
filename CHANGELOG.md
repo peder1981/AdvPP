@@ -36,6 +36,16 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
   em `Variable` + classe `Adam`. Aceite: `tests/classifier_demo.prw` treina um
   classificador (loss cai, acurácia 100%). Módulos e trainer ficam para o S3c.
 
+### Módulos e trainer (Sub-projeto 3c)
+
+- Módulos de rede neural (`pkg/nn`): **`Linear`** (W,b) e **`Embedding`** (tabela),
+  cada um encapsulando seus parâmetros + `Forward` e expondo `Params()` para o
+  otimizador. Native **`Fit(bPasso, nEpocas)`** roda o laço de treino avaliando um
+  codeblock por época (usando closures). Classes AdvPL `Linear`/`Embedding`. Aceite:
+  `tests/nn_demo.prw` define e treina um MLP com módulos + Adam em poucas linhas
+  (acurácia 100%). Fecha o "Full autodiff/treino" (S3a motor → S3b LM loss/Adam →
+  S3c módulos).
+
 ## [1.15.0] — 2026-07-22
 
 ### Robustez da linguagem (Sub-projeto 1)
