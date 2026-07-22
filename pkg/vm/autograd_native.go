@@ -2,6 +2,7 @@ package vm
 
 import (
 	"github.com/advpl/compiler/pkg/autograd"
+	"github.com/advpl/compiler/pkg/nn"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 	"github.com/advpl/compiler/pkg/tensor"
 )
@@ -230,6 +231,98 @@ func (v *VM) callAdamMethod(obj *advplrt.ObjectValue, method string, args []advp
 		v.push(obj)
 	default:
 		return advplrt.NewError("Adam: método desconhecido " + method)
+	}
+	return nil
+}
+
+// --- Módulos NN: Linear e Embedding ---
+
+type linearState struct{ m *nn.Linear }
+
+func newLinearObject() *advplrt.ObjectValue {
+	obj := advplrt.NewObject("Linear", nil)
+	obj.Native = &linearState{}
+	return obj
+}
+
+// optScale lê o scale opcional (default 0.1) do i-ésimo argumento.
+func optScale(args []advplrt.Value, i int) float32 {
+	if num, ok := getArg(args, i).(*advplrt.NumberValue); ok {
+		return float32(num.Val)
+	}
+	return 0.1
+}
+
+func paramsArray(ps []*autograd.Variable) *advplrt.ArrayValue {
+	el := make([]advplrt.Value, len(ps))
+	for i, p := range ps {
+		el[i] = wrapVariable(p)
+	}
+	return advplrt.NewArray(el)
+}
+
+func (v *VM) callLinearMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
+	st, _ := obj.Native.(*linearState)
+	switch method {
+	case "NEW":
+		nIn := int(advplrt.ToFloat(getArg(args, 0)))
+		nOut := int(advplrt.ToFloat(getArg(args, 1)))
+		if nIn <= 0 || nOut <= 0 {
+			return advplrt.NewError("Linear:New: dimensões devem ser > 0")
+		}
+		st.m = nn.NewLinear(nIn, nOut, optScale(args, 2))
+		v.push(obj)
+	case "FORWARD":
+		x, err := argVariable(args, 0)
+		if err != nil {
+			return err
+		}
+		r, err := st.m.Forward(x)
+		if err != nil {
+			return verr(err)
+		}
+		v.push(wrapVariable(r))
+	case "PARAMS":
+		v.push(paramsArray(st.m.Params()))
+	default:
+		return advplrt.NewError("Linear: método desconhecido " + method)
+	}
+	return nil
+}
+
+type embeddingState struct{ m *nn.Embedding }
+
+func newEmbeddingObject() *advplrt.ObjectValue {
+	obj := advplrt.NewObject("Embedding", nil)
+	obj.Native = &embeddingState{}
+	return obj
+}
+
+func (v *VM) callEmbeddingMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
+	st, _ := obj.Native.(*embeddingState)
+	switch method {
+	case "NEW":
+		nVocab := int(advplrt.ToFloat(getArg(args, 0)))
+		nDim := int(advplrt.ToFloat(getArg(args, 1)))
+		if nVocab <= 0 || nDim <= 0 {
+			return advplrt.NewError("Embedding:New: dimensões devem ser > 0")
+		}
+		st.m = nn.NewEmbedding(nVocab, nDim, optScale(args, 2))
+		v.push(obj)
+	case "FORWARD":
+		idx := shapeFromArg(getArg(args, 0))
+		for i := range idx {
+			idx[i]-- // 1-based (AdvPL) -> 0-based
+		}
+		r, err := st.m.Forward(idx)
+		if err != nil {
+			return verr(err)
+		}
+		v.push(wrapVariable(r))
+	case "PARAMS":
+		v.push(paramsArray(st.m.Params()))
+	default:
+		return advplrt.NewError("Embedding: método desconhecido " + method)
 	}
 	return nil
 }
