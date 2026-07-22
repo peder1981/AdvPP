@@ -4,6 +4,23 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### LM neural char-level treinado por gradiente (Sub-projeto 4)
+
+- **Op `Reshape` diferenciável** no autograd (`Variable:Reshape(aShape)`): forward via
+  `tensor.Reshape`, backward reshapa o gradiente de volta à forma original. Método na
+  VM + grad-check por diferenças finitas (`go test`) + fixture `tests/reshape_test.prw`.
+  É a peça que faltava para concatenar os embeddings de contexto.
+- **`tests/llm/pt_neural.prw`** — o **capstone**: LM neural char-level (byte-level,
+  seguro para UTF-8) treinado 100% em AdvPP sobre o stack S2+S3. NPLM estilo Bengio:
+  `Embedding → Reshape → Linear → Tanh → Linear → SoftmaxCE`, treinado com **Adam via
+  `Fit`**; geração char-a-char por amostragem com temperatura. Tokenizador por código
+  de byte (roundtrip exato de acentos), montador de exemplos por janela deslizante com
+  amostra por stride. Auto-teste determinístico (mini-corpus): loss ~2.77 → ~0.04. No
+  `corpus.txt` real (_Dom Casmurro_, vocab 97): loss ~4.58 → ~0.06, gerando morfologia
+  PT-BR. É o primeiro LM do projeto que **aprende os pesos por backprop**.
+- **Organização:** os modelos de LM em AdvPL puro (`pt_llm`, `pt_chat`, `pt_nn`,
+  `pt_neural`) e o `corpus.txt` foram reunidos em **`tests/llm/`**.
+
 ## [1.16.0] — 2026-07-22
 
 Ciclo de ML: núcleo de Tensor float32 + motor de autodiff completo + treino. Fecha
