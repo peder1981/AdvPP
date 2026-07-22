@@ -2,6 +2,7 @@ package tensor
 
 import (
 	"math"
+	"sort"
 	"testing"
 )
 
@@ -135,5 +136,114 @@ func TestEigSym(t *testing.T) {
 	// não-simétrica -> erro
 	if _, _, err := m64([]float64{1, 2, 3, 4}, 2, 2).EigSym(); err == nil {
 		t.Fatal("EigSym de não-simétrica deveria falhar")
+	}
+}
+
+func TestSVD(t *testing.T) {
+	// A = U S Vᵀ ; verifica reconstrução e ortogonalidade.
+	a := m64([]float64{3, 0, 0, 0, -2, 0, 0, 0, 1}, 3, 3) // diagonal -> sing = 3,2,1
+	u, s, v, err := a.SVD()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// valores singulares (desc): 3,2,1
+	if !close64(s.Get(0), 3) || !close64(s.Get(1), 2) || !close64(s.Get(2), 1) {
+		t.Fatalf("sing = [%v,%v,%v], quer [3,2,1]", s.Get(0), s.Get(1), s.Get(2))
+	}
+	// reconstrução U·diag(S)·Vᵀ ≈ A
+	n := 3
+	sd := New([]int{n, n}).AsDType(Float64)
+	for i := 0; i < n; i++ {
+		sd.Set(i*n+i, s.Get(i))
+	}
+	vt, _ := v.Transpose()
+	us, _ := u.MatMul(sd)
+	rec, _ := us.MatMul(vt)
+	for i := 0; i < 9; i++ {
+		if math.Abs(rec.Get(i)-a.Get(i)) > 1e-6 {
+			t.Fatalf("recon[%d]=%v quer %v", i, rec.Get(i), a.Get(i))
+		}
+	}
+
+	// matriz retangular m>n
+	b := m64([]float64{1, 2, 3, 4, 5, 6}, 3, 2)
+	ub, sb, vb, err := b.SVD()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sdb := NewDType([]int{2, 2}, Float64)
+	sdb.Set(0, sb.Get(0))
+	sdb.Set(3, sb.Get(1))
+	vbt, _ := vb.Transpose()
+	usb, _ := ub.MatMul(sdb)
+	recb, _ := usb.MatMul(vbt)
+	for i := 0; i < 6; i++ {
+		if math.Abs(recb.Get(i)-b.Get(i)) > 1e-6 {
+			t.Fatalf("recon retangular[%d]=%v quer %v", i, recb.Get(i), b.Get(i))
+		}
+	}
+}
+
+// ordena um par (re,im) por re desc para comparação estável.
+func sortedRe(re *Tensor) []float64 {
+	out := append([]float64(nil), re.Data64...)
+	sort.Float64s(out)
+	return out
+}
+
+func TestEigNonSym(t *testing.T) {
+	// triangular superior -> autovalores na diagonal: 1,4,6
+	re, im, err := m64([]float64{1, 2, 3, 0, 4, 5, 0, 0, 6}, 3, 3).Eig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := sortedRe(re)
+	if !close64(got[0], 1) || !close64(got[1], 4) || !close64(got[2], 6) {
+		t.Fatalf("triangular eig = %v, quer [1,4,6]", got)
+	}
+	for i := 0; i < 3; i++ {
+		if !close64(im.Get(i), 0) {
+			t.Fatalf("triangular: imag[%d]=%v, quer 0", i, im.Get(i))
+		}
+	}
+
+	// [[2,1],[1,2]] -> 3,1 (reais)
+	re, im, _ = m64([]float64{2, 1, 1, 2}, 2, 2).Eig()
+	got = sortedRe(re)
+	if !close64(got[0], 1) || !close64(got[1], 3) {
+		t.Fatalf("simétrica-2x2 eig = %v, quer [1,3]", got)
+	}
+
+	// [[0,-1],[1,0]] -> ±i (complexo puro)
+	re, im, _ = m64([]float64{0, -1, 1, 0}, 2, 2).Eig()
+	if !close64(re.Get(0), 0) || !close64(re.Get(1), 0) {
+		t.Fatalf("rotação: partes reais = [%v,%v], quer [0,0]", re.Get(0), re.Get(1))
+	}
+	if !close64(math.Abs(im.Get(0)), 1) || !close64(math.Abs(im.Get(1)), 1) {
+		t.Fatalf("rotação: |imag| = [%v,%v], quer [1,1]", im.Get(0), im.Get(1))
+	}
+
+	// 3x3 com par complexo: [[1,-1,0],[1,1,0],[0,0,3]] -> 3, 1±i
+	re, im, _ = m64([]float64{1, -1, 0, 1, 1, 0, 0, 0, 3}, 3, 3).Eig()
+	// soma das partes reais = traço (5); soma dos autovalores reais... valida traço
+	var sumRe float64
+	for i := 0; i < 3; i++ {
+		sumRe += re.Get(i)
+	}
+	if !close64(sumRe, 5) {
+		t.Fatalf("soma partes reais = %v, quer 5 (traço)", sumRe)
+	}
+	// deve haver um autovalor real 3 e um par com |imag|=1
+	foundReal3, foundComplex := false, false
+	for i := 0; i < 3; i++ {
+		if close64(re.Get(i), 3) && close64(im.Get(i), 0) {
+			foundReal3 = true
+		}
+		if close64(re.Get(i), 1) && close64(math.Abs(im.Get(i)), 1) {
+			foundComplex = true
+		}
+	}
+	if !foundReal3 || !foundComplex {
+		t.Fatalf("esperava autovalor 3 e par 1±i; re=%v im=%v", re.Data64, im.Data64)
 	}
 }
