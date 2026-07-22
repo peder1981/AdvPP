@@ -77,7 +77,97 @@ func (a *Tensor) MulScalar(s float32) *Tensor {
 	return out
 }
 
-var _ = math.Exp // math será usado nas ativações (Task 5)
+func (a *Tensor) unary(f func(x float32) float32) *Tensor {
+	out := New(a.Shape)
+	for i, v := range a.Data {
+		out.Data[i] = f(v)
+	}
+	return out
+}
+
+func f32(f func(float64) float64) func(float32) float32 {
+	return func(x float32) float32 { return float32(f(float64(x))) }
+}
+
+func (a *Tensor) Exp() *Tensor  { return a.unary(f32(math.Exp)) }
+func (a *Tensor) Log() *Tensor  { return a.unary(f32(math.Log)) }
+func (a *Tensor) Sqrt() *Tensor { return a.unary(f32(math.Sqrt)) }
+func (a *Tensor) Tanh() *Tensor { return a.unary(f32(math.Tanh)) }
+func (a *Tensor) Relu() *Tensor {
+	return a.unary(func(x float32) float32 {
+		if x > 0 {
+			return x
+		}
+		return 0
+	})
+}
+func (a *Tensor) Sigmoid() *Tensor {
+	return a.unary(func(x float32) float32 { return float32(1 / (1 + math.Exp(-float64(x)))) })
+}
+func (a *Tensor) Gelu() *Tensor {
+	const c = 0.7978845608 // sqrt(2/pi)
+	return a.unary(func(x float32) float32 {
+		xf := float64(x)
+		return float32(0.5 * xf * (1 + math.Tanh(c*(xf+0.044715*xf*xf*xf))))
+	})
+}
+
+// Softmax estável ao longo de axis. 1D: axis 0 (todo o vetor). 2D: axis 1 (por linha).
+func (a *Tensor) Softmax(axis int) (*Tensor, error) {
+	if len(a.Shape) == 1 && axis == 0 {
+		out := New(a.Shape)
+		mx := a.MaxAll()
+		var sum float32
+		for i, v := range a.Data {
+			e := float32(math.Exp(float64(v - mx)))
+			out.Data[i] = e
+			sum += e
+		}
+		for i := range out.Data {
+			out.Data[i] /= sum
+		}
+		return out, nil
+	}
+	if len(a.Shape) == 2 && axis == 1 {
+		m, n := a.Shape[0], a.Shape[1]
+		out := New(a.Shape)
+		for i := 0; i < m; i++ {
+			mx := a.Data[i*n]
+			for j := 1; j < n; j++ {
+				if a.Data[i*n+j] > mx {
+					mx = a.Data[i*n+j]
+				}
+			}
+			var sum float32
+			for j := 0; j < n; j++ {
+				e := float32(math.Exp(float64(a.Data[i*n+j] - mx)))
+				out.Data[i*n+j] = e
+				sum += e
+			}
+			for j := 0; j < n; j++ {
+				out.Data[i*n+j] /= sum
+			}
+		}
+		return out, nil
+	}
+	return nil, fmt.Errorf("Softmax: combinação forma %v / axis %d não suportada", a.Shape, axis)
+}
+
+// IndexRows colhe linhas (idx 0-based) de um tensor 2D [R,C] -> [len(idx),C].
+func (a *Tensor) IndexRows(idx []int) (*Tensor, error) {
+	if len(a.Shape) != 2 {
+		return nil, fmt.Errorf("IndexRows: requer 2D, tem %v", a.Shape)
+	}
+	r, c := a.Shape[0], a.Shape[1]
+	out := New([]int{len(idx), c})
+	for k, ix := range idx {
+		if ix < 0 || ix >= r {
+			return nil, fmt.Errorf("IndexRows: linha %d fora de faixa (0..%d)", ix, r-1)
+		}
+		copy(out.Data[k*c:(k+1)*c], a.Data[ix*c:(ix+1)*c])
+	}
+	return out, nil
+}
 
 // MatMul: [M,K]x[K,N]->[M,N]; matvec [M,K]x[K]->[M]. Ordem i-k-j (cache).
 func (a *Tensor) MatMul(b *Tensor) (*Tensor, error) {
