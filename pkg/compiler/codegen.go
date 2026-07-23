@@ -927,6 +927,24 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 		if idx, ok := c.resolveLocal(e.Name); ok {
 			c.emit(OP_STORE_LOCAL, idx, 0, e.Name, e.Loc.Line)
 		}
+	case *ast.NamedParam:
+		// Fora de uma lista de argumentos de call (onde compileArgs já
+		// intercepta e desmonta o node antes de chegar aqui), `ident := expr`
+		// dentro de uma expressão qualquer (3º/4º argumento de IIF/IF sem
+		// passar por compileArgs, elemento de array literal de comando legado
+		// como `{a, b := c, d}` num ACTION/VALID, etc.) é só uma atribuição
+		// comum usada como valor — mesmo idioma Clipper de
+		// `While (x := next()) > 0`. Reaproveita a semântica de AssignExpr:
+		// armazena e deixa uma cópia na pilha como valor da expressão. Sem
+		// esse fallback, a compilação inteira falhava com "unsupported
+		// expression type: *ast.NamedParam".
+		if err := c.compileExpr(e.Value); err != nil {
+			return err
+		}
+		c.emit(OP_DUP, 0, 0, "", e.Loc.Line)
+		if err := c.compileStoreTarget(&ast.Ident{Loc: e.Loc, Name: e.Name}, e.Loc.Line); err != nil {
+			return err
+		}
 	case *ast.JsonLit:
 		for _, pair := range e.Pairs {
 			c.emit(OP_STRING, c.addStringConst(pair.Key), 0, "", pair.Loc.Line)
@@ -935,21 +953,6 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 			}
 		}
 		c.emit(OP_NEW_OBJECT, len(e.Pairs), 0, "json", e.Loc.Line)
-	case *ast.NamedParam:
-		// `nome := valor` fora de lista de argumentos de chamada
-		// (compileArgs trata esse caso à parte) — mesma semântica de uma
-		// atribuição comum. Aparece em código real dentro de array
-		// literal de comando legado (`{a, b := c, d}` num ACTION/VALID) e
-		// em outras posições de expressão onde o parser aceita `:=` mas
-		// antes disso não havia fallback, e a compilação inteira falhava
-		// com "unsupported expression type: *ast.NamedParam".
-		if err := c.compileExpr(e.Value); err != nil {
-			return err
-		}
-		c.emit(OP_DUP, 0, 0, "", e.Loc.Line)
-		if err := c.compileStoreTarget(&ast.Ident{Loc: e.Loc, Name: e.Name}, e.Loc.Line); err != nil {
-			return err
-		}
 	default:
 		return fmt.Errorf("unsupported expression type: %T (linha %d)", expr, expr.Pos().Line)
 	}
