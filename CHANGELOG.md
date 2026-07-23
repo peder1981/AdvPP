@@ -4,6 +4,36 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+Gaps encontrados numa varredura fresca e não-viesada de 1800 arquivos aleatórios
+dos dois corpora reais (811R4 + 12.1.2510), fora da amostra já 100%-curada.
+Isolados com repro mínimo antes de cada correção — ver `tests/` para os casos.
+
+- **`BEGIN REPORT QUERY <alias> ... END REPORT QUERY <alias> [PARAM ...]`**
+  (wrapper de TReport em torno de `BeginSql/EndSql`) reconhecido pelo
+  preprocessador e removido (linha em branco, preserva numeração de
+  diagnóstico) — antes, essas duas linhas sobravam como código bruto depois do
+  `BeginSql/EndSql` interno virar AdvPL, e a vírgula de `PARAM a, b` quebrava o
+  parser.
+- **`&expr` (macro substitution) agora executa de verdade em runtime** —
+  bug real descoberto no processo: o VM emitia `OP_MACRO` no compile mas não
+  tinha handler pra esse opcode, então qualquer `&cVar`/`&(expr)` **executado**
+  (não só compilado) derrubava o processo com `unknown opcode: UNKNOWN`. Corrigido
+  com um motor de macro-eval real (`pkg/vm/macro.go`): lexa+parseia+compila a
+  string em runtime como uma expressão isolada e executa contra o mesmo
+  `dynEnv` (Private/Public) do VM corrente — Locals não são visíveis, mesma
+  limitação do Clipper real (Locals não existem por nome em runtime).
+- **`ident&macro` colado (`K2&cSuf`)** — composição clássica de nome de
+  variável dinâmico do Clipper (concatena o identificador literal com o valor
+  em runtime da macro pra formar OUTRO nome de variável) agora parseia e
+  resolve via o mesmo motor de macro-eval, em vez de quebrar o parser com
+  `expected ')', got '&'` dentro de sub-expressões parentizadas.
+- **`*ast.NamedParam` (`nome := valor`) fora de lista de argumentos de
+  chamada** agora compila como uma atribuição comum (fallback genérico) em vez
+  de falhar a compilação inteira com `unsupported expression type`. Ocorre em
+  código real dentro de array literal de comando legado (`{a, b := c, d}` em
+  ACTION/VALID) e outras posições onde o parser já aceitava a sintaxe mas o
+  compilador não tinha caminho de geração de código.
+
 ## [1.20.0] — 2026-07-22
 
 Completa a álgebra linear do kernel matemático: **SVD** e **autovalores de matriz

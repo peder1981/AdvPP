@@ -208,6 +208,20 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 			continue
 		}
 
+		// `BEGIN REPORT QUERY <alias>` / `END REPORT QUERY <alias> [PARAM
+		// ...]` — wrapper de TReport em torno de um bloco BeginSql/EndSql
+		// (documenta o alias e os parâmetros do relatório, sem sintaxe
+		// própria de statement AdvPL). Sem tratamento, essas duas linhas
+		// sobram como código bruto após o BeginSql/EndSql interno virar
+		// AdvPL — "END REPORT QUERY x PARAM a, b" não é uma expressão
+		// válida e a vírgula de PARAM quebra o parser. Vira linha em
+		// branco (preserva numeração de diagnóstico do resto do arquivo).
+		if len(trimmed) >= 5 && (trimmed[0]|0x20 == 'b' || trimmed[0]|0x20 == 'e') && reportQueryRe.MatchString(trimmed) {
+			output.WriteString("\n")
+			i++
+			continue
+		}
+
 		if upper == "BEGINSQL" || strings.HasPrefix(upper, "BEGINSQL ") {
 			i++
 			alias := extractSqlAlias(trimmed)
@@ -296,6 +310,8 @@ func scanBlockComment(line string, inComment bool) bool {
 	}
 	return inComment
 }
+
+var reportQueryRe = regexp.MustCompile(`(?i)^(BEGIN|END)\s+REPORT\s+QUERY\b`)
 
 var sqlAliasRe = regexp.MustCompile(`(?i)\bALIAS\s+(\w+)`)
 
