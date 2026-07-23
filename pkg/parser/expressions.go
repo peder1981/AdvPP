@@ -242,16 +242,26 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 		save := p.pos
 		p.advance() // COPY
 		if _, err := p.parseOr(); err == nil && p.isKeyword(p.peek(), "TO") && p.isWord(p.peekAt(1), "MEMORY") {
-			p.advance() // TO
-			p.advance() // MEMORY
-			nameTok, err := p.expectName()
-			if err != nil {
-				return nil, err
+			memTok := p.advance() // TO
+			p.advance()           // MEMORY
+			// O nome do array de destino é opcional (`Copy "BBB" To Memory`
+			// sozinho, idioma real bem comum, copia pra um array implícito).
+			// Sem checar "mesma linha", `expectName()` engolia incondicional-
+			// mente o primeiro identificador da PRÓXIMA statement (`oEnc :=
+			// ...` na linha de baixo) como se fosse o nome — bug real
+			// encontrado testando este comando contra o corpus.
+			args := []ast.Expression{}
+			if p.peek().Type == lexer.TOKEN_IDENT && p.peek().Line == memTok.Line {
+				nameTok, err := p.expectName()
+				if err != nil {
+					return nil, err
+				}
+				args = append(args, &ast.StringLit{Loc: p.posFromToken(nameTok), Value: nameTok.Value})
 			}
-			if p.isWord(p.peek(), "BLANK") {
+			if p.isWord(p.peek(), "BLANK") && p.peek().Line == memTok.Line {
 				p.advance()
 			}
-			call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "COPY_TO_MEMORY", Args: []ast.Expression{&ast.StringLit{Loc: p.posFromToken(nameTok), Value: nameTok.Value}}}
+			call := &ast.CallExpr{Loc: p.posFromToken(tok), Name: "COPY_TO_MEMORY", Args: args}
 			return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
 		}
 		p.pos = save
@@ -341,6 +351,28 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 			}
 			p.advance()
 		}
+		// Cláusulas de escopo do Clipper (`ALL`, `REST`, `NEXT <expr>`,
+		// `RECORD <expr>`, `FOR <cond>`, `WHILE <cond>`) — sem consumi-las,
+		// sobram como código bruto depois do REPLACE, e um `FOR <cond>`
+		// desses vaza pro parser como se fosse um `For` de loop de verdade
+		// (bug real: `REPLACE campo WITH x ALL FOR cond` — o `FOR cond`
+		// batia em "expected TO in For", já que não é um loop de verdade).
+		for {
+			cur := p.peek()
+			sameLine := p.pos > 0 && p.tokens[p.pos-1].Line == cur.Line
+			switch {
+			case sameLine && (p.isWord(cur, "ALL") || p.isWord(cur, "REST")):
+				p.advance()
+			case sameLine && (p.isWord(cur, "NEXT") || p.isWord(cur, "RECORD") || p.isKeyword(cur, "FOR") || p.isKeyword(cur, "WHILE")):
+				p.advance()
+				if _, err := p.parseOr(); err != nil {
+					return nil, err
+				}
+			default:
+				goto replaceDone
+			}
+		}
+	replaceDone:
 		call := &ast.CallExpr{Loc: p.posFromToken(rTok), Name: "REPLACE_FIELDS", Args: nil}
 		return &ast.ExprStmt{Loc: p.posFromToken(rTok), Expr: call}, nil
 	}
@@ -360,9 +392,19 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 		}
 		for {
 			cur := p.peek()
+			// FOR/WHILE também abrem statement de verdade (For nCnt := 1
+			// To N / While cond) — sem exigir mesma linha do token anterior,
+			// um `Store Header ... For .T.` seguido de um `For` de loop de
+			// verdade na PRÓXIMA linha era engolido como se fosse mais uma
+			// cláusula deste STORE, e o `:=` do loop sobrava como token
+			// inesperado (bug real: o corpus tem `Store Header ... For
+			// <cond>` como statement isolado, terminado, seguido de um `For`
+			// de loop de verdade). Mesmo padrão de guarda já usado alhures
+			// neste parser (parsePanelOnline, cláusulas do `@`).
+			sameLine := p.pos > 0 && p.tokens[p.pos-1].Line == cur.Line
 			switch {
-			case p.isKeyword(cur, "TO"), p.isKeyword(cur, "FROM"), p.isKeyword(cur, "FOR"),
-				p.isKeyword(cur, "WHILE"), p.isWord(cur, "VETTRAB"):
+			case sameLine && (p.isKeyword(cur, "TO") || p.isKeyword(cur, "FROM") || p.isKeyword(cur, "FOR") ||
+				p.isKeyword(cur, "WHILE") || p.isWord(cur, "VETTRAB")):
 				p.advance()
 				if _, err := p.parseOr(); err != nil {
 					return nil, err
@@ -1060,7 +1102,15 @@ func (p *Parser) parseFor() (ast.Statement, error) {
 	}
 
 	if p.isKeyword(p.peek(), "END") || p.isWord(p.peek(), "ENDFOR") {
-		p.advance()
+		endTok := p.advance()
+		// `End For` (duas palavras, mesma linha) é o mesmo fechamento que
+		// `End`/`EndFor` sozinho — sem consumir o `For` sobrando, ele vazava
+		// pro parser de statement como se fosse um NOVO `For` de loop de
+		// verdade, batendo em "expected TO in For" ao não achar `ident :=`
+		// depois.
+		if p.isKeyword(p.peek(), "FOR") && p.peek().Line == endTok.Line {
+			p.advance()
+		}
 		return forStmt, nil
 	}
 
@@ -2134,7 +2184,12 @@ done:
 // parseCommaValues parses one expression, then any further comma-separated
 // expressions (e.g. the "x,y" in `FROM x,y`).
 func (p *Parser) parseCommaValues() ([]ast.Expression, error) {
-	first, err := p.parseOr()
+	// parseAssignRHS (not parseOr) so a clause value that's itself an
+	// assignment (ex.: `@row,col BUTTON "..." ACTION cVar := Func(...)`,
+	// mesmo idioma real já suportado em parseDefineCommaValues pro DEFINE/
+	// MENUITEM, mas essa é a cláusula genérica usada pelo `@` inline) não
+	// deixa o ':=' sobrando como token inesperado.
+	first, err := p.parseAssignRHS()
 	if err != nil {
 		return nil, err
 	}
@@ -2149,7 +2204,7 @@ func (p *Parser) parseCommaValues() ([]ast.Expression, error) {
 			break
 		}
 		p.advance()
-		v, err := p.parseOr()
+		v, err := p.parseAssignRHS()
 		if err != nil {
 			return nil, err
 		}
@@ -2442,10 +2497,17 @@ func (p *Parser) parseParamType() (ast.Statement, error) {
 		typeName := p.parseTypeName()
 		args = append(args, &ast.StringLit{Loc: p.posFromToken(typeTok), Value: typeName})
 	}
-	if p.isWord(p.peek(), "OPTIONAL") {
+	// OPTIONAL/DEFAULT exigem mesma linha do `ParamType` — sem isso, um
+	// `ParamType N Var x As Tipo` (sem essas cláusulas) seguido, na
+	// PRÓXIMA linha, de um statement `Default y := valor` de verdade (o
+	// comando `Default`, não a cláusula) tinha o "Default" engolido como
+	// se fosse cláusula deste ParamType, e o `:=` do statement real
+	// sobrava como token inesperado — bug real, mesma classe já
+	// encontrada em Store Header/Cols e Copy To Memory.
+	if p.isWord(p.peek(), "OPTIONAL") && p.peek().Line == tok.Line {
 		p.advance()
 	}
-	if p.isWord(p.peek(), "DEFAULT") {
+	if p.isWord(p.peek(), "DEFAULT") && p.peek().Line == tok.Line {
 		p.advance()
 		val, err := p.parseOr()
 		if err != nil {
@@ -3423,7 +3485,12 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 			}
 		case lexer.TOKEN_LBRACKET:
 			p.advance()
-			idx, err := p.parseExpression()
+			// parseAssignRHS (não parseExpression) — `arr[nAux+=1]` (índice
+			// que também incrementa um contador via `+=`, idioma real comum
+			// em codeblocks `{|x| ...}` de iteração paralela) deixava o
+			// `+=` sobrando ("expected ']', got '+'"), já que parseExpression
+			// não sabe de atribuição composta.
+			idx, err := p.parseAssignRHS()
 			if err != nil {
 				return nil, err
 			}
@@ -3432,7 +3499,7 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 			// are arrays of arrays).
 			for p.peek().Type == lexer.TOKEN_COMMA {
 				p.advance()
-				idx2, err := p.parseExpression()
+				idx2, err := p.parseAssignRHS()
 				if err != nil {
 					return nil, err
 				}
@@ -3494,6 +3561,14 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 					}
 				} else if _, err := p.expect(lexer.TOKEN_IDENT); err != nil {
 					return nil, err
+				} else if p.peek().Type == lexer.TOKEN_DOT {
+					// `M->&cCampo.` — terminador explícito clássico do
+					// Clipper/AdvPL pro fim da macro (mesma tolerância já
+					// aplicada ao `&nome.` isolado), comum depois de
+					// `alias->&macro` pra não colar com o que vier a
+					// seguir. Sem consumir, o ponto sobrava como token
+					// inesperado pro resto do parser.
+					p.advance()
 				}
 				switch a := expr.(type) {
 				case *ast.Ident:
@@ -3723,8 +3798,14 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 		// lida por indireção (ex.: `K2A`, `K2B`... conforme `cSuf`). Vira
 		// `&("K2" + cSuf)`, reaproveitando o mesmo motor de macro-eval em
 		// runtime de um `&macro` isolado (que já sabe resolver um nome de
-		// variável dinâmico).
-		if p.peek().Type == lexer.TOKEN_AMPERSAND && !strings.Contains(name, ".") {
+		// variável dinâmico). Requer MESMA LINHA — newlines já foram
+		// removidas do stream de tokens antes do parser, então sem esse
+		// check um `&(...)` que começa a PRÓXIMA statement (ex.: limite de
+		// um `For var To nOutraVar` seguido de `&(macro) := valor` na linha
+		// de baixo) era engolido como se fosse `nOutraVar&(macro)` colado —
+		// bug real encontrado testando esta própria feature contra o
+		// corpus.
+		if p.peek().Type == lexer.TOKEN_AMPERSAND && p.peek().Line == tok.Line && !strings.Contains(name, ".") {
 			ampTok := p.advance()
 			var suffix ast.Expression
 			if p.peek().Type == lexer.TOKEN_LPAREN {
