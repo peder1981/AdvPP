@@ -4,6 +4,12 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+## [1.20.0] — 2026-07-22
+
+Completa a álgebra linear do kernel matemático: **SVD** e **autovalores de matriz
+não-simétrica** (com pares complexos), e corrige o parser para compilar fontes Protheus
+reais (`=` em argumento é comparação, não parâmetro nomeado).
+
 ### Álgebra linear — SVD, autovalores não-simétricos + correção de parser
 
 - **`SVD()`** (decomposição em valores singulares por Jacobi de um lado): `{U, S, V}`
