@@ -1092,6 +1092,7 @@ var builtinClasses = map[string]bool{
 	"FWMBROWSE":     true,
 	"LLM":           true,
 	"MCPSERVER":     true,
+	"WSRESTSERVER":  true,
 	"TENSOR":        true,
 	"VARIABLE":      true,
 	"SGD":           true,

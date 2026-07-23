@@ -34,6 +34,55 @@ Isolados com repro mínimo antes de cada correção — ver `tests/` para os cas
   ACTION/VALID) e outras posições onde o parser já aceitava a sintaxe mas o
   compilador não tinha caminho de geração de código.
 
+### Servidor REST nativo (classe `WSRestServer`)
+
+O AdvPP agora executa REST 2.0 de verdade para o estilo de anotações do
+TLPP — até aqui `@Get`/`@Post`/`@Put`/`@Patch`/`@Delete` eram só sintaxe
+reconhecida e descartada (sem servidor HTTP nem despacho real), mesmo
+gap documentado no `MCPServer` v1.5.0. Mesmo padrão arquitetural: um
+`net/http.Server` real, sem CGO, sem dependências externas.
+
+- **`pkg/rest`**: servidor HTTP em Go puro — roteador nativo do
+  `net/http` (Go 1.22+, patterns `"GET /clientes/{id}"`), path params via
+  `r.PathValue`, JSON de request/response via `encoding/json`; endpoint
+  `GET /_routes` de introspecção.
+- **Classe `WSRestServer`** (`pkg/vm/rest_native.go`): `New(cNome,
+  cVersao)` varre o bytecode carregado e auto-registra como rota toda
+  `User Function` anotada com `@Get("/path")`/`@Post(...)`/`@Put(...)`/
+  `@Patch(...)`/`@Delete(...)` (a anotação já chegava intacta até
+  `FunctionInfo.Annotations` desde o suporte a namespaces — só faltava
+  alguém ler); `AddRoute(cVerbo, cPath, cNomeFuncao)` registra rota
+  manualmente. Cada requisição roda a função numa VM isolada (mesmo
+  mecanismo do `MCPServer`/`StartJob`) recebendo um objeto único
+  (`oParam:CAMPO`) com path params + query string + corpo JSON
+  mesclados (corpo vence path, path vence query). Retorno vira JSON 200;
+  erro vira 500; path desconhecido 404; verbo não registrado num path
+  existente 405. `Serve(nPorta)` bloqueia servindo HTTP.
+- **Limitação conhecida, documentada e não implementada**: o DSL
+  clássico `WSRESTFUL <nome> ... WSMETHOD <verbo> PATH "..." ...
+  ENDWSRESTFUL` continua só parseado — `parseWSClient`
+  (`pkg/parser/parser.go`) descarta o verbo HTTP e a cláusula `PATH` ao
+  montar o `ast.ClassDecl`, e a implementação do método é ligada a uma
+  instância de classe (`WSMETHOD ... WSSERVICE <classe>`), enquanto
+  `v.RunFunction` — usado pelo dispatch HTTP — só chama funções
+  top-level. Cobrir esse estilo exigiria capturar verbo+path no parser
+  (cirurgia isolada, viável) e um caminho de dispatch novo que
+  instancie o serviço a cada requisição antes de chamar o método
+  (mudança maior na VM); nenhum dos dois casos apareceu nos corpora
+  reais validados, então ficou fora desta rodada — workaround: escrever
+  o serviço no estilo anotações, ou registrar a rota manualmente com
+  `AddRoute`.
+- Fixture `tests/rest_server_test.prw` + teste de integração Go
+  (`cmd/advplc/rest_integration_test.go`, `TestRestServerFixture`):
+  builda o binário, sobe o servidor, faz requisições HTTP reais (GET,
+  GET com path param, POST com corpo JSON, 404, 405) — mesmo padrão do
+  `TestMCPServerFixture`.
+- **Bug de implementação pego durante o TDD**: `rest.Server.Serve`
+  chamava `buildMux()` (que precisa de `s.mu`) enquanto `s.mu` já estava
+  travado para gravar `s.httpServer` — deadlock silencioso no primeiro
+  request (o processo ficava vivo, bloqueado em `ListenAndServe`, mas
+  nunca aceitava conexão). Corrigido montando o mux antes do lock.
+
 ## [1.20.0] — 2026-07-22
 
 Completa a álgebra linear do kernel matemático: **SVD** e **autovalores de matriz

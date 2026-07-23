@@ -1287,6 +1287,8 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callLLMMethod(obj, upperMethod, args)
 	case "MCPServer":
 		return v.callMCPServerMethod(obj, upperMethod, args)
+	case "WSRestServer":
+		return v.callWSRestServerMethod(obj, upperMethod, args)
 	case "Tensor":
 		return v.callTensorMethod(obj, upperMethod, args)
 	case "Variable":
@@ -1439,6 +1441,9 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "MCPSERVER":
 			v.push(newMCPServerObject())
+			return nil
+		case "WSRESTSERVER":
+			v.push(newWSRestServerObject())
 			return nil
 		case "TENSOR":
 			v.push(newTensorObject())
