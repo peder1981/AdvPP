@@ -505,9 +505,9 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	// `Release Object <name>` / `Release All [Like <mask>]` — libera
 	// memvars/objetos; parseado e descartado. Só com OBJECT/ALL para não
 	// engolir um identificador "Release" usado como nome comum.
-	if p.isWord(tok, "RELEASE") && (p.isWord(p.peekAt(1), "OBJECT") || p.isKeyword(p.peekAt(1), "ALL")) {
+	if p.isWord(tok, "RELEASE") && (p.isWord(p.peekAt(1), "OBJECT") || p.isWord(p.peekAt(1), "OBJECTS") || p.isKeyword(p.peekAt(1), "ALL")) {
 		relTok := p.advance() // RELEASE
-		if p.isWord(p.peek(), "OBJECT") {
+		if p.isWord(p.peek(), "OBJECT") || p.isWord(p.peek(), "OBJECTS") {
 			p.advance()
 			for {
 				if _, err := p.expectName(); err != nil {
@@ -754,6 +754,16 @@ func (p *Parser) parseVarDecl() (ast.Statement, error) {
 			break
 		}
 		extraName := p.advance()
+		// `Private a := 1, M->GAD_SEXO := "0"` — mesma redundância de
+		// alias "M" tratada acima para o primeiro nome da lista.
+		if strings.EqualFold(extraName.Value, "M") && p.peek().Type == lexer.TOKEN_ARROW {
+			p.advance() // ->
+			realName, err := p.expectName()
+			if err != nil {
+				return nil, err
+			}
+			extraName = realName
+		}
 		extraDecl := &ast.VarDecl{
 			Loc:   p.posFromToken(extraName),
 			Scope: scope,
@@ -1360,6 +1370,21 @@ func (p *Parser) parseOneDefault(tok lexer.Token) (*ast.DefaultExpr, error) {
 			return nil, err
 		}
 		name = nameTok.Value
+		// `Default HttpGet->Page := "1"` — alvo alias->campo (comum no DSL
+		// web do Protheus para valores de querystring/formulário, tratando
+		// o dicionário HttpGet/HttpPost como se fosse uma work area). Não
+		// há slot local endereçável para isso; consome o "->campo" e
+		// mantém o nome combinado, que nunca resolve como local — mesma
+		// tolerância de "computa e descarta" já usada para outros alvos
+		// não endereçáveis por este VM.
+		if p.peek().Type == lexer.TOKEN_ARROW {
+			p.advance()
+			fieldTok, err := p.expectName()
+			if err != nil {
+				return nil, err
+			}
+			name = name + "->" + fieldTok.Value
+		}
 	}
 	if p.peek().Type == lexer.TOKEN_ASSIGN {
 		p.advance()
@@ -1635,7 +1660,7 @@ func (p *Parser) isDefineClauseWord(tok lexer.Token) bool {
 		"TITLE", "FROM", "TO", "OF", "PIXEL", "ENABLE", "DISABLE", "COLOR",
 		"STYLE", "ICON", "NAME", "SIZE", "TYPE", "ACTION", "ALIAS",
 		"BOLD", "ITALIC", "UNDERLINE", "PARAMETER", "PARAMETERS", "DESCRIPTION",
-		"TABLES", "PICTURE", "WHEN", "ONSTOP", "BLOCK",
+		"TABLES", "TABLE", "PICTURE", "WHEN", "ONSTOP", "BLOCK",
 		"ALIGN", "HEADER", "AUTO", "BITMAP", "PIXELS", "RIGHT", "LEFT",
 		"CENTER", "CENTERED", "DATA", "PROMPT", "BREAK", "EXEC", "BACK",
 		"FINISH", "MESSAGE", "TEXT", "DOUBLECLICK", "HEADERCLICK", "LEGEND",
@@ -1806,7 +1831,9 @@ func (p *Parser) parseDefine() (ast.Statement, error) {
 			name = "PARAMETER"
 		case p.isWord(cur, "DESCRIPTION"):
 			name = "DESCRIPTION"
-		case p.isWord(cur, "TABLES"):
+		// `DEFINE SECTION ... TABLE "a","b"` — variante no singular do
+		// `TABLES` normal, mesmo idioma tolerado pelo Clipper real.
+		case p.isWord(cur, "TABLES"), p.isWord(cur, "TABLE"):
 			name = "TABLES"
 		// `DEFINE SCROLLBAR ... RANGE min, max`
 		case p.isWord(cur, "RANGE"):
@@ -2575,6 +2602,16 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 			continue
 		}
 		clauseTok := p.advance()
+		// `LISTBOX ... FIELDS ALIAS cAlias ...` — variante que referencia a
+		// área de trabalho de onde vêm os campos (uma única expressão, não
+		// lista separada por vírgula), distinta de `FIELDS "a","b","c"`.
+		if p.isWord(clauseTok, "FIELDS") && p.isWord(p.peek(), "ALIAS") {
+			p.advance() // ALIAS
+			if _, err := p.parseOr(); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		// `LISTBOX ... FIELDS "" ; HEADER ...` — FIELDS pode levar uma
 		// lista de valores própria (ou ser só flag antes de HEADER).
 		if p.isWord(clauseTok, "FIELDS") && !p.isAtClauseWord(p.peek()) &&
@@ -2658,8 +2695,8 @@ func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 		"READONLY",
 		// `@ y,x LISTBOX var FIELDS HEADER a,b,c SIZES w1,w2,w3 SIZE w,h`
 		"SIZES",
-		// `@ y,x METER var VAR n TOTAL 100 SIZE w,h`
-		"TOTAL",
+		// `@ y,x METER var VAR n TOTAL 100 SIZE w,h BARCOLOR c1,c2`
+		"TOTAL", "BARCOLOR",
 		// `@ y,x SCROLLBOX var VERTICAL|HORIZONTAL OF window PIXEL`
 		"VERTICAL", "HORIZONTAL",
 		// `@ y,x BMPBUTTON TYPE n ACTION expr` — botão bitmap com número de
@@ -2725,6 +2762,20 @@ func (p *Parser) parseActivateDialog() (ast.Statement, error) {
 			clauses["VALID"] = val
 		case p.isWord(cur, "CENTERED"), p.isWord(cur, "CENTER"), p.isWord(cur, "ICONIZED"), p.isWord(cur, "ICONIZE"):
 			p.advance()
+		case p.isWord(cur, "AT"):
+			// `ACTIVATE POPUP oMenu AT nRow, nCol` (comum em menu de contexto
+			// clássico Clipper) — posição de exibição, sem efeito no engine
+			// atual (sem UI real de popup), só precisa ser consumida.
+			p.advance()
+			if _, err := p.parseOr(); err != nil {
+				return nil, err
+			}
+			if p.peek().Type == lexer.TOKEN_COMMA {
+				p.advance()
+				if _, err := p.parseOr(); err != nil {
+					return nil, err
+				}
+			}
 		default:
 			goto done
 		}

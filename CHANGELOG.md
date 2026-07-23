@@ -27,12 +27,6 @@ Isolados com repro mínimo antes de cada correção — ver `tests/` para os cas
   em runtime da macro pra formar OUTRO nome de variável) agora parseia e
   resolve via o mesmo motor de macro-eval, em vez de quebrar o parser com
   `expected ')', got '&'` dentro de sub-expressões parentizadas.
-- **`*ast.NamedParam` (`nome := valor`) fora de lista de argumentos de
-  chamada** agora compila como uma atribuição comum (fallback genérico) em vez
-  de falhar a compilação inteira com `unsupported expression type`. Ocorre em
-  código real dentro de array literal de comando legado (`{a, b := c, d}` em
-  ACTION/VALID) e outras posições onde o parser já aceitava a sintaxe mas o
-  compilador não tinha caminho de geração de código.
 
 ### Servidor REST nativo (classe `WSRestServer`)
 
@@ -82,6 +76,62 @@ gap documentado no `MCPServer` v1.5.0. Mesmo padrão arquitetural: um
   travado para gravar `s.httpServer` — deadlock silencioso no primeiro
   request (o processo ficava vivo, bloqueado em `ListenAndServe`, mas
   nunca aceitava conexão). Corrigido montando o mux antes do lock.
+
+### Mais 7 gaps de parser/compilador (segunda varredura, 2000 fontes)
+
+Continuação da varredura acima numa amostra maior (2000 fontes reais dos
+corpora 811R4 + Protheus 12.1.2510): 93,0% → 96,95% de aprovação em
+`advplc check`. Fixture de regressão: `tests/parser_gaps_v1201.prw`
+(`cmd/advplc/parser_gaps_test.go`).
+
+- **`NamedParam` (`ident := valor`) fora de uma lista de argumentos de call quebrava o
+  compilador** ("unsupported expression type: *ast.NamedParam") — o maior bucket da
+  varredura, de longe. O parser (desde o v1.19) transforma `ident := expr` em qualquer
+  posição de argumento de call num nó `NamedParam`, mas só `compileArgs` sabia
+  compilá-lo; qualquer outro lugar que chamasse `compileExpr` diretamente sobre esse nó
+  (ex.: o 2º/3º argumento de `IIF`/`IF`, que não passa por `compileArgs`) caía no caso
+  `default` e crashava. O idioma real mais comum que dispara isso é usar atribuição como
+  valor de um ramo de `IIF` (`IIF(cond, cVar := "A", cVar := "B")`), não parâmetro
+  nomeado de verdade. Fix: `compileExpr` agora trata `*ast.NamedParam` como um
+  `AssignExpr` comum (atribui e deixa uma cópia na pilha) quando encontrado fora de
+  `compileArgs`, em vez de crashar.
+- **`ACTIVATE POPUP/WINDOW/... AT nRow, nCol` não era reconhecido** — a cláusula de
+  posição do `ACTIVATE` só cobria `ON INIT`/`VALID`/`CENTERED`; `AT` ficava sobrando
+  como um statement solto inválido, quebrando o parse do resto do arquivo.
+- **`RELEASE OBJECTS a, b` (plural) não era reconhecido** — só a forma singular
+  `RELEASE OBJECT` estava na lista de dispatch, apesar de a lógica de parsing já
+  suportar lista separada por vírgula.
+- **`@ ... LISTBOX ... FIELDS ALIAS cAlias ...` quebrava** — a cláusula `FIELDS`
+  tratava incondicionalmente o que vier depois como o início de uma lista de valores
+  (`FIELDS "a","b","c"`), então `ALIAS` virava o primeiro item dessa lista em vez de
+  introduzir sua própria sub-cláusula de expressão única, dessincronizando o resto do
+  parse do comando `@`.
+- **`DEFINE SECTION ... TABLE "a","b"` (singular) não era reconhecido** — só `TABLES`
+  (plural) estava na lista de cláusulas de `DEFINE`; a variante no singular é o mesmo
+  idioma tolerado pelo Clipper real.
+- **`@ ... METER ... BARCOLOR c1,c2` quebrava o parse do comando `@` inteiro** —
+  qualquer cláusula não cadastrada em `isAtClauseWord` interrompe o loop de cláusulas do
+  `@` (não só é ignorada — o comando inteiro termina ali), sobrando o resto como
+  statement inválido. `BARCOLOR` (cor da barra do controle METER) não estava na lista.
+- **`Default alias->campo := valor` quebrava** — `Default` só aceitava identificador
+  simples, `::prop` ou `Self:prop` como alvo; a forma `HttpGet->Page` (idioma comum do
+  DSL web do Protheus, tratando o dicionário de querystring/form como pseudo work-area)
+  não tinha tratamento, nem como primeiro nome nem como item subsequente de uma lista
+  `Private a:=1, M->campo:=2` separada por vírgula (só o primeiro nome da lista tinha o
+  tratamento de redundância `M->campo`, faltava nos itens seguintes).
+
+### Investigado e NÃO é gap real (falso positivo de header/include ausente)
+
+- Comando DSL de projeto (ex.: `QSPARENTFIELD ... INDEX ORDER n`) definido via
+  `#xcommand` num header próprio (`.ch`) que não está presente no corpus baixado —
+  sem ele, o comando nem existe para o compilador real, então não há sintaxe nativa a
+  suportar.
+- Um `#include` de header presente no corpus mas fora do diretório-padrão de busca
+  (`advplc check` só adiciona o diretório do próprio arquivo, não subpastas irmãs tipo
+  `Includes/` do projeto original) — resolvível com `-I`, não é gap de linguagem.
+- Um caso de encadeamento `x += y += z` (dois `+=` seguidos na mesma expressão) — bug
+  de digitação no fonte original, não uma forma válida de atribuição composta em
+  Clipper/AdvPL.
 
 ## [1.20.0] — 2026-07-22
 
