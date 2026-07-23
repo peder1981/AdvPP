@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 let output;
+let extensionContext;
 
 function binaryName() {
 	return process.platform === 'win32' ? 'advplc.exe' : 'advplc';
@@ -21,11 +22,23 @@ function findCompilerUpward(startDir) {
 	return null;
 }
 
+// Binário embutido no próprio .vsix (tools/vscode-advpl/bin/<platform>-<arch>/),
+// gerado por build-vsix.sh a partir do cross-compile do compilador — a
+// extensão funciona sozinha sem exigir instalar o advplc à parte. Chave é
+// process.platform+process.arch do Node, não GOOS/GOARCH do Go.
+function bundledCompiler(context) {
+	const dir = `${process.platform}-${process.arch}`;
+	const candidate = path.join(context.extensionPath, 'bin', dir, binaryName());
+	return fs.existsSync(candidate) ? candidate : null;
+}
+
 function resolveCompiler(fileDir) {
 	const configured = vscode.workspace.getConfiguration('advpl').get('compilerPath');
 	if (configured) return configured;
 	const found = findCompilerUpward(fileDir);
 	if (found) return found;
+	const bundled = bundledCompiler(extensionContext);
+	if (bundled) return bundled;
 	return binaryName(); // fall back to PATH resolution
 }
 
@@ -39,8 +52,12 @@ function runCompiler(args, cwd) {
 	proc.on('error', err => {
 		if (err.code === 'ENOENT') {
 			output.appendLine(
-				`advplc not found ("${compiler}"). Build it with "go build -o advplc ./cmd/advplc" ` +
-				`from the AdvPP repo root, or set "advpl.compilerPath" in Settings.`
+				`advplc not found ("${compiler}"). This extension bundles the compiler for ` +
+				`linux-x64, linux-arm64, win32-x64 and darwin-arm64 — if you're on a different ` +
+				`platform (e.g. Intel Mac), install it separately (curl -fsSL ` +
+				`https://raw.githubusercontent.com/peder1981/AdvPP/master/install.sh | sh) or ` +
+				`build it with "go build -o advplc ./cmd/advplc" from the AdvPP repo root, then ` +
+				`set "advpl.compilerPath" in Settings.`
 			);
 		} else {
 			output.appendLine(`Failed to launch advplc: ${err.message}`);
@@ -73,6 +90,7 @@ function registerCommand(context, name, buildArgs) {
 }
 
 function activate(context) {
+	extensionContext = context;
 	output = vscode.window.createOutputChannel('AdvPL');
 	context.subscriptions.push(output);
 

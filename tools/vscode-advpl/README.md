@@ -7,6 +7,24 @@ integration for [AdvPP](https://github.com/peder1981/AdvPP).
 Works in standard VS Code and in any VS Code-compatible fork (e.g.
 NeuralInverse).
 
+## Install
+
+Download the `.vsix` from [Releases](https://github.com/peder1981/AdvPP/releases)
+and install it:
+
+```bash
+code --install-extension advpl-tlpp-*.vsix
+```
+
+The package **bundles the `advplc` compiler** for linux-x64, linux-arm64,
+win32-x64 and darwin-arm64 (`bin/<platform>-<arch>/`) — nothing else to
+install. On an unsupported platform (e.g. Intel Mac), install `advplc`
+separately (`curl -fsSL https://raw.githubusercontent.com/peder1981/AdvPP/master/install.sh | sh`)
+and point `advpl.compilerPath` at it.
+
+To rebuild the `.vsix` yourself (cross-compiles the compiler for all 4
+platforms first): `./build-vsix.sh <version>`.
+
 ## What's included
 
 - **Syntax highlighting**: keywords, control flow, types, strings
@@ -21,9 +39,10 @@ NeuralInverse).
 ## Compiler commands & keybindings
 
 The extension spawns `advplc` directly against the active file and streams
-its output into an **"AdvPL" Output Channel**. It auto-detects the compiler
-by searching upward from the open file for an `advplc` binary, falling back
-to `PATH`; override with the `advpl.compilerPath` setting if needed.
+its output into an **"AdvPL" Output Channel**. It resolves the compiler in
+this order: `advpl.compilerPath` setting → search upward from the open file
+for an `advplc` binary (project-local build) → the compiler bundled with
+this extension → `PATH`.
 
 | Shortcut | Command | Runs |
 |----------|---------|------|
