@@ -2,6 +2,28 @@
 
 Um compilador e interpretador totalmente funcional para as linguagens de programação AdvPL e TLPP, construído em Go.
 
+## Instalação
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/peder1981/AdvPP/master/install.sh | sh
+```
+
+Detecta SO/arquitetura automaticamente (Linux amd64/arm64, macOS Apple Silicon) e instala o binário `advplc` mais recente em `~/.local/bin` (ou `/usr/local/bin` como root). Sem Go, sem dependências — o binário é estático.
+
+Alternativas:
+- **Debian/Ubuntu**: baixe o `.deb` em [Releases](https://github.com/peder1981/AdvPP/releases) e `sudo apt install ./advpp_*.deb`
+- **Windows**: baixe o `.zip` em [Releases](https://github.com/peder1981/AdvPP/releases)
+- **Extensão VS Code** (syntax highlighting, build/run/debug, `advplc serve` attach): busque `AdvPL/TLPP` no Marketplace ou veja [tools/vscode-advpl](tools/vscode-advpl/)
+
+### Compilando do fonte
+
+Requer Go 1.24+:
+
+```bash
+git clone https://github.com/peder1981/AdvPP && cd AdvPP
+make build   # gera advplc, adveditor, advpp-ide na raiz do repo
+```
+
 ## Recursos
 
 - **Lexer**: Tokenizador completo para sintaxe AdvPL/TLPP incluindo palavras-chave, operadores, blocos de código e diretivas de pré-processador
