@@ -3410,6 +3410,44 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 			}
 			return &ast.CallExpr{Loc: p.posFromToken(tok), Name: name, Args: args}, nil
 		}
+		// `K2&cSuf` — composição clássica de nome de variável dinâmico do
+		// Clipper: o identificador literal ("K2") concatenado ao valor em
+		// runtime de uma macro (`cSuf`) forma o NOME de outra variável,
+		// lida por indireção (ex.: `K2A`, `K2B`... conforme `cSuf`). Vira
+		// `&("K2" + cSuf)`, reaproveitando o mesmo motor de macro-eval em
+		// runtime de um `&macro` isolado (que já sabe resolver um nome de
+		// variável dinâmico).
+		if p.peek().Type == lexer.TOKEN_AMPERSAND && !strings.Contains(name, ".") {
+			ampTok := p.advance()
+			var suffix ast.Expression
+			if p.peek().Type == lexer.TOKEN_LPAREN {
+				p.advance()
+				expr, err := p.parseExpression()
+				if err != nil {
+					return nil, err
+				}
+				if _, err := p.expect(lexer.TOKEN_RPAREN); err != nil {
+					return nil, err
+				}
+				suffix = expr
+			} else {
+				sufTok, err := p.expect(lexer.TOKEN_IDENT)
+				if err != nil {
+					return nil, err
+				}
+				suffix = &ast.Ident{Loc: p.posFromToken(sufTok), Name: sufTok.Value}
+				if p.peek().Type == lexer.TOKEN_DOT {
+					p.advance()
+				}
+			}
+			concat := &ast.BinaryOp{
+				Loc:   p.posFromToken(ampTok),
+				Op:    "+",
+				Left:  &ast.StringLit{Loc: p.posFromToken(tok), Value: name},
+				Right: suffix,
+			}
+			return &ast.MacroExp{Loc: p.posFromToken(tok), Expr: concat}, nil
+		}
 		return &ast.Ident{Loc: p.posFromToken(tok), Name: name}, nil
 
 	case lexer.TOKEN_DOUBLECOLON:

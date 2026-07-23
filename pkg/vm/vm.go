@@ -882,6 +882,17 @@ func (v *VM) execute(instr compiler.Instruction) error {
 			v.current.dynRestore = append(v.current.dynRestore, dynBinding{name: instr.Str, had: had, prev: prev})
 		}
 		v.dynEnv[instr.Str] = advplrt.Nil
+	case compiler.OP_MACRO:
+		src := advplrt.ToString(v.pop())
+		result, err := v.evalMacroString(src)
+		if err != nil {
+			// Macro malformada ou fonte não-expressão (ex.: fragmento de
+			// comando, não de expressão) — mesma tolerância já usada em
+			// outros pontos do MacroExp: não derruba o programa inteiro
+			// por um `&macro` que não é uma expressão avaliável.
+			result = advplrt.Nil
+		}
+		v.push(result)
 	case compiler.OP_EVAL_CODEBLOCK:
 		argCount := instr.Arg2
 		args := make([]advplrt.Value, argCount)

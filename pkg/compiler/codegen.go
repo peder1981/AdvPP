@@ -935,6 +935,21 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 			}
 		}
 		c.emit(OP_NEW_OBJECT, len(e.Pairs), 0, "json", e.Loc.Line)
+	case *ast.NamedParam:
+		// `nome := valor` fora de lista de argumentos de chamada
+		// (compileArgs trata esse caso à parte) — mesma semântica de uma
+		// atribuição comum. Aparece em código real dentro de array
+		// literal de comando legado (`{a, b := c, d}` num ACTION/VALID) e
+		// em outras posições de expressão onde o parser aceita `:=` mas
+		// antes disso não havia fallback, e a compilação inteira falhava
+		// com "unsupported expression type: *ast.NamedParam".
+		if err := c.compileExpr(e.Value); err != nil {
+			return err
+		}
+		c.emit(OP_DUP, 0, 0, "", e.Loc.Line)
+		if err := c.compileStoreTarget(&ast.Ident{Loc: e.Loc, Name: e.Name}, e.Loc.Line); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unsupported expression type: %T (linha %d)", expr, expr.Pos().Line)
 	}
