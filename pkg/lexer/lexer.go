@@ -670,10 +670,24 @@ func (l *Lexer) tokenizeOperator(line, col int) error {
 		// an operator, comma, `(`, `:=`, keyword, or at line start — it
 		// begins a string literal running to the next `]` on the same line.
 		if !l.lastTokenEndsOperand() {
-			// Look ahead (without consuming) for the closing ']' on the
-			// same line before committing to the string interpretation.
+			// Look ahead (without consuming) for the closing ']' — normally
+			// on the same line, but a real Clipper idiom keeps a long
+			// bracket-string readable across a `;`-continued line (each
+			// physical line except the last ending in `;` right before the
+			// newline). Cross into the next line only when that's the case,
+			// same rule the ';' tokenizer itself uses for continuation.
 			end := l.pos + 1
-			for end < len(l.source) && l.source[end] != ']' && l.source[end] != '\n' {
+			for end < len(l.source) && l.source[end] != ']' {
+				if l.source[end] == '\n' {
+					lineStart := end
+					for lineStart > l.pos && l.source[lineStart-1] != '\n' {
+						lineStart--
+					}
+					trimmed := strings.TrimRight(l.source[lineStart:end], " \t\r")
+					if !strings.HasSuffix(trimmed, ";") {
+						break
+					}
+				}
 				end++
 			}
 			if end < len(l.source) && l.source[end] == ']' {
