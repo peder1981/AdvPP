@@ -4,6 +4,15 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+## [1.21.0] — 2026-07-23
+
+Servidor REST executando de verdade (`WSRestServer`) e uma varredura extensa de
+gaps de linguagem contra os corpora reais Protheus (811R4 + 12.1.2510): 21 bugs
+de parser/lexer/compiler/VM corrigidos em 4 rodadas, incluindo um bug real de
+runtime (macro-eval `&expr` derrubava o processo ao executar) e uma regressão
+própria pega e corrigida na mesma sessão. Amostra fresca de 1800 arquivos reais
+nunca vistos: 92,7% → 98,7% de aprovação em `advplc check`.
+
 ### Quarta rodada: "tente ao menos novamente" — 10 gaps + 1 regressão própria
 
 Reanálise dirigida dos fontes-padrão que sobraram nas 3 rodadas anteriores (34
