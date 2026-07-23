@@ -13,7 +13,7 @@ Detecta SO/arquitetura automaticamente (Linux amd64/arm64, macOS Apple Silicon) 
 Alternativas:
 - **Debian/Ubuntu**: baixe o `.deb` em [Releases](https://github.com/peder1981/AdvPP/releases) e `sudo apt install ./advpp_*.deb`
 - **Windows**: baixe o `.zip` em [Releases](https://github.com/peder1981/AdvPP/releases)
-- **Extensão VS Code** (syntax highlighting, build/run/debug, `advplc serve` attach): busque `AdvPL/TLPP` no Marketplace ou veja [tools/vscode-advpl](tools/vscode-advpl/)
+- **Extensão VS Code** (syntax highlighting, build/run/debug, debugger real, `advplc serve` attach): baixe o `.vsix` em [Releases](https://github.com/peder1981/AdvPP/releases) e instale com `code --install-extension advpl-tlpp-*.vsix` — já vem com o compilador embutido (linux-x64, linux-arm64, win32-x64, darwin-arm64), nada mais pra instalar. Fonte em [tools/vscode-advpl](tools/vscode-advpl/)
 
 ### Compilando do fonte
 
