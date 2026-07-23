@@ -252,8 +252,14 @@ func (p *Parser) Parse() (*ast.Program, error) {
 			continue
 		}
 
-		// Top-level annotations
-		if tok.Type == lexer.TOKEN_AT {
+		// Top-level annotations (`@Get`, `@Post(...)`) — but real legacy
+		// code can also have `@ x,y TO x2,y2 ...` screen-drawing statements
+		// at top level (implicit Main, no enclosing Function), e.g.
+		// `@0,0 TO 380,520 DIALOG ...`. An annotation name is never a bare
+		// number, and is never immediately followed by a comma (that's the
+		// x,y coordinate pair's separator) — use both to tell them apart.
+		if tok.Type == lexer.TOKEN_AT && p.peekAt(1).Type != lexer.TOKEN_NUMBER &&
+			p.peekAt(2).Type != lexer.TOKEN_COMMA {
 			p.advance()
 			annNameTok := p.advance()
 			annValue := ""
@@ -940,6 +946,15 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 						if _, err := p.expectName(); err != nil {
 							return nil, err
 						}
+						// `PRODUCES APPLICATION_JSON RESPONSE EaiObj` — RESPONSE
+						// (o objeto de retorno) é opcional e vem colado logo
+						// depois do valor de PRODUCES/CONSUMES, mesma linha.
+						if p.isWord(p.peek(), "RESPONSE") {
+							p.advance()
+							if _, err := p.expectName(); err != nil {
+								return nil, err
+							}
+						}
 					case p.isWord(p.peek(), "TTALK"):
 						p.advance()
 						if _, err := p.parseOr(); err != nil {
@@ -1061,8 +1076,18 @@ func (p *Parser) parseWSMethodImpl() (*ast.MethodImpl, error) {
 	// dropped — this VM doesn't do real SOAP marshaling.
 	for p.isWord(p.peek(), "WSSEND") || p.isWord(p.peek(), "WSRECEIVE") {
 		p.advance()
-		if _, err := p.parseCommaValues(); err != nil {
-			return nil, err
+		// Lista simples de nomes de parâmetro (não usa parseCommaValues: os
+		// nomes aqui são de negócio — "Type", "Size" etc. colidem com o
+		// vocabulário de cláusulas do DSL `@`/DEFINE que parseCommaValues
+		// usa pra saber onde uma lista termina, cortando a lista errado).
+		for {
+			if _, err := p.expectName(); err != nil {
+				return nil, err
+			}
+			if p.peek().Type != lexer.TOKEN_COMMA {
+				break
+			}
+			p.advance()
 		}
 	}
 	if p.isWSClientOpener(p.peek()) || p.isWord(p.peek(), "WSREST") {

@@ -846,6 +846,15 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 		if err := c.compileStoreTarget(e.Target, e.Loc.Line); err != nil {
 			return err
 		}
+	case *ast.NamedParam:
+		// NamedParam só é consumido especialmente dentro de compileArgs (lista de
+		// argumentos de chamada comum). Quando aparece via compileExpr direto —
+		// ex.: ramo do IF()/IIF() de 3 args, que evita compileArgs pra manter o
+		// curto-circuito — o nó É sempre uma atribuição real (`ident := expr`
+		// como argumento, idioma comum em AdvPL/Clipper), nunca parâmetro
+		// nomeado de fato. Trata como AssignExpr comum: calcula o valor, guarda
+		// em ident, e deixa o valor (não a atribuição) no topo da pilha.
+		return c.compileExpr(&ast.AssignExpr{Loc: e.Loc, Target: &ast.Ident{Loc: e.Loc, Name: e.Name}, Value: e.Value})
 	case *ast.SeqExpr:
 		// (a, b, c): run all in order, value is the last one.
 		for i, sub := range e.Exprs {
@@ -926,24 +935,6 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 		}
 		if idx, ok := c.resolveLocal(e.Name); ok {
 			c.emit(OP_STORE_LOCAL, idx, 0, e.Name, e.Loc.Line)
-		}
-	case *ast.NamedParam:
-		// Fora de uma lista de argumentos de call (onde compileArgs já
-		// intercepta e desmonta o node antes de chegar aqui), `ident := expr`
-		// dentro de uma expressão qualquer (3º/4º argumento de IIF/IF sem
-		// passar por compileArgs, elemento de array literal de comando legado
-		// como `{a, b := c, d}` num ACTION/VALID, etc.) é só uma atribuição
-		// comum usada como valor — mesmo idioma Clipper de
-		// `While (x := next()) > 0`. Reaproveita a semântica de AssignExpr:
-		// armazena e deixa uma cópia na pilha como valor da expressão. Sem
-		// esse fallback, a compilação inteira falhava com "unsupported
-		// expression type: *ast.NamedParam".
-		if err := c.compileExpr(e.Value); err != nil {
-			return err
-		}
-		c.emit(OP_DUP, 0, 0, "", e.Loc.Line)
-		if err := c.compileStoreTarget(&ast.Ident{Loc: e.Loc, Name: e.Name}, e.Loc.Line); err != nil {
-			return err
 		}
 	case *ast.JsonLit:
 		for _, pair := range e.Pairs {

@@ -133,6 +133,92 @@ corpora 811R4 + Protheus 12.1.2510): 93,0% → 96,95% de aprovação em
   de digitação no fonte original, não uma forma válida de atribuição composta em
   Clipper/AdvPL.
 
+### Parser — nova rodada de gaps de linguagem contra corpus real
+
+Continuação da caçada de gaps de linguagem (rodada anterior corrigiu BEGIN REPORT
+QUERY, macro-eval em runtime, NamedParam fallback, servidor REST via WSRestServer, e
+7 fixes de parser). Amostra de 2500 arquivos: 92,1% → 97,9% de aprovação; amostra nova
+de 1500: 96,3%. Todos os fixes são causas raiz reais confirmadas com repro mínimo
+isolado, não sintaxe especulativa.
+
+- **`NamedParam` (`ident := expr`) fora de `compileArgs` também no curto-circuito de
+  `IF()`/`IIF()`**: o ramo de 3 argumentos chama `compileExpr` direto nos ramos (pra não
+  avaliar os dois), sem passar por `compileArgs` — outro caminho, além do já corrigido
+  na rodada anterior, que caía no `default` de `compileExpr`. Um argumento como
+  `IIf(lConfirma := Func(...), a, b)` (atribuição real usada como argumento, idioma
+  comum em AdvPL) virava "unsupported expression type: *ast.NamedParam".
+- **Atribuição (`:=`) como condição em `ElseIf`/`Case`/coordenada do `@`**: `If`/`While`/
+  `Return` já suportavam `x := cond` inline; `ElseIf`, `Case` do `Do Case` e a 1ª/2ª
+  coordenada do comando `@ x,y VERB` não. Unificado via `parseAssignRHS`.
+- **`@ident := expr` sem coordenadas**: `@` antes de um alvo de atribuição comum
+  (idioma real onde `@` é só um marcador tolerado pelo compilador Clipper/AdvPL) travava
+  o parser esperando uma 2ª coordenada.
+- **Atribuição composta (`+=`/`-=`/`*=`/`/=`) como lado direito de outra atribuição**:
+  `x := y += z` (ex.: `nIniDim := aCol[i] += valor`) — `parseAssignRHS` só recursava em
+  `:=`, não nos compostos.
+- **`ACTION`/cláusulas de `DEFINE` e `MENUITEM` com lista de expressões**: `ACTION cVar
+  := Func(...), Outro(...)` (sequência estilo corpo de codeblock, com atribuição) não
+  era aceito — só uma expressão simples.
+- **Variável-alvo do `DEFINE` depois da 1ª cláusula**: `DEFINE SBUTTON FROM x,y oButton
+  TYPE n ACTION ...` (variável depois de `FROM`, não logo após o kind) terminava o
+  `DEFINE` cedo e confundia o resto da linha com um statement novo.
+- **`SET FILTER TO` vazio antes de statement com continuação `;`**: a heurística de
+  "tem valor?" do `SET ... TO` aceitava um identificador solto como valor mesmo em
+  outra linha lógica — e `DEFINE` não está na tabela de palavras-reservadas deste lexer
+  (é um IDENT comum), então `Set Filter To` \n `Define MSDIALOG ...` engolia a palavra
+  `DEFINE` inteira como "valor" do SET, quebrando tudo depois. Agora exige mesma linha.
+- **`DEFINE SECTION`/`CELL` — cláusulas `TABLE`, `BREAK`, `VAR`, `ID`, `DIALOGS`,
+  `FIELDS`, `SIZES`, `ITEMS`, `HEAD`**: TReport/REDEFINE usam bem mais cláusulas do que
+  as poucas já suportadas; `BREAK` em particular (`PAGE BREAK`/`CELL BREAK`/`LINE
+  BREAK`) é sempre um flag, nunca uma cláusula com valor — tentar ler um valor pra ela
+  engolia o statement seguinte inteiro.
+- **`REDEFINE` (sem suporte nenhum antes)**: mesma DSL de cláusulas do `DEFINE`, usada
+  pra vincular um controle a um recurso de dialog já existente. Reaproveita o parser do
+  `DEFINE`; ganhou também suporte a alvo indexado (`DEFINE/REDEFINE BUTTON
+  aoBotton[nX] ...`).
+- **`RELEASE OBJECTS`** (plural) além de `RELEASE OBJECT`.
+- **`ACTIVATE MENU`/`ACTIVATE POPUP`**: cláusulas `AT linha,coluna` e `WINDOW <expr>`.
+- **`LOCATE REST FOR`**: `REST` não era reconhecido como flag, então o `FOR` da
+  cláusula caía no `parseFor()` de verdade (statement de loop), que espera `FOR var :=
+  ...` e quebrava em `FOR (cond)`.
+- **`CREATE SCOPE <var> FOR <cond> [WHILE <cond>]`** (sem suporte nenhum antes) — mesma
+  causa raiz do LOCATE REST FOR.
+- **`DEFAULT` com alvo `alias->campo` ou indexado (`arr[i]`)**: só aceitava
+  identificador simples ou `::Prop`/`Self:Prop`.
+- **String delimitada por colchetes (`[texto]`) span multi-linha via continuação `;`**:
+  o lookahead da string de colchete só olhava até o fim da linha FÍSICA; strings longas
+  legíveis com `;` de continuação (uma por linha) quebravam. Agora cruza linhas
+  continuadas, igual ao tokenizer de `;` já faz pra statements.
+- **`@ x,y TO ...` no nível top-level confundido com anotação `@Nome`**: o dispatcher de
+  anotações de topo (`@Get`, `@Post(...)`) não distinguia de um statement de desenho de
+  tela legado (`@0,0 TO 380,520 DIALOG ...`, comum em fontes sem `Function` no topo).
+- **`WSMETHOD ... PRODUCES x RESPONSE y`**: `RESPONSE` (objeto de retorno) não era
+  consumido depois de `PRODUCES`/`CONSUMES`, quebrando o resto da declaração
+  `WSRESTFUL`.
+- **`WSMETHOD ... WSRECEIVE nome1,nome2,...`**: nomes de parâmetro de negócio que
+  colidem com palavras-chave do DSL `@`/`DEFINE` (ex. `Type`, `Size`) cortavam a lista
+  cedo demais — o parser de lista genérica usado ali reaproveitava por engano a
+  heurística de "onde uma lista de cláusulas do `@` termina".
+- **`:MethodName(args)` sem receiver**: idioma antigo Clipper/Class(y) de chamar a
+  versão da superclasse de um método (comum na 1ª linha de `METHOD New(...) CLASS X`).
+  Sem dispatch de herança real, tratado como `::MethodName(args)`.
+- **`NO VSCROLL`/`NO HSCROLL`** como flags de duas palavras no DSL `@` (já existiam
+  `NO SCROLL`/`NO UNDERLINE`/`NO BORDER`).
+- **`Replace <alias>-><campo> With <expr>`**: o comando `REPLACE ... WITH` só
+  reconhecia campo como um único token; via alias (`SE1->E1_CAMPO`, 3 tokens) não batia
+  o gate e o comando inteiro era perdido.
+- Investigado, sem correção clara (baixo impacto — 2 ocorrências em ~4000 arquivos,
+  sem repro isolável): `expected TO in For` num `For var := n To expr` sintaticamente
+  padrão — o repro isolado do trecho reportado passa limpo, indicando um erro real mais
+  cedo no mesmo arquivo mascarado pelo drift de posição do pré-processador.
+- Confirmado FALSO POSITIVO (não é gap de linguagem): comandos de projeto
+  `QSPARENTFIELD`/`QSFIELD`/`QSTABLE` (DSL de `#xcommand` definido num header `.ch`
+  específico do projeto, não incluído no corpus baixado) e uma construção obscura
+  `IIf(cond, varA, varB) := valor` (atribuição condicional de lvalue via `IIf`, uma
+  única ocorrência real, duplicada em dois diretórios do mesmo corpus).
+- Fixture de regressão: `tests/parser_gaps2_test.prw` + `cmd/advplc/parser_gaps2_test.go`
+  (`TestParserGaps2Fixture`), um caso mínimo por padrão corrigido acima.
+
 ## [1.20.0] — 2026-07-22
 
 Completa a álgebra linear do kernel matemático: **SVD** e **autovalores de matriz
