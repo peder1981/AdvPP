@@ -4,6 +4,54 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Quarta rodada: "tente ao menos novamente" — 10 gaps + 1 regressão própria
+
+Reanálise dirigida dos fontes-padrão que sobraram nas 3 rodadas anteriores (34
+falhas na amostra de 1800), com repro mínimo isolado pra cada um antes de
+corrigir. Amostra final: 132 → 24 falhas (98,7%) na mesma amostra de 1800 desde
+o início desta missão de gaps.
+
+- **Regressão real na própria correção de `ident&macro` desta sessão**: o
+  parser aceitava `&` logo após um identificador SEM checar mesma linha —
+  como newlines já foram removidas do stream de tokens antes do parser, um
+  `For var To nOutraVar` (limite do loop é uma variável solta) seguido, na
+  PRÓXIMA linha, de um `&(macro) := valor` de verdade tinha o `&(macro)`
+  colado ao limite do loop (`nOutraVar&(macro)`), e o `:=` real sobrava como
+  token inesperado. Corrigido exigindo mesma linha, igual ao mesmo tipo de
+  guarda já usado alhures neste parser.
+- **`Store Header/Cols ... FOR <cond>` seguido de um `For` de loop de
+  verdade na próxima linha**: sem checar mesma linha entre cláusulas, o `For`
+  do loop seguinte era engolido como se fosse mais uma cláusula do `Store`.
+- **`Copy <alias> To Memory` sem nome de array (idioma real sem argumento)**:
+  o parser sempre exigia um nome depois de `Memory`, engolindo o primeiro
+  identificador do PRÓXIMO statement como se fosse esse nome.
+- **`ParamType N Var x As Tipo` seguido de um `Default y := valor` de
+  verdade na próxima linha**: as cláusulas opcionais `OPTIONAL`/`DEFAULT` do
+  `ParamType` não checavam mesma linha, então um comando `Default` real na
+  linha seguinte era engolido como se fosse a cláusula `DEFAULT` do
+  `ParamType` anterior.
+- **`alias->&macro.` (nome de campo computado por macro, com o ponto
+  terminador explícito do Clipper)**: o ponto não era consumido depois do
+  identificador da macro nesse contexto específico (já era em `&macro.`
+  isolado), sobrando como token inesperado.
+- **`REPLACE campo WITH expr ALL FOR <cond>` (cláusulas de escopo do
+  Clipper)**: `ALL`/`REST`/`NEXT`/`RECORD`/`FOR`/`WHILE` não eram consumidas
+  depois do(s) par(es) `campo WITH expr`, e um `FOR <cond>` desses vazava pro
+  parser como se fosse um `For` de loop de verdade.
+- **`End For` (duas palavras) fechando loop**: só `End`/`EndFor` sozinhos
+  eram reconhecidos; o `For` sobrando depois de um `End` vazava como se fosse
+  um novo loop.
+- **`arr[nAux+=1]` (atribuição composta como índice de array)**: índices de
+  `[...]` só aceitavam expressão simples, não atribuição (`:=`/`+=`/...) —
+  idioma real em codeblocks de iteração paralela.
+- Investigado e mantido como falha conhecida (baixo valor, arquivo vendor de
+  ~2400 linhas exigiria bissecção cara pra achar a causa raiz exata; 3/1800
+  na amostra): `unexpected token ";"` numa família de fontes de um único
+  fornecedor (comércio exterior).
+- Fixture de regressão: `tests/parser_gaps3_test.prw` (`cmd/advplc/parser_gaps3_test.go`,
+  `TestParserGaps3Fixture`) — separa construções "parseadas e descartadas"
+  (só precisam compilar) das que têm semântica real e precisam rodar certo.
+
 Gaps encontrados numa varredura fresca e não-viesada de 1800 arquivos aleatórios
 dos dois corpora reais (811R4 + 12.1.2510), fora da amostra já 100%-curada.
 Isolados com repro mínimo antes de cada correção — ver `tests/` para os casos.
