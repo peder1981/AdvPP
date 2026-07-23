@@ -36,33 +36,67 @@ O compilador AdvPP agora inclui renderização completa de widgets Fyne para tod
 
 ## Recursos REST 2.0
 
-### Status Atual: Apenas Parsing
+### Status Atual: Funcional (estilo anotações) / Apenas Parsing (DSL clássico WSRESTFUL)
 
-O compilador AdvPP faz parsing da sintaxe REST 2.0 mas **integração de servidor HTTP não está implementada**.
+O compilador AdvPP sobe um servidor HTTP REST **real** (`pkg/rest` + classe
+nativa `WSRestServer`, mesmo padrão arquitetural do `MCPServer`) para o
+estilo moderno TLPP de anotações (`@Get`/`@Post`/`@Put`/`@Patch`/`@Delete`
+sobre `User Function`). O DSL clássico `WSRESTFUL ... WSMETHOD ...
+ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
 
 ### O Que Funciona:
-- ✅ Reconhecimento de palavras-chave REST (GET, POST, PUT, DELETE, PATCH)
-- ✅ Parsing de WSRESTFUL/WSSERVICE
-- ✅ WSMETHOD com sintaxe de verbo HTTP
-- ✅ Definições de campos WSDATA
-- ✅ Sintaxe de anotação (@Get, @Post, @Put, @Delete)
-- ✅ Sintaxe JSON inline
-- ✅ Métodos JsonObject (toJson, hasProperty, getJsonText)
-- ✅ Serialização/deserialização JSON
+- ✅ **Servidor HTTP real** (`net/http` puro, sem CGO/dependências): classe
+  `WSRestServer` — `New()`, `AddRoute(verbo, path, funcao)`, `Serve(porta)`
+- ✅ **Auto-discovery de rotas via anotação**: toda `User Function`
+  anotada com `@Get("/path")`/`@Post(...)`/`@Put(...)`/`@Patch(...)`/
+  `@Delete(...)` vira rota automaticamente ao criar o `WSRestServer`
+- ✅ **Path params** (`/clientes/{id}`) via roteador nativo do Go 1.22+
+  (`http.ServeMux`), populados no objeto de argumento da função AdvPL
+- ✅ **Query string e corpo JSON** decodificados e mesclados no objeto
+  de argumento (`oParam:CAMPO`) — corpo tem precedência sobre path
+  params, que tem precedência sobre query string
+- ✅ **Dispatch real para a função AdvPL** via VM isolada por requisição
+  (mesmo mecanismo do `MCPServer`/`StartJob`: `v.RunFunction`), banco e
+  bytecode compartilhados
+- ✅ **Resposta JSON automática** do retorno da função (200), erro vira
+  500, path inexistente vira 404, verbo não registrado num path existente
+  vira 405
+- ✅ Registro manual de rota via `AddRoute` (cobre casos onde a anotação
+  não é usada)
+- ✅ Sintaxe JSON inline, métodos JsonObject (toJson, hasProperty,
+  getJsonText), serialização/deserialização JSON
 
-### O Que NÃO Funciona:
-- ❌ Execução de servidor HTTP
-- ❌ Registro de endpoints REST
-- ❌ Tratamento de requisições HTTP
-- ❌ Geração de respostas REST
-- ❌ Execução de anotações @Get/@Post
-- ❌ Dispatch HTTP WSService
+### O Que NÃO Funciona (limitações conhecidas):
+- ❌ **DSL clássico `WSRESTFUL <nome> ... WSMETHOD <verbo> ... PATH "..."
+  ... ENDWSRESTFUL`**: o parser (`parseWSClient` em
+  `pkg/parser/parser.go`) reconhece a sintaxe e monta um `ast.ClassDecl`,
+  mas descarta o verbo HTTP e a cláusula `PATH` ao fazer isso — só o
+  nome do `WSMETHOD` sobrevive como protótipo. Além disso, a
+  implementação real do método (`WSMETHOD ... WSSERVICE <classe>`) é um
+  método de instância, e `v.RunFunction` (usado pelo dispatch HTTP) só
+  chama funções top-level, não métodos de classe — precisaria criar a
+  instância do serviço a cada requisição. Nenhuma das duas partes foi
+  implementada: exigiria cirurgia de parser (capturar verbo+path como
+  antes) e um caminho de dispatch novo (instanciar + chamar método) só
+  para esse estilo, sem um caso de uso real nos corpora validados para
+  justificar o esforço agora. Workaround: reescrever o serviço no estilo
+  anotações (`@Get`/`@Post` sobre `User Function`), que já é 100%
+  funcional, ou registrar a rota manualmente via `AddRoute`.
+- ❌ Geração de WSDL / cliente REST (`WSCLIENT` consumindo serviço
+  externo) — fora de escopo, é consumo e não exposição de API
+- ❌ Controle fino de código HTTP de resposta pela função AdvPL (sempre
+  200 em sucesso / 500 em erro — sem equivalente a `SetLegacySuccess`/
+  `GetHTTPCode` do lado servidor)
 
 ### Notas de Implementação:
-- Sintaxe REST é parseada em `pkg/parser/parser.go` (função parseWSClient)
-- Verbos HTTP são reconhecidos mas não executados
-- Anotações são armazenadas na AST mas não processadas em runtime
-- Servidor REST completo requereria integração de servidor HTTP (ex: net/http)
+- Servidor: `pkg/rest/rest.go` (stdlib `net/http`, roteador nativo do Go
+  1.22+, sem dependências externas)
+- Ponte VM: `pkg/vm/rest_native.go` (classe nativa `WSRestServer`,
+  conversão JSON↔`advplrt.Value`, auto-discovery via
+  `FunctionInfo.Annotations` do bytecode)
+- Fixture de teste: `tests/rest_server_test.prw`; teste de integração
+  Go (builda o binário, sobe o servidor, faz requisições HTTP reais):
+  `cmd/advplc/rest_integration_test.go` (`TestRestServerFixture`)
 
 ## Construção de Serviços
 
@@ -106,9 +140,14 @@ O compilador AdvPP faz parsing da sintaxe REST 2.0 mas **integração de servido
   validado token a token contra o `llama.cpp` de referência
 - ✅ **Servidor MCP nativo (classe `MCPServer`)**: JSON-RPC 2.0 real
   sobre stdio via `pkg/mcp` (initialize/tools.list/tools.call), expõe
-  funções AdvPL como tools — execução real, ao contrário do REST
-  (WSRESTFUL, que só reconhece a sintaxe); validado com o SDK oficial
+  funções AdvPL como tools — execução real; validado com o SDK oficial
   em Python do MCP
+- ✅ **Servidor REST nativo (classe `WSRestServer`)**: HTTP real via
+  `pkg/rest` (`net/http` puro), auto-discovery de rotas por anotação
+  (`@Get`/`@Post`/`@Put`/`@Patch`/`@Delete`) ou registro manual via
+  `AddRoute`, path params, dispatch para a função AdvPL via
+  `v.RunFunction` — mesmo padrão do `MCPServer`; o DSL clássico
+  `WSRESTFUL`/`WSMETHOD` continua só parseado (ver "Recursos REST 2.0")
 - ⚠️ Locks de registro (RecLock/MsUnlock) são no-ops — sem controle de
   concorrência em escrita entre processos
 
@@ -119,8 +158,9 @@ O compilador AdvPP faz parsing da sintaxe REST 2.0 mas **integração de servido
 | Componentes UI | ✅ Completo | Renderização Fyne completa implementada |
 | Diálogos UI | ✅ Completo | MsgInfo, MsgStop, MsgAlert, MsgYesNo funcionam |
 | Parsing REST | ✅ Completo | Sintaxe totalmente parseada |
-| Execução REST | ❌ Nenhum | Sem servidor HTTP |
-| Anotações | ✅ Parseadas | Armazenadas na AST, não executadas |
+| Execução REST (anotações @Get/@Post) | ✅ Funcional | Servidor HTTP real (`WSRestServer`), dispatch para a função AdvPL |
+| Execução REST (DSL WSRESTFUL/WSMETHOD) | ❌ Nenhum | Apenas parsing — ver "Recursos REST 2.0" |
+| Anotações @Get/@Post/@Put/@Patch/@Delete | ✅ Executadas | Viram rota HTTP automaticamente |
 | Suporte JSON | ✅ Completo | Sintaxe inline e JsonObject funcionam |
 | Construção de Serviços | ⚠️ Parcial | Parseado, não gerado |
 
@@ -170,6 +210,6 @@ Isso exibirá uma janela com:
 ## Recomendações
 
 1. **Para Componentes UI**: Implementar sistema de renderização de widgets Fyne ou documentar como apenas dados
-2. **Para REST**: Adicionar integração de servidor HTTP (net/http) ou documentar como apenas parsing
+2. **Para REST**: DSL clássico `WSRESTFUL`/`WSMETHOD` ainda precisa de captura de verbo+path no parser e dispatch via instância de classe (hoje `v.RunFunction` só chama funções top-level) — sem caso de uso real nos corpora para priorizar agora
 3. **Para Serviços**: Adicionar geração de código ou integração de cliente HTTP
 4. **Documentação**: Atualizar README para separar claramente recursos "parseados" de "executados"

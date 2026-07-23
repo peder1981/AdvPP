@@ -126,7 +126,9 @@ All standard patterns work in AdvPP
 | Multi-thread | ✅ Funcional | StartJob (VM isolado por job) e FWGridProcess (pool de threads) |
 | Renderer web (PO-UI) | ✅ Funcional | advplc serve: console/diálogos, FWMBrowse→po-table (SX3), MSDIALOG legado→modal, hot reload --watch |
 | Motor de inferência LLM | ✅ Funcional | Classe `LLM`: modelos GGUF I2_S (BitNet/Falcon3-1.58bit), 100% Go, SIMD AVX2 em amd64 |
-| Servidor MCP | ✅ Funcional | Classe `MCPServer`: JSON-RPC 2.0 real sobre stdio, expõe funções AdvPL como tools (execução real, diferente do REST) |
+| Servidor MCP | ✅ Funcional | Classe `MCPServer`: JSON-RPC 2.0 real sobre stdio, expõe funções AdvPL como tools (execução real) |
+| Servidor REST (anotações @Get/@Post) | ✅ Funcional | Classe `WSRestServer`: HTTP real sobre `net/http`, auto-discovery de rotas por anotação, path params, dispatch para a função AdvPL |
+| Servidor REST (DSL WSRESTFUL/WSMETHOD) | ⚠️ Apenas Parsing | Sintaxe reconhecida; execução requer reescrever no estilo anotações — ver COMPONENT_STATUS.md |
 
 ## Limitações
 

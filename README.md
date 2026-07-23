@@ -23,7 +23,8 @@ Um compilador e interpretador totalmente funcional para as linguagens de program
 - **Multi-thread**: `StartJob()` (execução em VM isolado, semântica de work process) e `FWGridProcess` (pool de threads com `SetThreadGrid`, `CallExecute`, `StopExecute`, `IsFinished`, meters e log); `advplc check arq1 arq2 ...` verifica N arquivos em paralelo
 - **Renderer web (PO-UI)**: `advplc serve programa.prw` executa o programa no servidor e renderiza a interface no browser com PO-UI (embutido no binário): console e diálogos em tempo real, `FWMBrowse`→`po-table` com dicionário SX3, formulários `po-dynamic-form`, MSDIALOG legado (`@ SAY/GET/BUTTON`) como modal por heurística de grade e hot reload com `--watch`
 - **Motor de inferência LLM** (`pkg/llm` + classe `LLM`): carrega modelos GGUF quantizados em I2_S (BitNet/Falcon3-1.58bit) e gera texto direto do AdvPL/TLPP — 100% Go, sem CGO, com kernel SIMD AVX2 em amd64 e fallback escalar em qualquer outra arquitetura
-- **Servidor MCP nativo** (`pkg/mcp` + classe `MCPServer`): expõe funções AdvPL/TLPP como "tools" de um servidor MCP real (JSON-RPC 2.0 sobre stdio) — funciona de verdade (ao contrário do REST, que só reconhece a sintaxe), validado com o SDK oficial do MCP
+- **Servidor MCP nativo** (`pkg/mcp` + classe `MCPServer`): expõe funções AdvPL/TLPP como "tools" de um servidor MCP real (JSON-RPC 2.0 sobre stdio) — funciona de verdade, validado com o SDK oficial do MCP
+- **Servidor REST nativo** (`pkg/rest` + classe `WSRestServer`): sobe um servidor HTTP real (`net/http` puro) e expõe `User Function` anotadas com `@Get`/`@Post`/`@Put`/`@Patch`/`@Delete` como rotas, com path params (`/clientes/{id}`), corpo JSON e dispatch real para a função AdvPL — o DSL clássico `WSRESTFUL`/`WSMETHOD` continua só reconhecido na sintaxe (ver [Servidor REST](#servidor-rest-wsrestserver))
 - **Núcleo de Tensor (float32)**: classe `Tensor` acelerada em Go (`pkg/tensor`) — `MatMul`, elementwise com broadcast, reduções, ativações, `Softmax`, `Argmax`, `IndexRows` — para construir e rodar modelos float com o AdvPL orquestrando; ver [Núcleo de Tensor](#núcleo-de-tensor)
 - **Autodiff + treino (float32)**: motor de diferenciação reversa (`pkg/autograd`) com a classe `Variable` (tape + `Backward`), ops diferenciáveis (MatMul, Add, Mul, Relu, Sum, Mean, MSE) e otimizador `SGD` — treina modelos float com o AdvPL orquestrando; ver [Autodiff e treino](#autodiff-e-treino)
 
@@ -43,13 +44,11 @@ Return cValToChar(oArgs:A + oArgs:B)
 ```
 
 Roda com `advplc run meu_programa.prw` normalmente — não precisa de
-comando novo. Diferente do suporte a REST (`WSRESTFUL`/`@Get`/`@Post`),
-que hoje só reconhece a sintaxe e descarta (sem servidor HTTP nem
-despacho real), o `MCPServer` **funciona de verdade**: implementa o
-protocolo MCP (Model Context Protocol) via JSON-RPC 2.0 sobre stdio —
-`initialize`, `tools/list`, `tools/call` — em Go puro, sem CGO, sem
-dependências externas. Cada tool chamada roda a função AdvPL
-correspondente numa VM isolada (mesmo mecanismo do `StartJob`).
+comando novo. O `MCPServer` implementa o protocolo MCP (Model Context
+Protocol) via JSON-RPC 2.0 sobre stdio — `initialize`, `tools/list`,
+`tools/call` — em Go puro, sem CGO, sem dependências externas. Cada tool
+chamada roda a função AdvPL correspondente numa VM isolada (mesmo
+mecanismo do `StartJob`).
 
 | Método | Descrição |
 |--------|-----------|
@@ -58,6 +57,62 @@ correspondente numa VM isolada (mesmo mecanismo do `StartJob`).
 | `Serve()` | Sobe o loop stdio (bloqueia) |
 
 Validado com o SDK oficial em Python do MCP (`cmd/advplc/mcp_integration_test.go`).
+
+## Servidor REST (`WSRestServer`)
+
+```advpl
+@Get("/clientes/{id}")
+User Function GetCliente(oParam)
+    Local jRet := JsonObject():New()
+    jRet["id"]   := oParam:ID       // path param populado automaticamente
+    jRet["nome"] := "Cliente " + oParam:ID
+Return jRet
+
+@Post("/clientes")
+User Function NovoCliente(oParam)
+    Local jRet := JsonObject():New()
+    jRet["criado"] := .T.
+    jRet["nome"]    := oParam:NOME  // campo do corpo JSON da requisição
+Return jRet
+
+User Function RestDemo()
+    Local oRest := WSRestServer():New("meu-servidor-rest", "1.0.0")
+    // @Get/@Post/@Put/@Patch/@Delete acima já viram rota automaticamente;
+    // AddRoute cobre o caso de registrar manualmente:
+    oRest:AddRoute("GET", "/status", "GetStatus")
+    oRest:Serve(8080) // bloqueia servindo HTTP na porta 8080
+Return
+```
+
+Roda com `advplc run meu_programa.prw` normalmente. O `WSRestServer` sobe
+um `net/http.Server` real (sem CGO, sem dependências externas) e, ao ser
+criado, varre todas as `User Function` do programa procurando anotações
+`@Get`/`@Post`/`@Put`/`@Patch`/`@Delete("/path")` para registrar como
+rotas automaticamente — path params (`{id}`) via roteador nativo do Go
+1.22+, query string e corpo JSON mesclados num único objeto de argumento
+(`oParam:CAMPO`, maiúsculo) passado para a função. Cada requisição roda a
+função numa VM isolada (mesmo mecanismo do `MCPServer`/`StartJob`),
+banco e bytecode compartilhados. O retorno da função vira o corpo JSON
+da resposta (200); erro vira 500; path não registrado vira 404; verbo
+não registrado num path existente vira 405.
+
+| Método | Descrição |
+|--------|-----------|
+| `New(cNome, cVersao)` | Cria o servidor e auto-registra rotas de funções anotadas |
+| `AddRoute(cVerbo, cPath, cNomeFuncao)` | Registra uma rota manualmente (`cPath` aceita `{param}`) |
+| `Serve(nPorta)` | Sobe o servidor HTTP na porta indicada (bloqueia) |
+
+**Limitação conhecida**: o DSL clássico `WSRESTFUL <nome> ... WSMETHOD
+<verbo> PATH "..." ... ENDWSRESTFUL` é reconhecido pelo parser mas não
+executado — o verbo e o `PATH` são descartados ao virar AST, e a
+implementação do método é ligada a uma instância de classe (não a uma
+função top-level, que é o que o dispatch HTTP sabe chamar). Para expor
+esse serviço via HTTP hoje, reescreva no estilo anotações acima ou
+registre a rota manualmente com `AddRoute`. Detalhes em
+`COMPONENT_STATUS.md`.
+
+Testado de ponta a ponta com requisições HTTP reais em
+`cmd/advplc/rest_integration_test.go`.
 
 ## Motor de inferência LLM (`LLM`)
 
@@ -266,13 +321,13 @@ A IDE gráfica fornece:
 - Tratamento de erro Try/Catch/EndTry
 - Declarações de namespace
 - Modificadores de acesso (Public, Private, Protected)
-- Anotações REST (@Get, @Post, @Put, @Delete) - apenas parsing
+- Anotações REST (@Get, @Post, @Put, @Patch, @Delete) - executadas de verdade via `WSRestServer`, ver [Servidor REST](#servidor-rest-wsrestserver)
 - Suporte JSON inline com métodos JsonObject
 - Identificadores longos (com namespace)
 - Tipos Integer, Double, Decimal, Variant, Variadic
-- Parsing de sintaxe WSRESTFUL/WSSERVICE
+- Parsing de sintaxe WSRESTFUL/WSSERVICE (DSL clássico — reconhecido, execução ainda não suportada; ver limitação em [Servidor REST](#servidor-rest-wsrestserver))
 
-**Nota**: Anotações REST e sintaxe WSRESTFUL são parseadas mas não executadas. Integração de servidor HTTP necessária para execução de endpoints REST.
+**Nota**: o DSL clássico `WSRESTFUL`/`WSMETHOD`/`ENDWSRESTFUL` é parseado mas não executado (o verbo/PATH são descartados no parser e o dispatch exigiria chamar método de instância). As anotações `@Get`/`@Post`/`@Put`/`@Patch`/`@Delete` sobre `User Function`, por outro lado, sobem um servidor HTTP real via `WSRestServer`.
 
 ## Funções de I/O, arquivo e sistema
 
