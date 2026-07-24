@@ -117,6 +117,22 @@ type UIProvider interface {
 	MsgYesNo(msg, title string) bool
 }
 
+// newLocals aloca o slot de variáveis locais de um frame já preenchido com
+// advplrt.Nil (não o nil de Go): parâmetros não passados numa chamada com
+// menos argumentos que o declarado, ou qualquer "Local x" sem inicializador
+// explícito, ficavam com o zero-value da interface Go (nil de verdade) até
+// a primeira atribuição — comparar esse slot (`x == Nil`, padrão comuníssimo
+// pra parâmetro opcional) chamava um método num ponteiro nil e derrubava a
+// VM (SIGSEGV em opComparison). Achado com GcSqlLit do GesCon chamado sem
+// argumentos (ponto de entrada implícito escolhendo a função errada).
+func newLocals(n int) []advplrt.Value {
+	locals := make([]advplrt.Value, n)
+	for i := range locals {
+		locals[i] = advplrt.Nil
+	}
+	return locals
+}
+
 func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 	v := &VM{
 		bc:           bc,
@@ -260,7 +276,7 @@ func (v *VM) Run() (advplrt.Value, error) {
 		FuncName:  "main",
 		Code:      v.bc.Code,
 		IP:        v.bc.MainOffset,
-		Locals:    make([]advplrt.Value, v.bc.NumGlobals),
+		Locals:    newLocals(v.bc.NumGlobals),
 		StackBase: 0,
 	}
 	v.frames = append(v.frames, frame)
@@ -296,7 +312,7 @@ func (v *VM) RunFunction(name string, args []advplrt.Value) (advplrt.Value, erro
 		return advplrt.Nil, fmt.Errorf("function %s not found", name)
 	}
 
-	locals := make([]advplrt.Value, info.NumLocals)
+	locals := newLocals(info.NumLocals)
 	for i := 0; i < len(args) && i < info.NumParams; i++ {
 		locals[i] = args[i]
 	}
@@ -910,7 +926,7 @@ func (v *VM) execute(instr compiler.Instruction) error {
 			if !ok {
 				return fmt.Errorf("codeblock function %s not found", cbVal.FuncName)
 			}
-			locals := make([]advplrt.Value, info.NumLocals)
+			locals := newLocals(info.NumLocals)
 			locals[0] = cbVal // self
 			for i := 0; i < len(args) && i+1 < info.NumParams; i++ {
 				locals[i+1] = args[i]
@@ -1110,7 +1126,7 @@ func (v *VM) callFunc(name string, argCount int) error {
 	v.argCounter = 0
 
 	// Create new frame
-	locals := make([]advplrt.Value, info.NumLocals)
+	locals := newLocals(info.NumLocals)
 	for i := 0; i < len(args) && i < info.NumParams; i++ {
 		locals[i] = args[i]
 	}
@@ -1187,7 +1203,7 @@ func (v *VM) callMethod(methodName string, argCount int) error {
 	v.namedArgs = v.namedArgs[:0]
 	v.argCounter = 0
 
-	locals := make([]advplrt.Value, info.NumLocals)
+	locals := newLocals(info.NumLocals)
 	locals[0] = o // self
 	for i := 0; i < argCount && i+1 < info.NumParams; i++ {
 		locals[i+1] = args[i]
@@ -1566,7 +1582,7 @@ func (v *VM) callConstructor(className string, obj *advplrt.ObjectValue, args []
 		return nil
 	}
 	info := v.bc.Functions[funcName]
-	locals := make([]advplrt.Value, info.NumLocals)
+	locals := newLocals(info.NumLocals)
 	locals[0] = obj
 	for i := 0; i < len(args) && i+1 < info.NumParams; i++ {
 		locals[i+1] = args[i]
@@ -1653,7 +1669,7 @@ func (v *VM) callBlockSync(cb advplrt.Value, args ...advplrt.Value) (advplrt.Val
 	if !ok {
 		return advplrt.Nil, fmt.Errorf("codeblock function %s not found", block.FuncName)
 	}
-	locals := make([]advplrt.Value, info.NumLocals)
+	locals := newLocals(info.NumLocals)
 	locals[0] = cb // convenção: locals[0] = o próprio bloco (self)
 	for i := 0; i < len(args) && i+1 < info.NumParams; i++ {
 		locals[i+1] = args[i]

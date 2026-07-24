@@ -8,12 +8,15 @@ import (
 	"testing"
 )
 
-// TestEntryPointPrefersRootFile roda tests/entrypoint_main_test.prw, que dá
-// #include numa lib auxiliar (entrypoint_lib_test.prw) declarada ANTES da
-// função própria do arquivo. Sem corpo de nível superior, o compilador
-// precisa escolher qual User Function chamar implicitamente — deve ser a
-// do arquivo raiz (EpMain), nunca a trazida pelo #include (EpLibHelper).
-// Ver CHANGELOG e pkg/compiler/codegen.go (RootBoundaryLine).
+// TestEntryPointPrefersRootFile roda tests/entrypoint_main_test.prw, que tem
+// um comentário de cabeçalho antes do #include de uma lib auxiliar
+// (entrypoint_lib_test.prw), com a função própria do arquivo declarada
+// depois. Sem corpo de nível superior, o compilador precisa escolher qual
+// User Function chamar implicitamente — deve ser a do arquivo raiz (EpMain),
+// nunca a trazida pelo #include (EpLibHelper, que além de errada crashava a
+// VM com SIGSEGV ao comparar o parâmetro nunca passado contra Nil). Ver
+// CHANGELOG, pkg/compiler/codegen.go (RootBoundaryLine) e pkg/vm/vm.go
+// (newLocals).
 func TestEntryPointPrefersRootFile(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builda o binário; pulado com -short")

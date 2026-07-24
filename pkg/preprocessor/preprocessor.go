@@ -268,8 +268,11 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 				extra = 0
 			}
 		}
-		if depth == 0 && p.RootBoundaryLine == 0 && strings.TrimSpace(joined) != "" {
-			p.RootBoundaryLine = 1 + strings.Count(output.String(), "\n")
+		if depth == 0 && p.RootBoundaryLine == 0 {
+			joinedTrimmed := strings.TrimSpace(joined)
+			if joinedTrimmed != "" && !strings.HasPrefix(joinedTrimmed, "//") && !strings.HasPrefix(joinedTrimmed, "/*") {
+				p.RootBoundaryLine = 1 + strings.Count(output.String(), "\n")
+			}
 		}
 
 		processed := p.applyDefines(p.applyCommandRules(joined))
