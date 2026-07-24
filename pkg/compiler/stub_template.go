@@ -45,8 +45,9 @@ func main() {
 	tlog("bytecode loaded")
 
 	a := app.New()
+	a.Settings().SetTheme(ui.NewTheme())
 	tlog("app.New done")
-	w := a.NewWindow("AdvPP")
+	w := a.NewWindow("__ADVPP_APP_TITLE__")
 	tlog("NewWindow done")
 	w.Resize(fyne.NewSize(800, 500))
 

@@ -1,11 +1,46 @@
 package ui
 
 import (
+	"regexp"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
+
+// menuIconRules espelha a heurística do frontend web (web/src/app/app.ts,
+// MENU_ICON_RULES) — mesmo critério de palavra-chave em português comum,
+// só trocando os ícones AnDes (web) pelos ícones embutidos do Fyne
+// (conjunto bem mais limitado, sem prédio/carteira/recibo/calendário
+// próprios — usa o mais próximo semanticamente disponível). O ícone fica
+// como func() fyne.Resource, não fyne.Resource já resolvido: os
+// theme.XxxIcon() do Fyne chamam fyne.CurrentApp() por baixo, e este é um
+// var de pacote — avaliado antes de app.New() rodar em main(), sem app
+// nenhum "current" ainda, o que derrubava com "Attempt to access current
+// Fyne app when none is started" a cada standalone build.
+var menuIconRules = []struct {
+	re   *regexp.Regexp
+	icon func() fyne.Resource
+}{
+	{regexp.MustCompile(`(?i)unidade|apartamento|im[oó]vel`), theme.HomeIcon},
+	{regexp.MustCompile(`(?i)condom[ií]nio|condom[ií]no|cliente|usu[aá]rio|pessoa`), theme.AccountIcon},
+	{regexp.MustCompile(`(?i)despesa|financeiro|custo`), theme.DocumentCreateIcon},
+	{regexp.MustCompile(`(?i)cobran[çc]a|fatura|boleto|conta`), theme.DocumentIcon},
+	{regexp.MustCompile(`(?i)fechamento|compet[eê]ncia|m[eê]s`), theme.HistoryIcon},
+	{regexp.MustCompile(`(?i)mala|e-?mail|correio|mensagem`), theme.MailComposeIcon},
+	{regexp.MustCompile(`(?i)sair|encerrar|fechar|voltar`), theme.LogoutIcon},
+}
+
+func menuItemIcon(label string) fyne.Resource {
+	for _, rule := range menuIconRules {
+		if rule.re.MatchString(label) {
+			return rule.icon()
+		}
+	}
+	return theme.ListIcon()
+}
 
 type FyneUIProvider struct {
 	window fyne.Window
@@ -71,15 +106,20 @@ func (p *FyneUIProvider) Menu(items []string, title string) int {
 	var dlg dialog.Dialog
 	for i, label := range items {
 		idx := i + 1 // 1-based, mesmo padrão de FWMenuSelect
-		buttons[i] = widget.NewButton(label, func() {
+		btn := widget.NewButtonWithIcon(label, menuItemIcon(label), func() {
 			if !sent {
 				sent = true
 				result <- idx
 			}
 			dlg.Hide()
 		})
+		btn.Alignment = widget.ButtonAlignLeading
+		buttons[i] = btn
 	}
-	content := container.NewVBox(buttons...)
+	box := container.NewVBox(buttons...)
+	// largura mínima — sem isso o diálogo encolhe pro tamanho do título
+	// quando os itens são curtos, ficando espremido.
+	content := container.NewGridWrap(fyne.NewSize(320, box.MinSize().Height), box)
 	dlg = dialog.NewCustomWithoutButtons(title, content, p.window)
 	dlg.SetOnClosed(func() {
 		if !sent {

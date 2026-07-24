@@ -4,6 +4,37 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Design: identidade visual própria + menu com ícones (web e desktop)
+
+O renderer web (`advplc serve`) e o executável standalone (`advplc
+build`) usavam a paleta roxa padrão do PO-UI/Fyne, sem nenhuma
+identidade própria, e o menu novo (`FWMenuSelect`) era uma pilha de
+botões cheios sem ícone — funcional, mas cru. Achado construindo o
+GesCon.
+
+- **Cor de marca própria**: azul-petróleo (`#0f6e68`) nos dois
+  backends — web via `--color-brand-01-*` (cascade automático pros
+  estados de hover/pressed via `--color-action-*`, ver
+  `web/src/styles.css`) e desktop via `pkg/ui/theme.go` (`ui.NewTheme()`,
+  usado por `advpp-ide` e pelo stub standalone).
+- **Menu com ícone por item**: heurística de palavra-chave em
+  português (unidade→prédio, condômino→pessoas, despesa→documento,
+  cobrança→recibo, fechamento→histórico, mala→e-mail, sair→logout),
+  espelhada nos dois frontends — web (`web/src/app/app.ts`,
+  `MENU_ICON_RULES`, ícones AnDes) e desktop (`pkg/ui/provider.go`,
+  `menuIconRules`, ícones Fyne). Sem nenhuma informação de ícone vinda
+  do `FWMenuSelect` em si — puramente cosmético no renderer, zero
+  mudança de API.
+- **Log técnico escondido por padrão** (web): a saída de `ConOut` bruta
+  ficava sempre visível, ocupando a tela toda — agora fica atrás de um
+  toggle discreto ("Log técnico (N linhas)"), sem sumir de vez.
+- **Ícones nos botões do browse desktop** (Novo/Editar/Excluir/Voltar
+  ao menu) e **título de janela real no standalone** (`advplc build
+  gescon.prw -o App` agora abre "Gescon", não "AdvPP" genérico —
+  `BuildStandalone` ganhou um parâmetro `title`, derivado do nome do
+  fonte).
+
+
 ### Navegação multi-tela em `advplc serve`: `FWMenuSelect`/`FWGetText`
 
 Até aqui, `advplc serve` só sabia executar UM programa até o fim (ou até

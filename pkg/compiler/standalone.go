@@ -70,12 +70,16 @@ func walkUpForModule(start string) string {
 // standalone executable: it embeds the bytecode into a copy of
 // stub_template.go, builds it in a temporary Go module that replaces
 // standaloneModule with a local checkout (see findModuleRoot), and moves
-// the resulting binary to outputFile. buildLog receives the `go build`
-// subprocess's combined stdout/stderr (pass os.Stdout for CLI use).
-func BuildStandalone(bc *Bytecode, outputFile string, buildLog io.Writer) error {
+// the resulting binary to outputFile. title becomes the app window's
+// title (falls back to "AdvPP" if empty). buildLog receives the `go
+// build` subprocess's combined stdout/stderr (pass os.Stdout for CLI use).
+func BuildStandalone(bc *Bytecode, outputFile, title string, buildLog io.Writer) error {
 	moduleRoot, err := findModuleRoot()
 	if err != nil {
 		return err
+	}
+	if title == "" {
+		title = "AdvPP"
 	}
 
 	tempDir, err := os.MkdirTemp("", "advpp-build-*")
@@ -90,12 +94,16 @@ func BuildStandalone(bc *Bytecode, outputFile string, buildLog io.Writer) error 
 	}
 
 	// Remove the +build ignore line (present so `go build ./...` in this
-	// repo doesn't try to compile the template as part of pkg/compiler).
+	// repo doesn't try to compile the template as part of pkg/compiler),
+	// and substitute the window-title placeholder — a plain string
+	// replace is enough since title only ever comes from a sanitized
+	// filename (see cmd/advplc's buildStandalone), never arbitrary input.
 	var cleanStub []string
 	for _, line := range strings.Split(stubTemplate, "\n") {
-		if !strings.Contains(line, "+build ignore") && !strings.Contains(line, "//go:build ignore") {
-			cleanStub = append(cleanStub, line)
+		if strings.Contains(line, "+build ignore") || strings.Contains(line, "//go:build ignore") {
+			continue
 		}
+		cleanStub = append(cleanStub, strings.ReplaceAll(line, "__ADVPP_APP_TITLE__", title))
 	}
 	stubDst := filepath.Join(tempDir, "main.go")
 	if err := os.WriteFile(stubDst, []byte(strings.Join(cleanStub, "\n")), 0644); err != nil {
