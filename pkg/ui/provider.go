@@ -25,7 +25,7 @@ var menuIconRules = []struct {
 	icon func() fyne.Resource
 }{
 	{regexp.MustCompile(`(?i)unidade|apartamento|im[oó]vel`), theme.HomeIcon},
-	{regexp.MustCompile(`(?i)condom[ií]nio|condom[ií]no|cliente|usu[aá]rio|pessoa`), theme.AccountIcon},
+	{regexp.MustCompile(`(?i)cond[oô]m[ií]?n|cliente|usu[aá]rio|pessoa`), theme.AccountIcon},
 	{regexp.MustCompile(`(?i)despesa|financeiro|custo`), theme.DocumentCreateIcon},
 	{regexp.MustCompile(`(?i)cobran[çc]a|fatura|boleto|conta`), theme.DocumentIcon},
 	{regexp.MustCompile(`(?i)fechamento|compet[eê]ncia|m[eê]s`), theme.HistoryIcon},
@@ -52,25 +52,43 @@ func NewFyneUIProvider(window fyne.Window) *FyneUIProvider {
 	}
 }
 
+// blockingDialog mostra um dialog.Dialog e bloqueia até ele ser
+// fechado (botão OK ou X) — dialog.ShowInformation/ShowError só
+// disparam a exibição e retornam na hora, sem esperar o usuário
+// reconhecer nada. Sem isso, MsgInfo/MsgAlert/MsgStop chamados em
+// sequência (ex.: MsgAlert de erro seguido por um novo FWMenuSelect
+// no loop do GesCon) empilhavam um diálogo por cima do outro — a VM
+// já tinha seguido em frente antes do usuário sequer ver o primeiro.
+// Mesma restrição de goroutine do MsgYesNo abaixo.
+func blockingDialog(d dialog.Dialog) {
+	done := make(chan struct{}, 1)
+	sent := false
+	d.SetOnClosed(func() {
+		if !sent {
+			sent = true
+			done <- struct{}{}
+		}
+	})
+	d.Show()
+	<-done
+}
+
 func (p *FyneUIProvider) MsgInfo(msg, title string) {
 	if title == "" {
 		title = "Information"
 	}
-	dialog.ShowInformation(title, msg, p.window)
+	blockingDialog(dialog.NewInformation(title, msg, p.window))
 }
 
 func (p *FyneUIProvider) MsgStop(msg, title string) {
-	if title == "" {
-		title = "Error"
-	}
-	dialog.ShowError(&fyneError{msg: msg}, p.window)
+	blockingDialog(dialog.NewError(&fyneError{msg: msg}, p.window))
 }
 
 func (p *FyneUIProvider) MsgAlert(msg, title string) {
 	if title == "" {
 		title = "Alert"
 	}
-	dialog.ShowInformation(title, msg, p.window)
+	blockingDialog(dialog.NewInformation(title, msg, p.window))
 }
 
 // MsgYesNo blocks its calling goroutine until the user answers — same
