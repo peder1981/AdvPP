@@ -670,8 +670,9 @@ func (v *VM) execute(instr compiler.Instruction) error {
 	case compiler.OP_TRY_BEGIN:
 		v.current.TryDepth++
 		tc := &TryCatch{
-			CatchIP:   instr.Arg,
-			StackBase: len(v.stack),
+			CatchIP:     instr.Arg,
+			StackBase:   len(v.stack),
+			CatchVarIdx: -1,
 		}
 		if instr.Arg2 >= 0 && instr.Str != "" {
 			tc.CatchVar = instr.Str
@@ -1291,6 +1292,8 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callMCPServerMethod(obj, upperMethod, args)
 	case "WSRestServer":
 		return v.callWSRestServerMethod(obj, upperMethod, args)
+	case "TMailMessage":
+		return v.callTMailMessageMethod(obj, upperMethod, args)
 	case "Tensor":
 		return v.callTensorMethod(obj, upperMethod, args)
 	case "Variable":
@@ -1446,6 +1449,9 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "WSRESTSERVER":
 			v.push(newWSRestServerObject())
+			return nil
+		case "TMAILMESSAGE":
+			v.push(newTMailMessageObject())
 			return nil
 		case "TENSOR":
 			v.push(newTensorObject())
