@@ -4,6 +4,13 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+## [1.22.0] — 2026-07-24
+
+`TCSqlExec`/`TCSqlQuery`, persistência real de `DbAppend`/`RecLock`/
+`FieldPut`/`MsUnlock`, e classe `TMailMessage` — todas motivadas por uso
+real (GesCon). Mais um bug real corrigido no caminho: `Recover` sem
+variável nomeada corrompia o slot local 0 da função.
+
 ### Bug real: `Recover` sem variável nomeada corrompia o slot local 0
 
 `Begin Sequence ... Recover ... End Sequence` (sem `Using oErr`, forma bem
