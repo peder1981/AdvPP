@@ -1093,6 +1093,44 @@ func (v *VM) registerNatives() {
 		"XFILIAL": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewString(""), nil
 		},
+		// TCSqlExec/TCSqlQuery: acesso SQL direto exposto a User Function —
+		// a API clássica de work-area (DbAppend/RecLock/FieldPut/MsUnlock)
+		// era um stub sem persistência real (corrigida no Task 2 deste
+		// plano); lógica de negócio que precisa gravar programaticamente em
+		// lote (ex.: fechamento mensal) usa este caminho, mais direto.
+		// Reaproveita a mesma interface SQLEngine (Exec/QueryRows) que o
+		// FWMBrowse já usa internamente, só que exposta ao AdvPL.
+		"TCSQLEXEC": func(args []advplrt.Value) (advplrt.Value, error) {
+			query := advplrt.ToString(getArg(args, 0))
+			sqlEng, ok := v.dbEngine.(SQLEngine)
+			if !ok || sqlEng == nil {
+				return advplrt.False, fmt.Errorf("TCSqlExec: nenhum banco de dados conectado")
+			}
+			if err := sqlEng.Exec(query); err != nil {
+				return advplrt.False, err
+			}
+			return advplrt.True, nil
+		},
+		"TCSQLQUERY": func(args []advplrt.Value) (advplrt.Value, error) {
+			query := advplrt.ToString(getArg(args, 0))
+			sqlEng, ok := v.dbEngine.(SQLEngine)
+			if !ok || sqlEng == nil {
+				return advplrt.NewArray([]advplrt.Value{}), fmt.Errorf("TCSqlQuery: nenhum banco de dados conectado")
+			}
+			rows, err := sqlEng.QueryRows(query)
+			if err != nil {
+				return advplrt.NewArray([]advplrt.Value{}), err
+			}
+			elems := make([]advplrt.Value, 0, len(rows))
+			for _, row := range rows {
+				obj := advplrt.NewObject("JsonObject", nil)
+				for k, val := range row {
+					obj.SetProp(k, advplrt.NewString(val))
+				}
+				elems = append(elems, obj)
+			}
+			return advplrt.NewArray(elems), nil
+		},
 
 		// --- MVC ---
 		"FWFORMMODEL": func(args []advplrt.Value) (advplrt.Value, error) {

@@ -4,6 +4,17 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### `TCSqlExec`/`TCSqlQuery` — SQL direto pra User Function
+
+A API clássica de work-area (`DbAppend`/`RecLock`/`FieldPut`/`MsUnlock`) não
+persistia dados de verdade até este release — só `FWMBrowse` gravava (via
+código Go interno acionado por clique na UI web). Lógica de negócio que
+precisa gravar programaticamente (loop de inserção, processamento em lote)
+não tinha caminho nenhum. `TCSqlExec(cQuery)` (INSERT/UPDATE/DELETE) e
+`TCSqlQuery(cQuery)` (SELECT, devolve array de `JsonObject`) expõem a mesma
+camada SQL que o `FWMBrowse` já usa internamente. Achado motivado por uso
+real (GesCon, sistema de gestão condominial construído sobre o AdvPP).
+
 ## [1.21.0] — 2026-07-23
 
 Servidor REST executando de verdade (`WSRestServer`) e uma varredura extensa de
