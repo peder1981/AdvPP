@@ -12,6 +12,9 @@ interface BrowseSpec { title: string; alias: string; columns: BrowseColumn[]; it
 interface DlgControl { kind: string; x: number; y: number; name?: string; text?: string; value?: string; picture?: string; index: number; }
 interface DialogSpec { title: string; rows: DlgControl[][]; buttons: DlgControl[]; }
 interface ServerEvent { type: string; id?: number; kind?: string; title?: string; text?: string; data?: any; }
+// Espelho de menuSpec/inputSpec do servidor (pkg/webui/server.go)
+interface MenuSpec { title: string; items: string[]; }
+interface InputSpec { prompt: string; def: string; }
 
 @Component({
   selector: 'app-root',
@@ -48,6 +51,24 @@ interface ServerEvent { type: string; id?: number; kind?: string; title?: string
       }
     </po-modal>
 
+    <!-- FWMenuSelect: um botão por item, navegação entre telas -->
+    <po-modal #menuModal [p-title]="menu()?.title || 'Menu'" [p-hide-close]="true" p-size="sm">
+      @if (menu(); as m) {
+        <div class="advpp-menu">
+          @for (item of m.items; track $index) {
+            <po-button class="advpp-menu-btn" [p-label]="item" p-kind="primary" (p-click)="menuChoose($index + 1)"></po-button>
+          }
+        </div>
+      }
+    </po-modal>
+
+    <!-- FWGetText: um campo de texto -->
+    <po-modal #inputModal [p-title]="inputSpec()?.prompt || 'Informe um valor'" [p-primary-action]="inputConfirmAction" [p-secondary-action]="inputCancelAction" [p-hide-close]="true" p-size="sm">
+      @if (inputSpec()) {
+        <po-dynamic-form [p-fields]="inputFields" [p-value]="inputFormValue"></po-dynamic-form>
+      }
+    </po-modal>
+
     <!-- MSDIALOG legado (fase 4): grade heurística de SAY/GET + botões -->
     <po-modal #legacyModal [p-title]="dlg()?.title || 'Diálogo'" [p-primary-action]="dlgPrimaryAction" [p-hide-close]="true" p-size="auto">
       @if (dlg(); as d) {
@@ -80,6 +101,8 @@ export class App {
 
   @ViewChild('formModal') formModal!: PoModalComponent;
   @ViewChild('legacyModal') legacyModal!: PoModalComponent;
+  @ViewChild('menuModal') menuModal!: PoModalComponent;
+  @ViewChild('inputModal') inputModal!: PoModalComponent;
 
   protected lines = signal<string[]>([]);
   protected status = signal('conectando');
@@ -90,11 +113,17 @@ export class App {
   protected formValue: any = {};
   protected dlg = signal<DialogSpec | null>(null);
   protected dlgValues: Record<string, string> = {};
+  protected menu = signal<MenuSpec | null>(null);
+  protected inputSpec = signal<InputSpec | null>(null);
+  protected inputFields: PoDynamicFormField[] = [{ property: 'valor', label: 'Valor' }];
+  protected inputFormValue: any = {};
 
   private sid = Math.random().toString(36).slice(2);
   private browseId = 0;
   private editingRecno = 0;
   private dlgId = 0;
+  private menuId = 0;
+  private inputId = 0;
 
   protected pageTitle = computed(() => this.browse()?.title ?? 'AdvPP Web');
   protected statusColor = computed(() =>
@@ -147,6 +176,20 @@ export class App {
         }
         this.dlg.set(spec);
         this.legacyModal.open();
+        break;
+      }
+      case 'menu': {
+        this.menuId = ev.id ?? 0;
+        this.menu.set(ev.data ?? null);
+        this.menuModal.open();
+        break;
+      }
+      case 'input': {
+        this.inputId = ev.id ?? 0;
+        const spec = ev.data as InputSpec;
+        this.inputSpec.set(spec);
+        this.inputFormValue = { valor: spec.def ?? '' };
+        this.inputModal.open();
         break;
       }
       case 'error':
@@ -215,6 +258,28 @@ export class App {
 
   protected sendAction(action: object) {
     this.reply(this.browseId, JSON.stringify(action));
+  }
+
+  protected menuChoose(index: number) {
+    this.menuModal.close();
+    this.menu.set(null);
+    this.reply(this.menuId, String(index));
+  }
+
+  protected inputConfirmAction: PoModalAction = { label: 'OK', action: () => this.inputConfirm() };
+  protected inputCancelAction: PoModalAction = { label: 'Cancelar', action: () => this.inputCancel() };
+
+  private inputConfirm() {
+    const value = String(this.inputFormValue.valor ?? '');
+    this.inputModal.close();
+    this.inputSpec.set(null);
+    this.reply(this.inputId, value);
+  }
+
+  private inputCancel() {
+    this.inputModal.close();
+    this.inputSpec.set(null);
+    this.reply(this.inputId, '');
   }
 
   protected dlgButton(index: number) {

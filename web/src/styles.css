@@ -38,3 +38,14 @@
   gap: 8px;
   margin-top: 16px;
 }
+
+/* FWMenuSelect: um botão por opção, empilhados */
+.advpp-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.advpp-menu-btn {
+  width: 100%;
+}
