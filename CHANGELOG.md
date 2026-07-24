@@ -4,6 +4,15 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+## [1.22.1] — 2026-07-24
+
+Dois bugs reais de VM/compilador achados construindo o GesCon (sistema de
+gestão condominial multi-arquivo, primeiro consumidor real de projeto
+AdvPL com múltiplos `.prw` chamando funções uns dos outros via
+`#include`). Sem esses dois fixes, `advplc run`/`serve` em qualquer
+projeto multi-arquivo real corre risco de rodar a função errada ou
+crashar.
+
 ### Bug real: comparar variável nunca atribuída a `Nil` derrubava a VM (SIGSEGV)
 
 `Local x` sem inicializador, ou um parâmetro de função não passado numa
