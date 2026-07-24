@@ -10,13 +10,16 @@ import {
 // qualquer app AdvPP, não hardcoded pro GesCon: casa por palavra-chave em
 // português comum, cai num ícone neutro se nada bater.
 const MENU_ICON_RULES: [RegExp, string][] = [
+  // Checado primeiro: itens de relatório mencionam palavras (unidade,
+  // despesa) que também disparariam as regras de tela CRUD abaixo —
+  // "Extrato por Unidade" precisa do ícone de gráfico, não de prédio.
+  [/relat[oó]rio|balancete|inadimpl[eê]ncia|extrato|por categoria/i, 'an-chart-bar'],
   [/unidade|apartamento|im[oó]vel/i, 'an-buildings'],
   [/cond[oô]m[ií]?n|cliente|usu[aá]rio|pessoa/i, 'an-users'],
   [/despesa|financeiro|custo/i, 'an-wallet'],
   [/cobran[çc]a|fatura|boleto|conta/i, 'an-receipt'],
   [/fechamento|compet[eê]ncia|m[eê]s/i, 'an-calendar-check'],
   [/mala|e-?mail|correio|mensagem/i, 'an-envelope-simple'],
-  [/relat[oó]rio|balancete|inadimpl[eê]ncia|extrato/i, 'an-chart-bar'],
   [/voltar/i, 'an-arrow-left'],
   [/sair|encerrar|fechar/i, 'an-sign-out'],
 ];
