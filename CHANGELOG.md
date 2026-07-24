@@ -4,6 +4,33 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Navegação multi-tela em `advplc serve`: `FWMenuSelect`/`FWGetText`
+
+Até aqui, `advplc serve` só sabia executar UM programa até o fim (ou até
+um `FWMBrowse` ficar aberto) — não havia nenhum jeito de um projeto
+multi-tela real (ex.: GesCon) oferecer um menu pra navegar entre telas
+sem reiniciar o processo/trocar de porta. Duas novas capacidades,
+motivadas por esse caso real:
+
+- **`FWMenuSelect(aItens, [cTitulo]) As Numeric`** — mostra uma lista de
+  opções e bloqueia até o usuário escolher uma; retorna o índice 1-based
+  escolhido (0 se fechado sem escolher).
+- **`FWGetText(cPergunta, [cDefault]) As Character`** — pede um texto ao
+  usuário e bloqueia até a resposta (ou `cDefault` se cancelado).
+
+Não existem em Protheus real — são capacidades próprias do AdvPP. Sem
+`UIProvider` (execução headless via `advplc run`, ex. em teste
+automatizado), ambas retornam o "sem escolha" (`0`/`cDefault`) na hora,
+nunca bloqueiam esperando input que não vai vir.
+
+Implementado nos dois backends de UI do AdvPP: `advplc serve` (novo
+evento SSE `menu`/`input`, mesmo protocolo blocking-ask/reply já usado
+por diálogo e browse — ver `pkg/webui/server.go` — com componente novo
+no frontend Angular/PO-UI, `web/src/app/app.ts`) e desktop Fyne
+(`pkg/ui/provider.go`, diálogo customizado com um botão por opção /
+`EntryDialog`).
+
+
 ## [1.22.1] — 2026-07-24
 
 Dois bugs reais de VM/compilador achados construindo o GesCon (sistema de

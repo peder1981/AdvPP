@@ -2,7 +2,9 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/widget"
 )
 
 type FyneUIProvider struct {
@@ -51,6 +53,67 @@ func (p *FyneUIProvider) MsgYesNo(msg, title string) bool {
 	dialog.ShowConfirm(title, msg, func(confirmed bool) {
 		result <- confirmed
 	}, p.window)
+
+	return <-result
+}
+
+// Menu mostra um botão por item numa caixa de diálogo custom e bloqueia
+// até o usuário clicar um deles (ou fechar sem escolher, retornando 0).
+// Mesma restrição de goroutine do MsgYesNo acima.
+func (p *FyneUIProvider) Menu(items []string, title string) int {
+	if title == "" {
+		title = "Menu"
+	}
+	result := make(chan int, 1)
+	sent := false
+
+	buttons := make([]fyne.CanvasObject, len(items))
+	var dlg dialog.Dialog
+	for i, label := range items {
+		idx := i + 1 // 1-based, mesmo padrão de FWMenuSelect
+		buttons[i] = widget.NewButton(label, func() {
+			if !sent {
+				sent = true
+				result <- idx
+			}
+			dlg.Hide()
+		})
+	}
+	content := container.NewVBox(buttons...)
+	dlg = dialog.NewCustomWithoutButtons(title, content, p.window)
+	dlg.SetOnClosed(func() {
+		if !sent {
+			sent = true
+			result <- 0
+		}
+	})
+	dlg.Show()
+
+	return <-result
+}
+
+// InputText pede um texto ao usuário via EntryDialog e bloqueia até a
+// resposta (ou def, se cancelado). Mesma restrição de goroutine acima.
+func (p *FyneUIProvider) InputText(prompt, def string) string {
+	result := make(chan string, 1)
+	sent := false
+	entry := dialog.NewEntryDialog(prompt, "", func(text string) {
+		if !sent {
+			sent = true
+			if text == "" {
+				text = def
+			}
+			result <- text
+		}
+	}, p.window)
+	entry.SetText(def)
+	entry.SetOnClosed(func() {
+		if !sent {
+			sent = true
+			result <- def
+		}
+	})
+	entry.Show()
 
 	return <-result
 }

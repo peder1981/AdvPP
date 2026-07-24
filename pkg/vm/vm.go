@@ -115,6 +115,15 @@ type UIProvider interface {
 	MsgStop(msg, title string)
 	MsgAlert(msg, title string)
 	MsgYesNo(msg, title string) bool
+	// Menu mostra uma lista de opções e bloqueia até o usuário escolher uma.
+	// Retorna o índice 1-based do item escolhido, ou 0 se nenhum (fechou
+	// sem escolher). Não existe em Protheus real — capacidade própria do
+	// AdvPP pra navegação entre telas em `advplc serve` (FWMenuSelect).
+	Menu(items []string, title string) int
+	// InputText pede um texto ao usuário e bloqueia até a resposta.
+	// Retorna def se o usuário cancelar. Capacidade própria do AdvPP
+	// (FWGetText), não parte da API real do Protheus.
+	InputText(prompt, def string) string
 }
 
 // newLocals aloca o slot de variáveis locais de um frame já preenchido com

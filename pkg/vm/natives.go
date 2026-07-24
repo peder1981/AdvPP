@@ -85,6 +85,37 @@ func (v *VM) registerNatives() {
 			}
 			return advplrt.True, nil
 		},
+		// FWMenuSelect(aItens, [cTitulo]) As Numeric: mostra um menu de
+		// opções e retorna o índice 1-based escolhido (0 se fechado sem
+		// escolher). Capacidade própria do AdvPP — não existe em Protheus
+		// real — pra navegação entre telas em `advplc serve`/desktop.
+		// Sem UIProvider (execução headless, ex. `advplc run` em teste),
+		// retorna 0 imediatamente: nunca bloqueia esperando input que não
+		// vai vir.
+		"FWMENUSELECT": func(args []advplrt.Value) (advplrt.Value, error) {
+			var items []string
+			if a, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
+				for _, el := range a.Elements {
+					items = append(items, advplrt.ToString(el))
+				}
+			}
+			title := getArgString(args, 1, "")
+			if v.uiProvider != nil {
+				return advplrt.NewNumber(float64(v.uiProvider.Menu(items, title))), nil
+			}
+			return advplrt.NewNumber(0), nil
+		},
+		// FWGetText(cPergunta, [cDefault]) As Character: pede um texto ao
+		// usuário e retorna a resposta (ou cDefault se cancelado/headless).
+		// Capacidade própria do AdvPP, mesma motivação de FWMenuSelect.
+		"FWGETTEXT": func(args []advplrt.Value) (advplrt.Value, error) {
+			prompt := getArgString(args, 0, "")
+			def := getArgString(args, 1, "")
+			if v.uiProvider != nil {
+				return advplrt.NewString(v.uiProvider.InputText(prompt, def)), nil
+			}
+			return advplrt.NewString(def), nil
+		},
 
 		// --- String functions ---
 		"ALLTRIM": func(args []advplrt.Value) (advplrt.Value, error) {

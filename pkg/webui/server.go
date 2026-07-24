@@ -5,7 +5,7 @@
 //
 // Protocolo (backend stdlib apenas, sem WebSocket):
 //   GET  /            → app PO-UI embutido (embed.FS)
-//   GET  /events?s=ID → stream SSE: {type:"output"|"dialog"|"browse"|"done"|"error", ...}
+//   GET  /events?s=ID → stream SSE: {type:"output"|"dialog"|"browse"|"menu"|"input"|"done"|"error", ...}
 //   POST /reply?s=ID  → resposta: {"id":N,"result":"ok"|"yes"|"no"|<ação JSON do browse>}
 //
 // Cada conexão /events cria uma sessão com VM própria (isolada, como um
@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strconv"
 	"sync"
 )
 
@@ -27,7 +28,7 @@ import (
 var distFS embed.FS
 
 type event struct {
-	Type  string          `json:"type"` // output | dialog | browse | done | error
+	Type  string          `json:"type"` // output | dialog | browse | menu | input | done | error
 	ID    int             `json:"id,omitempty"`
 	Kind  string          `json:"kind,omitempty"` // info | stop | alert | yesno
 	Title string          `json:"title,omitempty"`
@@ -94,6 +95,41 @@ func (p *Provider) MsgStop(msg, title string)  { p.s.ask("stop", msg, title) }
 func (p *Provider) MsgAlert(msg, title string) { p.s.ask("alert", msg, title) }
 func (p *Provider) MsgYesNo(msg, title string) bool {
 	return p.s.ask("yesno", msg, title) == "yes"
+}
+
+// menuSpec/inputSpec espelham o que o frontend espera em ev.Data (ver
+// web/src/app/app.ts) — mesma convenção de BrowseSpec/DialogSpec.
+type menuSpec struct {
+	Title string   `json:"title"`
+	Items []string `json:"items"`
+}
+
+type inputSpec struct {
+	Prompt string `json:"prompt"`
+	Def    string `json:"def"`
+}
+
+// Menu implementa vm.UIProvider: envia a lista de opções ao browser e
+// bloqueia até o usuário escolher uma (ou fechar sem escolher).
+func (p *Provider) Menu(items []string, title string) int {
+	data, _ := json.Marshal(menuSpec{Title: title, Items: items})
+	result := p.s.askData("menu", data)
+	n, err := strconv.Atoi(result)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// InputText implementa vm.UIProvider: pede um texto ao browser e bloqueia
+// até a resposta (ou o valor default, se o usuário cancelar).
+func (p *Provider) InputText(prompt, def string) string {
+	data, _ := json.Marshal(inputSpec{Prompt: prompt, Def: def})
+	result := p.s.askData("input", data)
+	if result == "" {
+		return def
+	}
+	return result
 }
 
 // Browse implementa vm.BrowseUI: envia o spec do FWMBrowse ao browser e
