@@ -25,6 +25,15 @@ valores em branco tipo-apropriados por coluna), `MsUnlock()` grava o
 registro corrente via `UPDATE`, `FieldPos` resolve a posição física real.
 Achado confirmado por teste direto durante o planejamento do GesCon.
 
+### Classe `TMailMessage` — envio de e-mail real (`net/smtp`)
+
+Nova capacidade de compilador: `TMailMessage():New()` + `SetServer`/
+`SetAuth`/`SetFrom`/`AddTo`/`SetSubject`/`SetBody`/`Send()` envia e-mail via
+SMTP real (stdlib `net/smtp`, sem CGO, sem dependência externa). Motivada
+pela necessidade futura de mala direta do GesCon — capacidade adicionada
+ao compilador antes do consumidor de verdade (decisão consciente do
+usuário, adiantando um item que já estava no roadmap).
+
 ## [1.21.0] — 2026-07-23
 
 Servidor REST executando de verdade (`WSRestServer`) e uma varredura extensa de

@@ -1087,6 +1087,7 @@ var builtinClasses = map[string]bool{
 	"LLM":           true,
 	"MCPSERVER":     true,
 	"WSRESTSERVER":  true,
+	"TMAILMESSAGE":  true,
 	"TENSOR":        true,
 	"VARIABLE":      true,
 	"SGD":           true,
