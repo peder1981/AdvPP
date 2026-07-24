@@ -14,6 +14,14 @@ type Preprocessor struct {
 	processed    map[string]bool
 	sqlCounter   int
 	commandRules []commandRule
+
+	// RootBoundaryLine é a linha (1-based, já no texto final pós-#include)
+	// onde começa o primeiro conteúdo não-branco do ARQUIVO RAIZ, ou 0 se
+	// ainda não identificada. #include cola bibliotecas auxiliares no
+	// texto final ANTES desse ponto (convenção real: includes no topo do
+	// arquivo) — o codegen usa isso para não deixar uma função de
+	// biblioteca incluída virar o ponto de entrada implícito do programa.
+	RootBoundaryLine int
 }
 
 func NewPreprocessor(includePaths []string) *Preprocessor {
@@ -260,6 +268,10 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 				extra = 0
 			}
 		}
+		if depth == 0 && p.RootBoundaryLine == 0 && strings.TrimSpace(joined) != "" {
+			p.RootBoundaryLine = 1 + strings.Count(output.String(), "\n")
+		}
+
 		processed := p.applyDefines(p.applyCommandRules(joined))
 		output.WriteString(processed)
 		output.WriteString("\n")

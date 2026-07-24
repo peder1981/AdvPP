@@ -29,16 +29,17 @@ type Expression interface {
 
 // Program is the root AST node
 type Program struct {
-	Loc             Position
-	FileName        string
-	Functions       []*FunctionDecl
-	Classes         []*ClassDecl
-	Methods         []*MethodImpl
-	Body            []Statement
-	Includes        []string
-	Defines         map[string]string
-	Namespace       string
-	UsingNamespaces []string
+	Loc              Position
+	FileName         string
+	RootBoundaryLine int
+	Functions        []*FunctionDecl
+	Classes          []*ClassDecl
+	Methods          []*MethodImpl
+	Body             []Statement
+	Includes         []string
+	Defines          map[string]string
+	Namespace        string
+	UsingNamespaces  []string
 }
 
 func (p *Program) Pos() Position  { return p.Loc }
