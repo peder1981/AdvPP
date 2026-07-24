@@ -39,7 +39,7 @@ interface DialogSpec { title: string; rows: DlgControl[][]; buttons: DlgControl[
 interface ServerEvent { type: string; id?: number; kind?: string; title?: string; text?: string; data?: any; }
 // Espelho de menuSpec/inputSpec do servidor (pkg/webui/server.go)
 interface MenuSpec { title: string; items: string[]; }
-interface InputSpec { prompt: string; def: string; }
+interface InputSpec { prompt: string; def: string; pw?: boolean; }
 
 @Component({
   selector: 'app-root',
@@ -100,7 +100,7 @@ interface InputSpec { prompt: string; def: string; }
     <!-- FWGetText: um campo de texto -->
     <po-modal #inputModal [p-title]="inputSpec()?.prompt || 'Informe um valor'" [p-primary-action]="inputConfirmAction" [p-secondary-action]="inputCancelAction" [p-hide-close]="true" p-size="sm">
       @if (inputSpec()) {
-        <po-dynamic-form [p-fields]="inputFields" [p-value]="inputFormValue"></po-dynamic-form>
+        <po-dynamic-form [p-fields]="inputFieldList()" [p-value]="inputFormValue"></po-dynamic-form>
       }
     </po-modal>
 
@@ -150,7 +150,15 @@ export class App {
   protected dlgValues: Record<string, string> = {};
   protected menu = signal<MenuSpec | null>(null);
   protected inputSpec = signal<InputSpec | null>(null);
-  protected inputFields: PoDynamicFormField[] = [{ property: 'valor', label: 'Valor' }];
+  protected inputFields: PoDynamicFormField[] = [];
+
+  protected inputFieldList = computed(() => {
+    const spec = this.inputSpec();
+    if (spec?.pw) {
+      return [{ property: 'valor', label: 'Valor', type: 'password' }];
+    }
+    return [{ property: 'valor', label: 'Valor' }];
+  });
   protected inputFormValue: any = {};
   protected consoleOpen = signal(false);
   protected menuIcon = menuItemIcon;
@@ -229,6 +237,11 @@ export class App {
         const spec = ev.data as InputSpec;
         this.inputSpec.set(spec);
         this.inputFormValue = { valor: spec.def ?? '' };
+        if (spec?.pw) {
+          this.inputFields = [{ property: 'valor', label: 'Valor', type: 'password' }];
+        } else {
+          this.inputFields = [{ property: 'valor', label: 'Valor' }];
+        }
         this.inputModal.open();
         break;
       }

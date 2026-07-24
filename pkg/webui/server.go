@@ -107,6 +107,7 @@ type menuSpec struct {
 type inputSpec struct {
 	Prompt string `json:"prompt"`
 	Def    string `json:"def"`
+	Pw     bool   `json:"pw,omitempty"`
 }
 
 // Menu implementa vm.UIProvider: envia a lista de opções ao browser e
@@ -122,9 +123,10 @@ func (p *Provider) Menu(items []string, title string) int {
 }
 
 // InputText implementa vm.UIProvider: pede um texto ao browser e bloqueia
-// até a resposta (ou o valor default, se o usuário cancelar).
-func (p *Provider) InputText(prompt, def string) string {
-	data, _ := json.Marshal(inputSpec{Prompt: prompt, Def: def})
+// até a resposta (ou o valor default, se o usuário cancelar). Se bIsPassword
+// for true, o campo oculta caracteres digitados.
+func (p *Provider) InputText(prompt, def string, bIsPassword bool) string {
+	data, _ := json.Marshal(inputSpec{Prompt: prompt, Def: def, Pw: bIsPassword})
 	result := p.s.askData("input", data)
 	if result == "" {
 		return def

@@ -4,6 +4,19 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### `FWGetText` com `bIsPassword` — campo de senha em web e desktop
+
+`FWGetText(cPergunta, cDefault, .T.)` abre um campo de texto oculto
+(`*` ou `•` em web/desktop). Terceiro argumento é opcional: sem ele,
+comportamento inalterado. No desktop Fyne, o widget do entry troca para
+`Password=true`; no renderer web (Angular), o input HTML muda para
+`type="password"` via PO-UI `PoDynamicFormField[type: 'password']`.
+Motivada pela necessidade de esconder senhas no GesCon (login/admin cria
+senha visível na v1). Implementado em: natives.go (3º arg opcional),
+vm.go (interface UIProvider.InputText adiciona bIsPassword bool),
+provider.go (Fyne PasswordEntry), server.go (webui transmite pw flag ao
+frontend Angular), app.ts (InputSpec.pw → po-dynamic-form password type).
+
 ### `FWHash(cTexto) As Character` — hash SHA-256
 
 O AdvPP não tinha nenhuma função de hash (nem MD5, nem SHA, nem o

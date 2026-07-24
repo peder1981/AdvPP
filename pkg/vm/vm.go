@@ -121,9 +121,12 @@ type UIProvider interface {
 	// AdvPP pra navegação entre telas em `advplc serve` (FWMenuSelect).
 	Menu(items []string, title string) int
 	// InputText pede um texto ao usuário e bloqueia até a resposta.
-	// Retorna def se o usuário cancelar. Capacidade própria do AdvPP
-	// (FWGetText), não parte da API real do Protheus.
-	InputText(prompt, def string) string
+		// Retorna def se o usuário cancelar. Capacidade própria do AdvPP
+		// (FWGetText), não parte da API real do Protheus. Se bIsPassword
+		// for true, o campo deve ocultar caracteres digitados (asteriscos/
+		// bolinhas). O terceiro argumento é opcional: chamadas de AdvPL sem
+		// ele recebem .F. (comportamento idêntico ao original).
+		InputText(prompt, def string, bIsPassword bool) string
 }
 
 // newLocals aloca o slot de variáveis locais de um frame já preenchido com

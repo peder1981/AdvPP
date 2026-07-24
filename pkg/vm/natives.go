@@ -107,14 +107,20 @@ func (v *VM) registerNatives() {
 			}
 			return advplrt.NewNumber(0), nil
 		},
-		// FWGetText(cPergunta, [cDefault]) As Character: pede um texto ao
+		// FWGetText(cPergunta, [cDefault], [bIsPassword]) As Character: pede um texto ao
 		// usuário e retorna a resposta (ou cDefault se cancelado/headless).
 		// Capacidade própria do AdvPP, mesma motivação de FWMenuSelect.
+		// 3º argumento opcional bIsPassword: quando .T., o campo oculta
+		// caracteres digitados (* ou •). Sem ele, comportamento idêntico ao original.
 		"FWGETTEXT": func(args []advplrt.Value) (advplrt.Value, error) {
 			prompt := getArgString(args, 0, "")
 			def := getArgString(args, 1, "")
+			bPasswd := false
+			if len(args) > 2 {
+				bPasswd = advplrt.ToBool(getArg(args, 2))
+			}
 			if v.uiProvider != nil {
-				return advplrt.NewString(v.uiProvider.InputText(prompt, def)), nil
+				return advplrt.NewString(v.uiProvider.InputText(prompt, def, bPasswd)), nil
 			}
 			return advplrt.NewString(def), nil
 		},
