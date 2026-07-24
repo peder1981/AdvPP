@@ -155,29 +155,47 @@ func (p *FyneUIProvider) Menu(items []string, title string) int {
 	return <-result
 }
 
-// InputText pede um texto ao usuário via EntryDialog e bloqueia até a
-// resposta (ou def, se cancelado). Mesma restrição de goroutine acima.
-func (p *FyneUIProvider) InputText(prompt, def string) string {
+// InputText pede um texto ao usuário e bloqueia até a resposta (ou def, se
+// cancelado). Se bIsPassword for true, o entry exibe asteriscos/bolinhas ao
+// digitar. Mesma restrição de goroutine acima.
+func (p *FyneUIProvider) InputText(prompt, def string, bIsPassword bool) string {
 	result := make(chan string, 1)
 	sent := false
-	entry := dialog.NewEntryDialog(prompt, "", func(text string) {
+
+	content := widget.NewEntry()
+	content.SetText(def)
+	content.PlaceHolder = prompt
+
+	if bIsPassword {
+		content.Password = true
+	}
+
+	dlg := dialog.NewCustomWithoutButtons(prompt, content, p.window)
+	dlg.SetOnClosed(func() {
 		if !sent {
 			sent = true
-			if text == "" {
-				text = def
+			val := content.Text
+			if val == "" {
+				val = def
 			}
-			result <- text
-		}
-	}, p.window)
-	entry.SetText(def)
-	entry.SetOnClosed(func() {
-		if !sent {
-			sent = true
-			result <- def
+			result <- val
 		}
 	})
-	entry.Show()
 
+	btnOk := widget.NewButton("OK", func() {
+		if !sent {
+			sent = true
+			val := content.Text
+			if val == "" {
+				val = def
+			}
+			result <- val
+			dlg.Hide()
+		}
+	})
+	dlg.SetButtons([]fyne.CanvasObject{btnOk})
+
+	dlg.Show()
 	return <-result
 }
 
