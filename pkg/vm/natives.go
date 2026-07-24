@@ -1040,6 +1040,9 @@ func (v *VM) registerNatives() {
 			return advplrt.Nil, nil
 		},
 		"DBAPPEND": func(args []advplrt.Value) (advplrt.Value, error) {
+			if v.dbEngine != nil {
+				return advplrt.Nil, v.dbEngine.Append()
+			}
 			return advplrt.Nil, nil
 		},
 		"DBDELETE": func(args []advplrt.Value) (advplrt.Value, error) {
@@ -1085,6 +1088,10 @@ func (v *VM) registerNatives() {
 			return advplrt.Nil, nil
 		},
 		"FIELDPOS": func(args []advplrt.Value) (advplrt.Value, error) {
+			if v.dbEngine != nil {
+				name := advplrt.ToString(getArg(args, 0))
+				return advplrt.NewNumber(float64(v.dbEngine.FieldPos(name))), nil
+			}
 			return advplrt.NewNumber(0), nil
 		},
 		"FIELDNAME": func(args []advplrt.Value) (advplrt.Value, error) {
