@@ -4,6 +4,17 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Bug real: `Recover` sem variável nomeada corrompia o slot local 0
+
+`Begin Sequence ... Recover ... End Sequence` (sem `Using oErr`, forma bem
+comum de só engolir o erro) escrevia o objeto de erro no **slot local 0**
+da função — qualquer variável declarada primeiro na função, sem relação
+nenhuma com o catch, tinha seu valor silenciosamente sobrescrito. Causa:
+`TryCatch.CatchVarIdx` não tinha valor-sentinela pra "sem variável de
+catch" — o zero-value do Go (`0`) colidia com um índice de slot real.
+Corrigido inicializando `CatchVarIdx: -1` em `OP_TRY_BEGIN`. Achado
+testando a classe `TMailMessage` (abaixo) contra esse exato padrão.
+
 ### `TCSqlExec`/`TCSqlQuery` — SQL direto pra User Function
 
 A API clássica de work-area (`DbAppend`/`RecLock`/`FieldPut`/`MsUnlock`) não
