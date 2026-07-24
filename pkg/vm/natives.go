@@ -2,6 +2,8 @@ package vm
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"math/rand"
@@ -964,6 +966,16 @@ func (v *VM) registerNatives() {
 		"GETENV": func(args []advplrt.Value) (advplrt.Value, error) {
 			name := advplrt.ToString(getArg(args, 0))
 			return advplrt.NewString(getEnvOrDefault(name, advplrt.ToString(getArg(args, 1)))), nil
+		},
+		// FWHash(cTexto) As Character: SHA-256 em hexadecimal, stdlib do
+		// Go (sem CGO, sem dependência externa). Não existe em Protheus
+		// real — capacidade própria do AdvPP, motivada pela ausência total
+		// de qualquer função de hash (MD5/SHA/HB_MD5) no compilador: sem
+		// isso, a única forma de guardar senha seria texto puro.
+		"FWHASH": func(args []advplrt.Value) (advplrt.Value, error) {
+			text := getArgString(args, 0, "")
+			sum := sha256.Sum256([]byte(text))
+			return advplrt.NewString(hex.EncodeToString(sum[:])), nil
 		},
 		// File(cArq): .T. se o arquivo existe (e não é diretório).
 		"FILE": func(args []advplrt.Value) (advplrt.Value, error) {

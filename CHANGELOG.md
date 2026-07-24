@@ -4,6 +4,15 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### `FWHash(cTexto) As Character` — hash SHA-256
+
+O AdvPP não tinha nenhuma função de hash (nem MD5, nem SHA, nem o
+`HB_MD5` real do Protheus) — a única forma de guardar uma senha seria
+texto puro. `FWHash` usa `crypto/sha256` da stdlib do Go (sem CGO, sem
+dependência nova), retorna o digest em hexadecimal (64 caracteres).
+Não existe em Protheus real — capacidade própria do AdvPP. Achado
+implementando login no GesCon.
+
 ### Bug real: `MsgInfo`/`MsgAlert`/`MsgStop` não bloqueavam no desktop (Fyne)
 
 No backend desktop (`advplc build`/`advpp-ide`), `MsgInfo`/`MsgAlert`/
