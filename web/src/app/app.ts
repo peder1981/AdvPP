@@ -16,7 +16,9 @@ const MENU_ICON_RULES: [RegExp, string][] = [
   [/cobran[çc]a|fatura|boleto|conta/i, 'an-receipt'],
   [/fechamento|compet[eê]ncia|m[eê]s/i, 'an-calendar-check'],
   [/mala|e-?mail|correio|mensagem/i, 'an-envelope-simple'],
-  [/sair|encerrar|fechar|voltar/i, 'an-sign-out'],
+  [/relat[oó]rio|balancete|inadimpl[eê]ncia|extrato/i, 'an-chart-bar'],
+  [/voltar/i, 'an-arrow-left'],
+  [/sair|encerrar|fechar/i, 'an-sign-out'],
 ];
 function menuItemIcon(label: string): string {
   for (const [re, icon] of MENU_ICON_RULES) {
