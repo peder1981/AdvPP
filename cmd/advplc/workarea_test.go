@@ -37,7 +37,10 @@ func TestWorkareaFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("advplc run tests/workarea_test.prw falhou: %v\n%s", err, out)
 	}
-	want := []string{"qtd=1", "codigo=X1", "valor=42"}
+	// fieldpos=4: WA_CODIGO é a 4ª coluna física da tabela (R_E_C_N_O_,
+	// D_E_L_E_T_, R_E_C_D_E_L_ vêm antes) — FieldPos conta todas as
+	// colunas, não só as de negócio.
+	want := []string{"qtd=1", "codigo=X1", "valor=42", "fieldpos=4"}
 	got := string(out)
 	for _, w := range want {
 		if !strings.Contains(got, w) {
