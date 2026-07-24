@@ -4,6 +4,24 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Bug real: ponto de entrada implícito escolhia a função errada com `#include`
+
+Um arquivo `.prw` sem código de nível superior (só `User Function`s) roda
+implicitamente a **primeira** função declarada — mas `#include` cola o
+texto da lib no topo do arquivo, então uma lib auxiliar de UMA função
+(ex.: `db.prw` com só `GcSqlLit`) virava, sem aviso, o "programa" que
+`advplc run`/`serve` executava, no lugar da função de verdade do arquivo
+que a incluiu. Corrigido: o compilador agora prefere a primeira função
+declarada **no próprio arquivo raiz** (via novo campo
+`Preprocessor.RootBoundaryLine`/`ast.Program.RootBoundaryLine`, marcando
+onde o conteúdo do arquivo raiz começa no texto já expandido pelos
+`#include`s), caindo no comportamento antigo (primeira função de todas)
+só quando o arquivo raiz não declara função própria nenhuma. Preserva os
+fixtures existentes que dependem da convenção oposta (função de entrada
+declarada primeiro, callbacks depois — `tests/mcp_test.prw`,
+`tests/rest_server_test.prw`). Achado durante o desenvolvimento do GesCon
+(sistema de gestão condominial multi-arquivo).
+
 ## [1.22.0] — 2026-07-24
 
 `TCSqlExec`/`TCSqlQuery`, persistência real de `DbAppend`/`RecLock`/

@@ -293,6 +293,7 @@ func loadAndCompile(sourceFile string, opts *Options) (*compiler.Bytecode, error
 	if err != nil {
 		return nil, fmt.Errorf("parser error: %v", err)
 	}
+	prog.RootBoundaryLine = pp.RootBoundaryLine
 
 	// Compile
 	bc, err := compiler.Compile(prog)

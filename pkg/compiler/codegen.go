@@ -151,14 +151,34 @@ func (c *Compiler) compileProgram(prog *ast.Program) error {
 		}
 	}
 
-	// If no body statements, auto-call the first user function
+	// If no body statements, auto-call the first user function declared
+	// no próprio arquivo raiz (Loc.Line >= RootBoundaryLine). Funções
+	// trazidas via #include (de bibliotecas auxiliares, coladas ANTES
+	// desse ponto pela convenção real de colocar includes no topo do
+	// arquivo) não contam para essa escolha — uma lib incluída não deve
+	// virar o ponto de entrada silencioso do programa que a inclui. Se
+	// nenhuma função "própria" existir (ex.: o arquivo raiz é só um
+	// #include), cai no comportamento antigo (primeira função de todas),
+	// preservando compatibilidade.
 	if len(prog.Body) == 0 && len(prog.Functions) > 0 {
+		var entry *ast.FunctionDecl
 		for _, fn := range prog.Functions {
-			if fn.IsUser {
-				c.emit(OP_CALL_FUNC, 0, 0, fn.Name, fn.Loc.Line)
-				c.emit(OP_POP, 0, 0, "", fn.Loc.Line)
+			if fn.IsUser && fn.Loc.Line >= prog.RootBoundaryLine {
+				entry = fn
 				break
 			}
+		}
+		if entry == nil {
+			for _, fn := range prog.Functions {
+				if fn.IsUser {
+					entry = fn
+					break
+				}
+			}
+		}
+		if entry != nil {
+			c.emit(OP_CALL_FUNC, 0, 0, entry.Name, entry.Loc.Line)
+			c.emit(OP_POP, 0, 0, "", entry.Loc.Line)
 		}
 	}
 
