@@ -4,6 +4,34 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Bug real: `MsgInfo`/`MsgAlert`/`MsgStop` não bloqueavam no desktop (Fyne)
+
+No backend desktop (`advplc build`/`advpp-ide`), `MsgInfo`/`MsgAlert`/
+`MsgStop` disparavam o diálogo e retornavam na hora — a VM seguia em
+frente sem esperar o usuário sequer ver a mensagem. Num loop de menu
+(`Do While .T. ... FWMenuSelect(...) ... EndDo`), isso empilhava um
+diálogo novo por cima do anterior a cada vez que um aviso/erro
+aparecia antes do próximo `FWMenuSelect` — sensação real de app
+quebrado ao clicar em qualquer ação que terminasse em aviso. O backend
+web já bloqueava corretamente (mesmo mecanismo ask/reply do
+diálogo/browse); só o desktop tinha essa lacuna. Corrigido com o
+mesmo padrão de canal bloqueante já usado por `MsgYesNo`. Achado
+reproduzindo o GesCon de ponta a ponta num display real.
+
+### Desktop: proporção da janela e ícone de menu
+
+- Janela do standalone build (`advplc build`) ganhou um cabeçalho com
+  o título do app acima do console, e tamanho default mais
+  proporcional (720×480, centralizada) — antes era um console preto
+  vazio atrás de um diálogo pequeno flutuando no meio, sensação de
+  tela desproporcional/quebrada relatada em uso real.
+- Heurística de ícone do menu (`FWMenuSelect`) tinha um bug de
+  acentuação: `condom[ií]nio` não casava com "Condôminos" (a forma
+  plural do residente, `ô`, tem acentuação e posição diferente de
+  "condomínio", a propriedade, `í`) — caía sempre no ícone genérico.
+  Corrigido em web e desktop com um padrão único cobrindo as duas
+  formas (`cond[oô]m[ií]?n`).
+
 ### Design: identidade visual própria + menu com ícones (web e desktop)
 
 O renderer web (`advplc serve`) e o executável standalone (`advplc

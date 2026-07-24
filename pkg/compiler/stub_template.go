@@ -12,6 +12,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 
 	"github.com/advpl/compiler/pkg/compiler"
 	"github.com/advpl/compiler/pkg/db"
@@ -49,10 +51,18 @@ func main() {
 	tlog("app.New done")
 	w := a.NewWindow("__ADVPP_APP_TITLE__")
 	tlog("NewWindow done")
-	w.Resize(fyne.NewSize(800, 500))
+	w.Resize(fyne.NewSize(720, 480))
+	w.CenterOnScreen()
+
+	// Cabeçalho com o título do app: sem isso, a janela de base (por trás
+	// de qualquer diálogo/menu) era um console preto vazio — sensação de
+	// tela quebrada/desproporcional relatada em uso real, principalmente
+	// com um diálogo pequeno flutuando no meio de muito espaço em branco.
+	header := widget.NewLabelWithStyle("__ADVPP_APP_TITLE__", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	header.Alignment = fyne.TextAlignLeading
 
 	console := ui.NewOutputConsole()
-	w.SetContent(console.GetWidget())
+	w.SetContent(container.NewBorder(container.NewVBox(header, widget.NewSeparator()), nil, nil, nil, console.GetWidget()))
 	tlog("content set")
 
 	v := vm.NewVM(&bc, true)

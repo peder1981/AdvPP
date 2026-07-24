@@ -11,7 +11,7 @@ import {
 // português comum, cai num ícone neutro se nada bater.
 const MENU_ICON_RULES: [RegExp, string][] = [
   [/unidade|apartamento|im[oó]vel/i, 'an-buildings'],
-  [/condom[ií]nio|condom[ií]no|cliente|usu[aá]rio|pessoa/i, 'an-users'],
+  [/cond[oô]m[ií]?n|cliente|usu[aá]rio|pessoa/i, 'an-users'],
   [/despesa|financeiro|custo/i, 'an-wallet'],
   [/cobran[çc]a|fatura|boleto|conta/i, 'an-receipt'],
   [/fechamento|compet[eê]ncia|m[eê]s/i, 'an-calendar-check'],
