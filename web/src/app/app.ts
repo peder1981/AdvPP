@@ -5,6 +5,26 @@ import {
   PoTableAction, PoTableColumn, PoTableModule, PoTagModule,
 } from '@po-ui/ng-components';
 
+// Heurística de ícone pra item de menu (FWMenuSelect não carrega nenhuma
+// informação de ícone — só o texto do item) — genérico o bastante pra
+// qualquer app AdvPP, não hardcoded pro GesCon: casa por palavra-chave em
+// português comum, cai num ícone neutro se nada bater.
+const MENU_ICON_RULES: [RegExp, string][] = [
+  [/unidade|apartamento|im[oó]vel/i, 'an-buildings'],
+  [/condom[ií]nio|condom[ií]no|cliente|usu[aá]rio|pessoa/i, 'an-users'],
+  [/despesa|financeiro|custo/i, 'an-wallet'],
+  [/cobran[çc]a|fatura|boleto|conta/i, 'an-receipt'],
+  [/fechamento|compet[eê]ncia|m[eê]s/i, 'an-calendar-check'],
+  [/mala|e-?mail|correio|mensagem/i, 'an-envelope-simple'],
+  [/sair|encerrar|fechar|voltar/i, 'an-sign-out'],
+];
+function menuItemIcon(label: string): string {
+  for (const [re, icon] of MENU_ICON_RULES) {
+    if (re.test(label)) { return icon; }
+  }
+  return 'an-caret-right';
+}
+
 // Espelho de browseSpec/browseAction do servidor (pkg/vm/browse.go)
 interface BrowseColumn { property: string; label: string; type: string; size: number; decimal: number; }
 interface BrowseSpec { title: string; alias: string; columns: BrowseColumn[]; items: any[]; }
@@ -20,8 +40,8 @@ interface InputSpec { prompt: string; def: string; }
   selector: 'app-root',
   imports: [PoPageModule, PoTableModule, PoButtonModule, PoModalModule, PoDynamicModule, PoTagModule],
   template: `
-    <po-page-default [p-title]="pageTitle()">
-      <po-tag [p-value]="status()" [p-color]="statusColor()"></po-tag>
+    <po-page-default [p-title]="pageTitle()" [p-subtitle]="pageSubtitle()">
+      <po-tag [p-value]="status()" [p-color]="statusColor()" [p-icon]="statusIcon()"></po-tag>
 
       @if (browse(); as b) {
         <po-table
@@ -33,15 +53,21 @@ interface InputSpec { prompt: string; def: string; }
         </po-table>
         <div class="po-mt-2">
           <po-button p-label="Incluir" p-kind="primary" p-icon="an an-plus" (p-click)="openForm(null)"></po-button>
-          <po-button p-label="Fechar browse" (p-click)="sendAction({ action: 'close' })"></po-button>
+          <po-button p-label="Voltar ao menu" p-icon="an an-arrow-left" (p-click)="sendAction({ action: 'close' })"></po-button>
         </div>
       }
 
-      <div class="advpp-console">@for (line of lines(); track $index) {{{ line }}
-}</div>
-
       @if (finished()) {
         <po-button class="po-mt-2" p-label="Executar novamente" p-icon="an an-arrow-clockwise" (p-click)="reload()"></po-button>
+      }
+
+      <div class="advpp-console-toggle" (click)="consoleOpen.set(!consoleOpen())">
+        <i class="an" [class.an-caret-right]="!consoleOpen()" [class.an-caret-down]="consoleOpen()"></i>
+        Log técnico ({{ lines().length }} linha{{ lines().length === 1 ? '' : 's' }})
+      </div>
+      @if (consoleOpen()) {
+        <div class="advpp-console">@for (line of lines(); track $index) {{{ line }}
+}</div>
       }
     </po-page-default>
 
@@ -51,12 +77,16 @@ interface InputSpec { prompt: string; def: string; }
       }
     </po-modal>
 
-    <!-- FWMenuSelect: um botão por item, navegação entre telas -->
+    <!-- FWMenuSelect: lista de opções com ícone, navegação entre telas -->
     <po-modal #menuModal [p-title]="menu()?.title || 'Menu'" [p-hide-close]="true" p-size="sm">
       @if (menu(); as m) {
         <div class="advpp-menu">
           @for (item of m.items; track $index) {
-            <po-button class="advpp-menu-btn" [p-label]="item" p-kind="primary" (p-click)="menuChoose($index + 1)"></po-button>
+            <button type="button" class="advpp-menu-item" (click)="menuChoose($index + 1)">
+              <i class="an {{ menuIcon(item) }} advpp-menu-item-icon"></i>
+              <span class="advpp-menu-item-label">{{ item }}</span>
+              <i class="an an-caret-right advpp-menu-item-chevron"></i>
+            </button>
           }
         </div>
       }
@@ -117,6 +147,8 @@ export class App {
   protected inputSpec = signal<InputSpec | null>(null);
   protected inputFields: PoDynamicFormField[] = [{ property: 'valor', label: 'Valor' }];
   protected inputFormValue: any = {};
+  protected consoleOpen = signal(false);
+  protected menuIcon = menuItemIcon;
 
   private sid = Math.random().toString(36).slice(2);
   private browseId = 0;
@@ -126,8 +158,11 @@ export class App {
   private inputId = 0;
 
   protected pageTitle = computed(() => this.browse()?.title ?? 'AdvPP Web');
+  protected pageSubtitle = computed(() => this.menu() ? 'Selecione uma opção no menu' : '');
   protected statusColor = computed(() =>
     this.status() === 'finalizado' ? 'color-11' : this.status() === 'erro' ? 'color-07' : 'color-02');
+  protected statusIcon = computed(() =>
+    this.status() === 'finalizado' ? 'an an-check-circle' : this.status() === 'erro' ? 'an an-x-circle' : 'an an-circle-notch');
 
   protected tableColumns = computed<PoTableColumn[]>(() =>
     (this.browse()?.columns ?? []).map(c => ({

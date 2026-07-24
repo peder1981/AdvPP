@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -127,16 +128,17 @@ func (p *FyneUIProvider) Browse(specJSON []byte) []byte {
 		}, p.window)
 	}
 
-	novoBtn := widget.NewButton("Novo", func() {
+	novoBtn := widget.NewButtonWithIcon("Novo", theme.ContentAddIcon(), func() {
 		editForm(nil, 0)
 	})
-	editarBtn := widget.NewButton("Editar", func() {
+	novoBtn.Importance = widget.HighImportance
+	editarBtn := widget.NewButtonWithIcon("Editar", theme.DocumentCreateIcon(), func() {
 		if selected < 0 {
 			return
 		}
 		editForm(spec.Items[selected], recnoOf(selected))
 	})
-	excluirBtn := widget.NewButton("Excluir", func() {
+	excluirBtn := widget.NewButtonWithIcon("Excluir", theme.DeleteIcon(), func() {
 		if selected < 0 {
 			return
 		}
@@ -147,7 +149,7 @@ func (p *FyneUIProvider) Browse(specJSON []byte) []byte {
 			}
 		}, p.window)
 	})
-	fecharBtn := widget.NewButton("Fechar", func() {
+	fecharBtn := widget.NewButtonWithIcon("Voltar ao menu", theme.NavigateBackIcon(), func() {
 		send(browseAction{Action: "close"})
 	})
 

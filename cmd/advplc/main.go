@@ -697,7 +697,13 @@ func buildStandalone(sourceFile, outputFile string, opts *Options) error {
 	if err != nil {
 		return err
 	}
-	return compiler.BuildStandalone(bc, outputFile, os.Stdout)
+	title := strings.TrimSuffix(filepath.Base(sourceFile), filepath.Ext(sourceFile))
+	if title != "" {
+		title = strings.ToUpper(title[:1]) + title[1:]
+	} else {
+		title = "AdvPP"
+	}
+	return compiler.BuildStandalone(bc, outputFile, title, os.Stdout)
 }
 
 func printAST(sourceFile string, opts *Options) error {

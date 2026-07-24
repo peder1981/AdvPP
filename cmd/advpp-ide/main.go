@@ -39,6 +39,7 @@ type IDE struct {
 func main() {
 	a := app.New()
 	a.SetIcon(nil)
+	a.Settings().SetTheme(ui.NewTheme())
 
 	ide := &IDE{
 		app: a,
@@ -399,6 +400,10 @@ func (ide *IDE) buildStandalone() {
 	}
 
 	name := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+	title := name
+	if title != "" {
+		title = strings.ToUpper(title[:1]) + title[1:]
+	}
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
@@ -421,7 +426,7 @@ func (ide *IDE) buildStandalone() {
 		// responsive instead of appearing frozen for its duration.
 		go func() {
 			logWriter := ui.NewConsoleWriter(ide.output)
-			if err := compiler.BuildStandalone(bc, outputFile, logWriter); err != nil {
+			if err := compiler.BuildStandalone(bc, outputFile, title, logWriter); err != nil {
 				ide.output.Append("Build error: " + err.Error())
 				return
 			}
