@@ -15,6 +15,16 @@ não tinha caminho nenhum. `TCSqlExec(cQuery)` (INSERT/UPDATE/DELETE) e
 camada SQL que o `FWMBrowse` já usa internamente. Achado motivado por uso
 real (GesCon, sistema de gestão condominial construído sobre o AdvPP).
 
+### `DbAppend`/`RecLock`/`FieldPut`/`MsUnlock` — persistência real
+
+A API clássica de work-area do AdvPP era stub: `DbAppend()` não criava
+registro nenhum (`RecCount()` não mudava), `FieldPut` (via `alias->campo :=
+valor`) só mutava memória, `MsUnlock()` não gravava nada, `FieldPos` sempre
+devolvia `0`. Corrigido: `DbAppend()` insere um registro real (`INSERT`,
+valores em branco tipo-apropriados por coluna), `MsUnlock()` grava o
+registro corrente via `UPDATE`, `FieldPos` resolve a posição física real.
+Achado confirmado por teste direto durante o planejamento do GesCon.
+
 ## [1.21.0] — 2026-07-23
 
 Servidor REST executando de verdade (`WSRestServer`) e uma varredura extensa de

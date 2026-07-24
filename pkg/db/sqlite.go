@@ -9,9 +9,15 @@ import (
 	"github.com/advpl/compiler/pkg/tools/shared"
 )
 
+type columnInfo struct {
+	name    string
+	sqlType string
+}
+
 type SQLiteEngine struct {
 	db      *sql.DB
 	alias   string
+	columns []columnInfo
 	records []map[string]advplrt.Value
 	current int
 }
@@ -29,9 +35,36 @@ func NewSQLiteEngine(dbPath string) (*SQLiteEngine, error) {
 	}, nil
 }
 
+// loadColumns lê a estrutura física da tabela (nome + tipo declarado de
+// cada coluna, na ordem real) — base pra Append (valores em branco
+// tipo-apropriados), MsUnlock (UPDATE coluna a coluna) e FieldPos.
+func (e *SQLiteEngine) loadColumns() error {
+	rows, err := e.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", e.alias))
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	e.columns = nil
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt interface{}
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return err
+		}
+		e.columns = append(e.columns, columnInfo{name: strings.ToUpper(name), sqlType: strings.ToUpper(ctype)})
+	}
+	return rows.Err()
+}
+
 func (e *SQLiteEngine) SelectArea(alias string) error {
 	e.alias = strings.ToUpper(alias)
-	
+
+	if err := e.loadColumns(); err != nil {
+		return err
+	}
+
 	// Query the table structure
 	query := fmt.Sprintf("SELECT * FROM %s LIMIT 0", e.alias)
 	rows, err := e.db.Query(query)
@@ -159,9 +192,118 @@ func (e *SQLiteEngine) RecLock() error {
 	return nil
 }
 
+// MsUnlock grava o registro corrente no banco via UPDATE — fecha o ciclo
+// DbAppend/RecLock -> FieldPut (via alias->campo) -> MsUnlock. Antes desta
+// correção, era um no-op: toda mutação via FieldPut ficava só em memória e
+// se perdia ao fechar o processo.
 func (e *SQLiteEngine) MsUnlock() error {
-	// In a real implementation, this would unlock the record
+	if e.current < 0 || e.current >= len(e.records) {
+		return nil
+	}
+	record := e.records[e.current]
+	recno, ok := record["R_E_C_N_O_"]
+	if !ok {
+		return fmt.Errorf("MsUnlock: registro sem R_E_C_N_O_")
+	}
+
+	var setClauses []string
+	var vals []any
+	for _, c := range e.columns {
+		if c.name == "R_E_C_N_O_" {
+			continue
+		}
+		setClauses = append(setClauses, c.name+" = ?")
+		vals = append(vals, valueToSQL(record[c.name]))
+	}
+	vals = append(vals, valueToSQL(recno))
+
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE R_E_C_N_O_ = ?", e.alias, strings.Join(setClauses, ", "))
+	_, err := e.db.Exec(query, vals...)
+	return err
+}
+
+// valueToSQL converte um advplrt.Value de volta pro tipo Go que o driver
+// SQL espera — inverso de convertDBValue.
+func valueToSQL(v advplrt.Value) any {
+	if v == nil {
+		return nil
+	}
+	switch v.Type() {
+	case "N":
+		return v.(*advplrt.NumberValue).Val
+	case "C", "M":
+		return v.(*advplrt.StringValue).Val
+	case "L":
+		if v.(*advplrt.BoolValue).Val {
+			return 1
+		}
+		return 0
+	default:
+		return v.String()
+	}
+}
+
+// Append insere um registro em branco de verdade (valores tipo-apropriados
+// pela coluna: numérico 0, texto "") e posiciona nele — DbAppend() no
+// AdvPL. Antes desta correção era um no-op: RecCount() não mudava.
+func (e *SQLiteEngine) Append() error {
+	if e.alias == "" || len(e.columns) == 0 {
+		return fmt.Errorf("DbAppend: nenhuma área selecionada")
+	}
+
+	var cols []string
+	var placeholders []string
+	var vals []any
+	blank := make(map[string]advplrt.Value)
+	for _, c := range e.columns {
+		if c.name == "R_E_C_N_O_" {
+			continue
+		}
+		var v any
+		switch {
+		case c.name == "D_E_L_E_T_":
+			v = " "
+			blank[c.name] = advplrt.NewString(" ")
+		case c.name == "R_E_C_D_E_L_":
+			v = 0
+			blank[c.name] = advplrt.NewNumber(0)
+		case strings.Contains(c.sqlType, "INT") || strings.Contains(c.sqlType, "REAL") || strings.Contains(c.sqlType, "NUM"):
+			v = 0
+			blank[c.name] = advplrt.NewNumber(0)
+		default:
+			v = ""
+			blank[c.name] = advplrt.NewString("")
+		}
+		cols = append(cols, c.name)
+		placeholders = append(placeholders, "?")
+		vals = append(vals, v)
+	}
+
+	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", e.alias, strings.Join(cols, ","), strings.Join(placeholders, ","))
+	res, err := e.db.Exec(query, vals...)
+	if err != nil {
+		return err
+	}
+	newRecno, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	blank["R_E_C_N_O_"] = advplrt.NewNumber(float64(newRecno))
+	e.records = append(e.records, blank)
+	e.current = len(e.records) - 1
 	return nil
+}
+
+// FieldPos devolve a posição 1-based da coluna física — 0 se não existir.
+// Antes desta correção era um stub, sempre devolvia 0.
+func (e *SQLiteEngine) FieldPos(field string) int {
+	field = strings.ToUpper(field)
+	for i, c := range e.columns {
+		if c.name == field {
+			return i + 1
+		}
+	}
+	return 0
 }
 
 func (e *SQLiteEngine) RecCount() int {

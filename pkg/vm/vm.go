@@ -106,6 +106,8 @@ type DBEngine interface {
 	MsUnlock() error
 	RecCount() int
 	RecNo() int
+	Append() error
+	FieldPos(field string) int
 }
 
 type UIProvider interface {
