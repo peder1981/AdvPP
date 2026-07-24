@@ -30,7 +30,9 @@ var menuIconRules = []struct {
 	{regexp.MustCompile(`(?i)cobran[çc]a|fatura|boleto|conta`), theme.DocumentIcon},
 	{regexp.MustCompile(`(?i)fechamento|compet[eê]ncia|m[eê]s`), theme.HistoryIcon},
 	{regexp.MustCompile(`(?i)mala|e-?mail|correio|mensagem`), theme.MailComposeIcon},
-	{regexp.MustCompile(`(?i)sair|encerrar|fechar|voltar`), theme.LogoutIcon},
+	{regexp.MustCompile(`(?i)relat[oó]rio|balancete|inadimpl[eê]ncia|extrato`), theme.GridIcon},
+	{regexp.MustCompile(`(?i)voltar`), theme.NavigateBackIcon},
+	{regexp.MustCompile(`(?i)sair|encerrar|fechar`), theme.LogoutIcon},
 }
 
 func menuItemIcon(label string) fyne.Resource {
