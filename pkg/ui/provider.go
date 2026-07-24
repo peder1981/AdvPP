@@ -24,13 +24,16 @@ var menuIconRules = []struct {
 	re   *regexp.Regexp
 	icon func() fyne.Resource
 }{
+	// Checado primeiro: itens de relatório mencionam palavras (unidade,
+	// despesa) que também disparariam as regras de tela CRUD abaixo —
+	// "Extrato por Unidade" precisa do ícone de grid, não de casa.
+	{regexp.MustCompile(`(?i)relat[oó]rio|balancete|inadimpl[eê]ncia|extrato|por categoria`), theme.GridIcon},
 	{regexp.MustCompile(`(?i)unidade|apartamento|im[oó]vel`), theme.HomeIcon},
 	{regexp.MustCompile(`(?i)cond[oô]m[ií]?n|cliente|usu[aá]rio|pessoa`), theme.AccountIcon},
 	{regexp.MustCompile(`(?i)despesa|financeiro|custo`), theme.DocumentCreateIcon},
 	{regexp.MustCompile(`(?i)cobran[çc]a|fatura|boleto|conta`), theme.DocumentIcon},
 	{regexp.MustCompile(`(?i)fechamento|compet[eê]ncia|m[eê]s`), theme.HistoryIcon},
 	{regexp.MustCompile(`(?i)mala|e-?mail|correio|mensagem`), theme.MailComposeIcon},
-	{regexp.MustCompile(`(?i)relat[oó]rio|balancete|inadimpl[eê]ncia|extrato`), theme.GridIcon},
 	{regexp.MustCompile(`(?i)voltar`), theme.NavigateBackIcon},
 	{regexp.MustCompile(`(?i)sair|encerrar|fechar`), theme.LogoutIcon},
 }
