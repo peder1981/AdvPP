@@ -4,6 +4,18 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+### Bug real: comparar variável nunca atribuída a `Nil` derrubava a VM (SIGSEGV)
+
+`Local x` sem inicializador, ou um parâmetro de função não passado numa
+chamada com menos argumentos que o declarado, deixava o slot com o
+zero-value da interface Go (nil de verdade) até a primeira atribuição —
+em vez do valor `advplrt.Nil` do próprio AdvPP. `x == Nil` (padrão
+comuníssimo pra parâmetro opcional) chamava `.Equals()` num ponteiro nil
+e crashava com `SIGSEGV` em `opComparison`. Corrigido: todo frame agora
+aloca `Locals` via `newLocals()`, pré-preenchido com `advplrt.Nil`.
+Achado junto com o bug do ponto de entrada abaixo (a função errada sendo
+chamada sem argumentos expôs o crash).
+
 ### Bug real: ponto de entrada implícito escolhia a função errada com `#include`
 
 Um arquivo `.prw` sem código de nível superior (só `User Function`s) roda
