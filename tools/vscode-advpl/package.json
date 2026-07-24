@@ -2,7 +2,7 @@
 	"name": "advpl-tlpp",
 	"displayName": "AdvPL/TLPP",
 	"description": "Syntax highlighting, compiler commands, keybindings and a real debugger (breakpoints/step/variables, launch and web/PO-UI attach modes) for AdvPL and TLPP (TOTVS Protheus). Bundles the advplc compiler (linux-x64, linux-arm64, win32-x64, darwin-arm64) — works out of the box, nothing else to install.",
-	"version": "1.4.0",
+	"version": "1.4.1",
 	"publisher": "PederMunksgaard",
 	"license": "MIT",
 	"repository": {
@@ -56,6 +56,7 @@
 		"keybindings": [
 			{ "command": "advpl.build", "key": "ctrl+f9", "when": "editorLangId == advpl" },
 			{ "command": "advpl.run", "key": "f9", "when": "editorLangId == advpl" },
+			{ "command": "advpl.run", "key": "f5", "when": "editorLangId == advpl" },
 			{ "command": "advpl.compile", "key": "ctrl+shift+f9", "when": "editorLangId == advpl" },
 			{ "command": "advpl.serve", "key": "ctrl+alt+f9", "when": "editorLangId == advpl" }
 		],

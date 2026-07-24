@@ -47,11 +47,13 @@ this extension → `PATH`.
 | Shortcut | Command | Runs |
 |----------|---------|------|
 | `Ctrl+F9` | AdvPL: Build standalone executable | `advplc build <file> -o <file-without-ext>` |
-| `F9` | AdvPL: Run current file | `advplc run <file>` |
+| `F9` / `F5` | AdvPL: Run current file | `advplc run <file>` |
 | `Ctrl+Shift+F9` | AdvPL: Compile current file (bytecode) | `advplc compile <file>` |
 | `Ctrl+Alt+F9` | AdvPL: Serve current file (web / PO-UI) | `advplc serve <file> --debug-port <port>` |
 
 Note: `F9` also collides with VS Code's built-in "Toggle Breakpoint" (`when: editorTextFocus`) — our binding took priority in testing, but if you ever see it toggle a breakpoint instead of running, that's the conflict surfacing; rebind one of them from **Preferences → Keyboard Shortcuts**.
+
+Note: `F5` normally starts debugging (VS Code's built-in default). In a `.prw`/`.prg`/`.tlpp` file, our binding takes priority and runs instead — to debug, use the Command Palette (`Debug: Start Debugging`) or the Run/Debug panel.
 
 `AdvPL: Check current file` (syntax check, `advplc check`) is available via
 the Command Palette without a default keybinding. All shortcuts are
