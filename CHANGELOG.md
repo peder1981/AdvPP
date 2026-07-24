@@ -4,6 +4,11 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 ## [Não lançado]
 
+## [1.24.0] — 2026-07-24
+
+`FWGetText` com 3º argumento opcional `bIsPassword` — campo de senha em web
+e desktop. Motivado pelo GesCon (Plano 2).
+
 ### `FWGetText` com `bIsPassword` — campo de senha em web e desktop
 
 `FWGetText(cPergunta, cDefault, .T.)` abre um campo de texto oculto
