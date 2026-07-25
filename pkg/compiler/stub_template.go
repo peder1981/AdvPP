@@ -79,30 +79,39 @@ func main() {
 		return engine
 	})
 
+	// Fyne requires ShowAndRun() to be called from the main OS thread.
+	// v.Run() must execute while the event loop is running so UI calls
+	// (FWMenuSelect, FWGetText) can display dialogs. Synchronize:
+	// 1. Start v.Run() in a goroutine
+	// 2. Call ShowAndRun() on main thread to run the event loop
+	// 3. v.Run() can now make UI calls that ShowAndRun()'s loop will handle
+	// 4. When v.Run() completes, call a.Quit() to close the window
+	// 5. ShowAndRun() returns, and we exit
 	done := make(chan int)
 	go func() {
 		exitCode := 1
-		tlog("v.Run starting")
+		tlog("v.Run starting in goroutine")
 		if _, err := v.Run(); err != nil {
 			tlog("v.Run returned error: " + err.Error())
 			console.Append("Runtime error: " + err.Error())
-			// Leave the window open on error so the user can see it —
-			// ShowAndRun below keeps blocking until they close it manually.
 		} else {
-			tlog("v.Run returned ok")
+			tlog("v.Run completed successfully")
 			exitCode = 0
-			// Signal the window to close: send the close event to the Fyne
-			// event loop instead of killing the process immediately.
-			// This allows ShowAndRun() to finish its event loop cleanly
-			// on all platforms (avoiding the "hangs forever" issue on Windows).
-			a.Quit()
 		}
+		// Signal the window to close, which will return ShowAndRun()
+		tlog("calling a.Quit()")
+		a.Quit()
 		done <- exitCode
 	}()
 
-	tlog("calling ShowAndRun")
+	// Run ShowAndRun on main thread (Fyne requirement).
+	// While this blocks, the event loop processes UI calls from v.Run()
+	// goroutine. When a.Quit() is called above, ShowAndRun() returns.
+	tlog("calling ShowAndRun (will block until a.Quit)")
 	w.ShowAndRun()
 	tlog("ShowAndRun returned")
+
+	// Wait for v.Run() goroutine to finish and get exit code
 	exitCode := <-done
 	tlog("exiting with code: " + fmt.Sprintf("%d", exitCode))
 	os.Exit(exitCode)
