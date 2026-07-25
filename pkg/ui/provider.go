@@ -34,6 +34,7 @@ var menuIconRules = []struct {
 	{regexp.MustCompile(`(?i)cobran[çc]a|fatura|boleto|conta`), theme.DocumentIcon},
 	{regexp.MustCompile(`(?i)fechamento|compet[eê]ncia|m[eê]s`), theme.HistoryIcon},
 	{regexp.MustCompile(`(?i)mala|e-?mail|correio|mensagem`), theme.MailComposeIcon},
+	{regexp.MustCompile(`(?i)senha`), theme.LoginIcon},
 	{regexp.MustCompile(`(?i)voltar`), theme.NavigateBackIcon},
 	{regexp.MustCompile(`(?i)sair|encerrar|fechar`), theme.LogoutIcon},
 }
