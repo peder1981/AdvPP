@@ -20,6 +20,7 @@ const MENU_ICON_RULES: [RegExp, string][] = [
   [/cobran[çc]a|fatura|boleto|conta/i, 'an-receipt'],
   [/fechamento|compet[eê]ncia|m[eê]s/i, 'an-calendar-check'],
   [/mala|e-?mail|correio|mensagem/i, 'an-envelope-simple'],
+  [/senha/i, 'an-lock-key'],
   [/voltar/i, 'an-arrow-left'],
   [/sair|encerrar|fechar/i, 'an-sign-out'],
 ];
