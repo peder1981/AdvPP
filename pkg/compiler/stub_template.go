@@ -79,29 +79,31 @@ func main() {
 		return engine
 	})
 
+	done := make(chan int)
 	go func() {
+		exitCode := 1
 		tlog("v.Run starting")
 		if _, err := v.Run(); err != nil {
 			tlog("v.Run returned error: " + err.Error())
 			console.Append("Runtime error: " + err.Error())
 			// Leave the window open on error so the user can see it —
 			// ShowAndRun below keeps blocking until they close it manually.
-			return
+		} else {
+			tlog("v.Run returned ok")
+			exitCode = 0
+			// Signal the window to close: send the close event to the Fyne
+			// event loop instead of killing the process immediately.
+			// This allows ShowAndRun() to finish its event loop cleanly
+			// on all platforms (avoiding the "hangs forever" issue on Windows).
+			a.Quit()
 		}
-		// os.Exit terminates the process immediately and unconditionally,
-		// on whatever goroutine calls it — used here instead of a.Quit()
-		// because a.Quit() (close a done channel the glfw event loop's
-		// select watches for) was observed to not reliably unblock
-		// ShowAndRun() on Windows: the call itself returns fine, but the
-		// event loop never notices and the process hangs forever needing
-		// a manual kill. A short-lived standalone script doesn't need
-		// graceful window teardown — it just needs to actually terminate.
-		tlog("v.Run returned ok, exiting")
-		os.Exit(0)
+		done <- exitCode
 	}()
 
 	tlog("calling ShowAndRun")
 	w.ShowAndRun()
 	tlog("ShowAndRun returned")
-	os.Exit(1)
+	exitCode := <-done
+	tlog("exiting with code: " + fmt.Sprintf("%d", exitCode))
+	os.Exit(exitCode)
 }
