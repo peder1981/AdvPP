@@ -37,3 +37,24 @@ Return Max(nOld, nNew)
 		t.Fatal("WASM module is empty")
 	}
 }
+
+func TestCompileEmptySource(t *testing.T) {
+	wasm, err := CompileToWasm("")
+	if err == nil {
+		t.Fatal("expected error for empty source, got nil")
+	}
+	if len(wasm) != 0 {
+		t.Errorf("expected empty result on error, got %d bytes", len(wasm))
+	}
+}
+
+func TestCompileInvalidSource(t *testing.T) {
+	source := "This is not valid AdvPL code! @#$%"
+	wasm, err := CompileToWasm(source)
+	if err == nil {
+		t.Fatal("expected error for invalid source, got nil")
+	}
+	if wasm != nil {
+		t.Errorf("expected nil wasm on error, got %d bytes", len(wasm))
+	}
+}
