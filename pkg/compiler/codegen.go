@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/advpl/compiler/pkg/ast"
+	"github.com/advpl/compiler/pkg/lexer"
+	"github.com/advpl/compiler/pkg/parser"
 )
 
 type Compiler struct {
@@ -1187,4 +1189,28 @@ func (c *Compiler) compileCodeBlock(e *ast.CodeBlock) error {
 
 	c.emit(OP_NEW_CODEBLOCK, 0, len(e.Params), funcName, e.Loc.Line)
 	return nil
+}
+
+// Compile takes AdvPL source code and returns bytecode.
+// It handles tokenization, parsing, and compilation in one call.
+func (c *Compiler) Compile(source string) (*Bytecode, error) {
+	// Tokenize the source
+	tokens, err := lexer.Tokenize(source, "source")
+	if err != nil {
+		return nil, fmt.Errorf("tokenization failed: %w", err)
+	}
+
+	// Parse the tokens into an AST
+	p := parser.NewParser(tokens, "source", nil)
+	prog, err := p.Parse()
+	if err != nil {
+		return nil, fmt.Errorf("parsing failed: %w", err)
+	}
+
+	// Compile the AST to bytecode
+	if err := c.compileProgram(prog); err != nil {
+		return nil, fmt.Errorf("compilation failed: %w", err)
+	}
+
+	return c.bc, nil
 }
