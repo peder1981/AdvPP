@@ -39,12 +39,4 @@ func (m *LastWriterWinsMonoid) Identity() []byte {
 	return []byte{}
 }
 
-type ObservedRemoveSetMonoid struct{}
-
-func (m *ObservedRemoveSetMonoid) Merge(a, b []byte) []byte {
-	return append(a, b...)
-}
-
-func (m *ObservedRemoveSetMonoid) Identity() []byte {
-	return []byte{}
-}
+// ObservedRemoveSetMonoid removed: requires tag-based union, not in MVP scope
