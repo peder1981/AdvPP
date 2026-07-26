@@ -25,6 +25,12 @@ func (r *Router) FindNextHop(target float64) *Peer {
 		}
 	}
 
+	// Only forward to neighbor if it's closer than us
+	myDist := RingDistance(r.peer.Location, target)
+	if minDist >= myDist && closest != nil {
+		return nil // We're terminal; don't forward
+	}
+
 	return closest
 }
 

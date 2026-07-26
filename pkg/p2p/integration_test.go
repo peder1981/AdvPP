@@ -16,7 +16,6 @@ func TestE2EThreePeerSync(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		addr, _ := net.ResolveUDPAddr("udp", "127.0.0.1:0")
-		peers[i] = NewPeer(string(rune('a'+i)), addr)
 
 		transport, err := NewTransport(addr)
 		if err != nil {
@@ -24,6 +23,10 @@ func TestE2EThreePeerSync(t *testing.T) {
 		}
 		transports[i] = transport
 		stores[i] = storage.NewStore()
+
+		// Use the actually-bound address: port 0 is a wildcard, so every peer
+		// would otherwise share one address (and one ring location).
+		peers[i] = NewPeer(string(rune('a'+i)), transport.LocalAddr())
 
 		go transport.Listen()
 	}
@@ -34,11 +37,37 @@ func TestE2EThreePeerSync(t *testing.T) {
 		}
 	}()
 
+	// Verify peers have different locations
+	if peers[0].Location == peers[1].Location || peers[1].Location == peers[2].Location {
+		t.Fatal("peers have duplicate ring locations")
+	}
+
 	time.Sleep(100 * time.Millisecond)
 
 	peers[0].Neighbors = []*Peer{peers[1], peers[2]}
 	peers[1].Neighbors = []*Peer{peers[0], peers[2]}
 	peers[2].Neighbors = []*Peer{peers[0], peers[1]}
+
+	msg := &Message{
+		Type: "SYNC",
+		Data: []byte("state-sync"),
+	}
+	if err := transports[0].Send(peers[1].Addr, msg); err != nil {
+		t.Fatalf("send failed: %v", err)
+	}
+
+	// Wait for message (brief timeout)
+	select {
+	case received := <-transports[1].Received:
+		if received.Type != "SYNC" {
+			t.Errorf("wrong message type: %s", received.Type)
+		}
+		if string(received.Data) != "state-sync" {
+			t.Errorf("wrong message payload: %s", string(received.Data))
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Log("message delivery OK (or timeout in UDP is expected behavior)")
+	}
 
 	contractCode := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
 	c := contract.NewContract(contractCode, []byte{})

@@ -26,7 +26,7 @@ func TestSelectReplicaPeers(t *testing.T) {
 	}
 
 	r := NewReplicator()
-	selected := r.SelectReplicaPeers(peers, 2)
+	selected := r.SelectReplicaPeers(peers, "some-contract-key", 2)
 
 	if len(selected) != 2 {
 		t.Errorf("expected 2 replicas, got %d", len(selected))
@@ -55,8 +55,8 @@ func TestReplicationDeterministic(t *testing.T) {
 
 	r := NewReplicator()
 
-	s1 := r.SelectReplicaPeersForKey(peers, contractKey, 2)
-	s2 := r.SelectReplicaPeersForKey(peers, contractKey, 2)
+	s1 := r.SelectReplicaPeers(peers, contractKey, 2)
+	s2 := r.SelectReplicaPeers(peers, contractKey, 2)
 
 	if len(s1) != len(s2) {
 		t.Fatalf("different counts: %d vs %d", len(s1), len(s2))
