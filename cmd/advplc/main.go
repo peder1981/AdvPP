@@ -171,6 +171,9 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "peer":
+		cmdPeer(os.Args[2:])
+
 	case "version", "--version", "-v":
 		fmt.Printf("advplc %s\n", version)
 
