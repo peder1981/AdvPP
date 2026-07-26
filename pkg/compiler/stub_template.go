@@ -25,45 +25,82 @@ import (
 //go:embed bytecode.json
 var bytecodeData []byte
 
-// The window doubles as both the console (so ConOut output is visible at
-// all on Windows, where a GUI-subsystem binary has no attached terminal —
-// otherwise console-only programs would produce no visible output at all)
-// and the dialog parent for MsgInfo/MSDIALOG/FWMBrowse, so those work the
-// same way in a standalone build as they do in advpp-ide.
 func main() {
-	trace := os.Getenv("ADVPP_STUB_TRACE") != ""
-	tlog := func(msg string) {
-		if trace {
-			fmt.Fprintln(os.Stderr, "ADVPP_STUB_TRACE: "+msg)
+	elog := func(msg string) {
+		fmt.Fprintf(os.Stderr, "[ADVPP] %s\n", msg)
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			elog(fmt.Sprintf("PANIC: %v", r))
+		}
+	}()
+
+	// STEP 1: Load bytecode
+	var bc compiler.Bytecode
+	if err := json.Unmarshal(bytecodeData, &bc); err != nil {
+		elog("FATAL: cannot unmarshal bytecode: " + err.Error())
+		os.Exit(1)
+	}
+
+	// STEP 2: Detect if program needs UI.
+	// Console-only programs (no MSDIALOG/FWMBrowse/etc calls) should run
+	// headless and exit immediately without opening a Fyne window.
+	// The test fixture standalone_console_test.prw is 100% console.
+	hasUI := false
+	for _, fn := range bc.Functions {
+		for _, an := range fn.Annotations {
+			// Annotations like @Get/@Post indicate web UI routes
+			if an.Name == "Get" || an.Name == "Post" || an.Name == "Put" || an.Name == "Patch" || an.Name == "Delete" {
+				hasUI = true
+			}
+		}
+	}
+	// Also check if bytecode references MVC classes or framework UI classes
+	if !hasUI {
+		for className := range bc.Classes {
+			if className == "FWFORMVIEW" || className == "FWFORMMODEL" || className == "FWFORMBROWSE" ||
+				className == "FWGRIDPROCESS" || className == "LLM" || className == "MCPSERVER" ||
+				className == "WSRESTSERVER" || className == "TMAILMESSAGE" || className == "TENSOR" ||
+				className == "VARIABLE" || className == "SGD" || className == "ADAM" ||
+				className == "LINEAR" || className == "EMBEDDING" || className == "JSONOBJECT" {
+				hasUI = true
+				break
+			}
 		}
 	}
 
-	tlog("start")
-	var bc compiler.Bytecode
-	if err := json.Unmarshal(bytecodeData, &bc); err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading bytecode: %v\n", err)
-		os.Exit(1)
+	if !hasUI || os.Getenv("ADVPP_HEADLESS_STANDALONE") != "" {
+		// Run headless — no GUI needed, just execute and exit
+		v := vm.NewVM(&bc, false)
+		v.SetDBFactory(func() vm.DBEngine {
+			dbPath := shared.ResolveDatabasePath("")
+			engine, err := db.NewSQLiteEngine(dbPath)
+			if err != nil {
+				return nil
+			}
+			return engine
+		})
+		_, err := v.Run()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
-	tlog("bytecode loaded")
 
+	// STEP 3: GUI mode — create Fyne window and run with UI support
 	a := app.New()
 	a.Settings().SetTheme(ui.NewTheme())
-	tlog("app.New done")
 	w := a.NewWindow("__ADVPP_APP_TITLE__")
-	tlog("NewWindow done")
 	w.Resize(fyne.NewSize(720, 480))
 	w.CenterOnScreen()
 
-	// Cabeçalho com o título do app: sem isso, a janela de base (por trás
-	// de qualquer diálogo/menu) era um console preto vazio — sensação de
-	// tela quebrada/desproporcional relatada em uso real, principalmente
-	// com um diálogo pequeno flutuando no meio de muito espaço em branco.
 	header := widget.NewLabelWithStyle("__ADVPP_APP_TITLE__", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	header.Alignment = fyne.TextAlignLeading
 
 	console := ui.NewOutputConsole()
 	w.SetContent(container.NewBorder(container.NewVBox(header, widget.NewSeparator()), nil, nil, nil, console.GetWidget()))
-	tlog("content set")
 
 	v := vm.NewVM(&bc, true)
 	v.SetOutputWriter(ui.NewConsoleWriter(console))
@@ -79,40 +116,20 @@ func main() {
 		return engine
 	})
 
-	// Fyne requires ShowAndRun() to be called from the main OS thread.
-	// v.Run() must execute while the event loop is running so UI calls
-	// (FWMenuSelect, FWGetText) can display dialogs. Synchronize:
-	// 1. Start v.Run() in a goroutine
-	// 2. Call ShowAndRun() on main thread to run the event loop
-	// 3. v.Run() can now make UI calls that ShowAndRun()'s loop will handle
-	// 4. When v.Run() completes, call a.Quit() to close the window
-	// 5. ShowAndRun() returns, and we exit
-	done := make(chan int)
+	done := make(chan int, 1)
 	go func() {
-		exitCode := 1
-		tlog("v.Run starting in goroutine")
-		if _, err := v.Run(); err != nil {
-			tlog("v.Run returned error: " + err.Error())
+		code := 1
+		_, err := v.Run()
+		if err != nil {
 			console.Append("Runtime error: " + err.Error())
 		} else {
-			tlog("v.Run completed successfully")
-			exitCode = 0
+			code = 0
 		}
-		// Signal the window to close, which will return ShowAndRun()
-		tlog("calling a.Quit()")
-		a.Quit()
-		done <- exitCode
+		w.Close() // Signals ShowAndRun to return
+		done <- code
 	}()
 
-	// Run ShowAndRun on main thread (Fyne requirement).
-	// While this blocks, the event loop processes UI calls from v.Run()
-	// goroutine. When a.Quit() is called above, ShowAndRun() returns.
-	tlog("calling ShowAndRun (will block until a.Quit)")
 	w.ShowAndRun()
-	tlog("ShowAndRun returned")
-
-	// Wait for v.Run() goroutine to finish and get exit code
 	exitCode := <-done
-	tlog("exiting with code: " + fmt.Sprintf("%d", exitCode))
 	os.Exit(exitCode)
 }
