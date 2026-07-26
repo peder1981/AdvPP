@@ -3,9 +3,13 @@ package storage
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"github.com/advpl/compiler/pkg/p2p"
 	"math/rand"
 )
+
+type Peer interface {
+	GetID() string
+	GetLocation() float64
+}
 
 type Replicator struct {
 	rng *rand.Rand
@@ -17,12 +21,12 @@ func NewReplicator() *Replicator {
 	}
 }
 
-func (r *Replicator) SelectReplicaPeers(peers []*p2p.Peer, k int) []*p2p.Peer {
+func (r *Replicator) SelectReplicaPeers(peers []Peer, k int) []Peer {
 	if k > len(peers) {
 		k = len(peers)
 	}
 
-	shuffled := make([]*p2p.Peer, len(peers))
+	shuffled := make([]Peer, len(peers))
 	copy(shuffled, peers)
 
 	for i := len(shuffled) - 1; i > 0; i-- {
@@ -33,7 +37,7 @@ func (r *Replicator) SelectReplicaPeers(peers []*p2p.Peer, k int) []*p2p.Peer {
 	return shuffled[:k]
 }
 
-func (r *Replicator) SelectReplicaPeersForKey(peers []*p2p.Peer, contractKey string, k int) []*p2p.Peer {
+func (r *Replicator) SelectReplicaPeersForKey(peers []Peer, contractKey string, k int) []Peer {
 	if k > len(peers) {
 		k = len(peers)
 	}
@@ -43,7 +47,7 @@ func (r *Replicator) SelectReplicaPeersForKey(peers []*p2p.Peer, contractKey str
 
 	rng := rand.New(rand.NewSource(seed))
 
-	shuffled := make([]*p2p.Peer, len(peers))
+	shuffled := make([]Peer, len(peers))
 	copy(shuffled, peers)
 
 	for i := len(shuffled) - 1; i > 0; i-- {

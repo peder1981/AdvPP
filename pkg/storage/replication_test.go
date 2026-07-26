@@ -2,15 +2,27 @@ package storage
 
 import (
 	"testing"
-	"github.com/advpl/compiler/pkg/p2p"
 )
 
+type testPeer struct {
+	id       string
+	location float64
+}
+
+func (p *testPeer) GetID() string {
+	return p.id
+}
+
+func (p *testPeer) GetLocation() float64 {
+	return p.location
+}
+
 func TestSelectReplicaPeers(t *testing.T) {
-	peers := []*p2p.Peer{
-		{ID: "p1", Location: 0.1},
-		{ID: "p2", Location: 0.2},
-		{ID: "p3", Location: 0.3},
-		{ID: "p4", Location: 0.4},
+	peers := []Peer{
+		&testPeer{id: "p1", location: 0.1},
+		&testPeer{id: "p2", location: 0.2},
+		&testPeer{id: "p3", location: 0.3},
+		&testPeer{id: "p4", location: 0.4},
 	}
 
 	r := NewReplicator()
@@ -22,21 +34,21 @@ func TestSelectReplicaPeers(t *testing.T) {
 
 	peerMap := make(map[string]bool)
 	for _, p := range peers {
-		peerMap[p.ID] = true
+		peerMap[p.GetID()] = true
 	}
 
 	for _, s := range selected {
-		if !peerMap[s.ID] {
-			t.Errorf("replica %s not in peer list", s.ID)
+		if !peerMap[s.GetID()] {
+			t.Errorf("replica %s not in peer list", s.GetID())
 		}
 	}
 }
 
 func TestReplicationDeterministic(t *testing.T) {
-	peers := []*p2p.Peer{
-		{ID: "p1", Location: 0.1},
-		{ID: "p2", Location: 0.2},
-		{ID: "p3", Location: 0.3},
+	peers := []Peer{
+		&testPeer{id: "p1", location: 0.1},
+		&testPeer{id: "p2", location: 0.2},
+		&testPeer{id: "p3", location: 0.3},
 	}
 
 	contractKey := "deterministic-key"
@@ -51,7 +63,7 @@ func TestReplicationDeterministic(t *testing.T) {
 	}
 
 	for i := range s1 {
-		if s1[i].ID != s2[i].ID {
+		if s1[i].GetID() != s2[i].GetID() {
 			t.Errorf("determinism failed at index %d", i)
 		}
 	}
