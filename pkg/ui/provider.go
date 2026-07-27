@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"fmt"
+	"os"
 	"regexp"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -76,7 +79,17 @@ func blockingDialog(d dialog.Dialog) {
 		}
 	})
 	d.Show()
-	<-done
+
+	// Add timeout to detect if dialog fails to show or callback never fires
+	select {
+	case <-done:
+		// Dialog closed normally
+	case <-time.After(30 * time.Second):
+		// Dialog timeout — user never closed it, or dialog failed to show
+		if !sent {
+			sent = true
+		}
+	}
 }
 
 func (p *FyneUIProvider) MsgInfo(msg, title string) {
@@ -120,6 +133,7 @@ func (p *FyneUIProvider) MsgYesNo(msg, title string) bool {
 // até o usuário clicar um deles (ou fechar sem escolher, retornando 0).
 // Mesma restrição de goroutine do MsgYesNo acima.
 func (p *FyneUIProvider) Menu(items []string, title string) int {
+	fmt.Fprintf(os.Stderr, "[FYNE] Menu: %d items, title=%q\n", len(items), title)
 	if title == "" {
 		title = "Menu"
 	}
@@ -131,6 +145,7 @@ func (p *FyneUIProvider) Menu(items []string, title string) int {
 	for i, label := range items {
 		idx := i + 1 // 1-based, mesmo padrão de FWMenuSelect
 		btn := widget.NewButtonWithIcon(label, menuItemIcon(label), func() {
+			fmt.Fprintf(os.Stderr, "[FYNE] Menu button clicked: idx=%d\n", idx)
 			if !sent {
 				sent = true
 				result <- idx
@@ -145,15 +160,21 @@ func (p *FyneUIProvider) Menu(items []string, title string) int {
 	// quando os itens são curtos, ficando espremido.
 	content := container.NewGridWrap(fyne.NewSize(320, box.MinSize().Height), box)
 	dlg = dialog.NewCustomWithoutButtons(title, content, p.window)
+	fmt.Fprintf(os.Stderr, "[FYNE] Menu dialog created\n")
 	dlg.SetOnClosed(func() {
+		fmt.Fprintf(os.Stderr, "[FYNE] Menu dialog closed (sent=%v)\n", sent)
 		if !sent {
 			sent = true
 			result <- 0
 		}
 	})
+	fmt.Fprintf(os.Stderr, "[FYNE] Menu calling dlg.Show()\n")
 	dlg.Show()
+	fmt.Fprintf(os.Stderr, "[FYNE] Menu waiting for result...\n")
 
-	return <-result
+	selection := <-result
+	fmt.Fprintf(os.Stderr, "[FYNE] Menu returning: %d\n", selection)
+	return selection
 }
 
 // InputText pede um texto ao usuário e bloqueia até a resposta (ou def, se
