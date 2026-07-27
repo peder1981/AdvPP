@@ -284,6 +284,7 @@ func (v *VM) peek() advplrt.Value {
 
 func (v *VM) Run() (advplrt.Value, error) {
 	// Create main frame
+	fmt.Fprintf(os.Stderr, "[VM] Run() starting: MainOffset=%d, CodeLen=%d\n", v.bc.MainOffset, len(v.bc.Code))
 	frame := &CallFrame{
 		FuncName:  "main",
 		Code:      v.bc.Code,
@@ -293,8 +294,10 @@ func (v *VM) Run() (advplrt.Value, error) {
 	}
 	v.frames = append(v.frames, frame)
 	v.current = frame
+	fmt.Fprintf(os.Stderr, "[VM] Run() frame created, about to runLoop()\n")
 
 	result, err := v.runLoop()
+	fmt.Fprintf(os.Stderr, "[VM] Run() runLoop() returned: result=%v, err=%v\n", result, err)
 
 	// Espera jobs em background (StartJob lWait=.F.) antes de encerrar —
 	// num processo CLI, sair da main mataria os jobs silenciosamente.
