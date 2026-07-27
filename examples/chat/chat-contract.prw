@@ -4,6 +4,7 @@ class ChatContract
     method new() as object Constructor
     method GetMessages() as Array
     method AddMessage(cFrom as Character, cText as Character) as Logical
+    method AddMessageWithTimestamp(cFrom as Character, cText as Character, cTs as Character) as Logical
 endclass
 
 method new() as object class ChatContract
@@ -19,19 +20,24 @@ method GetMessages() as Array class ChatContract
 return aResult
 
 method AddMessage(cFrom as Character, cText as Character) as Logical class ChatContract
-    Local oMsg as Object
     Local dNow as Date
     Local cTs as Character
-    Local i
 
     // Timestamp (simplified: system time as string)
     dNow := Date()
     cTs := Str(dNow) + Str(Seconds())
 
+    // Use AddMessageWithTimestamp with generated timestamp
+return ::AddMessageWithTimestamp(cFrom, cText, cTs)
+
+method AddMessageWithTimestamp(cFrom as Character, cText as Character, cTs as Character) as Logical class ChatContract
+    Local oMsg as Object
+    Local i
+
     // Check if message already exists (idempotence)
     for i := 1 to len(::aMessages)
         oMsg := ::aMessages[i]
-        if oMsg:from == cFrom .and. oMsg:text == cText
+        if oMsg:from == cFrom .and. oMsg:ts == cTs
             return .T. // Already exists, return success
         endif
     next
