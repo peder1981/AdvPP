@@ -26,7 +26,7 @@ User Function ChatMain()
 
     oPeer := ChatInit(cPeerId, cListen, cBootstrap)
 
-    // TODO: ChatLoop()
+    ChatLoop()
 
     ConOut("Chat closed.")
 return
@@ -93,6 +93,18 @@ Static Function ChatInit(cPeerId, cListen, cBootstrap)
     // Step 2g: subscribe to the chat contract
     oAPI:Subscribe("contract:chat-main")
 
+    // Step 2h: real P2P binding (Task 4) — bring up the actual Go peer
+    // (UDP transport, ring routing, PeerAPI backed by a real store) behind
+    // the VM<->Go bridge in pkg/vm/p2p_bridge.go, and subscribe it to the
+    // chat contract key. This is the same singleton the PeerAPI_Get()/
+    // PeerAPI_Update() calls in ChatRead()/ChatSend() use — it is lazily
+    // built from ADVPP_PEER_ID/ADVPP_LISTEN/ADVPP_BOOTSTRAP on first use,
+    // but subscribing here (right after ChatInit's own bootstrap step)
+    // triggers that build immediately, so a joining peer's JOIN handshake
+    // (and the STATE_SYNC reply that brings it up to date) happens before
+    // the user ever opens the menu.
+    PeerAPI_Subscribe("contract:chat-main")
+
     ConOut("Peer initialized.")
     ConOut("Local location: " + Str(oPeer:nLocation))
     if Len(oPeer:aNeighbors) == 0
@@ -106,7 +118,8 @@ Static Function ChatInit(cPeerId, cListen, cBootstrap)
 return oPeer
 
 Static Function ChatLoop()
-    Local nOpt := 0
+    Local nOpt  := 0
+    Local cOpt  := ""
 
     do while .T.
         ConOut("")
@@ -115,7 +128,10 @@ Static Function ChatLoop()
         ConOut("  2. Send message")
         ConOut("  3. Peer info")
         ConOut("  4. Exit")
-        accept nOpt
+        // accept reads a raw line (Character) — convert to Numeric before
+        // the do case below, which compares against numeric option codes.
+        accept cOpt
+        nOpt := Val(cOpt)
 
         do case
             case nOpt == 1
@@ -131,15 +147,60 @@ Static Function ChatLoop()
 return
 
 Static Function ChatRead()
-    ConOut("TODO: Fetch and display messages")
+    Local aMessages
+    Local i
+    Local oMsg
+
+    // Call real PeerAPI_Get through the bridge
+    aMessages := PeerAPI_Get("contract:chat-main")
+
+    if empty(aMessages)
+        ConOut("No messages." + Chr(10))
+        return
+    endif
+
+    for i := 1 to len(aMessages)
+        oMsg := aMessages[i]
+        // Display message (format: from (timestamp): text)
+        ConOut(oMsg:from + " (" + oMsg:ts + "): " + oMsg:text + Chr(10))
+    next
 return
 
 Static Function ChatSend()
-    Local cText := ""
+    Local cText
+    Local lResult
+    Local cFrom
+
     ConOut("Message (empty to cancel): ")
     accept cText
-    if !empty(cText)
-        ConOut("TODO: Send message: " + cText)
+
+    if empty(cText)
+        return
+    endif
+
+    // Get peer ID for sender
+    cFrom := GetEnv("ADVPP_PEER_ID")
+    if empty(cFrom)
+        cFrom := "peer-unknown"
+    endif
+
+    ConOut("Sending..." + Chr(10))
+
+    // Create message object
+    Local oMsg as Object
+    oMsg := JsonObject():New()
+    oMsg:from := cFrom
+    oMsg:text := cText
+    oMsg:ts := Str(Date()) + Str(Seconds())
+
+    // Call real PeerAPI_Update through the bridge
+    // merge function "ChatContractMerge" should be registered in natives
+    lResult := PeerAPI_Update("contract:chat-main", oMsg, "ChatContractMerge")
+
+    if lResult
+        ConOut("Sent." + Chr(10))
+    else
+        ConOut("Failed to send." + Chr(10))
     endif
 return
 
