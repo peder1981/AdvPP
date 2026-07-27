@@ -250,6 +250,25 @@ func (b *chatBridge) handleUpdate(msg *p2p.Message) {
 	if err := b.api.Update(msg.Key, msg.Data, mergeOp); err != nil {
 		fmt.Fprintf(os.Stderr, "[chat bridge] merge on receive failed: %v\n", err)
 	}
+
+	// Rebroadcast the merged state to other neighbors (gossip flood for mesh topology).
+	// Get the merged state and broadcast to all neighbors except the one we received from.
+	merged, err := b.store.Get(msg.Key)
+	if err != nil {
+		return
+	}
+
+	// Get the sender's address so we can skip rebroadcasting back to them
+	senderAddr, err := net.ResolveUDPAddr("udp", msg.From)
+	if err != nil {
+		return
+	}
+
+	for _, addr := range b.neighborAddrs() {
+		if addr.String() != senderAddr.String() {
+			b.send(addr, &p2p.Message{Type: "UPDATE", Key: msg.Key, Data: merged, From: b.selfAddr()})
+		}
+	}
 }
 
 // get returns the current merged state for key (raw JSON bytes).
