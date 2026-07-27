@@ -26,6 +26,7 @@ func (v *VM) registerNatives() {
 		// --- Output ---
 		"CONOUT": func(args []advplrt.Value) (advplrt.Value, error) {
 			msg := buildOutputString(args)
+			fmt.Fprintf(os.Stderr, "[VM] CONOUT: %q\n", msg)
 			fmt.Println(msg)
 			v.writeOut(msg)
 			v.output.WriteString(msg + "\n")
@@ -95,6 +96,7 @@ func (v *VM) registerNatives() {
 		// retorna 0 imediatamente: nunca bloqueia esperando input que não
 		// vai vir.
 		"FWMENUSELECT": func(args []advplrt.Value) (advplrt.Value, error) {
+			fmt.Fprintf(os.Stderr, "[VM] FWMENUSELECT called with %d args\n", len(args))
 			var items []string
 			if a, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
 				for _, el := range a.Elements {
@@ -102,9 +104,14 @@ func (v *VM) registerNatives() {
 				}
 			}
 			title := getArgString(args, 1, "")
+			fmt.Fprintf(os.Stderr, "[VM] FWMENUSELECT: %d items, title=%q, uiProvider=%v\n", len(items), title, v.uiProvider != nil)
 			if v.uiProvider != nil {
-				return advplrt.NewNumber(float64(v.uiProvider.Menu(items, title))), nil
+				fmt.Fprintf(os.Stderr, "[VM] FWMENUSELECT calling uiProvider.Menu()\n")
+				result := v.uiProvider.Menu(items, title)
+				fmt.Fprintf(os.Stderr, "[VM] FWMENUSELECT menu returned: %d\n", result)
+				return advplrt.NewNumber(float64(result)), nil
 			}
+			fmt.Fprintf(os.Stderr, "[VM] FWMENUSELECT no UIProvider, returning 0\n")
 			return advplrt.NewNumber(0), nil
 		},
 		// FWGetText(cPergunta, [cDefault], [bIsPassword]) As Character: pede um texto ao
@@ -1761,6 +1768,7 @@ func (v *VM) registerNatives() {
 	v.registerDialogNatives(natives)
 	registerGeometryNatives(natives)
 	registerMathStatNatives(natives)
+	registerP2PNatives(natives)
 
 	for name, fn := range natives {
 		v.natives[name] = &advplrt.FunctionValue{Name: name, Fn: fn}

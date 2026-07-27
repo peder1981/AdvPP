@@ -732,6 +732,49 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isKeyword(tok, "DEFAULT") {
 		return p.parseDefault()
 	}
+	// `ACCEPT [<cMsg>] TO <var>` (classic Clipper console command) or the
+	// reduced `ACCEPT <var>` form (no message, no TO — used by simple
+	// console apps like examples/chat/chat.prw's menu loop) both read one
+	// line of stdin and assign it to <var>. Compiles to
+	// `<var> := ConIn([<cMsg>])`, reusing the existing ConIn() native
+	// (prints cMsg if given, blocks on a line from stdin trimmed of its
+	// trailing newline) instead of adding a second native with the same
+	// behavior.
+	if p.isWord(tok, "ACCEPT") {
+		acceptTok := p.advance()
+		var msgExpr ast.Expression
+		hasTo := false
+		for i := 0; ; i++ {
+			t := p.peekAt(i)
+			if t.Line != acceptTok.Line || t.Type == lexer.TOKEN_EOF || p.isStatementBoundary(t) {
+				break
+			}
+			if p.isKeyword(t, "TO") {
+				hasTo = true
+				break
+			}
+		}
+		if hasTo && !p.isKeyword(p.peek(), "TO") {
+			e, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			msgExpr = e
+		}
+		if p.isKeyword(p.peek(), "TO") {
+			p.advance()
+		}
+		target, err := p.parsePostfix()
+		if err != nil {
+			return nil, err
+		}
+		var args []ast.Expression
+		if msgExpr != nil {
+			args = append(args, msgExpr)
+		}
+		call := &ast.CallExpr{Loc: p.posFromToken(acceptTok), Name: "CONIN", Args: args}
+		return &ast.AssignStmt{Loc: p.posFromToken(acceptTok), Target: target, Value: call, Op: ":="}, nil
+	}
 
 	return p.parseExprStatement()
 }
