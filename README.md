@@ -49,6 +49,7 @@ make build   # gera advplc, adveditor, advpp-ide na raiz do repo
 - **Servidor REST nativo** (`pkg/rest` + classe `WSRestServer`): sobe um servidor HTTP real (`net/http` puro) e expõe `User Function` anotadas com `@Get`/`@Post`/`@Put`/`@Patch`/`@Delete` como rotas, com path params (`/clientes/{id}`), corpo JSON e dispatch real para a função AdvPL — o DSL clássico `WSRESTFUL`/`WSMETHOD` continua só reconhecido na sintaxe (ver [Servidor REST](#servidor-rest-wsrestserver))
 - **Núcleo de Tensor (float32)**: classe `Tensor` acelerada em Go (`pkg/tensor`) — `MatMul`, elementwise com broadcast, reduções, ativações, `Softmax`, `Argmax`, `IndexRows` — para construir e rodar modelos float com o AdvPL orquestrando; ver [Núcleo de Tensor](#núcleo-de-tensor)
 - **Autodiff + treino (float32)**: motor de diferenciação reversa (`pkg/autograd`) com a classe `Variable` (tape + `Backward`), ops diferenciáveis (MatMul, Add, Mul, Relu, Sum, Mean, MSE) e otimizador `SGD` — treina modelos float com o AdvPL orquestrando; ver [Autodiff e treino](#autodiff-e-treino)
+- **Cliente HTTP nativo**: `FWHttpGet`/`FWHttpPost`/`FWHttpPut`/`FWHttpPatch`/`FWHttpDelete` + `FWHttpBody`/`FWHttpStatus`/`FWHttpError` — requisições HTTP com suporte a certificados PKCS#12 (.pfx/.p12), timeout 30s e TLS com verificação; ver [Cliente HTTP Nativo](#cliente-http-nativo-fwhttp)
 
 ## Servidor MCP (`MCPServer`)
 
@@ -350,6 +351,26 @@ A IDE gráfica fornece:
 - Parsing de sintaxe WSRESTFUL/WSSERVICE (DSL clássico — reconhecido, execução ainda não suportada; ver limitação em [Servidor REST](#servidor-rest-wsrestserver))
 
 **Nota**: o DSL clássico `WSRESTFUL`/`WSMETHOD`/`ENDWSRESTFUL` é parseado mas não executado (o verbo/PATH são descartados no parser e o dispatch exigiria chamar método de instância). As anotações `@Get`/`@Post`/`@Put`/`@Patch`/`@Delete` sobre `User Function`, por outro lado, sobem um servidor HTTP real via `WSRestServer`.
+
+## Cliente HTTP Nativo (FWHttp*)
+
+O AdvPP fornece 8 funções nativas para requisições HTTP com suporte a certificados
+digitais PKCS#12 (.pfx/.p12). Útil para integração com REST APIs que exigem
+autenticação TLS mútua (ex.: Emissor Nacional NFS-e, bancos, SEFAZ).
+
+| Função | Descrição |
+|--------|-----------|
+| `FWHttpGet(cUrl, cCert, cSenha)` | Requisição GET |
+| `FWHttpPost(cUrl, cBody, cType, cCert, cSenha)` | Requisição POST |
+| `FWHttpPut(cUrl, cBody, cType, cCert, cSenha)` | Requisição PUT |
+| `FWHttpPatch(cUrl, cBody, cType, cCert, cSenha)` | Requisição PATCH |
+| `FWHttpDelete(cUrl, cCert, cSenha)` | Requisição DELETE |
+| `FWHttpBody()` | Corpo da última resposta |
+| `FWHttpStatus()` | Código HTTP da última resposta |
+| `FWHttpError()` | Mensagem de erro da última requisição |
+
+Timeout de 30s por requisição. TLS com verificação de certificado habilitada.
+Exemplo completo em `TDN_FUNCTIONS.md` e teste de integração em `tests/http_native_test.prw`.
 
 ## Funções de I/O, arquivo e sistema
 
