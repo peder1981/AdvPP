@@ -83,6 +83,9 @@ type VM struct {
 	fileHandles  map[int]*os.File // handles abertos por FOpen/FCreate
 	nextFH       int              // próximo handle a distribuir
 	lastFError   int              // último erro de IO (FError())
+	httpLastBody   string         // último corpo de resposta HTTP (FWHttpBody)
+	httpLastStatus int            // último status HTTP (FWHttpStatus)
+	httpLastError  string         // último erro HTTP (FWHttpError)
 	stdinReader  *bufio.Reader    // leitor de linha do stdin (ConIn), lazy
 	dynEnv       map[string]advplrt.Value // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
 }
