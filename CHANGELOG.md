@@ -2,7 +2,31 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
-## [Não lançado]
+## [2.0.1] — 2026-07-28
+
+### Cliente HTTP Nativo com Suporte a Certificado PKCS#12
+
+O AdvPP agora possui 8 funções nativas para realizar requisições HTTP com
+suporte a certificados digitais A1/A3 no formato PKCS#12 (.pfx/.p12).
+
+**Funções implementadas:**
+
+- `FWHttpGet(cUrl, cCertPath, cCertPass) As Numeric` — requisição GET
+- `FWHttpPost(cUrl, cJsonBody, cContentType, cCertPath, cCertPass) As Numeric` — POST
+- `FWHttpPut(cUrl, cJsonBody, cContentType, cCertPath, cCertPass) As Numeric` — PUT
+- `FWHttpPatch(cUrl, cJsonBody, cContentType, cCertPath, cCertPass) As Numeric` — PATCH
+- `FWHttpDelete(cUrl, cCertPath, cCertPass) As Numeric` — DELETE
+- `FWHttpBody() As Character` — corpo da última resposta
+- `FWHttpStatus() As Numeric` — código HTTP da última resposta
+- `FWHttpError() As Character` — mensagem de erro da última requisição
+
+**Detalhes técnicos:**
+- Timeout de 30s por requisição
+- TLS com verificação de certificado habilitada (`InsecureSkipVerify=false`)
+- Certificados .pfx/.p12 decodificados via `golang.org/x/crypto/pkcs12`
+- Implementado em `pkg/vm/httpclient_native.go`
+- Testes de integração com servidor HTTP local (`tests/http_native_test.prw`)
+- Versão do VSIX advpl-tlpp bumpada para 2.0.1
 
 ## [1.24.0] — 2026-07-24
 

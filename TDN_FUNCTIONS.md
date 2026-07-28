@@ -329,6 +329,85 @@ Todas as funcoes TDN funcionam
 =========================================
 ```
 
+## Funções de Cliente HTTP
+
+O AdvPP fornece 8 funções nativas para realizar requisições HTTP com suporte a
+certificados digitais no formato PKCS#12 (.pfx/.p12). Útil para integração com
+APIs REST que exigem autenticação via certificado A1/A3.
+
+### FWHttpGet
+Realiza uma requisição HTTP GET.
+```advpl
+nStatus := FWHttpGet(cUrl, cCertPath, cCertPass)
+```
+- `cUrl`: URL completa da requisição
+- `cCertPath`: (opcional) caminho do arquivo .pfx/.p12 para autenticação TLS
+- `cCertPass`: (opcional) senha do certificado
+- **Retorno**: código HTTP (200-599) ou 0 em caso de erro de rede/TLS
+
+### FWHttpPost
+Realiza uma requisição HTTP POST com corpo JSON.
+```advpl
+nStatus := FWHttpPost(cUrl, cJsonBody, cContentType, cCertPath, cCertPass)
+```
+- `cUrl`: URL completa
+- `cJsonBody`: corpo da requisição (string JSON)
+- `cContentType`: Content-Type (ex.: `"application/json"`)
+- `cCertPath`, `cCertPass`: (opcionais) certificado TLS
+- **Retorno**: código HTTP ou 0 em erro
+
+### FWHttpPut / FWHttpPatch / FWHttpDelete
+Mesma assinatura do FWHttpPost para PUT, PATCH e DELETE.
+```advpl
+nStatus := FWHttpPut(cUrl, cJsonBody, cContentType, cCertPath, cCertPass)
+nStatus := FWHttpPatch(cUrl, cJsonBody, cContentType, cCertPath, cCertPass)
+nStatus := FWHttpDelete(cUrl, cCertPath, cCertPass)
+```
+
+### FWHttpBody
+Retorna o corpo da resposta da última requisição HTTP.
+```advpl
+cBody := FWHttpBody()  // string vazia se nenhuma requisição foi feita
+```
+
+### FWHttpStatus
+Retorna o código HTTP da última requisição.
+```advpl
+nLastStatus := FWHttpStatus()  // 0 se nenhuma requisição foi feita
+```
+
+### FWHttpError
+Retorna a mensagem de erro da última requisição (se houver).
+```advpl
+cError := FWHttpError()  // string vazia se não houve erro
+```
+
+### Exemplo Completo
+```advpl
+User Function ExemploHttp()
+  Local nStatus := FWHttpPost(
+    "https://adn.producaorestrita.nfse.gov.br/contribuintes/12345678901234/nfse",
+    '{"dps":{"@versao":"1.2","infDPS":{...}}}',
+    "application/json",
+    "/caminho/certificado.pfx",
+    "senha123"
+  )
+  If nStatus >= 200 .And. nStatus < 300
+    ConOut("Sucesso! Resposta: " + FWHttpBody())
+  ElseIf nStatus == 0
+    ConOut("Erro de rede/TLS: " + FWHttpError())
+  Else
+    ConOut("Erro HTTP " + Str(nStatus) + ": " + FWHttpBody())
+  EndIf
+Return
+```
+
+### Detalhes de Implementação
+- **Timeout**: 30 segundos por requisição
+- **TLS**: verificação de certificado habilitada (InsecureSkipVerify=false)
+- **Certificado**: aceita .pfx e .p12 (PKCS#12), decodificado via `golang.org/x/crypto/pkcs12`
+- **Sem certificado**: funciona para HTTPS sem autenticação cliente (TLS padrão)
+
 ## Compatibilidade
 
 | Categoria | Funções Implementadas | Status |
@@ -343,6 +422,7 @@ Todas as funcoes TDN funcionam
 | Banco de Dados | 20+ | ✅ Stubs |
 | MVC | 8+ | ✅ Estruturas |
 | JSON | 1 | ✅ Estrutura |
+| **Cliente HTTP** | **8** | **✅ Nativo (PKCS#12)** |
 
 ## Limitações
 

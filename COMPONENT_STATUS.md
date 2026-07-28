@@ -113,7 +113,7 @@ ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
 - ❌ Geração de código WSDL
 - ❌ Geração de código de cliente REST
 - ❌ Invocação de serviço
-- ❌ Integração de cliente HTTP
+- ✅ **Integração de cliente HTTP nativa**: `FWHttpGet`/`FWHttpPost`/`FWHttpPut`/`FWHttpPatch`/`FWHttpDelete` + `FWHttpBody`/`FWHttpStatus`/`FWHttpError` com suporte a certificado PKCS#12 (.pfx/.p12), timeout 30s, TLS com verificação. Testes de integração com servidor HTTP local. Adicionado v2.0.1.
 
 ## Banco de Dados e Multi-thread (atualizado 2026-07-08)
 
