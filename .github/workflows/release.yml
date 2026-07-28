@@ -109,6 +109,12 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      - name: Delete existing release and tag (if any)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete "$GITHUB_REF_NAME" --cleanup-tag --yes 2>/dev/null || true
+          gh api "repos/${{ github.repository }}/git/refs/tags/$GITHUB_REF_NAME" -X DELETE 2>/dev/null || true
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
