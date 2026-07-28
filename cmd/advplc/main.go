@@ -25,7 +25,7 @@ import (
 	"github.com/advpl/compiler/pkg/webui"
 )
 
-// version é injetada no build via -ldflags "-X main.version=v1.2.3"
+// version é injetada no build via -ldflags "-X main.version=v2.0.1"
 var version = "dev"
 
 func main() {

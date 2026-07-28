@@ -1766,6 +1766,7 @@ func (v *VM) registerNatives() {
 	}
 
 	v.registerDialogNatives(natives)
+	v.registerHttpNatives(natives)
 	registerGeometryNatives(natives)
 	registerMathStatNatives(natives)
 	registerP2PNatives(natives)
