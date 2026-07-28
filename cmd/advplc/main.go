@@ -799,6 +799,9 @@ Commands:
   exec      Execute a compiled bytecode file
   check     Validate syntax without executing (accepts multiple files)
   serve     Run the program with the UI rendered in the browser (web mode)
+  build     Compile to a standalone desktop executable (Fyne) with embedded
+            bytecode (use -o for output; run from within the repo or set
+            ADVPP_SRC so the stub can find a checkout of this module)
   debug     Serve a Debug Adapter Protocol (DAP) session over stdio, for
             editor "Run and Debug" integration (breakpoints, step, locals)
   ast       Print the AST structure
@@ -827,5 +830,6 @@ Examples:
   advplc exec hello.bytecode
   advplc check program.prw --include ./includes
   advplc serve program.prw --port 9000 --watch
+  advplc build program.prw -o myapp --db-path ./data.db
   advplc bytecode program.prw`)
 }
