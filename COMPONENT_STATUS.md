@@ -43,9 +43,15 @@ descobertos ao tentar usar um app de verdade (e-Gov) interativamente:
 - `pkg/compiler/stub_template.go`: decisão console-vs-GUI, `ADVPP_FORCE_GUI`
 - `pkg/vm/browse.go`: exclusão de `R_E_C_N_O_`/`R_E_C_D_E_L_` do fallback
   sem SX3
-- Teste de integração real (builda o binário, roda sob PTY de verdade,
-  digita/navega/confirma exatamente como um humano): `cmd/advplc/build_standalone_interactive_test.go`
+- Teste de integração real (builda o binário, roda sob um pseudo-terminal
+  de verdade, digita/navega/confirma exatamente como um humano):
+  `cmd/advplc/build_standalone_interactive_test.go`
   (`TestBuildStandaloneInteractive`), fixture `tests/standalone_interactive_test.prw`
+  — roda nos 3 SOs do CI (Linux/macOS via `creack/pty`, Windows via
+  `github.com/UserExistsError/conpty`, ConPty real em Go puro sobre
+  `golang.org/x/sys/windows`, sem cgo), abstraído em `ptysession_posix_test.go`
+  / `ptysession_windows_test.go` — mesmo teste, mesmas asserções, cobertura
+  real nas três plataformas que o release publica
 
 ## Componentes UI
 

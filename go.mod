@@ -4,6 +4,7 @@ go 1.24
 
 require (
 	fyne.io/fyne/v2 v2.4.4
+	github.com/UserExistsError/conpty v0.1.4
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7
 	github.com/charmbracelet/huh v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.0
