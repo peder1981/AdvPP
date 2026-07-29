@@ -5,11 +5,13 @@ import (
 	"strconv"
 )
 
+// MergeOp defines the merge semantics for a contract (idempotent, commutative, associative).
 type MergeOp interface {
 	Merge(a, b []byte) []byte
 	Identity() []byte
 }
 
+// MaxMonoid is a merge operation that keeps the maximum value (for numeric counters).
 type MaxMonoid struct{}
 
 func (m *MaxMonoid) Merge(a, b []byte) []byte {
@@ -26,6 +28,7 @@ func (m *MaxMonoid) Identity() []byte {
 	return []byte("0")
 }
 
+// LastWriterWinsMonoid is a merge operation that keeps the lexicographically larger value (last write wins).
 type LastWriterWinsMonoid struct{}
 
 func (m *LastWriterWinsMonoid) Merge(a, b []byte) []byte {
