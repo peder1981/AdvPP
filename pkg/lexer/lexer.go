@@ -5,6 +5,13 @@ import (
 	"strings"
 )
 
+const (
+	// MaxStringLength prevents DOS attacks via huge string literals
+	MaxStringLength = 10 * 1024 * 1024 // 10 MB
+	// MaxTokens prevents memory exhaustion from tokenizing huge files
+	MaxTokens = 1000000
+)
+
 type Lexer struct {
 	source   string
 	pos      int
@@ -465,6 +472,12 @@ func (l *Lexer) tokenizeString(line, col int, quote byte) error {
 		// always a literal character (common in paths: "C:\Temp\").
 		sb.WriteByte(ch)
 		l.advance()
+
+		// Prevent DOS from huge string literals
+		if sb.Len() > MaxStringLength {
+			return fmt.Errorf("string literal exceeds maximum length (%d bytes) at %s:%d:%d",
+				MaxStringLength, l.fileName, line, col)
+		}
 	}
 
 	l.tokens = append(l.tokens, Token{

@@ -30,6 +30,13 @@ const (
 	SigBreak
 )
 
+const (
+	// MaxStackSize prevents stack overflow from too many nested calls
+	MaxStackSize = 10000
+	// MaxCallFrames prevents runaway recursion
+	MaxCallFrames = 5000
+)
+
 type Signal struct {
 	Kind  SignalKind
 	Value advplrt.Value
@@ -270,8 +277,21 @@ func convertParams(names []string) []*advplrt.ParamDef {
 	return params
 }
 
-func (v *VM) push(val advplrt.Value) {
+func (v *VM) push(val advplrt.Value) error {
+	if len(v.stack) >= MaxStackSize {
+		return fmt.Errorf("stack overflow: maximum stack size (%d) exceeded", MaxStackSize)
+	}
 	v.stack = append(v.stack, val)
+	return nil
+}
+
+func (v *VM) pushFrame(frame *CallFrame) error {
+	if len(v.frames) >= MaxCallFrames {
+		return fmt.Errorf("call stack overflow: maximum call frames (%d) exceeded", MaxCallFrames)
+	}
+	v.frames = append(v.frames, frame)
+	v.current = frame
+	return nil
 }
 
 func (v *VM) pop() advplrt.Value {

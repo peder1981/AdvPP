@@ -8,11 +8,17 @@ import (
 	"github.com/advpl/compiler/pkg/lexer"
 )
 
+const (
+	// MaxRecursionDepth prevents stack exhaustion from deeply nested expressions
+	MaxRecursionDepth = 1000
+)
+
 type Parser struct {
-	tokens   []lexer.Token
-	pos      int
-	fileName string
-	defines  map[string]string
+	tokens           []lexer.Token
+	pos              int
+	fileName         string
+	defines          map[string]string
+	recursionDepth   int
 }
 
 func NewParser(tokens []lexer.Token, fileName string, defines map[string]string) *Parser {
@@ -68,6 +74,24 @@ func (p *Parser) expectName() (lexer.Token, error) {
 	}
 	p.pos++
 	return tok, nil
+}
+
+// checkRecursionDepth prevents stack exhaustion from deeply nested expressions.
+// Must be called at the start of recursive parsing functions.
+func (p *Parser) checkRecursionDepth() error {
+	p.recursionDepth++
+	if p.recursionDepth > MaxRecursionDepth {
+		return fmt.Errorf("maximum recursion depth exceeded (%d) at %s:%d:%d",
+			MaxRecursionDepth, p.peek().FileName, p.peek().Line, p.peek().Col)
+	}
+	return nil
+}
+
+// decreaseRecursionDepth should be called when exiting recursive functions.
+func (p *Parser) decreaseRecursionDepth() {
+	if p.recursionDepth > 0 {
+		p.recursionDepth--
+	}
 }
 
 func (p *Parser) isKeyword(tok lexer.Token, kw string) bool {
