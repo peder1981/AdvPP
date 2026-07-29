@@ -1,13 +1,16 @@
 package p2p
 
+// Router performs greedy ring-based peer routing.
 type Router struct {
 	peer *Peer
 }
 
+// NewRouter creates a router for a given peer.
 func NewRouter(peer *Peer) *Router {
 	return &Router{peer: peer}
 }
 
+// FindNextHop returns the neighbor closest to the target location on the ring.
 func (r *Router) FindNextHop(target float64) *Peer {
 	if len(r.peer.Neighbors) == 0 {
 		return nil

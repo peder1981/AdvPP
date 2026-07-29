@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 )
 
+// Message represents a P2P network message (JOIN, UPDATE, STATE_SYNC).
 type Message struct {
 	Type string `json:"type"`
 	Data []byte `json:"data"`

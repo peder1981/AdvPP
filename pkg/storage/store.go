@@ -5,17 +5,20 @@ import (
 	"sync"
 )
 
+// Store is a thread-safe in-memory key-value store for contract state.
 type Store struct {
 	mu    sync.RWMutex
 	data  map[string][]byte
 }
 
+// NewStore creates a new empty in-memory key-value store.
 func NewStore() *Store {
 	return &Store{
 		data: make(map[string][]byte),
 	}
 }
 
+// Put stores a value under the given key, creating a copy to prevent external mutations.
 func (s *Store) Put(key string, data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -27,6 +30,7 @@ func (s *Store) Put(key string, data []byte) error {
 	return nil
 }
 
+// Get retrieves a value by key, returning a copy to prevent external mutations.
 func (s *Store) Get(key string) ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -42,6 +46,7 @@ func (s *Store) Get(key string) ([]byte, error) {
 	return copied, nil
 }
 
+// Delete removes a value by key (idempotent if key doesn't exist).
 func (s *Store) Delete(key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -50,6 +55,7 @@ func (s *Store) Delete(key string) error {
 	return nil
 }
 
+// Keys returns all stored keys.
 func (s *Store) Keys() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
