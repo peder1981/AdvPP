@@ -4,11 +4,13 @@ import (
 	"github.com/advpl/compiler/pkg/contract"
 )
 
+// SummaryDeltaSync represents a core AdvPP type.
 type SummaryDeltaSync struct {
 	contract *contract.Contract
 	merge    contract.MergeOp
 }
 
+// NewSummaryDeltaSync performs a core operation.
 func NewSummaryDeltaSync(c *contract.Contract, merge contract.MergeOp) *SummaryDeltaSync {
 	return &SummaryDeltaSync{
 		contract: c,

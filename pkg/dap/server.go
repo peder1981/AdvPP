@@ -44,6 +44,7 @@ type Server struct {
 	attachReady bool
 }
 
+// NewServer performs a core operation.
 func NewServer(conn *Conn, compile CompileFunc, attach AttachRuntime) *Server {
 	return &Server{conn: conn, compile: compile, attach: attach}
 }

@@ -12,6 +12,7 @@ type Transport struct {
 	Received chan *Message
 }
 
+// NewTransport performs a core operation.
 func NewTransport(addr *net.UDPAddr) (*Transport, error) {
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {

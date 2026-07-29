@@ -19,6 +19,7 @@ type FWFormView struct {
 	Events     map[string]EventHandler
 }
 
+// Component represents a core AdvPP type.
 type Component struct {
 	Name       string
 	Type       string // "TButton", "TGet", "TComboBox", "TCheckBox", etc.
@@ -46,6 +47,7 @@ type Component struct {
 	ForeColor  string
 }
 
+// Dialog represents a core AdvPP type.
 type Dialog struct {
 	Name       string
 	Title      string
@@ -55,10 +57,12 @@ type Dialog struct {
 	Buttons    []*Component
 }
 
+// MenuBar represents a core AdvPP type.
 type MenuBar struct {
 	Items []*MenuItem
 }
 
+// MenuItem represents a core AdvPP type.
 type MenuItem struct {
 	Name      string
 	Label     string
@@ -68,10 +72,12 @@ type MenuItem struct {
 	Separator bool
 }
 
+// ToolBar represents a core AdvPP type.
 type ToolBar struct {
 	Buttons []*ToolButton
 }
 
+// ToolButton represents a core AdvPP type.
 type ToolButton struct {
 	Name    string
 	Action  string
@@ -79,10 +85,12 @@ type ToolButton struct {
 	Tooltip string
 }
 
+// StatusBar represents a core AdvPP type.
 type StatusBar struct {
 	Panels []*StatusPanel
 }
 
+// StatusPanel represents a core AdvPP type.
 type StatusPanel struct {
 	Name  string
 	Text  string

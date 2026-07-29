@@ -21,6 +21,7 @@ import (
 // spam stderr with internals on every run. Set ADVPP_VM_DEBUG=1 to see it.
 var debugVM = os.Getenv("ADVPP_VM_DEBUG") != ""
 
+// SignalKind represents a core AdvPP type.
 type SignalKind int
 
 const (
@@ -43,11 +44,13 @@ const (
 // activeJobsCount tracks concurrent goroutines spawned via StartJob (CWE-400: DoS prevention)
 var activeJobsCount int32
 
+// Signal represents a core AdvPP type.
 type Signal struct {
 	Kind  SignalKind
 	Value advplrt.Value
 }
 
+// CallFrame represents a core AdvPP type.
 type CallFrame struct {
 	FuncName   string
 	Code       []compiler.Instruction
@@ -66,6 +69,7 @@ type dynBinding struct {
 	prev advplrt.Value
 }
 
+// TryCatch represents a core AdvPP type.
 type TryCatch struct {
 	CatchIP     int
 	CatchVar    string

@@ -6,12 +6,14 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+// OutputConsole represents a core AdvPP type.
 type OutputConsole struct {
 	label   *widget.Label
 	scroll  *container.Scroll
 	output  []string
 }
 
+// NewOutputConsole performs a core operation.
 func NewOutputConsole() *OutputConsole {
 	label := widget.NewLabel("")
 	label.Wrapping = fyne.TextWrapWord

@@ -39,6 +39,7 @@ type Conn struct {
 	seqCtr int32
 }
 
+// NewConn performs a core operation.
 func NewConn(r io.Reader, w io.Writer) *Conn {
 	return &Conn{r: bufio.NewReader(r), w: w}
 }

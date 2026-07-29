@@ -51,10 +51,12 @@ func menuItemIcon(label string) fyne.Resource {
 	return theme.ListIcon()
 }
 
+// FyneUIProvider represents a core AdvPP type.
 type FyneUIProvider struct {
 	window fyne.Window
 }
 
+// NewFyneUIProvider performs a core operation.
 func NewFyneUIProvider(window fyne.Window) *FyneUIProvider {
 	return &FyneUIProvider{
 		window: window,

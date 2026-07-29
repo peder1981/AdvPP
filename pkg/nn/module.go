@@ -12,6 +12,7 @@ type Linear struct {
 	W, B *autograd.Variable
 }
 
+// NewLinear performs a core operation.
 func NewLinear(nIn, nOut int, scale float32) *Linear {
 	return &Linear{
 		W: autograd.NewLeaf(tensor.Rand([]int{nIn, nOut}, scale)),
@@ -36,6 +37,7 @@ type Embedding struct {
 	Table *autograd.Variable
 }
 
+// NewEmbedding performs a core operation.
 func NewEmbedding(nVocab, nDim int, scale float32) *Embedding {
 	return &Embedding{Table: autograd.NewLeaf(tensor.Rand([]int{nVocab, nDim}, scale))}
 }

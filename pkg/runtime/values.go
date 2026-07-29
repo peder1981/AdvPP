@@ -104,6 +104,7 @@ func buildNumberCache() [numberCacheMax - numberCacheMin + 1]*NumberValue {
 	return c
 }
 
+// NewNumber performs a core operation.
 func NewNumber(v float64) *NumberValue {
 	if v >= numberCacheMin && v <= numberCacheMax {
 		if iv := int(v); float64(iv) == v {
@@ -148,6 +149,7 @@ func (s *StringValue) Equals(other Value) bool {
 	return false
 }
 
+// NewString performs a core operation.
 func NewString(s string) *StringValue { return &StringValue{Val: s} }
 
 // BoolValue represents a boolean value (.T. or .F.).
@@ -191,6 +193,7 @@ func (b *BoolValue) Equals(other Value) bool {
 var True = &BoolValue{Val: true}
 var False = &BoolValue{Val: false}
 
+// NewBool performs a core operation.
 func NewBool(b bool) *BoolValue {
 	if b {
 		return True
@@ -423,6 +426,7 @@ func (o *ObjectValue) Equals(other Value) bool {
 	return o == other
 }
 
+// NewObject performs a core operation.
 func NewObject(className string, class *ClassDef) *ObjectValue {
 	return &ObjectValue{
 		ClassName: className,
@@ -542,12 +546,18 @@ type ParamDef struct {
 // Helper functions
 
 func IsNumber(v Value) bool { _, ok := v.(*NumberValue); return ok }
+// IsString performs a core operation.
 func IsString(v Value) bool { _, ok := v.(*StringValue); return ok }
+// IsBool performs a core operation.
 func IsBool(v Value) bool   { _, ok := v.(*BoolValue); return ok }
+// IsNil performs a core operation.
 func IsNil(v Value) bool    { _, ok := v.(*NilValue); return ok }
+// IsArray performs a core operation.
 func IsArray(v Value) bool  { _, ok := v.(*ArrayValue); return ok }
+// IsObject performs a core operation.
 func IsObject(v Value) bool { _, ok := v.(*ObjectValue); return ok }
 
+// ToFloat performs a core operation.
 func ToFloat(v Value) float64 {
 	switch val := v.(type) {
 	case *NumberValue:
@@ -565,6 +575,7 @@ func ToFloat(v Value) float64 {
 	return 0
 }
 
+// ToString performs a core operation.
 func ToString(v Value) string {
 	if v == nil {
 		return "Nil"
@@ -572,6 +583,7 @@ func ToString(v Value) string {
 	return v.String()
 }
 
+// ToBool performs a core operation.
 func ToBool(v Value) bool {
 	if v == nil {
 		return false
@@ -579,6 +591,7 @@ func ToBool(v Value) bool {
 	return v.IsTruthy()
 }
 
+// ValType performs a core operation.
 func ValType(v Value) string {
 	if v == nil {
 		return "U"

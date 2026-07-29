@@ -25,6 +25,7 @@ type FWFormBrowse struct {
 	Events      map[string]EventHandler
 }
 
+// BrowseColumn represents a core AdvPP type.
 type BrowseColumn struct {
 	Name     string
 	Title    string
@@ -36,6 +37,7 @@ type BrowseColumn struct {
 	Editable bool
 }
 
+// BrowseField represents a core AdvPP type.
 type BrowseField struct {
 	Name   string
 	Column string

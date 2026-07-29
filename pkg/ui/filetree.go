@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+// FileTree represents a core AdvPP type.
 type FileTree struct {
 	list       *widget.List
 	files      []string
@@ -18,6 +19,7 @@ type FileTree struct {
 	onSelect   func(string)
 }
 
+// NewFileTree performs a core operation.
 func NewFileTree() *FileTree {
 	ft := &FileTree{
 		files:      make([]string, 0),

@@ -13,6 +13,7 @@ type FWFormModel struct {
 	PrimaryKey  []string
 }
 
+// FieldDef represents a core AdvPP type.
 type FieldDef struct {
 	Name     string
 	Type     string
@@ -28,6 +29,7 @@ type FieldDef struct {
 	Picture  string
 }
 
+// ValidationRule represents a core AdvPP type.
 type ValidationRule struct {
 	Name    string
 	Message string

@@ -11,6 +11,7 @@ type ConsoleWriter struct {
 	partial string
 }
 
+// NewConsoleWriter performs a core operation.
 func NewConsoleWriter(console *OutputConsole) *ConsoleWriter {
 	return &ConsoleWriter{console: console}
 }
