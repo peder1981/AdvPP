@@ -2,6 +2,49 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.3] — 2026-07-29
+
+### Correção crítica: console real no `advplc build` — login e `FWMBrowse` não funcionavam
+
+Até esta versão, um executável standalone (`advplc build`) rodando em
+modo headless compilava e "executava" sem erro mesmo quando a interação
+real nunca acontecia: `FWGetText`/`FWMenuSelect` sem nenhum `UIProvider`
+anexado devolviam o valor default silenciosamente (uma tela de login
+"passava direto" sem pedir usuário/senha, sem imprimir nada), e
+`FWMBrowse` sempre falhava com `"requer o modo web (advplc serve)"`
+mesmo fora do modo web. Nenhum teste automatizado cobria esse caminho —
+só existia um smoke test 100%-console, sem nenhum prompt. Descoberto ao
+tentar usar um app real (e-Gov) interativamente pela primeira vez.
+
+**Corrigido:**
+- Console interativo de verdade via `TerminalUIProvider`
+  (`pkg/ui/terminal.go`, `huh`+`lipgloss`): formulários com borda, seleção
+  por seta, tema escuro fixo para não depender de uma query OSC 11 ao
+  terminal (que pode travar em ambientes que não respondem)
+- `FWMBrowse` agora renderiza no console — listagem em tabela (largura
+  adaptada ao terminal, com aviso de campos ocultos), Novo/Editar/Excluir
+  via formulário multi-campo
+- Detecção console-vs-GUI corrigida: a heurística antiga varria
+  `bc.Classes` (só classes *declaradas*, nunca detectava
+  `FWMBrowse():New()`, o padrão de uso real); agora varre o bytecode de
+  verdade (`OP_CALL_NATIVE`/`OP_NEW_INSTANCE`)
+- `ADVPP_FORCE_GUI=1`: força a janela Fyne mesmo rodando de um terminal,
+  por aplicação, sem mudar o padrão (console-se-tem-TTY) dos demais
+  programas AdvPP
+- Bug correlato em `FWMBrowse`: o fallback de colunas sem entrada no SX3
+  expunha `R_E_C_N_O_`/`R_E_C_D_E_L_` (chave interna) como campo
+  editável — um Novo/Editar sobrescrevia o próprio rowid e o
+  INSERT/UPDATE seguinte falhava com "datatype mismatch"
+
+**Teste de integração novo**: `cmd/advplc/build_standalone_interactive_test.go`
+(`TestBuildStandaloneInteractive`) builda o binário standalone, roda sob
+um PTY real e dirige login + `FWMenuSelect` + CRUD completo via
+`FWMBrowse` exatamente como uma pessoa digitando — é o teste que teria
+pego esta classe de bug antes de qualquer app real bater nela.
+
+Ver `COMPONENT_STATUS.md` → "Executável Standalone — Console/TUI" para
+detalhes.
+
 ## [2.0.1] — 2026-07-28
 
 ### Cliente HTTP Nativo com Suporte a Certificado PKCS#12
