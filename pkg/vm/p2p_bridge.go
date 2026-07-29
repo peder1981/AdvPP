@@ -239,6 +239,15 @@ func getChatBridge() (*chatBridge, error) {
 	return globalChatBridge, globalChatBridgeErr
 }
 
+// ShutdownChatBridge gracefully closes the global chat bridge instance.
+// Should be called once at program exit to clean up resources.
+func ShutdownChatBridge() error {
+	if globalChatBridge != nil {
+		return globalChatBridge.Shutdown()
+	}
+	return nil
+}
+
 func newChatBridge() (*chatBridge, error) {
 	peerID := getEnvOrDefault("ADVPP_PEER_ID", "peer-1")
 	listen := getEnvOrDefault("ADVPP_LISTEN", "127.0.0.1:9000")
@@ -448,6 +457,33 @@ func (b *chatBridge) subscribe(key string) {
 		b.send(addr, &p2p.Message{Type: "JOIN", From: b.selfAddr()})
 	}
 	_ = key // key-scoped subscriptions are out of scope for this PoC; see brief.
+}
+
+// Shutdown gracefully closes the chat bridge and releases all resources.
+// Should be called when the peer is shutting down or on program exit.
+func (b *chatBridge) Shutdown() error {
+	var errs []error
+
+	// Close transport (stops UDP listener and receive loop)
+	if b.transport != nil {
+		if err := b.transport.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("transport close: %v", err))
+		}
+	}
+
+	// Close database connection (SQLite cleanup + transaction rollback)
+	if b.db != nil {
+		if err := b.db.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("database close: %v", err))
+		}
+	}
+
+	// Report any errors during shutdown (log but don't fail)
+	if len(errs) > 0 {
+		fmt.Fprintf(os.Stderr, "[chat bridge] shutdown errors: %v\n", errs)
+		return fmt.Errorf("shutdown had %d errors", len(errs))
+	}
+	return nil
 }
 
 func chatTargetLocation(id string) float64 {

@@ -13,6 +13,8 @@ const (
 	MaxRecursionDepth = 1000
 )
 
+// Parser builds an abstract syntax tree (AST) from a token stream.
+// It enforces AdvPL/TLPP grammar rules and validates structure.
 type Parser struct {
 	tokens           []lexer.Token
 	pos              int
@@ -21,6 +23,8 @@ type Parser struct {
 	recursionDepth   int
 }
 
+// NewParser creates a new parser for the given token stream.
+// The defines map contains preprocessor defines for conditional parsing.
 func NewParser(tokens []lexer.Token, fileName string, defines map[string]string) *Parser {
 	tokens = lexer.FilterTokens(tokens)
 	return &Parser{
@@ -234,6 +238,8 @@ func (p *Parser) isStatementBoundary(tok lexer.Token) bool {
 }
 
 // Parse parses the entire program
+// Parse parses the token stream and returns an abstract syntax tree.
+// Returns an error if syntax is invalid or recursion depth is exceeded.
 func (p *Parser) Parse() (*ast.Program, error) {
 	prog := &ast.Program{
 		Loc:       ast.Position{FileName: p.fileName},

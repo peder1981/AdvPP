@@ -9,6 +9,8 @@ import (
 	"github.com/advpl/compiler/pkg/parser"
 )
 
+// Compiler generates optimized bytecode from an abstract syntax tree.
+// It tracks function contexts, loop boundaries, and symbol scopes.
 type Compiler struct {
 	bc              *Bytecode
 	funcStack       []*funcContext

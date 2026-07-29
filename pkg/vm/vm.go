@@ -68,6 +68,8 @@ type TryCatch struct {
 	StackBase   int
 }
 
+// VM is the AdvPL/TLPP virtual machine executing bytecode.
+// It maintains execution stack, call frames, native functions, and state for UI, database, and file I/O.
 type VM struct {
 	bc             *compiler.Bytecode
 	stack          []advplrt.Value
@@ -107,6 +109,8 @@ type namedArgInfo struct {
 	argIndex int // position in the args array (0-based)
 }
 
+// DBEngine interface abstracts database operations (workarea/alias navigation, field access, locking).
+// Implementations can target SQLite, in-memory tables, or Protheus native engines.
 type DBEngine interface {
 	SelectArea(alias string) error
 	Seek(key string) (bool, error)
@@ -125,6 +129,7 @@ type DBEngine interface {
 	FieldPos(field string) int
 }
 
+// UIProvider interface abstracts user interface interactions (dialogs, menus, input).
 type UIProvider interface {
 	MsgInfo(msg, title string)
 	MsgStop(msg, title string)
@@ -160,6 +165,8 @@ func newLocals(n int) []advplrt.Value {
 	return locals
 }
 
+// NewVM creates a new AdvPL/TLPP virtual machine ready to execute bytecode.
+// It initializes the execution stack, call frames, native functions, and UI/DB state.
 func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 	v := &VM{
 		bc:           bc,
@@ -182,6 +189,7 @@ func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 	return v
 }
 
+// SetDBEngine registers the database engine implementation to use for workarea/field operations.
 func (v *VM) SetDBEngine(engine DBEngine) {
 	v.dbEngine = engine
 }

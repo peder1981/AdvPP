@@ -106,6 +106,13 @@ func (v *VM) fwHTTPRequest(method string, args []advplrt.Value) (advplrt.Value, 
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
 		},
+		// Limit redirects to prevent redirect loops and SSRF attacks
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 5 {
+				return fmt.Errorf("too many redirects (max 5)")
+			}
+			return nil
+		},
 	}
 
 	var req *http.Request
