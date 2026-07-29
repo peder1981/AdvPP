@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/creack/pty"
 )
 
 // termResponder answers the terminal-capability queries bubbletea/termenv
@@ -19,43 +17,65 @@ import (
 // the cursor?") — every real terminal emulator answers these within
 // microseconds, which is why huh renders instantly for a human. A test
 // harness that never answers doesn't just render late: leftover synthetic
-// keystrokes (WriteString below) sent into that unanswered window land
-// while the pty is still in cooked mode and the query-response parser is
-// still reading, corrupting it and hanging the whole test far past
-// termenv's own 5s OSCTimeout — this is what made the very first version
-// of this test flaky/hanging in a way that took a while to pin down as a
-// harness problem rather than a product one. Responding immediately, like
-// a real terminal would, removes the race entirely instead of just
-// out-waiting it.
+// keystrokes (Write below) sent into that unanswered window land while the
+// terminal is still in cooked mode and the query-response parser is still
+// reading, corrupting it and hanging the whole test far past termenv's own
+// 5s OSCTimeout — this is what made the very first version of this test
+// flaky/hanging in a way that took a while to pin down as a harness problem
+// rather than a product one. Responding immediately, like a real terminal
+// would, removes the race entirely instead of just out-waiting it.
 type termResponder struct {
 	answeredBG     bool
 	answeredCursor bool
 }
 
-func (r *termResponder) respond(p *os.File, full *bytes.Buffer) {
+func (r *termResponder) respond(sess ptySession, full *bytes.Buffer) {
 	s := full.String()
 	if !r.answeredBG && strings.Contains(s, "\x1b]11;?") {
 		r.answeredBG = true
-		_, _ = p.WriteString("\x1b]11;rgb:1e1e/1e1e/1e1e\x1b\\")
+		_, _ = sess.Write([]byte("\x1b]11;rgb:1e1e/1e1e/1e1e\x1b\\"))
 	}
 	if !r.answeredCursor && strings.Contains(s, "\x1b[6n") {
 		r.answeredCursor = true
-		_, _ = p.WriteString("\x1b[24;1R")
+		_, _ = sess.Write([]byte("\x1b[24;1R"))
 	}
 }
 
-// ptyExpect drains p until needle appears, or the deadline passes. Every
+// readPump feeds every byte read from sess into a channel until sess is
+// closed or the read errors out. A background goroutine + channel (instead
+// of *os.File's SetReadDeadline, which ConPty's Read doesn't support) is
+// what lets ptyExpect poll with a timeout uniformly on both the POSIX pty
+// and the Windows ConPty backends.
+func readPump(sess ptySession) <-chan []byte {
+	ch := make(chan []byte, 64)
+	go func() {
+		defer close(ch)
+		buf := make([]byte, 4096)
+		for {
+			n, err := sess.Read(buf)
+			if n > 0 {
+				chunk := make([]byte, n)
+				copy(chunk, buf[:n])
+				ch <- chunk
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+	return ch
+}
+
+// ptyExpect drains reads until needle appears, or the deadline passes. Every
 // byte read is appended to full (an append-only transcript, for the final
 // assertions and failure dumps) and also to work — but on a match, work is
-// truncated to just past the match. Several needles in this test occur
-// more than once ("Selecione o registro" for both Editar and Excluir,
-// "(nenhum registro)" before the first insert and again after the
-// delete); without truncating work, the second wait would match instantly
-// against the *first* occurrence still sitting in the buffer and send its
-// input before the prompt it's meant to answer even exists yet.
-func ptyExpect(t *testing.T, p *os.File, work, full *bytes.Buffer, term *termResponder, needle string, timeout time.Duration) bool {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
+// truncated to just past the match. Several needles in this test occur more
+// than once ("Selecione o registro" for both Editar and Excluir, "(nenhum
+// registro)" before the first insert and again after the delete); without
+// truncating work, the second wait would match instantly against the
+// *first* occurrence still sitting in the buffer and send its input before
+// the prompt it's meant to answer even exists yet.
+func ptyExpect(sess ptySession, reads <-chan []byte, work, full *bytes.Buffer, term *termResponder, needle string, timeout time.Duration) bool {
 	consume := func() bool {
 		s := work.String()
 		if idx := strings.Index(s, needle); idx >= 0 {
@@ -68,21 +88,24 @@ func ptyExpect(t *testing.T, p *os.File, work, full *bytes.Buffer, term *termRes
 	if consume() {
 		return true
 	}
-	chunk := make([]byte, 4096)
-	for time.Now().Before(deadline) {
-		_ = p.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
-		n, err := p.Read(chunk)
-		if n > 0 {
-			work.Write(chunk[:n])
-			full.Write(chunk[:n])
-			term.respond(p, full)
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for {
+		select {
+		case chunk, ok := <-reads:
+			if !ok {
+				return false
+			}
+			work.Write(chunk)
+			full.Write(chunk)
+			term.respond(sess, full)
 			if consume() {
 				return true
 			}
+		case <-deadline.C:
+			return false
 		}
-		_ = err
 	}
-	return false
 }
 
 // TestBuildStandaloneInteractive is the regression test the manual
@@ -98,6 +121,12 @@ func ptyExpect(t *testing.T, p *os.File, work, full *bytes.Buffer, term *termRes
 // stdin (FWGetText returning its default with no UIProvider attached) or
 // an FWMBrowse that only worked in `advplc serve` both compiled and
 // "passed" every existing test while being unusable as an app.
+//
+// Runs on every OS the project ships for (see ptysession_posix_test.go /
+// ptysession_windows_test.go): POSIX gets a real pty via creack/pty,
+// Windows gets a real ConPty via UserExistsError/conpty (pure Go, no cgo,
+// straight over golang.org/x/sys/windows syscalls) — same test, same
+// assertions, same coverage, just a different OS API underneath.
 func TestBuildStandaloneInteractive(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builda um executável standalone e roda sob PTY; pulado com -short")
@@ -136,20 +165,17 @@ func TestBuildStandaloneInteractive(t *testing.T) {
 	}
 
 	dbPath := filepath.Join(tmpDir, "interactive_test.db")
-	runCmd := exec.Command(outPath)
-	runCmd.Env = append(os.Environ(), "ADVPP_DB="+dbPath, "TERM=xterm-256color")
+	env := append(os.Environ(), "ADVPP_DB="+dbPath, "TERM=xterm-256color")
 
-	// A real terminal always reports a size (TIOCSWINSZ) the moment it
-	// spawns a child; pty.Start alone leaves it at 0x0. huh/bubbletea
-	// don't render real content against a zero-size viewport — the form
-	// just sits there printing nothing but its "enter submit" help line
-	// forever, which looks exactly like a hang and burned a lot of time
-	// to tell apart from an actual one before this got added.
-	ptmx, err := pty.StartWithSize(runCmd, &pty.Winsize{Rows: 40, Cols: 120})
-	if err != nil {
-		t.Fatalf("pty.StartWithSize: %v", err)
-	}
-	defer ptmx.Close()
+	// A real terminal always reports a size the moment it spawns a child;
+	// an unsized pty/ConPty leaves it at 0x0. huh/bubbletea don't render
+	// real content against a zero-size viewport — the form just sits
+	// there printing nothing but its "enter submit" help line forever,
+	// which looks exactly like a hang and burned a lot of time to tell
+	// apart from an actual one before this got added.
+	sess := startPTYSession(t, outPath, env, 120, 40)
+	defer sess.Close()
+	reads := readPump(sess)
 
 	var work, full bytes.Buffer
 	term := &termResponder{}
@@ -157,7 +183,7 @@ func TestBuildStandaloneInteractive(t *testing.T) {
 		t.Fatalf("%s: não recebi o esperado a tempo.\n--- transcrição completa ---\n%s", step, full.String())
 	}
 	expect := func(needle string, timeout time.Duration) bool {
-		return ptyExpect(t, ptmx, &work, &full, term, needle, timeout)
+		return ptyExpect(sess, reads, &work, &full, term, needle, timeout)
 	}
 	// send waits a beat before writing: each huh.Form.Run() tears down raw
 	// mode when it returns and the *next* one re-enables it on its own
@@ -172,7 +198,7 @@ func TestBuildStandaloneInteractive(t *testing.T) {
 	// next key the instant a needle matches can.
 	send := func(s, label string) {
 		time.Sleep(150 * time.Millisecond)
-		if _, err := ptmx.WriteString(s); err != nil {
+		if _, err := sess.Write([]byte(s)); err != nil {
 			t.Fatalf("write %s: %v", label, err)
 		}
 	}
@@ -244,7 +270,7 @@ func TestBuildStandaloneInteractive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	waitErr := make(chan error, 1)
-	go func() { waitErr <- runCmd.Wait() }()
+	go func() { waitErr <- sess.Wait() }()
 	select {
 	case err := <-waitErr:
 		if err != nil {

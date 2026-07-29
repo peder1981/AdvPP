@@ -38,9 +38,12 @@ tentar usar um app real (e-Gov) interativamente pela primeira vez.
 
 **Teste de integração novo**: `cmd/advplc/build_standalone_interactive_test.go`
 (`TestBuildStandaloneInteractive`) builda o binário standalone, roda sob
-um PTY real e dirige login + `FWMenuSelect` + CRUD completo via
-`FWMBrowse` exatamente como uma pessoa digitando — é o teste que teria
-pego esta classe de bug antes de qualquer app real bater nela.
+um pseudo-terminal real e dirige login + `FWMenuSelect` + CRUD completo
+via `FWMBrowse` exatamente como uma pessoa digitando — é o teste que
+teria pego esta classe de bug antes de qualquer app real bater nela.
+Roda nas três plataformas do release: Linux/macOS via `creack/pty`,
+Windows via `github.com/UserExistsError/conpty` (ConPty real, Go puro,
+sem cgo) — mesmo teste, mesma cobertura nos três SOs.
 
 Ver `COMPONENT_STATUS.md` → "Executável Standalone — Console/TUI" para
 detalhes.
