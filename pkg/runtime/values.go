@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// Resource limits to prevent denial-of-service attacks (CWE-400)
+const (
+	MaxArraySize        = 1_000_000  // 1M elements per array
+	MaxObjectProperties = 10_000     // 10k properties per object
+	MaxJSONNesting      = 100        // 100 levels of nesting
+	MaxConcurrentJobs   = 1_000      // 1000 concurrent goroutines
+)
+
 // Value represents any AdvPL/TLPP runtime value (scalar, array, object, function).
 type Value interface {
 	Type() string
@@ -232,6 +240,19 @@ func NewDate(t time.Time) *DateValue { return &DateValue{Val: t} }
 // ArrayValue represents an array/table (zero-indexed collection of values).
 type ArrayValue struct{ Elements []Value }
 
+// Add appends an element to the array, enforcing size limits (CWE-400: DOS prevention).
+// Returns ErrorValue if the array exceeds MaxArraySize.
+func (a *ArrayValue) Add(elem Value) Value {
+	if a == nil {
+		return NewError("cannot add to nil array")
+	}
+	if len(a.Elements) >= MaxArraySize {
+		return NewError(fmt.Sprintf("array size limit exceeded (%d elements)", MaxArraySize))
+	}
+	a.Elements = append(a.Elements, elem)
+	return elem
+}
+
 func (a *ArrayValue) Type() string {
 	// Guard against nil receiver (CWE-476)
 	if a == nil {
@@ -337,12 +358,17 @@ type ObjectValue struct {
 }
 
 // SetProp grava uma propriedade preservando a ordem de inserção das chaves.
-// Guard against nil receiver (CWE-476).
+// Guard against nil receiver (CWE-476) and enforces property limit (CWE-400).
+// If MaxObjectProperties is exceeded (new keys only), silently returns without setting.
 func (o *ObjectValue) SetProp(key string, val Value) {
 	if o == nil {
 		return  // Cannot set property on nil object
 	}
+	// Check if adding a new key would exceed the limit (CWE-400: DoS prevention)
 	if _, exists := o.Props[key]; !exists {
+		if len(o.Props) >= MaxObjectProperties {
+			return  // Limit exceeded; silently skip new property
+		}
 		o.Keys = append(o.Keys, key)
 	}
 	o.Props[key] = val
@@ -558,4 +584,30 @@ func ValType(v Value) string {
 		return "U"
 	}
 	return v.Type()
+}
+
+// ValidateJSONDepth recursively checks JSON structure nesting depth (CWE-400: DoS prevention).
+// Returns nil if valid, or an error if max nesting depth (MaxJSONNesting) is exceeded.
+func ValidateJSONDepth(val interface{}, depth int) error {
+	if depth > MaxJSONNesting {
+		return fmt.Errorf("JSON nesting depth exceeded (max %d levels)", MaxJSONNesting)
+	}
+
+	switch v := val.(type) {
+	case map[string]interface{}:
+		// Object: recurse into each value
+		for _, nested := range v {
+			if err := ValidateJSONDepth(nested, depth+1); err != nil {
+				return err
+			}
+		}
+	case []interface{}:
+		// Array: recurse into each element
+		for _, elem := range v {
+			if err := ValidateJSONDepth(elem, depth+1); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
