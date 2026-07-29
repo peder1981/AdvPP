@@ -2,6 +2,7 @@ package lexer
 
 import "fmt"
 
+// TokenType represents the classification of a lexical token (keyword, operator, literal, etc.).
 type TokenType int
 
 const (
@@ -79,6 +80,7 @@ const (
 	TOKEN_BLOCKCOMMENT
 )
 
+// Token represents a lexical unit from source code with its position and type.
 type Token struct {
 	Type     TokenType
 	Value    string

@@ -1,5 +1,6 @@
 package compiler
 
+// Opcode enumerates all bytecode operations that the VM can execute.
 type Opcode int
 
 const (

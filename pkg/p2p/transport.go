@@ -6,6 +6,7 @@ import (
 	"net"
 )
 
+// Transport handles UDP network communication for P2P messages.
 type Transport struct {
 	conn     *net.UDPConn
 	Received chan *Message
