@@ -21,6 +21,7 @@ import (
 	"github.com/advpl/compiler/pkg/parser"
 	"github.com/advpl/compiler/pkg/preprocessor"
 	"github.com/advpl/compiler/pkg/tools/shared"
+	"github.com/advpl/compiler/pkg/ui"
 	"github.com/advpl/compiler/pkg/vm"
 	"github.com/advpl/compiler/pkg/webui"
 )
@@ -454,6 +455,14 @@ func runFile(sourceFile string, opts *Options) error {
 	}
 
 	v := vm.NewVM(bc, opts.uiEnabled)
+	// Attach a real terminal UIProvider only when stdin is an actual TTY —
+	// piped/redirected stdin (test harnesses, CI) keeps the old
+	// no-provider behavior, where FWGetText/FWMenuSelect never block and
+	// just return their default (see natives.go). Without this check,
+	// batch usage would hang forever on the first login prompt.
+	if ui.IsTerminal(os.Stdin) {
+		v.SetUIProvider(ui.NewTerminalUIProvider())
+	}
 	attachDatabase(v, opts)
 	_, err = v.Run()
 	return err
@@ -690,6 +699,14 @@ func execBytecode(bytecodeFile string, opts *Options) error {
 	}
 
 	v := vm.NewVM(bc, opts.uiEnabled)
+	// Attach a real terminal UIProvider only when stdin is an actual TTY —
+	// piped/redirected stdin (test harnesses, CI) keeps the old
+	// no-provider behavior, where FWGetText/FWMenuSelect never block and
+	// just return their default (see natives.go). Without this check,
+	// batch usage would hang forever on the first login prompt.
+	if ui.IsTerminal(os.Stdin) {
+		v.SetUIProvider(ui.NewTerminalUIProvider())
+	}
 	attachDatabase(v, opts)
 	_, err = v.Run()
 	return err

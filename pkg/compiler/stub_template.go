@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -43,36 +44,81 @@ func main() {
 		os.Exit(1)
 	}
 
-	// STEP 2: Detect if program needs UI.
-	// Console-only programs (no MSDIALOG/FWMBrowse/etc calls) should run
-	// headless and exit immediately without opening a Fyne window.
-	// The test fixture standalone_console_test.prw is 100% console.
+	// STEP 2: Detect whether the program has any interactive UI need at
+	// all. The previous version of this check scanned bc.Classes for
+	// FWFORMBROWSE/FWFORMVIEW/etc, but bc.Classes only holds
+	// user-*declared* classes (`class X from Y`); a program that just
+	// calls `FWMBrowse():New()` — every real FWMBrowse call site, e-Gov
+	// included — instantiates a builtin class directly (OP_NEW_INSTANCE)
+	// and never touches bc.Classes at all. So the heuristic silently
+	// never fired for the single most common case, and FWMBrowse always
+	// hit "requer o modo web (advplc serve)" in standalone builds no
+	// matter what the bytecode actually did. This scans the real
+	// instructions instead: OP_CALL_NATIVE for FWGetText/FWMenuSelect,
+	// OP_NEW_INSTANCE for FWMBrowse/MSDIALOG-family builtin classes.
 	hasUI := false
-	for _, fn := range bc.Functions {
-		for _, an := range fn.Annotations {
-			// Annotations like @Get/@Post indicate web UI routes
-			if an.Name == "Get" || an.Name == "Post" || an.Name == "Put" || an.Name == "Patch" || an.Name == "Delete" {
+	uiNatives := map[string]bool{"FWGETTEXT": true, "FWMENUSELECT": true}
+	uiClasses := map[string]bool{
+		"FWMBROWSE": true, "FWFORMBROWSE": true, "FWFORMVIEW": true, "FWFORMMODEL": true,
+		"FWGRIDPROCESS": true, "MSDIALOG": true,
+	}
+	for _, instr := range bc.Code {
+		switch instr.Op {
+		case compiler.OP_CALL_NATIVE:
+			if uiNatives[strings.ToUpper(instr.Str)] {
+				hasUI = true
+			}
+		case compiler.OP_NEW_INSTANCE:
+			if uiClasses[strings.ToUpper(instr.Str)] {
 				hasUI = true
 			}
 		}
+		if hasUI {
+			break
+		}
 	}
-	// Also check if bytecode references MVC classes or framework UI classes
+	// Annotations like @Get/@Post indicate web UI routes.
 	if !hasUI {
-		for className := range bc.Classes {
-			if className == "FWFORMVIEW" || className == "FWFORMMODEL" || className == "FWFORMBROWSE" ||
-				className == "FWGRIDPROCESS" || className == "LLM" || className == "MCPSERVER" ||
-				className == "WSRESTSERVER" || className == "TMAILMESSAGE" || className == "TENSOR" ||
-				className == "VARIABLE" || className == "SGD" || className == "ADAM" ||
-				className == "LINEAR" || className == "EMBEDDING" || className == "JSONOBJECT" {
-				hasUI = true
-				break
+	annotationScan:
+		for _, fn := range bc.Functions {
+			for _, an := range fn.Annotations {
+				if an.Name == "Get" || an.Name == "Post" || an.Name == "Put" || an.Name == "Patch" || an.Name == "Delete" {
+					hasUI = true
+					break annotationScan
+				}
 			}
 		}
 	}
 
-	if !hasUI || os.Getenv("ADVPP_HEADLESS_STANDALONE") != "" {
-		// Run headless — no GUI needed, just execute and exit
+	// STEP 3: Route to console or GUI. A program with no UI need at all
+	// (standalone_console_test.prw: pure ConOut, no prompts, no browse)
+	// always runs headless, TTY or not — there's nothing to interact
+	// with, so opening a window would be pure noise, and piping its
+	// stdout (`./app | tee log`, CI) must still exit on its own instead
+	// of blocking on a Fyne event loop nobody's driving. A program that
+	// DOES need UI goes to the console when launched from a real
+	// terminal (isTTY), or to Fyne otherwise (double-clicked from a file
+	// manager, no console attached). ADVPP_HEADLESS_STANDALONE forces the
+	// console path even without a TTY, for batch/CI runs that want the
+	// old no-UIProvider fast-exit behavior (see natives.go) instead of a
+	// window nobody's watching. ADVPP_FORCE_GUI does the opposite — skips
+	// the console entirely even from a real terminal — for a program
+	// whose author decided a desktop window is the better default (a
+	// wrapper script sets this per-app; it's not this stub's call to make
+	// for every AdvPP program launched from a terminal).
+	isTTY := ui.IsTerminal(os.Stdin) && os.Getenv("ADVPP_FORCE_GUI") == ""
+	if !hasUI || isTTY || os.Getenv("ADVPP_HEADLESS_STANDALONE") != "" {
+		// If stdin is a real terminal, attach a TerminalUIProvider so
+		// FWGetText/FWMenuSelect/FWMBrowse/Msg* actually work (without any
+		// UIProvider they never touch stdin at all — see natives.go — so a
+		// console app would print its banner and exit silently the instant
+		// it hit a login prompt). Piped/non-TTY stdin forced into this path
+		// via the env var above keeps the old no-provider fast-exit
+		// behavior, since there's no one there to answer a prompt.
 		v := vm.NewVM(&bc, false)
+		if isTTY {
+			v.SetUIProvider(ui.NewTerminalUIProvider())
+		}
 		v.SetDBFactory(func() vm.DBEngine {
 			dbPath := shared.ResolveDatabasePath("")
 			engine, err := db.NewSQLiteEngine(dbPath)
