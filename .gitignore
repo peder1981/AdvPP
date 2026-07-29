@@ -45,3 +45,8 @@ tests/llm/bin/
 
 # corpus de codigo derivado (gerado por build_corpus.sh)
 tests/llm/code_corpus.txt
+
+# Fuzzing corpus and results
+testdata/fuzz/
+corpus/
+*.fuzz
