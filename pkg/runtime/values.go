@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// Value represents any AdvPL/TLPP runtime value (scalar, array, object, function).
 type Value interface {
 	Type() string
 	String() string
@@ -14,7 +15,7 @@ type Value interface {
 	Equals(other Value) bool
 }
 
-// NilValue
+// NilValue represents nil/empty value.
 type NilValue struct{}
 
 func (n *NilValue) Type() string   { return "U" }
@@ -27,7 +28,7 @@ func (n *NilValue) Equals(other Value) bool {
 
 var Nil = &NilValue{}
 
-// NumberValue
+// NumberValue represents a numeric value (cached for common integers).
 type NumberValue struct{ Val float64 }
 
 func (n *NumberValue) Type() string { return "N" }
@@ -80,7 +81,7 @@ func NewNumber(v float64) *NumberValue {
 	return &NumberValue{Val: v}
 }
 
-// StringValue
+// StringValue represents a string literal.
 type StringValue struct{ Val string }
 
 func (s *StringValue) Type() string   { return "C" }
@@ -95,7 +96,7 @@ func (s *StringValue) Equals(other Value) bool {
 
 func NewString(s string) *StringValue { return &StringValue{Val: s} }
 
-// BoolValue
+// BoolValue represents a boolean value (.T. or .F.).
 type BoolValue struct{ Val bool }
 
 func (b *BoolValue) Type() string { return "L" }
