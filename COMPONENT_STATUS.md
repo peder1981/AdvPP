@@ -1,5 +1,52 @@
 # Relatório de Status dos Componentes
 
+## Executável Standalone — Console/TUI (atualizado 2026-07-29)
+
+### Status Atual: Funcional e coberto por teste de integração
+
+Até esta data, `advplc build` compilava e o binário resultante "rodava"
+sem erro mesmo quando a interação real (login, menus, `FWMBrowse`) nunca
+acontecia de fato — nenhum teste automatizado exercitava esse caminho, só
+o smoke test 100%-console (`TestBuildStandaloneSmoke`, zero prompts). Os
+dois problemas abaixo existiam desde a introdução do `build` e só foram
+descobertos ao tentar usar um app de verdade (e-Gov) interativamente:
+
+### O Que Funciona:
+- ✅ **Console interativo real** (`pkg/ui/terminal.go`, `TerminalUIProvider`):
+  `FWGetText`/`FWMenuSelect`/`Msg*` leem/escrevem no terminal de verdade
+  quando stdin é um TTY — antes, sem nenhum `UIProvider` anexado no modo
+  headless, esses natives nunca tocavam stdin e devolviam o default
+  silenciosamente (login "passava direto" sem pedir nada)
+- ✅ **TUI real via `huh`+`lipgloss`**: formulários com borda, seleção por
+  seta, tema escuro fixo (sem depender de query OSC 11 ao terminal, que
+  pode travar em ambientes que não respondem)
+- ✅ **`FWMBrowse` funciona no console**, não só em `advplc serve` —
+  listagem em tabela (largura adaptada ao terminal, com aviso de campos
+  ocultos), Novo/Editar/Excluir com formulário multi-campo
+- ✅ **Detecção console-vs-GUI corrigida**: a heurística antiga checava
+  `bc.Classes`, que só registra classes *declaradas* (`class X from Y`) —
+  nunca detectava `FWMBrowse():New()` (toda instanciação real de classe
+  builtin). Trocada por varredura real do bytecode (`OP_CALL_NATIVE` para
+  FWGetText/FWMenuSelect, `OP_NEW_INSTANCE` para FWMBrowse/MSDIALOG/etc)
+- ✅ **`ADVPP_FORCE_GUI=1`**: força a janela Fyne mesmo rodando de um
+  terminal — para um app cujo autor prefere GUI como padrão (ex.: e-Gov,
+  GesCon), sem mudar o comportamento padrão (console-se-tem-TTY) de
+  outros programas AdvPP
+- ✅ Correção de bug correlato em `FWMBrowse`: o fallback de colunas sem
+  entrada no SX3 expunha `R_E_C_N_O_`/`R_E_C_D_E_L_` (chave interna) como
+  campo editável — um Novo/Editar sobrescrevia o próprio rowid e o
+  INSERT/UPDATE seguinte falhava com "datatype mismatch"
+
+### Notas de Implementação:
+- `pkg/ui/terminal.go`: `TerminalUIProvider` (implementa `vm.UIProvider`
+  e `vm.BrowseUI`)
+- `pkg/compiler/stub_template.go`: decisão console-vs-GUI, `ADVPP_FORCE_GUI`
+- `pkg/vm/browse.go`: exclusão de `R_E_C_N_O_`/`R_E_C_D_E_L_` do fallback
+  sem SX3
+- Teste de integração real (builda o binário, roda sob PTY de verdade,
+  digita/navega/confirma exatamente como um humano): `cmd/advplc/build_standalone_interactive_test.go`
+  (`TestBuildStandaloneInteractive`), fixture `tests/standalone_interactive_test.prw`
+
 ## Componentes UI
 
 ### Status Atual: Renderização Visual Implementada

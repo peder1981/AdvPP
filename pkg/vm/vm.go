@@ -15,6 +15,11 @@ import (
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
+// debugVM gates the "[VM] ..." tracing scattered through this package —
+// development instrumentation, off by default so console/TUI apps don't
+// spam stderr with internals on every run. Set ADVPP_VM_DEBUG=1 to see it.
+var debugVM = os.Getenv("ADVPP_VM_DEBUG") != ""
+
 type SignalKind int
 
 const (
@@ -57,37 +62,37 @@ type TryCatch struct {
 }
 
 type VM struct {
-	bc           *compiler.Bytecode
-	stack        []advplrt.Value
-	frames       []*CallFrame
-	current      *CallFrame
-	natives      map[string]*advplrt.FunctionValue
-	classes      map[string]*advplrt.ClassDef
-	methodBodies map[string]interface{}
-	uiEnabled    bool
-	dbEngine     DBEngine
-	currentAlias string // último alias passado para DbSelectArea, para GetArea()/RestArea()
-	uiProvider   UIProvider
-	output       strings.Builder
-	namedArgs    []namedArgInfo // tracks named parameter info for current call
-	argCounter   int            // counts args pushed for current call
-	mvcModels    map[int]*mvc.FWFormModel
-	mvcViews     map[int]*mvc.FWFormView
-	mvcBrowses   map[int]*mvc.FWFormBrowse
-	mvcNextID    int
-	dbFactory    func() DBEngine // cria um engine próprio por job (StartJob)
-	jobs         sync.WaitGroup  // jobs em background pendentes
-	outWriter    io.Writer       // espelho opcional da saída de console (modo web)
-	curDialog    *webDialog      // MSDIALOG em construção (fase 4 do renderer web)
-	debugger     *Debugger       // hook opcional (advplc debug); nil em execução normal
-	fileHandles  map[int]*os.File // handles abertos por FOpen/FCreate
-	nextFH       int              // próximo handle a distribuir
-	lastFError   int              // último erro de IO (FError())
-	httpLastBody   string         // último corpo de resposta HTTP (FWHttpBody)
-	httpLastStatus int            // último status HTTP (FWHttpStatus)
-	httpLastError  string         // último erro HTTP (FWHttpError)
-	stdinReader  *bufio.Reader    // leitor de linha do stdin (ConIn), lazy
-	dynEnv       map[string]advplrt.Value // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
+	bc             *compiler.Bytecode
+	stack          []advplrt.Value
+	frames         []*CallFrame
+	current        *CallFrame
+	natives        map[string]*advplrt.FunctionValue
+	classes        map[string]*advplrt.ClassDef
+	methodBodies   map[string]interface{}
+	uiEnabled      bool
+	dbEngine       DBEngine
+	currentAlias   string // último alias passado para DbSelectArea, para GetArea()/RestArea()
+	uiProvider     UIProvider
+	output         strings.Builder
+	namedArgs      []namedArgInfo // tracks named parameter info for current call
+	argCounter     int            // counts args pushed for current call
+	mvcModels      map[int]*mvc.FWFormModel
+	mvcViews       map[int]*mvc.FWFormView
+	mvcBrowses     map[int]*mvc.FWFormBrowse
+	mvcNextID      int
+	dbFactory      func() DBEngine          // cria um engine próprio por job (StartJob)
+	jobs           sync.WaitGroup           // jobs em background pendentes
+	outWriter      io.Writer                // espelho opcional da saída de console (modo web)
+	curDialog      *webDialog               // MSDIALOG em construção (fase 4 do renderer web)
+	debugger       *Debugger                // hook opcional (advplc debug); nil em execução normal
+	fileHandles    map[int]*os.File         // handles abertos por FOpen/FCreate
+	nextFH         int                      // próximo handle a distribuir
+	lastFError     int                      // último erro de IO (FError())
+	httpLastBody   string                   // último corpo de resposta HTTP (FWHttpBody)
+	httpLastStatus int                      // último status HTTP (FWHttpStatus)
+	httpLastError  string                   // último erro HTTP (FWHttpError)
+	stdinReader    *bufio.Reader            // leitor de linha do stdin (ConIn), lazy
+	dynEnv         map[string]advplrt.Value // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
 }
 
 type namedArgInfo struct {
@@ -124,12 +129,12 @@ type UIProvider interface {
 	// AdvPP pra navegação entre telas em `advplc serve` (FWMenuSelect).
 	Menu(items []string, title string) int
 	// InputText pede um texto ao usuário e bloqueia até a resposta.
-		// Retorna def se o usuário cancelar. Capacidade própria do AdvPP
-		// (FWGetText), não parte da API real do Protheus. Se bIsPassword
-		// for true, o campo deve ocultar caracteres digitados (asteriscos/
-		// bolinhas). O terceiro argumento é opcional: chamadas de AdvPL sem
-		// ele recebem .F. (comportamento idêntico ao original).
-		InputText(prompt, def string, bIsPassword bool) string
+	// Retorna def se o usuário cancelar. Capacidade própria do AdvPP
+	// (FWGetText), não parte da API real do Protheus. Se bIsPassword
+	// for true, o campo deve ocultar caracteres digitados (asteriscos/
+	// bolinhas). O terceiro argumento é opcional: chamadas de AdvPL sem
+	// ele recebem .F. (comportamento idêntico ao original).
+	InputText(prompt, def string, bIsPassword bool) string
 }
 
 // newLocals aloca o slot de variáveis locais de um frame já preenchido com
@@ -287,7 +292,9 @@ func (v *VM) peek() advplrt.Value {
 
 func (v *VM) Run() (advplrt.Value, error) {
 	// Create main frame
-	fmt.Fprintf(os.Stderr, "[VM] Run() starting: MainOffset=%d, CodeLen=%d\n", v.bc.MainOffset, len(v.bc.Code))
+	if debugVM {
+		fmt.Fprintf(os.Stderr, "[VM] Run() starting: MainOffset=%d, CodeLen=%d\n", v.bc.MainOffset, len(v.bc.Code))
+	}
 	frame := &CallFrame{
 		FuncName:  "main",
 		Code:      v.bc.Code,
@@ -297,10 +304,14 @@ func (v *VM) Run() (advplrt.Value, error) {
 	}
 	v.frames = append(v.frames, frame)
 	v.current = frame
-	fmt.Fprintf(os.Stderr, "[VM] Run() frame created, about to runLoop()\n")
+	if debugVM {
+		fmt.Fprintf(os.Stderr, "[VM] Run() frame created, about to runLoop()\n")
+	}
 
 	result, err := v.runLoop()
-	fmt.Fprintf(os.Stderr, "[VM] Run() runLoop() returned: result=%v, err=%v\n", result, err)
+	if debugVM {
+		fmt.Fprintf(os.Stderr, "[VM] Run() runLoop() returned: result=%v, err=%v\n", result, err)
+	}
 
 	// Espera jobs em background (StartJob lWait=.F.) antes de encerrar —
 	// num processo CLI, sair da main mataria os jobs silenciosamente.

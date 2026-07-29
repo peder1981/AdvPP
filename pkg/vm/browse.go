@@ -3,6 +3,7 @@ package vm
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -122,9 +123,16 @@ func (v *VM) runBrowse(b *browseState) error {
 			title = b.alias
 		}
 		spec, _ := json.Marshal(browseSpec{Title: title, Alias: b.alias, Columns: cols, Items: items})
+		if debugVM {
+			fmt.Fprintf(os.Stderr, "[VM] BROWSE SPEC: %s\n", spec)
+		}
 
 		var act browseAction
-		if err := json.Unmarshal(ui.Browse(spec), &act); err != nil {
+		respBytes := ui.Browse(spec)
+		if debugVM {
+			fmt.Fprintf(os.Stderr, "[VM] BROWSE ACTION RAW: %s\n", respBytes)
+		}
+		if err := json.Unmarshal(respBytes, &act); err != nil {
 			return nil // resposta inválida/sessão encerrada: fecha o browse
 		}
 
@@ -185,7 +193,16 @@ func (v *VM) browseColumns(eng SQLEngine, alias string) ([]browseColumn, bool, e
 	if len(cols) == 0 { // sem entradas SX3: colunas físicas como caracter
 		for _, p := range phys {
 			name := strings.ToUpper(p["NAME"])
-			if name == "D_E_L_E_T_" || !identRe.MatchString(name) {
+			// R_E_C_N_O_/R_E_C_D_E_L_ são a chave interna (rowid) e o
+			// contador de exclusão lógica — nunca campos de negócio.
+			// Editáveis aqui, um Novo/Editar sobrescreve o próprio rowid
+			// com o texto digitado (ex.: "Registro A" numa coluna
+			// INTEGER PRIMARY KEY), e o INSERT/UPDATE subsequente falha
+			// com "datatype mismatch". Toda tabela com SX3 completo (as
+			// do e-Gov, EG0–EG7) nunca passa por este fallback — só
+			// aparece em tabelas sem dicionário, onde ninguém tinha
+			// notado até o teste de FWMBrowse via console pegar.
+			if name == "D_E_L_E_T_" || name == "R_E_C_N_O_" || name == "R_E_C_D_E_L_" || !identRe.MatchString(name) {
 				continue
 			}
 			cols = append(cols, browseColumn{Property: name, Label: name, Type: "C"})
