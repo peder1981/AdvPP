@@ -575,9 +575,11 @@ func (v *VM) execute(instr compiler.Instruction) error {
 	case compiler.OP_MUL:
 		return v.opBinary(func(a, b float64) float64 { return a * b }, "OPERATOR_MULT")
 	case compiler.OP_DIV:
-		return v.opBinary(func(a, b float64) float64 { return a / b }, "OPERATOR_DIV")
+		// Division with zero-divisor check (CWE-369: divide by zero)
+		return v.opDivide()
 	case compiler.OP_MOD:
-		return v.opBinary(func(a, b float64) float64 { return float64(int64(a) % int64(b)) }, "")
+		// Modulo with zero-divisor check (CWE-369: modulo by zero)
+		return v.opModulo()
 	case compiler.OP_POW:
 		return v.opBinary(math.Pow, "")
 	case compiler.OP_NEG:
@@ -628,10 +630,18 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		idx := v.pop()
 		arr := v.pop()
 		if a, ok := arr.(*advplrt.ArrayValue); ok {
+			// Guard: nil array check (CWE-476: null pointer dereference)
+			if a == nil {
+				v.push(advplrt.Nil)
+				break
+			}
 			i := int(advplrt.ToFloat(idx))
+			// Bounds checking: arrays are 1-based in AdvPL
+			// Negative index, zero, or out-of-bounds returns nil
 			if i >= 1 && i <= len(a.Elements) {
 				v.push(a.Elements[i-1])
 			} else {
+				// Out-of-bounds or negative index: return nil (graceful, no crash)
 				v.push(advplrt.Nil)
 			}
 		} else if o, ok := arr.(*advplrt.ObjectValue); ok {
@@ -653,10 +663,18 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		arr := v.pop()
 		val := v.pop()
 		if a, ok := arr.(*advplrt.ArrayValue); ok {
+			// Guard: nil array check (CWE-476: null pointer dereference)
+			if a == nil {
+				break
+			}
 			i := int(advplrt.ToFloat(idx))
+			// Bounds checking: only set if index is valid (1-based, within bounds)
+			// Negative index or out-of-bounds: silently ignore (graceful, no crash)
 			if i >= 1 && i <= len(a.Elements) {
 				a.Elements[i-1] = val
 			}
+			// Note: AdvPL arrays don't auto-extend via bracket assignment;
+			// use aSize() or aAdd() to resize.
 		} else if o, ok := arr.(*advplrt.ObjectValue); ok {
 			// Chave de bracket em JsonObject/hash: case-sensitive (semantica JSON).
 			if s, ok := idx.(*advplrt.StringValue); ok {
@@ -1154,6 +1172,55 @@ func (v *VM) opLogic(isAnd bool) error {
 	} else {
 		v.push(advplrt.NewBool(left.IsTruthy() || right.IsTruthy()))
 	}
+	return nil
+}
+
+// opDivide performs division with bounds checking for zero divisor (CWE-369: divide by zero).
+func (v *VM) opDivide() error {
+	right := v.pop()
+	left := v.pop()
+
+	// Try operator overload first
+	if result, handled := v.tryOperatorOverload(left, right, "OPERATOR_DIV"); handled {
+		v.push(result)
+		return nil
+	}
+
+	divisor := advplrt.ToFloat(right)
+
+	// Check for division by zero (CWE-369: divide by zero)
+	if divisor == 0 {
+		errVal := advplrt.NewError("division by zero")
+		return errVal
+	}
+
+	dividend := advplrt.ToFloat(left)
+	v.push(advplrt.NewNumber(dividend / divisor))
+	return nil
+}
+
+// opModulo performs modulo operation with bounds checking for zero divisor (CWE-369: modulo by zero).
+func (v *VM) opModulo() error {
+	right := v.pop()
+	left := v.pop()
+
+	// Try operator overload first
+	if result, handled := v.tryOperatorOverload(left, right, ""); handled {
+		v.push(result)
+		return nil
+	}
+
+	divisor := int64(advplrt.ToFloat(right))
+
+	// Check for modulo by zero (CWE-369: modulo by zero)
+	if divisor == 0 {
+		errVal := advplrt.NewError("modulo by zero")
+		return errVal
+	}
+
+	dividend := int64(advplrt.ToFloat(left))
+	result := dividend % divisor
+	v.push(advplrt.NewNumber(float64(result)))
 	return nil
 }
 
