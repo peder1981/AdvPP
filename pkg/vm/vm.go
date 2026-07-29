@@ -1246,6 +1246,44 @@ func (v *VM) callMethod(methodName string, argCount int) error {
 	}
 	obj := v.pop()
 
+	// Guard against nil (CWE-476: null pointer dereference)
+	if obj == nil {
+		v.namedArgs = v.namedArgs[:0]
+		v.argCounter = 0
+		return fmt.Errorf("cannot call method %s on nil value", methodName)
+	}
+
+	// Handle method calls on non-ObjectValue types (NilValue, NumberValue, etc.)
+	// These types have Value interface methods (Type, String, IsTruthy, Equals)
+	upperMethod := strings.ToUpper(methodName)
+	switch upperMethod {
+	case "TYPE":
+		v.namedArgs = v.namedArgs[:0]
+		v.argCounter = 0
+		v.push(advplrt.NewString(obj.Type()))
+		return nil
+	case "STRING", "TOSTRING":
+		v.namedArgs = v.namedArgs[:0]
+		v.argCounter = 0
+		v.push(advplrt.NewString(obj.String()))
+		return nil
+	case "ISTRUE", "ISTRUTHY":
+		v.namedArgs = v.namedArgs[:0]
+		v.argCounter = 0
+		v.push(advplrt.NewBool(obj.IsTruthy()))
+		return nil
+	case "EQUALS":
+		v.namedArgs = v.namedArgs[:0]
+		v.argCounter = 0
+		if argCount > 0 {
+			other := args[0]
+			v.push(advplrt.NewBool(obj.Equals(other)))
+		} else {
+			v.push(advplrt.False)
+		}
+		return nil
+	}
+
 	o, ok := obj.(*advplrt.ObjectValue)
 	if !ok {
 		v.namedArgs = v.namedArgs[:0]
