@@ -13,33 +13,66 @@ import (
 	"golang.org/x/crypto/pkcs12"
 )
 
+// registerHttpNatives registers HTTP client functions: FWHTTPGET, FWHTTPPOST, etc.
+// All requests use TLS 1.2+, certificate verification enabled, and 30-second timeouts.
+// Supports PKCS12 client certificates for mTLS connections.
 func (v *VM) registerHttpNatives(natives map[string]func(args []advplrt.Value) (advplrt.Value, error)) {
+	// FWHTTPGET(cURL [, cCert, cPass]) -> nStatusCode
+	// Performs HTTPS GET request with certificate validation.
 	natives["FWHTTPGET"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return v.fwHTTPRequest("GET", args)
 	}
+
+	// FWHTTPPOST(cURL, cBody, cContentType [, cCert, cPass]) -> nStatusCode
+	// Performs HTTPS POST request with certificate validation.
 	natives["FWHTTPPOST"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return v.fwHTTPRequest("POST", args)
 	}
+
+	// FWHTTPPUT(cURL, cBody, cContentType [, cCert, cPass]) -> nStatusCode
+	// Performs HTTPS PUT request with certificate validation.
 	natives["FWHTTPPUT"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return v.fwHTTPRequest("PUT", args)
 	}
+
+	// FWHTTPPATCH(cURL, cBody, cContentType [, cCert, cPass]) -> nStatusCode
+	// Performs HTTPS PATCH request with certificate validation.
 	natives["FWHTTPPATCH"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return v.fwHTTPRequest("PATCH", args)
 	}
+
+	// FWHTTPDELETE(cURL [, cCert, cPass]) -> nStatusCode
+	// Performs HTTPS DELETE request with certificate validation.
 	natives["FWHTTPDELETE"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return v.fwHTTPRequest("DELETE", args)
 	}
+
+	// FWHTTPBODY() -> cResponseBody
+	// Returns the response body from the last HTTP request.
 	natives["FWHTTPBODY"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return advplrt.NewString(v.httpLastBody), nil
 	}
+
+	// FWHTTPSTATUS() -> nStatusCode
+	// Returns the HTTP status code from the last request (0 if failed).
 	natives["FWHTTPSTATUS"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return advplrt.NewNumber(float64(v.httpLastStatus)), nil
 	}
+
+	// FWHTTPERROR() -> cErrorMessage
+	// Returns the error message from the last failed HTTP request.
 	natives["FWHTTPERROR"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return advplrt.NewString(v.httpLastError), nil
 	}
 }
 
+// fwHTTPRequest performs an HTTPS request with secure configuration.
+// Security features:
+//   - TLS 1.2+ minimum version enforced
+//   - Certificate verification enabled (OWASP A07:2021 compliant, CWE-295 fixed)
+//   - Maximum 5 redirects (prevents open redirect and SSRF attacks)
+//   - 30-second request timeout (DoS prevention)
+//   - Optional PKCS12 client certificate support for mTLS
 func (v *VM) fwHTTPRequest(method string, args []advplrt.Value) (advplrt.Value, error) {
 	v.httpLastBody = ""
 	v.httpLastStatus = 0
@@ -78,6 +111,7 @@ func (v *VM) fwHTTPRequest(method string, args []advplrt.Value) (advplrt.Value, 
 
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: false,
+		MinVersion:        tls.VersionTLS12,
 	}
 
 	if certPath != "" && certPass != "" {
