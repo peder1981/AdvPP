@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/advpl/compiler/pkg/compiler"
@@ -35,7 +36,12 @@ const (
 	MaxStackSize = 10000
 	// MaxCallFrames prevents runaway recursion
 	MaxCallFrames = 5000
+	// MaxConcurrentJobs prevents goroutine exhaustion via StartJob (CWE-400)
+	MaxConcurrentJobs = 1000
 )
+
+// activeJobsCount tracks concurrent goroutines spawned via StartJob (CWE-400: DoS prevention)
+var activeJobsCount int32
 
 type Signal struct {
 	Kind  SignalKind
@@ -390,6 +396,7 @@ func (v *VM) RunFunction(name string, args []advplrt.Value) (advplrt.Value, erro
 // própria, como um work process do Protheus). Com wait=true o chamador
 // bloqueia até o término; com wait=false roda em goroutine e o Run()
 // principal espera a conclusão antes de encerrar o processo.
+// Enforces MaxConcurrentJobs limit to prevent goroutine exhaustion (CWE-400).
 func (v *VM) StartJob(funcName string, wait bool, args []advplrt.Value) error {
 	job := NewVM(v.bc, false)
 	job.dbFactory = v.dbFactory
@@ -402,9 +409,17 @@ func (v *VM) StartJob(funcName string, wait bool, args []advplrt.Value) error {
 		return err
 	}
 
+	// Check concurrent job limit before spawning (CWE-400: DoS prevention)
+	currentCount := atomic.LoadInt32(&activeJobsCount)
+	if currentCount >= int32(MaxConcurrentJobs) {
+		return fmt.Errorf("max concurrent jobs exceeded (%d)", MaxConcurrentJobs)
+	}
+
 	v.jobs.Add(1)
+	atomic.AddInt32(&activeJobsCount, 1)
 	go func() {
 		defer v.jobs.Done()
+		defer atomic.AddInt32(&activeJobsCount, -1)
 		if _, err := job.RunFunction(funcName, args); err != nil {
 			fmt.Printf("StartJob(%s) error: %v\n", funcName, err)
 		}

@@ -747,7 +747,12 @@ func (v *VM) registerNatives() {
 				if len(args) >= 2 {
 					val = getArg(args, 1)
 				}
-				a.Elements = append(a.Elements, val)
+				// Use Add() method which enforces MaxArraySize limit (CWE-400)
+				result := a.Add(val)
+				// Check if Add returned an error (size limit exceeded)
+				if errVal, ok := result.(*advplrt.ErrorValue); ok {
+					return errVal, nil
+				}
 				return val, nil
 			}
 			return advplrt.Nil, nil
