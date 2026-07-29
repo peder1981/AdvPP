@@ -12,6 +12,7 @@ const (
 	MaxTokens = 1000000
 )
 
+// Lexer tokenizes AdvPL/TLPP source code into a stream of tokens.
 type Lexer struct {
 	source   string
 	pos      int
@@ -21,6 +22,8 @@ type Lexer struct {
 	tokens   []Token
 }
 
+// NewLexer creates a new lexer for the given source code and filename.
+// The filename is used for error reporting and debugging.
 func NewLexer(source, fileName string) *Lexer {
 	return &Lexer{
 		source:   source,
@@ -160,6 +163,8 @@ func (l *Lexer) lastTokenEndsOperand() bool {
 	return false
 }
 
+// Tokenize scans the source code and returns a slice of tokens.
+// It returns an error if the source contains invalid syntax (e.g., unclosed strings).
 func (l *Lexer) Tokenize() ([]Token, error) {
 	for l.pos < len(l.source) {
 		l.skipWhitespace()
