@@ -9,6 +9,7 @@ import (
 	"github.com/advpl/compiler/pkg/tensor"
 )
 
+// Variable represents a core AdvPP type.
 type Variable struct {
 	Value    *tensor.Tensor
 	Grad     *tensor.Tensor // acumulado; nil até receber gradiente

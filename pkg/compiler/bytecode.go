@@ -16,7 +16,9 @@ type BytecodeFile struct {
 	NumGlobals int         `json:"numGlobals"`
 }
 
+// FunctionMap represents a core AdvPP type.
 type FunctionMap map[string]*FunctionInfo
+// ClassMap represents a core AdvPP type.
 type ClassMap map[string]*ClassInfo
 
 // SaveBytecode saves bytecode to a file

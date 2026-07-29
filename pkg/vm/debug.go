@@ -43,6 +43,7 @@ type Debugger struct {
 	OnStop func(reason string, line int)
 }
 
+// NewDebugger performs a core operation.
 func NewDebugger() *Debugger {
 	return &Debugger{
 		breakpoints: make(map[int]bool),

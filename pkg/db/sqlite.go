@@ -38,6 +38,7 @@ func getTableLock(table string) *sync.Mutex {
 	return tableLocks[table]
 }
 
+// SQLiteEngine represents a core AdvPP type.
 type SQLiteEngine struct {
 	db           *sql.DB
 	alias        string
@@ -48,6 +49,7 @@ type SQLiteEngine struct {
 	recordsMutex sync.RWMutex // protect concurrent access to records slice
 }
 
+// NewSQLiteEngine performs a core operation.
 func NewSQLiteEngine(dbPath string) (*SQLiteEngine, error) {
 	db, err := shared.OpenSQLite(dbPath)
 	if err != nil {

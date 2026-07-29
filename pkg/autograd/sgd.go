@@ -6,6 +6,7 @@ type SGD struct {
 	lr     float32
 }
 
+// NewSGD performs a core operation.
 func NewSGD(params []*Variable, lr float32) *SGD {
 	return &SGD{params: params, lr: lr}
 }

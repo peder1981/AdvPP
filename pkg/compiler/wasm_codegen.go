@@ -7,6 +7,7 @@ import (
 	"fmt"
 )
 
+// WasmModule represents a core AdvPP type.
 type WasmModule []byte
 
 // CompileToWasm takes AdvPL source and returns a minimal valid WASM module.

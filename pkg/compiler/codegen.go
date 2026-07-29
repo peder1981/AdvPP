@@ -75,6 +75,7 @@ func (c *Compiler) addUpval(fc *funcContext, name string, d UpvalDesc) (int, boo
 	return idx, true
 }
 
+// New performs a core operation.
 func New() *Compiler {
 	return &Compiler{
 		bc: &Bytecode{
@@ -89,6 +90,7 @@ func New() *Compiler {
 	}
 }
 
+// Compile performs a core operation.
 func Compile(program *ast.Program) (*Bytecode, error) {
 	c := New()
 	if err := c.compileProgram(program); err != nil {

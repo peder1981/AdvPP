@@ -821,11 +821,13 @@ func (l *Lexer) tokenizeOperator(line, col int) error {
 	return fmt.Errorf("unexpected character %q at %s:%d:%d", ch, l.fileName, line, col)
 }
 
+// Tokenize performs a core operation.
 func Tokenize(source, fileName string) ([]Token, error) {
 	l := NewLexer(source, fileName)
 	return l.Tokenize()
 }
 
+// FilterTokens performs a core operation.
 func FilterTokens(tokens []Token) []Token {
 	result := make([]Token, 0, len(tokens))
 	for _, t := range tokens {

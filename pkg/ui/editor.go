@@ -196,6 +196,7 @@ type CodeEditor struct {
 	modified bool
 }
 
+// NewCodeEditor performs a core operation.
 func NewCodeEditor() *CodeEditor {
 	e := &CodeEditor{}
 

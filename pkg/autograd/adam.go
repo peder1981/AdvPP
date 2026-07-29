@@ -14,6 +14,7 @@ type Adam struct {
 	m, v            []*tensor.Tensor
 }
 
+// NewAdam performs a core operation.
 func NewAdam(params []*Variable, lr float32) *Adam {
 	m := make([]*tensor.Tensor, len(params))
 	v := make([]*tensor.Tensor, len(params))

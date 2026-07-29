@@ -6,13 +6,16 @@ import (
 	"math/rand"
 )
 
+// Peer represents a core AdvPP type.
 type Peer interface {
 	GetID() string
 	GetLocation() float64
 }
 
+// Replicator represents a core AdvPP type.
 type Replicator struct{}
 
+// NewReplicator performs a core operation.
 func NewReplicator() *Replicator {
 	return &Replicator{}
 }

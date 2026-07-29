@@ -5,18 +5,21 @@ import (
 	"time"
 )
 
+// Subscription represents a core AdvPP type.
 type Subscription struct {
 	PeerID    string
 	StartedAt time.Time
 	ExpiresAt time.Time
 }
 
+// SubscriptionTree represents a core AdvPP type.
 type SubscriptionTree struct {
 	mu            sync.RWMutex
 	contractKey   string
 	subscriptions map[string]*Subscription
 }
 
+// NewSubscriptionTree performs a core operation.
 func NewSubscriptionTree(contractKey string) *SubscriptionTree {
 	return &SubscriptionTree{
 		contractKey:   contractKey,

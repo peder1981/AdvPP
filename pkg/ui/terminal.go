@@ -22,6 +22,7 @@ import (
 // stdin at all — they just hand back the zero value).
 type TerminalUIProvider struct{}
 
+// NewTerminalUIProvider performs a core operation.
 func NewTerminalUIProvider() *TerminalUIProvider {
 	// lipgloss otherwise auto-detects light/dark by querying the terminal
 	// (OSC 11) and blocking for the reply. Real terminal emulators answer

@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// Preprocessor represents a core AdvPP type.
 type Preprocessor struct {
 	includePaths []string
 	defines      map[string]string
@@ -24,6 +25,7 @@ type Preprocessor struct {
 	RootBoundaryLine int
 }
 
+// NewPreprocessor performs a core operation.
 func NewPreprocessor(includePaths []string) *Preprocessor {
 	return &Preprocessor{
 		includePaths: includePaths,
