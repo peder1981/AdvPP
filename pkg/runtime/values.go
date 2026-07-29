@@ -125,6 +125,7 @@ func NewBool(b bool) *BoolValue {
 }
 
 // DateValue
+// DateValue represents a date/time value (DD/MM/YYYY format).
 type DateValue struct{ Val time.Time }
 
 func (d *DateValue) Type() string   { return "D" }
@@ -137,9 +138,10 @@ func (d *DateValue) Equals(other Value) bool {
 	return false
 }
 
+// NewDate creates a date value from a time.Time.
 func NewDate(t time.Time) *DateValue { return &DateValue{Val: t} }
 
-// ArrayValue
+// ArrayValue represents an array/table (zero-indexed collection of values).
 type ArrayValue struct{ Elements []Value }
 
 func (a *ArrayValue) Type() string { return "A" }
@@ -166,9 +168,10 @@ func (a *ArrayValue) Equals(other Value) bool {
 	return false
 }
 
+// NewArray creates an array value from a slice of values.
 func NewArray(elements []Value) *ArrayValue { return &ArrayValue{Elements: elements} }
 
-// CodeBlockValue
+// CodeBlockValue represents an executable code block/closure {|| ... }.
 type CodeBlockValue struct {
 	Params   []string
 	Body     interface{}
@@ -184,7 +187,7 @@ func (c *CodeBlockValue) Equals(other Value) bool {
 	return c == other
 }
 
-// ObjectValue
+// ObjectValue represents an object instance with properties and methods.
 type ObjectValue struct {
 	ClassName string
 	Props     map[string]Value
@@ -232,7 +235,7 @@ func NewObject(className string, class *ClassDef) *ObjectValue {
 	}
 }
 
-// FunctionValue
+// FunctionValue represents a callable native function.
 type FunctionValue struct {
 	Name string
 	Fn   func(args []Value) (Value, error)
@@ -245,7 +248,7 @@ func (f *FunctionValue) Equals(other Value) bool {
 	return f == other
 }
 
-// ErrorValue
+// ErrorValue represents an error/exception with stack trace.
 type ErrorValue struct {
 	Description string
 	Severity    string
@@ -262,11 +265,12 @@ func (e *ErrorValue) Equals(other Value) bool {
 }
 func (e *ErrorValue) Error() string { return e.Description }
 
+// NewError creates an error value with the given description.
 func NewError(desc string) *ErrorValue {
 	return &ErrorValue{Description: desc, Severity: "ERROR", ClassName: "ErrorClass"}
 }
 
-// ClassDef
+// ClassDef defines a class structure with properties and methods.
 type ClassDef struct {
 	Name       string
 	Parent     string
@@ -274,6 +278,7 @@ type ClassDef struct {
 	Methods    map[string]*MethodDef
 }
 
+// MethodDef defines a method within a class.
 type MethodDef struct {
 	Name       string
 	ClassName  string
@@ -282,6 +287,7 @@ type MethodDef struct {
 	ReturnExpr interface{}
 }
 
+// ParamDef defines a parameter in a method or function signature.
 type ParamDef struct {
 	Name string
 	Type string
