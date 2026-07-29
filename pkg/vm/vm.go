@@ -397,29 +397,48 @@ func (v *VM) RunFunction(name string, args []advplrt.Value) (advplrt.Value, erro
 // bloqueia até o término; com wait=false roda em goroutine e o Run()
 // principal espera a conclusão antes de encerrar o processo.
 // Enforces MaxConcurrentJobs limit to prevent goroutine exhaustion (CWE-400).
+// StartJob executes a function asynchronously or synchronously based on wait flag.
+// Implements goroutine limit (MaxConcurrentJobs) to prevent resource exhaustion (CWE-362, CWE-400).
+// For async jobs: increments counter before spawning, decrements in defer to ensure cleanup.
+// Thread-safe via atomic operations to prevent goroutine leaks.
 func (v *VM) StartJob(funcName string, wait bool, args []advplrt.Value) error {
+	if wait {
+		// Synchronous execution: no goroutine spawning
+		job := NewVM(v.bc, false)
+		job.dbFactory = v.dbFactory
+		if v.dbFactory != nil {
+			job.dbEngine = v.dbFactory()
+		}
+		_, err := job.RunFunction(funcName, args)
+		return err
+	}
+
+	// Asynchronous execution: check limit BEFORE creating VM to prevent resource leaks
+	// (CWE-400: Uncontrolled Resource Consumption)
+	currentCount := atomic.LoadInt32(&activeJobsCount)
+	if currentCount >= int32(MaxConcurrentJobs) {
+		return fmt.Errorf("max concurrent jobs exceeded (%d)", MaxConcurrentJobs)
+	}
+
+	// Try to increment counter; if it would exceed limit after increment, fail immediately
+	// (prevents race where multiple goroutines all see the same stale count)
+	newCount := atomic.AddInt32(&activeJobsCount, 1)
+	if newCount > int32(MaxConcurrentJobs) {
+		atomic.AddInt32(&activeJobsCount, -1) // Undo the increment
+		return fmt.Errorf("max concurrent jobs exceeded (%d)", MaxConcurrentJobs)
+	}
+
+	// Now safe to create VM and spawn goroutine
 	job := NewVM(v.bc, false)
 	job.dbFactory = v.dbFactory
 	if v.dbFactory != nil {
 		job.dbEngine = v.dbFactory()
 	}
 
-	if wait {
-		_, err := job.RunFunction(funcName, args)
-		return err
-	}
-
-	// Check concurrent job limit before spawning (CWE-400: DoS prevention)
-	currentCount := atomic.LoadInt32(&activeJobsCount)
-	if currentCount >= int32(MaxConcurrentJobs) {
-		return fmt.Errorf("max concurrent jobs exceeded (%d)", MaxConcurrentJobs)
-	}
-
 	v.jobs.Add(1)
-	atomic.AddInt32(&activeJobsCount, 1)
 	go func() {
 		defer v.jobs.Done()
-		defer atomic.AddInt32(&activeJobsCount, -1)
+		defer atomic.AddInt32(&activeJobsCount, -1) // Always decrement on exit
 		if _, err := job.RunFunction(funcName, args); err != nil {
 			fmt.Printf("StartJob(%s) error: %v\n", funcName, err)
 		}

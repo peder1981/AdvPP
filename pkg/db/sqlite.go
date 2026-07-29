@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 	"github.com/advpl/compiler/pkg/tools/shared"
@@ -19,12 +20,32 @@ type columnInfo struct {
 	sqlType string
 }
 
+// Global table locks (per-table semaphores) to implement RecLock/MsUnlock
+// CWE-362: Race Condition prevention
+var (
+	tableLocksMu sync.Mutex
+	tableLocks   = make(map[string]*sync.Mutex)
+)
+
+// getTableLock returns or creates a per-table mutex for concurrent record access
+func getTableLock(table string) *sync.Mutex {
+	tableLocksMu.Lock()
+	defer tableLocksMu.Unlock()
+
+	if _, exists := tableLocks[table]; !exists {
+		tableLocks[table] = &sync.Mutex{}
+	}
+	return tableLocks[table]
+}
+
 type SQLiteEngine struct {
-	db      *sql.DB
-	alias   string
-	columns []columnInfo
-	records []map[string]advplrt.Value
-	current int
+	db           *sql.DB
+	alias        string
+	columns      []columnInfo
+	records      []map[string]advplrt.Value
+	current      int
+	isLocked     bool        // whether RecLock was called (lock held)
+	recordsMutex sync.RWMutex // protect concurrent access to records slice
 }
 
 func NewSQLiteEngine(dbPath string) (*SQLiteEngine, error) {
@@ -138,7 +159,12 @@ func (e *SQLiteEngine) Seek(key string) (bool, error) {
 	return false, nil
 }
 
+// Skip moves the record pointer by count records
+// Thread-safe via read-write lock (CWE-362)
 func (e *SQLiteEngine) Skip(count int) error {
+	e.recordsMutex.Lock()
+	defer e.recordsMutex.Unlock()
+
 	if len(e.records) == 0 {
 		return nil
 	}
@@ -154,27 +180,52 @@ func (e *SQLiteEngine) Skip(count int) error {
 	return nil
 }
 
+// GoTop moves the record pointer to the first record
+// Thread-safe via read-write lock (CWE-362)
 func (e *SQLiteEngine) GoTop() error {
+	e.recordsMutex.Lock()
+	defer e.recordsMutex.Unlock()
+
 	e.current = 0
 	return nil
 }
 
+// GoBottom moves the record pointer to the last record
+// Thread-safe via read-write lock (CWE-362)
 func (e *SQLiteEngine) GoBottom() error {
+	e.recordsMutex.Lock()
+	defer e.recordsMutex.Unlock()
+
 	if len(e.records) > 0 {
 		e.current = len(e.records) - 1
 	}
 	return nil
 }
 
+// EOF returns true if record pointer is past end of records
+// Thread-safe via read-only lock (CWE-362)
 func (e *SQLiteEngine) EOF() bool {
+	e.recordsMutex.RLock()
+	defer e.recordsMutex.RUnlock()
+
 	return e.current >= len(e.records)
 }
 
+// BOF returns true if record pointer is before beginning of records
+// Thread-safe via read-only lock (CWE-362)
 func (e *SQLiteEngine) BOF() bool {
+	e.recordsMutex.RLock()
+	defer e.recordsMutex.RUnlock()
+
 	return e.current < 0
 }
 
+// FieldGet safely retrieves a field value from the current record
+// Uses read-write lock for thread-safe concurrent access (CWE-362)
 func (e *SQLiteEngine) FieldGet(field string) (advplrt.Value, error) {
+	e.recordsMutex.RLock()
+	defer e.recordsMutex.RUnlock()
+
 	if e.current < 0 || e.current >= len(e.records) {
 		return advplrt.Nil, nil
 	}
@@ -187,7 +238,13 @@ func (e *SQLiteEngine) FieldGet(field string) (advplrt.Value, error) {
 	return advplrt.Nil, nil
 }
 
+// FieldPut safely sets a field value in the current record
+// Must be preceded by RecLock() to prevent concurrent modifications (CWE-362)
+// Uses read-write lock for thread-safe concurrent access
 func (e *SQLiteEngine) FieldPut(field string, val advplrt.Value) error {
+	e.recordsMutex.Lock()
+	defer e.recordsMutex.Unlock()
+
 	if e.current < 0 || e.current >= len(e.records) {
 		return fmt.Errorf("no current record")
 	}
@@ -197,22 +254,62 @@ func (e *SQLiteEngine) FieldPut(field string, val advplrt.Value) error {
 	return nil
 }
 
+// RecLock locks the current record in the current work area.
+// Implements per-table semaphore to prevent concurrent modifications (CWE-362: Race Condition).
+// Returns error if no record is current or already locked.
 func (e *SQLiteEngine) RecLock() error {
-	// In a real implementation, this would lock the record
+	// Validate that we have a current record
+	e.recordsMutex.RLock()
+	if e.current < 0 || e.current >= len(e.records) {
+		e.recordsMutex.RUnlock()
+		return fmt.Errorf("RecLock: no current record")
+	}
+	e.recordsMutex.RUnlock()
+
+	if e.isLocked {
+		return fmt.Errorf("RecLock: record already locked")
+	}
+
+	// Acquire table-level lock to serialize access to this table
+	tableLock := getTableLock(e.alias)
+	tableLock.Lock()
+	e.isLocked = true
 	return nil
 }
 
-// MsUnlock grava o registro corrente no banco via UPDATE — fecha o ciclo
-// DbAppend/RecLock -> FieldPut (via alias->campo) -> MsUnlock. Antes desta
-// correção, era um no-op: toda mutação via FieldPut ficava só em memória e
-// se perdia ao fechar o processo.
+// MsUnlock releases the record lock and persists changes to the database via UPDATE.
+// Completes the DbAppend/RecLock -> FieldPut (via alias->campo) -> MsUnlock cycle.
+// Before this fix, it was a no-op: all mutations via FieldPut stayed in memory and were lost.
+// Now: atomic UPDATE writes changes to disk; lock is released for other work areas.
+// CWE-362: Race Condition prevention via per-table semaphore
 func (e *SQLiteEngine) MsUnlock() error {
+	if !e.isLocked {
+		// Not locked, nothing to unlock
+		return nil
+	}
+
+	e.recordsMutex.RLock()
 	if e.current < 0 || e.current >= len(e.records) {
+		e.recordsMutex.RUnlock()
+		e.isLocked = false
+
+		// Release table-level lock
+		tableLock := getTableLock(e.alias)
+		tableLock.Unlock()
+
 		return nil
 	}
 	record := e.records[e.current]
+	e.recordsMutex.RUnlock()
+
 	recno, ok := record["R_E_C_N_O_"]
 	if !ok {
+		e.isLocked = false
+
+		// Release table-level lock
+		tableLock := getTableLock(e.alias)
+		tableLock.Unlock()
+
 		return fmt.Errorf("MsUnlock: registro sem R_E_C_N_O_")
 	}
 
@@ -229,6 +326,12 @@ func (e *SQLiteEngine) MsUnlock() error {
 
 	query := fmt.Sprintf("UPDATE %s SET %s WHERE R_E_C_N_O_ = ?", e.alias, strings.Join(setClauses, ", "))
 	_, err := e.db.Exec(query, vals...)
+
+	// Always release lock, even if UPDATE failed
+	e.isLocked = false
+	tableLock := getTableLock(e.alias)
+	tableLock.Unlock()
+
 	return err
 }
 
@@ -253,9 +356,10 @@ func valueToSQL(v advplrt.Value) any {
 	}
 }
 
-// Append insere um registro em branco de verdade (valores tipo-apropriados
-// pela coluna: numérico 0, texto "") e posiciona nele — DbAppend() no
-// AdvPL. Antes desta correção era um no-op: RecCount() não mudava.
+// Append inserts a blank record (with type-appropriate default values)
+// and positions to it — DbAppend() in AdvPL.
+// Thread-safe via write lock (CWE-362)
+// Before this fix, it was a no-op: RecCount() didn't change.
 func (e *SQLiteEngine) Append() error {
 	if e.alias == "" || len(e.columns) == 0 {
 		return fmt.Errorf("DbAppend: nenhuma área selecionada")
@@ -299,6 +403,10 @@ func (e *SQLiteEngine) Append() error {
 		return err
 	}
 	blank["R_E_C_N_O_"] = advplrt.NewNumber(float64(newRecno))
+
+	e.recordsMutex.Lock()
+	defer e.recordsMutex.Unlock()
+
 	e.records = append(e.records, blank)
 	e.current = len(e.records) - 1
 	return nil
@@ -316,11 +424,21 @@ func (e *SQLiteEngine) FieldPos(field string) int {
 	return 0
 }
 
+// RecCount returns the total number of records in the current work area
+// Thread-safe via read-only lock (CWE-362)
 func (e *SQLiteEngine) RecCount() int {
+	e.recordsMutex.RLock()
+	defer e.recordsMutex.RUnlock()
+
 	return len(e.records)
 }
 
+// RecNo returns the current record number (1-based)
+// Thread-safe via read-only lock (CWE-362)
 func (e *SQLiteEngine) RecNo() int {
+	e.recordsMutex.RLock()
+	defer e.recordsMutex.RUnlock()
+
 	return e.current + 1
 }
 
