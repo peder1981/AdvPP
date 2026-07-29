@@ -22,6 +22,10 @@ func (n *NilValue) Type() string   { return "U" }
 func (n *NilValue) String() string { return "Nil" }
 func (n *NilValue) IsTruthy() bool { return false }
 func (n *NilValue) Equals(other Value) bool {
+	// Guard against nil interface (CWE-476: null pointer dereference)
+	if other == nil {
+		return true  // nil == nil
+	}
 	_, ok := other.(*NilValue)
 	return ok
 }
@@ -31,15 +35,35 @@ var Nil = &NilValue{}
 // NumberValue represents a numeric value (cached for common integers).
 type NumberValue struct{ Val float64 }
 
-func (n *NumberValue) Type() string { return "N" }
+func (n *NumberValue) Type() string {
+	// Guard against nil receiver (CWE-476)
+	if n == nil {
+		return "U"
+	}
+	return "N"
+}
 func (n *NumberValue) String() string {
+	// Guard against nil receiver (CWE-476)
+	if n == nil {
+		return "Nil"
+	}
 	if n.Val == math.Trunc(n.Val) && !math.IsInf(n.Val, 0) {
 		return fmt.Sprintf("%d", int64(n.Val))
 	}
 	return fmt.Sprintf("%g", n.Val)
 }
-func (n *NumberValue) IsTruthy() bool { return n.Val != 0 }
+func (n *NumberValue) IsTruthy() bool {
+	// Guard against nil receiver (CWE-476)
+	if n == nil {
+		return false
+	}
+	return n.Val != 0
+}
 func (n *NumberValue) Equals(other Value) bool {
+	// Guard against nil receiver and parameter (CWE-476)
+	if n == nil || other == nil {
+		return n == other
+	}
 	if o, ok := other.(*NumberValue); ok {
 		return n.Val == o.Val
 	}
@@ -84,10 +108,32 @@ func NewNumber(v float64) *NumberValue {
 // StringValue represents a string literal.
 type StringValue struct{ Val string }
 
-func (s *StringValue) Type() string   { return "C" }
-func (s *StringValue) String() string { return s.Val }
-func (s *StringValue) IsTruthy() bool { return len(s.Val) > 0 }
+func (s *StringValue) Type() string {
+	// Guard against nil receiver (CWE-476)
+	if s == nil {
+		return "U"
+	}
+	return "C"
+}
+func (s *StringValue) String() string {
+	// Guard against nil receiver (CWE-476)
+	if s == nil {
+		return "Nil"
+	}
+	return s.Val
+}
+func (s *StringValue) IsTruthy() bool {
+	// Guard against nil receiver (CWE-476)
+	if s == nil {
+		return false
+	}
+	return len(s.Val) > 0
+}
 func (s *StringValue) Equals(other Value) bool {
+	// Guard against nil receiver and parameter (CWE-476)
+	if s == nil || other == nil {
+		return s == other
+	}
 	if o, ok := other.(*StringValue); ok {
 		return s.Val == o.Val
 	}
@@ -99,15 +145,35 @@ func NewString(s string) *StringValue { return &StringValue{Val: s} }
 // BoolValue represents a boolean value (.T. or .F.).
 type BoolValue struct{ Val bool }
 
-func (b *BoolValue) Type() string { return "L" }
+func (b *BoolValue) Type() string {
+	// Guard against nil receiver (CWE-476)
+	if b == nil {
+		return "U"
+	}
+	return "L"
+}
 func (b *BoolValue) String() string {
+	// Guard against nil receiver (CWE-476)
+	if b == nil {
+		return "Nil"
+	}
 	if b.Val {
 		return ".T."
 	}
 	return ".F."
 }
-func (b *BoolValue) IsTruthy() bool { return b.Val }
+func (b *BoolValue) IsTruthy() bool {
+	// Guard against nil receiver (CWE-476)
+	if b == nil {
+		return false
+	}
+	return b.Val
+}
 func (b *BoolValue) Equals(other Value) bool {
+	// Guard against nil receiver and parameter (CWE-476)
+	if b == nil || other == nil {
+		return b == other
+	}
 	if o, ok := other.(*BoolValue); ok {
 		return b.Val == o.Val
 	}
@@ -128,10 +194,32 @@ func NewBool(b bool) *BoolValue {
 // DateValue represents a date/time value (DD/MM/YYYY format).
 type DateValue struct{ Val time.Time }
 
-func (d *DateValue) Type() string   { return "D" }
-func (d *DateValue) String() string { return d.Val.Format("02/01/2006") }
-func (d *DateValue) IsTruthy() bool { return !d.Val.IsZero() }
+func (d *DateValue) Type() string {
+	// Guard against nil receiver (CWE-476)
+	if d == nil {
+		return "U"
+	}
+	return "D"
+}
+func (d *DateValue) String() string {
+	// Guard against nil receiver (CWE-476)
+	if d == nil {
+		return "Nil"
+	}
+	return d.Val.Format("02/01/2006")
+}
+func (d *DateValue) IsTruthy() bool {
+	// Guard against nil receiver (CWE-476)
+	if d == nil {
+		return false
+	}
+	return !d.Val.IsZero()
+}
 func (d *DateValue) Equals(other Value) bool {
+	// Guard against nil receiver and parameter (CWE-476)
+	if d == nil || other == nil {
+		return d == other
+	}
 	if o, ok := other.(*DateValue); ok {
 		return d.Val.Equal(o.Val)
 	}
@@ -144,21 +232,51 @@ func NewDate(t time.Time) *DateValue { return &DateValue{Val: t} }
 // ArrayValue represents an array/table (zero-indexed collection of values).
 type ArrayValue struct{ Elements []Value }
 
-func (a *ArrayValue) Type() string { return "A" }
+func (a *ArrayValue) Type() string {
+	// Guard against nil receiver (CWE-476)
+	if a == nil {
+		return "U"
+	}
+	return "A"
+}
 func (a *ArrayValue) String() string {
+	// Guard against nil receiver (CWE-476)
+	if a == nil {
+		return "Nil"
+	}
 	parts := make([]string, len(a.Elements))
 	for i, e := range a.Elements {
-		parts[i] = e.String()
+		if e != nil {
+			parts[i] = e.String()
+		} else {
+			parts[i] = "Nil"
+		}
 	}
 	return "{" + strings.Join(parts, ", ") + "}"
 }
-func (a *ArrayValue) IsTruthy() bool { return len(a.Elements) > 0 }
+func (a *ArrayValue) IsTruthy() bool {
+	// Guard against nil receiver (CWE-476)
+	if a == nil {
+		return false
+	}
+	return len(a.Elements) > 0
+}
 func (a *ArrayValue) Equals(other Value) bool {
+	// Guard against nil receiver and parameter (CWE-476)
+	if a == nil || other == nil {
+		return a == other
+	}
 	if o, ok := other.(*ArrayValue); ok {
 		if len(a.Elements) != len(o.Elements) {
 			return false
 		}
 		for i := range a.Elements {
+			if a.Elements[i] == nil && o.Elements[i] == nil {
+				continue
+			}
+			if a.Elements[i] == nil || o.Elements[i] == nil {
+				return false
+			}
 			if !a.Elements[i].Equals(o.Elements[i]) {
 				return false
 			}
@@ -180,10 +298,32 @@ type CodeBlockValue struct {
 	Upvalues []*Value // closures: ponteiros para os slots capturados do frame envolvente
 }
 
-func (c *CodeBlockValue) Type() string   { return "B" }
-func (c *CodeBlockValue) String() string { return "{|| ... }" }
-func (c *CodeBlockValue) IsTruthy() bool { return true }
+func (c *CodeBlockValue) Type() string {
+	// Guard against nil receiver (CWE-476)
+	if c == nil {
+		return "U"
+	}
+	return "B"
+}
+func (c *CodeBlockValue) String() string {
+	// Guard against nil receiver (CWE-476)
+	if c == nil {
+		return "Nil"
+	}
+	return "{|| ... }"
+}
+func (c *CodeBlockValue) IsTruthy() bool {
+	// Guard against nil receiver (CWE-476)
+	if c == nil {
+		return false
+	}
+	return true
+}
 func (c *CodeBlockValue) Equals(other Value) bool {
+	// Guard against nil receiver and parameter (CWE-476)
+	if c == nil || other == nil {
+		return c == other
+	}
 	return c == other
 }
 
@@ -197,7 +337,11 @@ type ObjectValue struct {
 }
 
 // SetProp grava uma propriedade preservando a ordem de inserção das chaves.
+// Guard against nil receiver (CWE-476).
 func (o *ObjectValue) SetProp(key string, val Value) {
+	if o == nil {
+		return  // Cannot set property on nil object
+	}
 	if _, exists := o.Props[key]; !exists {
 		o.Keys = append(o.Keys, key)
 	}
@@ -206,7 +350,11 @@ func (o *ObjectValue) SetProp(key string, val Value) {
 
 // DelProp remove uma propriedade de Props e de Keys, mantendo os dois em
 // sincronia (contraparte de SetProp). Retorna false se a chave não existia.
+// Guard against nil receiver (CWE-476).
 func (o *ObjectValue) DelProp(key string) bool {
+	if o == nil {
+		return false  // Cannot delete property from nil object
+	}
 	if _, exists := o.Props[key]; !exists {
 		return false
 	}
@@ -220,10 +368,32 @@ func (o *ObjectValue) DelProp(key string) bool {
 	return true
 }
 
-func (o *ObjectValue) Type() string   { return "O" }
-func (o *ObjectValue) String() string { return fmt.Sprintf("Object:%s", o.ClassName) }
-func (o *ObjectValue) IsTruthy() bool { return true }
+func (o *ObjectValue) Type() string {
+	// Guard against nil receiver (CWE-476)
+	if o == nil {
+		return "U"
+	}
+	return "O"
+}
+func (o *ObjectValue) String() string {
+	// Guard against nil receiver (CWE-476)
+	if o == nil {
+		return "Nil"
+	}
+	return fmt.Sprintf("Object:%s", o.ClassName)
+}
+func (o *ObjectValue) IsTruthy() bool {
+	// Guard against nil receiver (CWE-476)
+	if o == nil {
+		return false
+	}
+	return true
+}
 func (o *ObjectValue) Equals(other Value) bool {
+	// Guard against nil receiver and parameter (CWE-476)
+	if o == nil || other == nil {
+		return o == other
+	}
 	return o == other
 }
 
@@ -241,10 +411,32 @@ type FunctionValue struct {
 	Fn   func(args []Value) (Value, error)
 }
 
-func (f *FunctionValue) Type() string   { return "F" }
-func (f *FunctionValue) String() string { return fmt.Sprintf("Function:%s", f.Name) }
-func (f *FunctionValue) IsTruthy() bool { return true }
+func (f *FunctionValue) Type() string {
+	// Guard against nil receiver (CWE-476)
+	if f == nil {
+		return "U"
+	}
+	return "F"
+}
+func (f *FunctionValue) String() string {
+	// Guard against nil receiver (CWE-476)
+	if f == nil {
+		return "Nil"
+	}
+	return fmt.Sprintf("Function:%s", f.Name)
+}
+func (f *FunctionValue) IsTruthy() bool {
+	// Guard against nil receiver (CWE-476)
+	if f == nil {
+		return false
+	}
+	return true
+}
 func (f *FunctionValue) Equals(other Value) bool {
+	// Guard against nil receiver and parameter (CWE-476)
+	if f == nil || other == nil {
+		return f == other
+	}
 	return f == other
 }
 
@@ -257,13 +449,41 @@ type ErrorValue struct {
 	GenCode     int
 }
 
-func (e *ErrorValue) Type() string   { return "O" }
-func (e *ErrorValue) String() string { return e.Description }
-func (e *ErrorValue) IsTruthy() bool { return true }
+func (e *ErrorValue) Type() string {
+	// Guard against nil receiver (CWE-476)
+	if e == nil {
+		return "U"
+	}
+	return "O"
+}
+func (e *ErrorValue) String() string {
+	// Guard against nil receiver (CWE-476)
+	if e == nil {
+		return "Nil"
+	}
+	return e.Description
+}
+func (e *ErrorValue) IsTruthy() bool {
+	// Guard against nil receiver (CWE-476)
+	if e == nil {
+		return false
+	}
+	return true
+}
 func (e *ErrorValue) Equals(other Value) bool {
+	// Guard against nil receiver and parameter (CWE-476)
+	if e == nil || other == nil {
+		return e == other
+	}
 	return e == other
 }
-func (e *ErrorValue) Error() string { return e.Description }
+func (e *ErrorValue) Error() string {
+	// Guard against nil receiver (CWE-476)
+	if e == nil {
+		return "Nil"
+	}
+	return e.Description
+}
 
 // NewError creates an error value with the given description.
 func NewError(desc string) *ErrorValue {
