@@ -3,11 +3,16 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 	"github.com/advpl/compiler/pkg/tools/shared"
 )
+
+// identRe validates identifier names (table names, column names, etc)
+// to prevent SQL injection. Only allows alphanumeric chars and underscore.
+var identRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 
 type columnInfo struct {
 	name    string
@@ -60,6 +65,11 @@ func (e *SQLiteEngine) loadColumns() error {
 
 func (e *SQLiteEngine) SelectArea(alias string) error {
 	e.alias = strings.ToUpper(alias)
+
+	// Validate alias to prevent SQL injection (CWE-89, OWASP A03:2021)
+	if !identRe.MatchString(e.alias) {
+		return fmt.Errorf("invalid table name: %q", e.alias)
+	}
 
 	if err := e.loadColumns(); err != nil {
 		return err

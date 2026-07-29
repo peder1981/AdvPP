@@ -211,6 +211,9 @@ func (v *VM) browseColumns(eng SQLEngine, alias string) ([]browseColumn, bool, e
 	return cols, hasDelete, nil
 }
 
+// browseItems reads all records from the table with the selected columns.
+// Uses parameterized queries for field values to prevent SQL injection (CWE-89, OWASP A03:2021).
+// Table names (alias) are validated by caller before invocation.
 func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete bool) ([]map[string]any, error) {
 	names := make([]string, len(cols))
 	for i, c := range cols {
@@ -250,6 +253,9 @@ func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete boo
 	return items, nil
 }
 
+// browseSave inserts or updates a record via parameterized queries.
+// Table names (alias) are validated by caller before invocation.
+// Uses ? placeholders for all field values to prevent SQL injection (CWE-89, OWASP A03:2021).
 func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete bool, act browseAction) error {
 	names := []string{}
 	vals := []any{}
@@ -286,6 +292,9 @@ func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete bool
 	return eng.Exec(fmt.Sprintf("UPDATE %s SET %s WHERE rowid = ?", alias, strings.Join(sets, ", ")), vals...)
 }
 
+// browseDelete deletes a record via soft-delete or hard-delete.
+// Table names (alias) are validated by caller before invocation.
+// Uses parameterized queries (rowid = ?) to prevent SQL injection (CWE-89, OWASP A03:2021).
 func browseDelete(eng SQLEngine, alias string, hasDelete bool, recno int64) error {
 	if recno == 0 {
 		return nil
