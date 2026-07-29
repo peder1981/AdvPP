@@ -694,3 +694,162 @@ tokens e os idiomas algorítmicos do corpus e gera código plausível enviesado 
 mas **não raciocina nem resolve problemas novos de leetcode** (isso exige um LLM grande
 pré-treinado). A "habilidade em lógica" vem do corpus curado + token-level, não de
 capacidade de raciocínio. Escala com corpus/k/H maiores e mais camadas.
+
+## Limitações Conhecidas
+
+### REST API: Anotações vs. DSL Clássico
+
+**Status:** Anotações `@Get`/`@Post`/`@Put`/`@Patch`/`@Delete` sobre `User Function` são **totalmente suportadas** com dispatch HTTP real. O DSL clássico `WSRESTFUL <nome> ... WSMETHOD <verbo> PATH "..." ... ENDWSRESTFUL` é **apenas parseado** — reconhecido sintaticamente, mas não executado.
+
+**Motivo:** O DSL clássico liga a implementação do método a uma instância de classe (`WSSERVICE`), enquanto o dispatch HTTP via `WSRestServer:Serve()` só pode chamar funções top-level. Reescrever para ambos exigiria cirurgia de parser + mecanismo de dispatch novo sem caso de uso nos corpora validados.
+
+**Solução:** Use anotações ou registre manualmente com `AddRoute`:
+```advpl
+@Get("/clientes/{id}")
+User Function GetCliente(oParam)
+    // ...
+Return oResult
+
+User Function RestDemo()
+    Local oRest := WSRestServer():New("api", "1.0")
+    // Anotação acima auto-registra; ou registre manualmente:
+    oRest:AddRoute("GET", "/status", "GetStatus")
+    oRest:Serve(8080)
+Return
+```
+
+### Locks de Registro (RecLock/MsUnlock)
+
+**Status:** `RecLock()` e `MsUnlock()` implementam **semáforos por tabela** desde a v2.0.3 — **não são mais no-ops**. Cada alias tem um semáforo exclusivo que garante acesso serial ao mesmo registro em `WaitRecno()`.
+
+**Limitação:** Semáforos são **intra-VM** — protegem threads dentro de um único processo `advplc`. Aplicações multi-processo (ex.: múltiplas instâncias de `advplc` num servidor de apps) **não** veem os locks um do outro — o banco SQLite usa `busy_timeout` e WAL mode para evitar contenção, mas sem consenso distribuído, a concorrência inter-processo é arriscada para operações ACID fortes.
+
+**Recomendação:** Para produção multi-processo, implemente locks no banco (ex.: uma tabela de semáforos) ou use `GetMV` para coordenar via variáveis de sistema Protheus (se disponível).
+
+### Modo Console Interativo (CLI)
+
+**Status:** `advplc build programa.prw` sobe um executável com **interface interativa de verdade** se detectar operações de terminal (`FWGetText`, `FWMenuSelect`, `ConIn`, formulários `MSDIALOG`, `FWMBrowse`).
+
+**Detecção:** Varre o bytecode em busca de `OP_CALL_NATIVE` a UI natives e `OP_NEW_INSTANCE` de componentes (FWMBrowse, MSDIALOG). Ambientes headless/sem TTY usam dialogs PO-UI em modo silencioso (nenhuma interação real).
+
+**Forçar GUI:** `ADVPP_FORCE_GUI=1 ./programa` força renderização Fyne mesmo em terminal — útil para apps que preferem GUI como padrão (e-Gov, GesCon).
+
+Exemplo:
+```bash
+advplc build meu_app.prw -o meu_app
+./meu_app                            # Interativo se stdin for TTY
+ADVPP_FORCE_GUI=1 ./meu_app          # Força janela Fyne
+```
+
+### Motor LLM: Limitações de Modelo
+
+**Status:** Classe `LLM` carrega modelos GGUF quantizados **apenas em I2_S** (ternário: -1/0/+1, estilo BitNet/Falcon3-1.58bit).
+
+**Limitações:**
+- Quantização: Só **I2_S** suportado; F16/F32 não funcionam
+- Streaming: Não há suporte a streaming de token; `Generate()` **bloqueia** até terminar
+- Tokenizer: Pré-built na .gguf; não há suporte a tokenizers dinâmicos
+- Modelos: Arquitetura deve ser `llama` com pesos I2_S — outras arquiteturas (Qwen, Mistral, etc.) e quantizações (Q4_K, Q6_K) causam erro
+
+**Alternativa:** Para F16/F32 ou streaming, use uma API externa (ex.: Ollama local com `FWHttpPost`).
+
+### Tensor: Precisão Float32 vs Float64
+
+**Status:** `Tensor` suporta **float32 (default) e float64 (optativo)** por instância.
+
+**Padrão:** Float32 (rápido, para ML) é o tipo padrão. Float64 entra sob demanda para cálculo exato (álgebra linear, geometria). As operações respeitam dtype e promovem para float64 se qualquer operando for f64.
+
+Exemplo:
+```advpl
+Local oA := Tensor():New({2,2}, "float64")
+Local oB := oA:Add(Tensor():New({2,2}))  // promocão: resultado é f64
+```
+
+### Autodiff + Treino: Apenas Forward + SGD
+
+**Status:** Classe `Variable` implementa **forward pass + reverse-mode autodiff + otimizador SGD**.
+
+**Limitações:**
+- Softmax + Cross-Entropy: Classe `Variable` não implementa ainda; use `Tensor:SoftmaxCE()` para perda de classificação (sem backward diferenciável neste ciclo)
+- Otimizadores: Apenas **SGD** fornecido; Adam foi adicionado posteriormente (v1.9.0+)
+- Módulos: Suporte básico a `Linear` e `Embedding`; não há Convolução, RNN, Transformer
+- Batch: Forward/backward por exemplo; batches são do usuário (loop manual)
+
+**Roadmap:** Softmax/CE diferenciável, Adam, módulos complexos vêm em ciclos futuros.
+
+### Treinamento Neural (pt_neural.prw): Pequeno Modelo
+
+**Status:** LM neural char-level treinado 100% com Autodiff/SGD em AdvPL puro (`pt_neural.prw`).
+
+**Limitações:**
+- **Tamanho:** Modelo pequeno (embedding dim 50, hidden 200); em corpus pequeno pode overfitar
+- **Coerência:** Em corpus complexo (e.g., _Dom Casmurro_ em prosa literária), gera morfologia correta mas coerência limitada — n-grama local não captura dependências longas
+- **Velocidade:** VM interpretada + float em AdvPL = lento; treino de 1 época em corpus 72k tokens leva ~30–90s
+- **Sem generalização:** Modelo pequeno em corpus finito tende a decorar + aprender padrão; não generaliza a problemas novos
+
+Ressalva: Prova de conceito que treino real funciona; não é um LLM produção.
+
+### Tratamento de Eventos em MVC
+
+**Status:** `FWFormModel`, `FWFormView`, `FWFormBrowse` definem **manipuladores de eventos** (onChange, onClick, onGotFocus, onLostFocus, onLineChange, onDbClick, onHeaderClick).
+
+**Limitação:** Manipuladores são **parseados e armazenados** no bytecode, mas **não conectados à VM** — eventos de clique/foco/seleção do usuário não disparam os callbacks.
+
+**Impacto:** Aplicações MVC renderizam visualmente (Fyne) e aceitam input de usuário (formulários, grids), mas lógica de validação/ação de evento deve ficar no `StartJob` que roda a UI (polling ou callback manual).
+
+**Status:** ⚠️ Parcialmente implementado; execução de evento vem num ciclo futuro.
+
+### HTTP: Timeouts e Limites
+
+**Status:** Classe `FWHttp*` e cliente HTTP nativo implementam:
+- Timeout: **30 segundos** por requisição (bloqueante)
+- Redirecionamentos: Máximo **5 redirects** (evita loops)
+- TLS: Verificação de certificado **habilitada** (erro em cert inválido, self-signed não é aceito sem config extra)
+
+**Implicação:** URLs com redirect chain >5 falham; serviços com cert self-signed requerem workaround (desabilitar verificação explicitamente via variável de ambiente ou config).
+
+### Servidor Standalone: Detecção Console-vs-GUI
+
+**Status:** Binários standalone (`advplc build`) detectam automaticamente se devem usar console (TTY) ou GUI (Fyne).
+
+**Heurística:** Varre bytecode em busca de UI natives (`FWGetText`, `FWMenuSelect`, diálogos). Se achados, sobe GUI Fyne; caso contrário, console puro.
+
+**Caso de borda:** Apps que usam only `ConOut` e `ConIn` (sem diálogos) rodamem console mesmo com stdin desacoplado (ex.: em cron ou daemon) — nenhuma interação ocorre, só logs silent. Use `ADVPP_FORCE_GUI=1` se quiser GUI mesmo sem UI natives detectadas.
+
+### Contagem de Funções Nativas
+
+**Claim:** README diz "~200+" funções nativas; **Real:** 243 funções implementadas (medido em `pkg/vm/natives.go`).
+
+**Nota:** Muitas são stubs/no-ops (ex.: `FWCLEARHLP`, `HELP`, `MSDOCUMENT`). A contagem ~200+ é aproximada por design; detalhes em `GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md`.
+
+### Tabela de Opcodes
+
+**Status:** 88 opcodes implementados na VM (0–87).
+
+**Documentação:** `GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` seção 4.3 documenta opcodes com mapeamento 0–88 completo, nomes, descrições e efeito de stack.
+
+Consulte `docs/GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` para tabela detalhada e exemplos de cada opcode.
+
+### Resource Limits (Proteção contra DoS)
+
+**Status:** AdvPP v2.0.3 impõe limites duros de recurso (CWE-400 Uncontrolled Resource Consumption):
+
+| Limite | Valor | Controle |
+|--------|-------|----------|
+| Profundidade de recursão (parser) | 1000 | `recursionDepth++` |
+| Tamanho de string | 10 MB | `len(s) > 10MB` → erro |
+| Tamanho de stack da VM | 10000 frames | `len(stack)` |
+| Call frames | 5000 | `len(callStack)` |
+| Goroutines via `StartJob` | 1000 concurrent | `activeJobsCount` |
+| Tamanho de array | 1M elementos | `len(a) > 1M` → erro |
+| Timeout LLM `Generate()` | 5 minutos | `context.WithTimeout` |
+| Timeout I/O (arquivos) | 30 segundos | `context.WithTimeout` |
+| Timeout HTTP | 30 segundos | `http.Client.Timeout` |
+
+Ultrapassar esses limites retorna erro capturável via `Try/Catch` ou falha gracefully (sem crash).
+
+### Versão da Extensão VS Code
+
+**Status:** Extensão AdvPL/TLPP (marketplace + `.vsix` em Releases) é **v2.0.3** a partir de 2026-07-29.
+
+**Incluída:** Compilador AdvPP embutido (linux-x64, linux-arm64, win32-x64, darwin-arm64); F5 e F9 para run/debug.
