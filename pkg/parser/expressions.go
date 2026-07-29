@@ -3325,6 +3325,10 @@ func (p *Parser) parseExprStatement() (ast.Statement, error) {
 // --- Expression parsing (Pratt precedence) ---
 
 func (p *Parser) parseExpression() (ast.Expression, error) {
+	if err := p.checkRecursionDepth(); err != nil {
+		return nil, err
+	}
+	defer p.decreaseRecursionDepth()
 	return p.parseOr()
 }
 
