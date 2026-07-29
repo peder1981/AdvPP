@@ -2,6 +2,7 @@ package advplrt
 
 import "fmt"
 
+// Environment holds variable bindings for a scope (function, block, etc.).
 type Environment struct {
 	variables  map[string]Value
 	parent     *Environment
@@ -9,6 +10,7 @@ type Environment struct {
 	isFunction bool
 }
 
+// NewEnvironment creates a new environment with the given parent.
 func NewEnvironment(parent *Environment) *Environment {
 	return &Environment{
 		variables:  make(map[string]Value),
@@ -18,6 +20,7 @@ func NewEnvironment(parent *Environment) *Environment {
 	}
 }
 
+// NewFunctionEnv creates a new environment for a function scope.
 func NewFunctionEnv() *Environment {
 	return &Environment{
 		variables:  make(map[string]Value),
