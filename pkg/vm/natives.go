@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -1755,17 +1754,18 @@ func (v *VM) registerNatives() {
 		},
 
 		// --- Chamada de sistema ---
-		// WaitRun(cCmd): executa o comando no shell do SO, herda stdio, espera e
+		// WaitRun(cCmd): executa o comando sem shell, herda stdio, espera e
 		// retorna o exit code (0 = sucesso). Redirecione para arquivo + MemoRead
 		// para capturar a saida.
+		// Uses exec.Command without shell interpretation to prevent command injection (CWE-78, OWASP A03:2021).
+		// Note: Shell operators (|, >, <, &&, ||) are NOT supported.
 		"WAITRUN": func(args []advplrt.Value) (advplrt.Value, error) {
 			cmdStr := getArgString(args, 0, "")
-			var cmd *exec.Cmd
-			if runtime.GOOS == "windows" {
-				cmd = exec.Command("cmd", "/c", cmdStr)
-			} else {
-				cmd = exec.Command("sh", "-c", cmdStr)
+			parts := strings.Fields(cmdStr)
+			if len(parts) == 0 {
+				return advplrt.NewNumber(1), nil
 			}
+			cmd := exec.Command(parts[0], parts[1:]...)
 			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 			if err := cmd.Run(); err != nil {
 				if ee, ok := err.(*exec.ExitError); ok {
