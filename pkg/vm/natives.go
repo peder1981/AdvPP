@@ -191,23 +191,39 @@ func (v *VM) registerNatives() {
 		"SUBSTR": func(args []advplrt.Value) (advplrt.Value, error) {
 			s := advplrt.ToString(getArg(args, 0))
 			start := int(advplrt.ToFloat(getArg(args, 1)))
+
+			// Bounds checking: clamp negative start to 1 (AdvPL behavior)
 			if start < 1 {
 				start = 1
 			}
+
 			if len(args) >= 3 {
 				length := int(advplrt.ToFloat(getArg(args, 2)))
+
+				// Bounds checking: if start beyond string, return empty
 				if start > len(s) {
 					return advplrt.NewString(""), nil
 				}
+
+				// Bounds checking: clamp end to string length
 				end := start - 1 + length
 				if end > len(s) {
 					end = len(s)
 				}
+
+				// Safety: ensure end >= start-1 (if length <= 0, return empty)
+				if end <= start-1 {
+					return advplrt.NewString(""), nil
+				}
+
 				return advplrt.NewString(s[start-1 : end]), nil
 			}
+
+			// Bounds checking: if start beyond string, return empty
 			if start > len(s) {
 				return advplrt.NewString(""), nil
 			}
+
 			return advplrt.NewString(s[start-1:]), nil
 		},
 		"STUFF": func(args []advplrt.Value) (advplrt.Value, error) {
@@ -215,16 +231,28 @@ func (v *VM) registerNatives() {
 			start := int(advplrt.ToFloat(getArg(args, 1)))
 			count := int(advplrt.ToFloat(getArg(args, 2)))
 			repl := advplrt.ToString(getArg(args, 3))
+
+			// Bounds checking: clamp negative start to 1
 			if start < 1 {
 				start = 1
 			}
+
+			// Bounds checking: if start beyond string, append replacement
 			if start > len(s) {
 				return advplrt.NewString(s + repl), nil
 			}
+
+			// Bounds checking: clamp end to string length
 			end := start - 1 + count
 			if end > len(s) {
 				end = len(s)
 			}
+
+			// Ensure end >= start-1 (prevent negative slice)
+			if end < start-1 {
+				end = start - 1
+			}
+
 			return advplrt.NewString(s[:start-1] + repl + s[end:]), nil
 		},
 		"LEN": func(args []advplrt.Value) (advplrt.Value, error) {
@@ -240,20 +268,38 @@ func (v *VM) registerNatives() {
 		"AT": func(args []advplrt.Value) (advplrt.Value, error) {
 			search := advplrt.ToString(getArg(args, 0))
 			s := advplrt.ToString(getArg(args, 1))
-			idx := strings.Index(s, search)
-			if idx == -1 {
+
+			// Bounds checking: empty search string is typically invalid
+			// AdvPL behavior: return 0 for empty search
+			if search == "" {
 				return advplrt.NewNumber(0), nil
 			}
-			return advplrt.NewNumber(float64(idx + 1)), nil
+
+			// Search for substring (case-sensitive, 1-based index)
+			idx := strings.Index(s, search)
+			if idx == -1 {
+				return advplrt.NewNumber(0), nil  // Not found
+			}
+
+			return advplrt.NewNumber(float64(idx + 1)), nil  // 1-based index
 		},
 		"RAT": func(args []advplrt.Value) (advplrt.Value, error) {
 			search := advplrt.ToString(getArg(args, 0))
 			s := advplrt.ToString(getArg(args, 1))
-			idx := strings.LastIndex(s, search)
-			if idx == -1 {
+
+			// Bounds checking: empty search string is typically invalid
+			// AdvPL behavior: return 0 for empty search
+			if search == "" {
 				return advplrt.NewNumber(0), nil
 			}
-			return advplrt.NewNumber(float64(idx + 1)), nil
+
+			// Search for last occurrence of substring (case-sensitive, 1-based index)
+			idx := strings.LastIndex(s, search)
+			if idx == -1 {
+				return advplrt.NewNumber(0), nil  // Not found
+			}
+
+			return advplrt.NewNumber(float64(idx + 1)), nil  // 1-based index
 		},
 		"UPPER": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewString(strings.ToUpper(advplrt.ToString(getArg(args, 0)))), nil
@@ -801,7 +847,15 @@ func (v *VM) registerNatives() {
 		},
 		"ADEL": func(args []advplrt.Value) (advplrt.Value, error) {
 			if a, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
+				// Guard: nil array check (CWE-476: null pointer dereference)
+				if a == nil {
+					return advplrt.Nil, nil
+				}
+
 				idx := int(advplrt.ToFloat(getArg(args, 1)))
+
+				// Bounds checking: only delete if index is valid (1-based)
+				// Negative index or out-of-bounds: silently ignore (graceful, no crash)
 				if idx >= 1 && idx <= len(a.Elements) {
 					a.Elements = append(a.Elements[:idx-1], a.Elements[idx:]...)
 				}
@@ -810,7 +864,15 @@ func (v *VM) registerNatives() {
 		},
 		"AINS": func(args []advplrt.Value) (advplrt.Value, error) {
 			if a, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
+				// Guard: nil array check (CWE-476: null pointer dereference)
+				if a == nil {
+					return advplrt.Nil, nil
+				}
+
 				idx := int(advplrt.ToFloat(getArg(args, 1)))
+
+				// Bounds checking: only insert if index is valid (1-based, <= len+1)
+				// Negative index or out-of-bounds: silently ignore (graceful, no crash)
 				if idx >= 1 && idx <= len(a.Elements)+1 {
 					a.Elements = append(a.Elements, advplrt.Nil)
 					copy(a.Elements[idx:], a.Elements[idx-1:])
