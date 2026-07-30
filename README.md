@@ -747,7 +747,7 @@ Ressalva: Prova de conceito que treino real funciona; não é um LLM produção.
 
 **Documentação:** `GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` seção 4.3 documenta opcodes com mapeamento 0–88 completo, nomes, descrições e efeito de stack.
 
-Consulte `docs/GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` para tabela detalhada e exemplos de cada opcode.
+Consulte `./GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` para tabela detalhada e exemplos de cada opcode.
 
 ### Resource Limits (Proteção contra DoS)
 
