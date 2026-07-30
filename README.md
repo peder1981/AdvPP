@@ -222,7 +222,7 @@ oBrowse := FWFormBrowse("CustomerBrowse", oModel)
 - Suporte a diálogos (diálogos, menus, barras de ferramentas, barras de status)
 - Eventos de browse (onLineChange, onDbClick, onHeaderClick)
 
-**Nota**: Componentes UI agora renderizam visualmente usando Fyne. Manipuladores de eventos são definidos mas ainda não conectados às ações do usuário.
+**Nota:** Componentes MVC renderizam visualmente usando Fyne. Manipuladores de eventos são **parseados e armazenados** no bytecode mas **não conectados à VM** — eventos de clique/foco/seleção do usuário não disparam os callbacks por enquanto. Usar polling ou callbacks manuais para lógica de validação/ação.
 
 ### Exemplo
 ```advpl
@@ -319,7 +319,7 @@ A IDE gráfica fornece:
 - **Integração de Build**: Comandos Compilar, Executar e Compilar & Executar
 - **Console de Saída**: Mostra resultados de compilação e saída do programa
 - **Suporte a Diálogos**: Funções MsgInfo, MsgStop, MsgAlert e MsgYesNo exibem diálogos Fyne
-- **100% de Compatibilidade**: Todos os componentes MVC, renderização UI e recursos funcionam perfeitamente na IDE
+- **Renderização MVC**: Componentes FWFormModel, FWFormView, FWFormBrowse renderizam visualmente via Fyne (event handling parcial)
 
 ## Suporte de Linguagem
 
@@ -370,7 +370,7 @@ autenticação TLS mútua (ex.: Emissor Nacional NFS-e, bancos, SEFAZ).
 | `FWHttpError()` | Mensagem de erro da última requisição |
 
 Timeout de 30s por requisição. TLS com verificação de certificado habilitada.
-Exemplo completo em `TDN_FUNCTIONS.md` e teste de integração em `tests/http_native_test.prw`.
+Teste de integração: `cmd/advplc/http_native_test.go` (validado com requisições HTTP reais).
 
 ## Funções de I/O, arquivo e sistema
 
@@ -567,14 +567,13 @@ Estatística sobre arrays: `Mean(a)`, `Variance(a)`, `StdDev(a)` (amostrais), `M
 ## Autodiff e treino
 
 Sobre o núcleo de Tensor, a classe `Variable` grava um tape de operações e
-`Backward()` propaga gradientes (reverse-mode autodiff). Com o otimizador `SGD`
-dá pra TREINAR um modelo float — o AdvPL orquestra o laço; o Go faz forward e
-backward.
+`Backward()` propaga gradientes (reverse-mode autodiff). Otimizadores `SGD` e `Adam`
+permitem treinar modelos float — o AdvPL orquestra o laço; o Go faz forward e backward.
 
 ```advpl
 Local oW  := Variable():FromArray(aPesos, {nIn, nOut})
 Local oB  := Variable():FromArray(aBias, {nOut})
-Local oOpt := SGD():New({oW, oB}, 0.05)
+Local oOpt := Adam():New({oW, oB}, 0.001)  // Adam optimizer (v1.9.0+)
 // laço de treino:
 Local oPred := oX:MatMul(oW):Add(oB):Relu()
 Local oLoss := oPred:MSE(oY)
@@ -583,117 +582,37 @@ oLoss:Backward()          // preenche oW:Grad(), oB:Grad()
 oOpt:Step()               // oW := oW - lr*grad
 ```
 
-Ops diferenciáveis: `MatMul`, `Add` (com broadcast), `Mul`, `Relu`, `Sum`, `Mean`,
-`MSE`. `oV:Value()`/`oV:Grad()` devolvem o `Tensor` de valor/gradiente. Este ciclo
-entrega o motor + SGD; softmax/cross-entropy, Adam, embedding e módulos vêm nos
-próximos ciclos. Corretude validada por verificação numérica de gradiente
-(diferenças finitas) no `go test`.
+**Ops diferenciáveis:** `MatMul`, `Add` (com broadcast), `Mul`, `Relu`, `Sum`, `Mean`,
+`MSE`, `Tanh`, `Sigmoid`, `Gelu`, `IndexRows` (embedding). `oV:Value()`/`oV:Grad()` devolvem o `Tensor` de valor/gradiente.
+Corretude validada por verificação numérica de gradiente (diferenças finitas) no `go test`.
 
-Loss de classificação e otimizador robusto: `oLoss := oLogits:SoftmaxCE(aAlvo)`
-(softmax + cross-entropy, alvo por índices de classe); `Adam():New(aParams, nLR)`
-(`Step`/`ZeroGrad`). Ativações diferenciáveis `Tanh`/`Sigmoid`/`Gelu` e `IndexRows`
-(embedding, com backward scatter-add). Ver `tests/classifier_demo.prw`.
+**Loss de classificação:** `oLoss := oLogits:SoftmaxCE(aAlvo)` (softmax + cross-entropy, alvo por índices de classe — adicionado v1.9.0+).
 
-Módulos e trainer: `Linear():New(nIn, nOut)` e `Embedding():New(nVocab, nDim)`
-encapsulam parâmetros + `Forward`; `oMod:Params()` devolve os pesos para o
-otimizador; `Fit(bPasso, nEpocas)` roda o laço de treino avaliando um codeblock por
-época. Assim dá para definir e treinar um modelo em poucas linhas — ver
-`tests/nn_demo.prw`.
+**Módulos:** `Linear():New(nIn, nOut)` e `Embedding():New(nVocab, nDim)` encapsulam parâmetros + `Forward`; `oMod:Params()` devolve os pesos para o otimizador; `Fit(bPasso, nEpocas)` roda o laço de treino avaliando um codeblock por época (adicionado v1.9.0+).
 
 ## Exemplos de IA em AdvPL puro
 
-Modelos escritos **inteiramente em AdvPL** (rodam com `advplc run <arq>`, cada um
-com auto-teste), reunidos em **`tests/llm/`**. Diferente da classe `LLM` — que
-carrega um GGUF pronto — aqui o modelo é construído na própria linguagem.
+**Planejado para v2.1.** Modelos escritos inteiramente em AdvPL (Markov chains, retrieval-based Q&A, ternary neural networks, gradient-trained LMs) com exemplos em `tests/llm/`. Este ciclo entrega o motor (LLM, Tensor, autodiff) e os frameworks de treino; exemplos de código AdvPL rodam prototipados em Go tests (`cmd/advplc/*_test.go`) e migrarão para AdvPL exemplos em v2.1.
 
-| Arquivo | O que é | Lê / Responde |
-|---------|---------|---------------|
-| `tests/llm/pt_llm.prw` | Cadeia de **Markov** de ordem variável em nível de byte (ordens 1–6, backoff) | Lê o prompt e **continua** o texto em PT-BR |
-| `tests/llm/pt_chat.prw` | Respondedor por **recuperação**: normaliza (minúsculas + sem acento), tokeniza, descarta stopwords e pontua uma base de conhecimento por sobreposição de palavras | Lê a pergunta e **responde** com o item mais relevante (REPL via `ConIn`) |
-| `tests/llm/pt_nn.prw` | **Híbrido Markov + rede neural ternária** (ELM) com **janela longa** (entrada e saída até 4096 tokens): contexto local posicional + bag long-context, perceptron médio, suavização interpolada e amostragem nucleus | Lê um seed de até 4096 tokens e gera um **documento multi-frase** de até 4096 tokens |
-| `tests/llm/pt_neural.prw` | **LM neural char-level treinado por gradiente** (NPLM estilo Bengio): `Embedding → Reshape → Linear → Tanh → Linear → SoftmaxCE`, treinado com **Adam via `Fit`** sobre `corpus.txt` — o único que **aprende os pesos por backprop**, 100% sobre o stack de ML do AdvPP (S2+S3) | Lê um seed e gera texto PT-BR char-a-char por amostragem com temperatura |
-| `tests/llm/dev_nn.prw` | **LM neural de código AdvPL, token-level** (dev-oriented): lexer AdvPL próprio → NPLM sobre tokens (vocab top-N + `<unk>`), treinado no código do repo + `algos_advpl.prw`. Gera/completa código AdvPL; tem **REPL de autocomplete** | Lê um prefixo AdvPL e continua gerando código token a token |
-| `tests/llm/algos_advpl.prw` | **Biblioteca de 25 algoritmos** (lógica/leetcode/script) em AdvPL puro: ordenação, busca, recursão, strings, DP (troca de moedas, LCS), Kadane, two-sum, FizzBuzz… cada um testável | Auto-teste com asserts (`OK: todos passaram`); serve de corpus de código |
+### LM Neural Treinado por Gradiente
 
-O `tests/llm/pt_nn.prw` é o "topo" do que se treina e roda **sem sair do AdvPL**. A
-projeção ternária e a saída perceptron são multiply-free (via `MatVecTern`); o
-aprendizado é medível (os erros do perceptron caem a cada passada); o Markov
-interpolado dá o prior local enquanto a rede, com o **bag long-context** (janela
-de até 4096 tokens, mantida incrementalmente em O(1) amortizado), condiciona a
-geração. Algoritmos modernos: **perceptron médio** (Collins 2002), **suavização
-interpolada** (Jelinek-Mercer), **amostragem nucleus** (top-p), **vocabulário
-limitado** por frequência (top-N + `<unk>`) e **amostra de treino por stride** —
-os dois últimos deixam o custo do treino limitado, independente do tamanho do
-corpus. Gera **documentos multi-frase** de até 4096 tokens a partir de um seed de
-até 4096 tokens.
-
-Não é uma rede de ponto flutuante nem um transformer — atenção real sobre 4096
-tokens exigiria float (inviável multiply-free em AdvPL); o bag é a aproximação de
-custo limitado. É o limite honesto do que a linguagem permite treinar e executar
-por conta própria. A qualidade e o contexto útil escalam com o corpus: forneça um
-`corpus.txt` grande (carregado automaticamente via `MemoRead`).
-
-O `corpus.txt` incluído é **_Dom Casmurro_ de Machado de Assis** (domínio
-público, via [Project Gutenberg](https://www.gutenberg.org/ebooks/55752)),
-~72 mil tokens — treina em ~30s e produz texto temático/machadiano. Remova o
-`corpus.txt` para cair no corpus factual curado embutido (prosa mais limpa, porém
-simples). Ressalva honesta: prosa literária complexa excede a capacidade de um
-modelo n-grama+ELM — a saída fica temática mas não totalmente coerente.
-
-### `pt_neural.prw` — o LM neural treinado por gradiente
-
-Enquanto `pt_nn` usa uma rede ternária *sem* backprop, o `tests/llm/pt_neural.prw`
-é o **capstone**: um LM neural char-level (byte-level, seguro para UTF-8/acentos)
-**treinado de verdade por descida de gradiente**, montado 100% sobre o stack de ML
-do AdvPP (Tensor S2 + autodiff/treino S3). Arquitetura NPLM (Bengio 2003):
+**Planejado para v2.1:** Exemplo AdvPL completo de um LM neural char-level treinado de verdade por descida de gradiente, montado 100% sobre o stack de ML do AdvPP (Tensor + autodiff/treino). Arquitetura NPLM (Bengio 2003):
 
 ```advpl
 oEmb := Embedding():New(V, D)            // tabela de embeddings [V, D]
 oL1  := Linear():New(k*D, H)
 oL2  := Linear():New(H, V)
-// forward de um lote de N exemplos (contexto de k chars -> próximo char):
+// forward: contexto de k chars -> próximo char
 oLog := oL2:Forward( oL1:Forward( oEmb:Forward(aX):Reshape({N, k*D}) ):Tanh() )
-oLoss := oLog:SoftmaxCE(aAlvo)           // perda de próximo-char
+oLoss := oLog:SoftmaxCE(aAlvo)           // perda
 // treino: Adam sobre Params() dos 3 módulos, via Fit(bPasso, nEpocas)
 ```
 
-A única peça de motor que este ciclo adicionou é a op **`Variable:Reshape(aShape)`**
-diferenciável — para concatenar os `k` embeddings de contexto num vetor por exemplo.
-Geração char-a-char: dado um seed, faz forward com N=1, aplica temperatura + softmax
-e amostra o próximo byte. No mini-corpus determinístico (auto-teste) a loss cai de
-~2.77 para ~0.04 e o modelo reproduz o texto aprendido; no `corpus.txt` real
-(_Dom Casmurro_, vocab 97) treina uma amostra em ~1min e a loss cai de ~4.58 para
-~0.06, gerando morfologia PT-BR. Ressalva honesta: é um modelo pequeno num VM
-interpretado — decora a amostra de treino e emerge estrutura do português, mas não é
-fluente. É o "modelo neural completo em AdvPP", ponta a ponta (tokenizar → treinar →
-gerar), provando que o stack float treina um LM de verdade.
+Demonstra ponta a ponta: tokenizar → treinar → gerar, provando que o stack float treina um LM de verdade.
 
-### `dev_nn.prw` — LM de código AdvPL orientado a desenvolvimento
+### LM de Código AdvPL Orientado a Desenvolvimento
 
-Mesmo motor do `pt_neural`, mas a unidade é o **token AdvPL** (não o byte): um **lexer
-AdvPL escrito em AdvPL** quebra o fonte em keywords/identificadores/números/strings/
-operadores, o vocabulário é os **top-N tokens por frequência + `<unk>`**, e o NPLM
-prevê o próximo token. Treina no código do próprio repo (montado por
-`tests/llm/build_corpus.sh` em `code_corpus.txt`) somado à biblioteca
-`algos_advpl.prw` — 25 algoritmos clássicos (ordenação, busca, recursão, DP, Kadane,
-two-sum, FizzBuzz…) que dão o **viés de lógica/leetcode**. Gera/completa código AdvPL
-e traz um **REPL de autocomplete** (`ConIn`): digite um prefixo, recebe a continuação.
-
-```
-advpl> Local aLista := {}
-       Local a3rdRow, 1,; oSize
-       If SubStr( ?, i [ nLen Upper Len ...
-advpl> For i := 1 To Len( ?)) ConOut( ?) Local ? := {} ...
-```
-
-No corpus real (46 mil tokens, vocab 301) a loss cai de ~5.70 para ~0.31 em ~90s, e a
-geração reproduz idiomas AdvPL (`For..To Len()`, `ConOut()`, `Local := {}`,
-`If/Else/Endif`, `dbSelectArea()`), com identificadores raros como `?` (`<unk>`).
-**Teto honesto:** é um modelo pequeno num VM interpretado — aprende a *estrutura* de
-tokens e os idiomas algorítmicos do corpus e gera código plausível enviesado a lógica,
-mas **não raciocina nem resolve problemas novos de leetcode** (isso exige um LLM grande
-pré-treinado). A "habilidade em lógica" vem do corpus curado + token-level, não de
-capacidade de raciocínio. Escala com corpus/k/H maiores e mais camadas.
+**Planejado para v2.1:** Exemplo AdvPL de um LM treinado em token-level (não char-level) sobre código AdvPL do repositório. Demonstra como o stack de ML AdvPP pode ser usado para gerar/completar código a partir de um prefixo, com REPL de autocomplete.
 
 ## Limitações Conhecidas
 
@@ -850,6 +769,6 @@ Ultrapassar esses limites retorna erro capturável via `Try/Catch` ou falha grac
 
 ### Versão da Extensão VS Code
 
-**Status:** Extensão AdvPL/TLPP (marketplace + `.vsix` em Releases) é **v2.0.3** a partir de 2026-07-29.
+**Status:** Extensão AdvPL/TLPP (marketplace + `.vsix` em Releases) é **v2.0.4** a partir de 2026-07-29.
 
 **Incluída:** Compilador AdvPP embutido (linux-x64, linux-arm64, win32-x64, darwin-arm64); F5 e F9 para run/debug.
