@@ -55,6 +55,7 @@ TLSClientConfig: &tls.Config{
 ### Client Certificates (mTLS)
 
 **PKCS12 Support:**
+{% raw %}
 ```go
 if certPath != "" && certPass != "" {
     pfxData, _ := os.ReadFile(certPath)
@@ -65,6 +66,7 @@ if certPath != "" && certPass != "" {
     }}
 }
 ```
+{% endraw %}
 
 **Use Case:**
 - Mutual TLS (mTLS) connections to protected APIs
