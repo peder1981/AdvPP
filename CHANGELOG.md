@@ -2,6 +2,37 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.6] — 2026-08-01
+
+A partir desta versão o compilador e a extensão do VS Code compartilham o
+mesmo número: a extensão vinha de 2.0.5 enquanto o último tag do compilador
+era v2.0.3, e a divergência dificultava saber qual `advplc` estava embutido.
+
+### Correção: campos de `GET` do `MSDIALOG` saíam com largura fixa mínima no Fyne
+
+Todo campo de entrada de um `MSDIALOG` era renderizado com a largura mínima
+do `widget.Entry` dentro de um `HBox` — uma caixa de dois ou três
+caracteres, independente de o campo esperar uma data, um código de conta ou
+um histórico inteiro. Uma data `20260731` aparecia cortada em `2026`.
+
+O `SIZE` declarado no fonte era simplesmente descartado: o parser já o
+entregava como par de argumentos, mas `AT_GET` não o lia e o provider Fyne
+criava o `Entry` sem tamanho algum.
+
+**Corrigido:**
+- `pkg/vm/dialog.go`: `AT_GET` captura a largura de `SIZE <w>,<h>` (novo
+  helper `dialogClauseFloat`) e a envia em `dlgControl.Width`
+- `pkg/ui/msdialog.go`: `entryWidth` decide a largura na ordem de quem sabe
+  mais sobre o dado — `SIZE` declarado, senão o tamanho da `PICTURE`, senão
+  o valor atual — com piso e teto para não degenerar. Como `widget.Entry`
+  não expõe `MinSize` gravável, o tamanho vem de um `GridWrapLayout`.
+
+Diálogos que não declaram `SIZE` também melhoram: o piso é bem maior que o
+`MinSize` padrão do widget.
+
+Achado no GesCon, ao usar os formulários de lançamento contábil, abertura de
+exercício e configuração de boleto.
+
 ## [2.0.3] — 2026-07-29
 
 ### Correção crítica: console real no `advplc build` — login e `FWMBrowse` não funcionavam
