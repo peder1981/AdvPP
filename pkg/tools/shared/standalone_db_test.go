@@ -126,3 +126,51 @@ func TestResolveDatabasePathNaoDevolveCaminhoSemEscrita(t *testing.T) {
 	}
 	os.Remove(got)
 }
+
+// O arquivo de configuração substitui o executável lançador que definia
+// ADVPP_DB: transportar uma string não vale um processo intermediário.
+func TestStandaloneDBLeArquivoDeConfig(t *testing.T) {
+	t.Setenv("ADVPP_DB", "")
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// O arquivo é procurado ao lado do executável — nos testes, o binário do
+	// próprio `go test`.
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skip("sem os.Executable neste ambiente")
+	}
+	conf := filepath.Join(filepath.Dir(exe), bancoConfigNome)
+	escolhido := filepath.Join(t.TempDir(), "compartilhado", "GesCon.db")
+	if err := os.WriteFile(conf, []byte(escolhido+"\r\n"), 0o644); err != nil {
+		t.Skip("diretório do binário de teste não é gravável")
+	}
+	t.Cleanup(func() { os.Remove(conf) })
+
+	if got := ResolveStandaloneDatabasePath("AppExemplo"); got != escolhido {
+		t.Fatalf("devia usar o caminho do arquivo: got %q, quer %q", got, escolhido)
+	}
+	// A pasta tem que existir depois: quem lê o arquivo é quem vai abrir o
+	// banco, e SQLite não cria diretório.
+	if st, err := os.Stat(filepath.Dir(escolhido)); err != nil || !st.IsDir() {
+		t.Fatalf("a pasta do banco não foi criada: %v", err)
+	}
+}
+
+func TestADVPPDBTemPrecedenciaSobreOArquivo(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skip("sem os.Executable neste ambiente")
+	}
+	conf := filepath.Join(filepath.Dir(exe), bancoConfigNome)
+	if err := os.WriteFile(conf, []byte(filepath.Join(t.TempDir(), "do-arquivo.db")), 0o644); err != nil {
+		t.Skip("diretório do binário de teste não é gravável")
+	}
+	t.Cleanup(func() { os.Remove(conf) })
+
+	daVariavel := filepath.Join(t.TempDir(), "da-variavel.db")
+	t.Setenv("ADVPP_DB", daVariavel)
+	if got := ResolveStandaloneDatabasePath("AppExemplo"); got != daVariavel {
+		t.Fatalf("ADVPP_DB devia vencer o arquivo: got %q", got)
+	}
+}

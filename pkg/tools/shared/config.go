@@ -129,7 +129,49 @@ func ResolveStandaloneDatabasePath(appName string) string {
 		}
 		return env
 	}
+	if caminho := bancoDoArquivoDeConfig(); caminho != "" {
+		return caminho
+	}
 	return pastaDeDados(sanitizaNomeApp(appName))
+}
+
+// bancoConfigNome e o arquivo, ao lado do executavel, com o caminho do banco
+// a usar -- uma linha, texto puro.
+const bancoConfigNome = "advpp-db.txt"
+
+// bancoDoArquivoDeConfig le esse arquivo, ou devolve "".
+//
+// Existe para o caso de um instalador precisar apontar o banco para um lugar
+// escolhido por ele -- tipicamente uma pasta compartilhada entre as contas do
+// Windows, quando o dado e da organizacao e nao de quem abriu o programa.
+//
+// A alternativa que isso substitui era um executavel lancador que definia
+// ADVPP_DB e chamava o programa. Custava um processo intermediario, herança de
+// handles e uma classe inteira de falhas novas, para transportar uma string.
+// Ler um arquivo nao tem como falhar pela metade.
+func bancoDoArquivoDeConfig() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	dados, err := os.ReadFile(filepath.Join(filepath.Dir(exe), bancoConfigNome))
+	if err != nil {
+		return ""
+	}
+	caminho := strings.TrimSpace(string(dados))
+	if caminho == "" {
+		return ""
+	}
+	// A pasta pode nao existir ainda na primeira execucao; criar aqui evita
+	// que o instalador precise adivinhar quando o usuario mudou o destino.
+	_ = os.MkdirAll(filepath.Dir(caminho), 0o777)
+	if abs, err := filepath.Abs(caminho); err == nil {
+		return abs
+	}
+	return caminho
 }
 
 // sanitizaNomeApp reduz o titulo do app a algo seguro como nome de pasta.

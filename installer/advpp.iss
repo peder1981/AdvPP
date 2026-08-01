@@ -9,18 +9,15 @@
 ;
 ;  1. PATH. Sem isso `advplc` so funciona com caminho completo.
 ;  2. Atalhos para as duas GUIs (advpp-ide, adveditor).
-;  3. Mesa3D FORA do caminho de carregamento. opengl32.dll e import ESTATICO
-;     dos binarios Fyne: o Windows o carrega na criacao do processo, antes de
-;     qualquer codigo nosso. Um Mesa que nao inicializa nesta maquina --
-;     visto em VM QEMU/QXL, provavelmente instrucoes de CPU que o
-;     libgallium_wgl.dll usa e a vCPU nao tem -- mata o processo no
-;     carregador: sem janela, sem saida, sem log de aplicacao. Instalar o
-;     Mesa ao lado dos executaveis trocava um erro visivel ("WGL: driver
-;     does not support OpenGL") por silencio total.
-;
-;     Entao ele vai para {app}\mesa\, fora do caminho de busca de DLL, e so
-;     entra em jogo por acao explicita no .bat de ativacao.
-;
+;  3. Mesa3D ATIVO por padrao, ao lado dos executaveis. opengl32.dll e import
+;     ESTATICO dos binarios Fyne: o Windows resolve pelo diretorio do .exe
+;     antes do System32, e nao ha como redirecionar isso depois que o
+;     processo comeca -- por isso os DLLs ficam junto e nao numa subpasta.
+;     Sem OpenGL de verdade (qualquer VM, incluindo QEMU/QXL) o Fyne nao cria
+;     janela e a IDE nao abre pelo icone, que e a unica forma de uso que
+;     interessa. Desativar-renderizacao-por-software.bat renomeia os dois
+;     para .off, para o caso raro de o Mesa nao inicializar na maquina.
+
 ;  4. Toolchain de compilacao sob demanda. `advplc build` embute o bytecode
 ;     num stub Go e chama `go build`, o que exige o Go e -- porque o stub
 ;     importa o Fyne -- um compilador C, ja que CGO e obrigatorio. Embutir os
@@ -92,10 +89,12 @@ Source: "advpp-ide.exe";  DestDir: "{app}"; Flags: ignoreversion
 ; sem a opcao de toolchain -- assim quem ja tem Go proprio nao precisa
 ; clonar o repositorio.
 Source: "advpp-src\*"; DestDir: "{app}\advpp-src"; Flags: ignoreversion recursesubdirs createallsubdirs
-; Fora do caminho de busca de DLL. So o .bat abaixo os poe junto dos
-; executaveis, e so quando o OpenGL do sistema nao serve.
-Source: "mesa\opengl32.dll";        DestDir: "{app}\mesa"; Flags: ignoreversion
-Source: "mesa\libgallium_wgl.dll";  DestDir: "{app}\mesa"; Flags: ignoreversion
+; Ao lado dos executaveis, ativo por padrao. Sem OpenGL de verdade -- o caso
+; de qualquer VM -- o Fyne nao cria janela e a IDE nao abre pelo icone, que e
+; a unica forma de uso que interessa. Desativar-renderizacao-por-software.bat
+; desfaz, para o caso raro de o Mesa nao inicializar na maquina.
+Source: "mesa\opengl32.dll";        DestDir: "{app}"; Flags: ignoreversion
+Source: "mesa\libgallium_wgl.dll";  DestDir: "{app}"; Flags: ignoreversion
 Source: "Ativar-renderizacao-por-software.bat";    DestDir: "{app}"; Flags: ignoreversion
 Source: "Desativar-renderizacao-por-software.bat"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -110,8 +109,6 @@ Name: "{userappdata}\..\.advpp"
 [Icons]
 Name: "{group}\AdvPP IDE"; Filename: "{app}\advpp-ide.exe"
 Name: "{group}\AdvEditor (banco e dicionario)"; Filename: "{app}\adveditor.exe"
-Name: "{group}\Ativar renderizacao por software"; Filename: "{app}\Ativar-renderizacao-por-software.bat"; \
-    IconFilename: "{app}\advpp-ide.exe"
 Name: "{group}\Desinstalar o AdvPP"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\AdvPP IDE"; Filename: "{app}\advpp-ide.exe"; Tasks: desktopicon
 
@@ -137,6 +134,8 @@ Filename: "{sys}\tar.exe"; Parameters: "-xf ""{tmp}\mingw.zip"" -C ""{app}\toolc
 Filename: "{app}\advpp-ide.exe"; Description: "Abrir a IDE agora"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
+Type: files; Name: "{app}\opengl32.dll.off"
+Type: files; Name: "{app}\libgallium_wgl.dll.off"
 ; Extraido em tempo de instalacao, entao o desinstalador nao o conhece pelo
 ; [Files] e precisa ser dito.
 Type: filesandordirs; Name: "{app}\toolchain"
