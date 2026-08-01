@@ -37,6 +37,10 @@ type IDE struct {
 }
 
 func main() {
+	// Mesa3D ao lado do executavel: relanca com llvmpipe fixado, senao o
+	// driver d3d12 derruba o processo em VM depois de abrir a janela.
+	shared.ForcaMesaPorSoftware()
+
 	a := app.New()
 	a.SetIcon(nil)
 	a.Settings().SetTheme(ui.NewTheme())
