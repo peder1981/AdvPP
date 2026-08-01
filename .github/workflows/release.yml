@@ -2,7 +2,11 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    # Só tags de versão do compilador (v2.0.17), não "vscode-2.0.17" (release
+    # só da extensão) — "v*" também casava com essas, e o VERSION derivado
+    # (GITHUB_REF_NAME menos o "v" inicial) virava "scode-2.0.17", quebrando
+    # o Version do pacote .deb (precisa começar com dígito).
+    tags: ["v[0-9]*.[0-9]*.[0-9]*"]
 
 permissions:
   contents: write
