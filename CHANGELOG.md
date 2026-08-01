@@ -2,6 +2,28 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.14] — 2026-08-01
+
+### Corrigido
+
+- **O Mesa3D instalado ao lado dos executáveis impedia as GUIs de abrirem.**
+  `opengl32.dll` é import **estático** dos binários Fyne: o Windows o carrega
+  na criação do processo, antes de qualquer código nosso. Numa VM QEMU/QXL o
+  Mesa não inicializa — provavelmente instruções de CPU que o
+  `libgallium_wgl.dll` usa e a vCPU não tem — e o processo morre no
+  carregador: sem janela, sem saída, sem log de aplicação. `advpp-ide.exe`
+  saía com `0x80070057` e nada mais.
+
+  Instalar o Mesa por padrão trocava um erro legível — *"WGL: The driver does
+  not appear to support OpenGL"* — por silêncio total. Agora ele vai para
+  `{app}\mesa\`, fora do caminho de busca de DLL, e só entra em jogo por
+  `Ativar-renderizacao-por-software.bat`. Há também o script que desfaz, sem
+  o qual sair da situação exigiria saber quais arquivos apagar.
+
+  A heurística que adivinhava, pelo registro, se a máquina tinha driver OpenGL
+  foi removida junto com a caixa que ela marcava. Ela errou nessa VM, e o
+  preço do erro não era "roda mais devagar", era "não abre e não diz nada".
+
 ## [2.0.13] — 2026-08-01
 
 ### Corrigido
