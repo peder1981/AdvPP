@@ -25,6 +25,21 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
   `Program Files` subia normalmente quando lançado de um `.bat` numa pasta
   do usuário — a única diferença era o diretório de trabalho.
 
+- **App standalone deixa de guardar o banco no diretório de trabalho.** Duas
+  consequências, ambas relatadas em campo: o mesmo app lançado da Área de
+  Trabalho e de Documentos usava dois bancos, partindo o dado do usuário sem
+  nenhum aviso; e quando por acaso caía na mesma pasta de uma ferramenta
+  AdvPP, os dois disputavam o mesmo arquivo — era o que impedia GesCon e
+  `advpp-ide` de ficarem abertos ao mesmo tempo. Agora
+  `ResolveStandaloneDatabasePath` devolve sempre a pasta de dados do usuário,
+  numa subpasta com o nome do app: `ADVPP_DB` se definida, e um caminho só em
+  qualquer outro caso.
+
+  As ferramentas (`advplc`, `adveditor`, `advpp-ide`) mantêm o
+  `./advpp.db` do diretório de projeto — é o que faz o editor enxergar o
+  banco que o compilador acabou de usar. Quem quiser banco por diretório num
+  app standalone define `ADVPP_DB`.
+
 ## [2.0.10] — 2026-08-01
 
 ### Corrigido
