@@ -23,7 +23,7 @@ func entraEm(t *testing.T, dir string) {
 
 // Um app distribuido tem que achar o MESMO banco venha de onde vier. Este
 // teste existe porque a versao anterior seguia o diretorio de trabalho: o
-// mesmo GesCon lancado da Area de Trabalho e de Documentos usava dois bancos,
+// mesmo app lancado da Area de Trabalho e de Documentos usava dois bancos,
 // e o dado do condominio ficava partido sem aviso nenhum.
 func TestStandaloneDBEstavelIndependenteDoDiretorio(t *testing.T) {
 	t.Setenv("ADVPP_DB", "")
@@ -32,13 +32,13 @@ func TestStandaloneDBEstavelIndependenteDoDiretorio(t *testing.T) {
 
 	dirA := t.TempDir()
 	entraEm(t, dirA)
-	a := ResolveStandaloneDatabasePath("GesCon")
+	a := ResolveStandaloneDatabasePath("AppExemplo")
 
 	dirB := t.TempDir()
 	if err := os.Chdir(dirB); err != nil {
 		t.Fatal(err)
 	}
-	b := ResolveStandaloneDatabasePath("GesCon")
+	b := ResolveStandaloneDatabasePath("AppExemplo")
 
 	if a != b {
 		t.Fatalf("banco mudou com o diretorio: %q vs %q", a, b)
@@ -46,7 +46,7 @@ func TestStandaloneDBEstavelIndependenteDoDiretorio(t *testing.T) {
 	if strings.HasPrefix(a, dirA) || strings.HasPrefix(a, dirB) {
 		t.Fatalf("banco caiu no diretorio de trabalho: %q", a)
 	}
-	if !strings.Contains(a, "GesCon") {
+	if !strings.Contains(a, "AppExemplo") {
 		t.Fatalf("esperava o nome do app na pasta de dados: %q", a)
 	}
 	if err := os.WriteFile(a, []byte("x"), 0o644); err != nil {
@@ -64,7 +64,7 @@ func TestStandaloneDBSeparaPorApp(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	entraEm(t, t.TempDir())
 
-	if a, b := ResolveStandaloneDatabasePath("GesCon"), ResolveStandaloneDatabasePath("OutroApp"); a == b {
+	if a, b := ResolveStandaloneDatabasePath("AppExemplo"), ResolveStandaloneDatabasePath("OutroApp"); a == b {
 		t.Fatalf("dois apps dividindo o mesmo banco: %q", a)
 	}
 }
@@ -75,15 +75,15 @@ func TestStandaloneDBRespeitaADVPPDB(t *testing.T) {
 	escolhido := filepath.Join(t.TempDir(), "meu.db")
 	t.Setenv("ADVPP_DB", escolhido)
 
-	if got := ResolveStandaloneDatabasePath("GesCon"); got != escolhido {
+	if got := ResolveStandaloneDatabasePath("AppExemplo"); got != escolhido {
 		t.Fatalf("ADVPP_DB tem precedência: got %q, quer %q", got, escolhido)
 	}
 }
 
 func TestSanitizaNomeApp(t *testing.T) {
 	casos := map[string]string{
-		"GesCon":                "GesCon",
-		"GesCon — Gestão":       "GesConGesto",
+		"AppExemplo":            "AppExemplo",
+		"App — Exemplo":         "AppExemplo",
 		"../../etc":             "etc",
 		"":                      "app",
 		"C:\\Windows\\System32": "CWindowsSystem32",
