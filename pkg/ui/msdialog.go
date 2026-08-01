@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -20,6 +21,7 @@ type dlgControl struct {
 	Text    string  `json:"text,omitempty"`
 	Value   string  `json:"value,omitempty"`
 	Picture string  `json:"picture,omitempty"`
+	Width   float64 `json:"width,omitempty"`
 	Index   int     `json:"index"`
 	X       float64 `json:"x"`
 	Y       float64 `json:"y"`
@@ -65,7 +67,7 @@ func (p *FyneUIProvider) Dialog(specJSON []byte) []byte {
 				e := widget.NewEntry()
 				e.SetText(ctl.Value)
 				entries[ctl.Name] = e
-				line.Add(e)
+				line.Add(newSizedEntry(e, ctl))
 			}
 		}
 		rows.Add(line)
@@ -108,6 +110,54 @@ func (p *FyneUIProvider) Dialog(specJSON []byte) []byte {
 	act := <-result
 	data, _ := json.Marshal(act)
 	return data
+}
+
+// entryWidth decide a largura de um campo de entrada. A ordem reflete quem
+// sabe mais sobre o dado: o SIZE declarado no fonte vence; sem ele, a
+// PICTURE indica o formato; sem nenhum dos dois, sobra o valor atual. O piso
+// existe porque o MinSize padrão do widget.Entry, dentro de um HBox, rende
+// uma caixa estreita demais para qualquer conteúdo real -- campos que
+// aparentavam caber 2 ou 3 caracteres enquanto se esperava uma data ou um
+// histórico inteiro.
+func entryWidth(ctl *dlgControl) float32 {
+	const (
+		porCaractere = 8.5 // largura média de um caractere na fonte padrão
+		folga        = 16.0
+		minimo       = 90.0
+		maximo       = 460.0
+	)
+
+	if ctl.Width > 0 {
+		// SIZE vem em unidades PIXEL do AdvPL, a mesma escala das
+		// coordenadas do diálogo: usada direto, com a folga da borda.
+		return clampFloat(float32(ctl.Width)+folga, minimo, maximo)
+	}
+
+	chars := len([]rune(ctl.Picture))
+	if v := len([]rune(ctl.Value)); v > chars {
+		chars = v
+	}
+
+	return clampFloat(float32(chars)*porCaractere+folga, minimo, maximo)
+}
+
+// newSizedEntry embrulha o campo num container que impõe a largura
+// calculada. widget.Entry não expõe MinSize gravável, então o tamanho tem
+// de vir do layout que o contém.
+func newSizedEntry(e *widget.Entry, ctl *dlgControl) fyne.CanvasObject {
+	tamanho := fyne.NewSize(entryWidth(ctl), e.MinSize().Height)
+	caixa := container.New(layout.NewGridWrapLayout(tamanho), e)
+	return caixa
+}
+
+func clampFloat(v, lo, hi float32) float32 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 func minFloat(a, b float32) float32 {
