@@ -116,7 +116,29 @@ qualquer arquivo falhar.
 advplc build programa.prw -o programa
 ```
 
-Embute bytecode e runtime num executável independente (requer Go instalado).
+Embute bytecode e runtime num executável independente (requer Go instalado,
+ou a variável `ADVPP_SRC` apontando para um checkout deste repositório).
+
+O binário resultante detecta sozinho se deve rodar em console ou abrir uma
+janela **Fyne** (GUI desktop nativa, não é PO-UI/web): varre o bytecode em
+busca de UI natives (`FWGetText`, `FWMenuSelect`), instanciação de
+componentes (`FWMBrowse`, `MSDIALOG` e afins) ou anotações REST
+(`@Get`/`@Post`/etc). Se nada disso for encontrado, roda sempre em console
+(mesmo sem terminal). Se algo for encontrado **e** stdin não for um
+terminal real (TTY), abre a janela Fyne; com TTY, roda em console.
+
+```bash
+advplc build programa.prw -o programa --gui
+```
+
+`--gui` fixa o programa como app desktop **em tempo de build**: a
+alternativa de console nunca é tentada, e no Windows o binário é linkado no
+subsistema GUI (`-H=windowsgui`) — nenhuma janela de console aparece, nem
+por um instante. **Obrigatório para qualquer programa que use `MSDIALOG`**
+e recomendado para qualquer app pensado como desktop (ex.: e-Gov, GesCon).
+Para forçar a GUI num binário já compilado sem essa flag, sem recompilar,
+use a variável de ambiente `ADVPP_FORCE_GUI=1 ./programa` em tempo de
+execução — mais fraca que `--gui` (não muda o subsistema Windows).
 
 ### Modo web (renderer no browser)
 
@@ -175,6 +197,7 @@ advplc version                # versão do compilador
 | `--port <n>` | Porta do modo web (`serve`) | `--port 9000` |
 | `-w, --watch` | Hot reload no modo web (`serve`) | `--watch` |
 | `-o <file>` | Arquivo de saída (compile/build) | `-o saida.bytecode` |
+| `--gui` | `build`: fixa app desktop (janela Fyne sempre; no Windows sem subsistema console) — obrigatório para `MSDIALOG` | `--gui` |
 
 ### Banco de dados compartilhado
 
@@ -376,6 +399,12 @@ class MinhaClasse implements IMinhaInterface
         method Metodo2()
 endclass
 ```
+
+**Limitação conhecida:** `interface...endinterface` é parseado como declaração
+real (`InterfaceDecl`, com seus métodos). Já a cláusula `implements` na
+`class` é aceita apenas sintaticamente — o AdvPP **não** valida que a classe
+de fato implementa os métodos da interface, nem falha a compilação se algum
+método faltar.
 
 ### Operadores
 

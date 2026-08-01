@@ -2,6 +2,26 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [vscode-2.0.17] — 2026-08-01
+
+### Corrigido
+
+- **`Ctrl+F9` (Build standalone executable) não passava `--gui`.** O
+  binário resultante ficava sujeito à heurística de auto-detecção
+  console-vs-GUI em runtime — no Windows, isso significa subsistema
+  console (uma janela de console pode aparecer atrás da janela Fyne) e,
+  pior, um duplo-clique no `.exe` faz o stdin parecer um TTY, levando o
+  binário para o caminho de console — que não tem suporte a `MSDIALOG`
+  nenhum. Programas com `MSDIALOG` buildados pelo atalho simplesmente não
+  renderizavam o diálogo no Windows.
+
+  Agora `Ctrl+F9` passa `--gui` por padrão (nova config `advpl.buildGui`,
+  default `true`) — sem efeito em programas sem UI nenhuma (que rodam em
+  console de qualquer forma), mas garante `MSDIALOG` funcional e binário
+  Windows linkado no subsistema GUI (`-H=windowsgui`). Desligável via
+  configuração para quem prefere o fallback de terminal interativo ao
+  rodar o binário de um terminal de verdade.
+
 ## [2.0.14] — 2026-08-01
 
 ### Corrigido
