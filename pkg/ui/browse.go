@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"unicode/utf8"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -43,6 +44,33 @@ type browseAction struct {
 // save/delete visibly rebuilds the grid rather than updating it in place;
 // simpler and safer than trying to keep one grid instance alive and in
 // sync across calls, at the cost of a brief flicker on each edit.
+// browseColumnWidth decide a largura de uma coluna do browse.
+//
+// A largura vinha so do X3_TAMANHO, que e o tamanho do *dado*. Titulo mais
+// comprido que o dado transbordava por cima da coluna vizinha: DES_COMPET
+// tem 7 caracteres de dado e titulo "Competencia" com 11, e o cabecalho saia
+// grudado no seguinte. Agora fica o maior entre os dois.
+//
+// A conta e por caractere porque fyne.MeasureText exige um driver ativo, que
+// nao existe aqui nem em teste. O 8/caractere ja era a constante usada para o
+// dado; o cabecalho e bold, entao pesa um pouco mais.
+func browseColumnWidth(label string, size int) float32 {
+	dados := float32(120)
+	if size > 0 && size < 20 {
+		dados = float32(size)*8 + 20
+	}
+	// RuneCount, nao len: "Competencia" acentuada tem mais bytes que
+	// caracteres em UTF-8, e o excesso viraria coluna larga demais.
+	titulo := float32(utf8.RuneCountInString(label))*8.5 + 24
+	if titulo > 320 {
+		titulo = 320
+	}
+	if titulo > dados {
+		return titulo
+	}
+	return dados
+}
+
 func (p *FyneUIProvider) Browse(specJSON []byte) []byte {
 	var spec browseSpec
 	if err := json.Unmarshal(specJSON, &spec); err != nil {
@@ -79,11 +107,7 @@ func (p *FyneUIProvider) Browse(specJSON []byte) []byte {
 		},
 	)
 	for i, col := range spec.Columns {
-		width := float32(120)
-		if col.Size > 0 && col.Size < 20 {
-			width = float32(col.Size)*8 + 20
-		}
-		table.SetColumnWidth(i, width)
+		table.SetColumnWidth(i, browseColumnWidth(col.Label, col.Size))
 	}
 	table.OnSelected = func(id widget.TableCellID) {
 		if id.Row == 0 {
