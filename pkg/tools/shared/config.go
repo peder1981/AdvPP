@@ -92,28 +92,6 @@ func DefaultDatabasePath() string {
 // seu próprio banco por padrão, sem exigir nenhuma configuração prévia.
 const LocalDatabaseName = "advpp.db"
 
-// ResolveDatabasePath resolve o caminho do banco compartilhado entre TODAS as
-// ferramentas, nesta ordem de precedência:
-//  1. caminho explícito (flag de linha de comando / seleção do usuário)
-//  2. variável de ambiente ADVPP_DB
-//  3. banco configurado em ~/.advpp/advpp_config.json — só se esse arquivo
-//     de config REALMENTE existir em disco (não o valor sintético que
-//     LoadConfig devolve quando não há config nenhuma, que apontaria
-//     silenciosamente para o banco global mesmo sem o usuário ter
-//     configurado nada)
-//  4. ./advpp.db — banco local do diretório de trabalho atual. Nada
-//     configurado e nada encontrado: cria (OpenSQLite materializa o
-//     arquivo no primeiro open) e usa um banco local aqui em vez do
-//     global ~/.advpp/ADVPP.db, para que `advplc run/check/compile/serve`
-//     sempre tenham um banco ali mesmo, e as demais ferramentas
-//     (adveditor/advpp-ide) rodadas no MESMO diretório enxerguem o mesmo
-//     arquivo automaticamente (mesmo resolver). O banco global só volta a
-//     valer depois que o usuário configura explicitamente
-//     ~/.advpp/advpp_config.json (passo 3).
-//
-// O resultado é sempre um caminho absoluto. A criação física do arquivo
-// (se ainda não existir) é feita por OpenSQLite no primeiro open, não
-// aqui — esta função só decide QUAL caminho usar.
 // dirGravavel diz se e possivel criar arquivo em dir. Um os.Stat do
 // diretorio nao serve: no Windows a permissao efetiva depende da ACL, e
 // Program Files aparece como diretorio normal ate a hora de escrever.
@@ -152,31 +130,7 @@ func ResolveStandaloneDatabasePath(appName string) string {
 		}
 		return env
 	}
-
-	if _, err := os.Stat(LocalDatabaseName); err == nil {
-		if abs, err := filepath.Abs(LocalDatabaseName); err == nil {
-			return abs
-		}
-	}
-
-	if dirGravavel(".") {
-		if abs, err := filepath.Abs(LocalDatabaseName); err == nil {
-			return abs
-		}
-	}
-
-	base, err := os.UserConfigDir()
-	if err != nil || base == "" {
-		base = os.TempDir()
-	}
-	dir := filepath.Join(base, "advpp", sanitizaNomeApp(appName))
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		// Ultimo recurso: TempDir e gravavel em qualquer plataforma. Banco
-		// volatil e ruim, mas some junto com o problema -- melhor que o app
-		// nao abrir.
-		return filepath.Join(os.TempDir(), LocalDatabaseName)
-	}
-	return filepath.Join(dir, LocalDatabaseName)
+	return bancoLocalOuPastaDeDados(sanitizaNomeApp(appName))
 }
 
 // sanitizaNomeApp reduz o titulo do app a algo seguro como nome de pasta.
@@ -196,6 +150,28 @@ func sanitizaNomeApp(nome string) string {
 	return limpo
 }
 
+// ResolveDatabasePath resolve o caminho do banco compartilhado entre TODAS as
+// ferramentas, nesta ordem de precedência:
+//  1. caminho explícito (flag de linha de comando / seleção do usuário)
+//  2. variável de ambiente ADVPP_DB
+//  3. banco configurado em ~/.advpp/advpp_config.json — só se esse arquivo
+//     de config REALMENTE existir em disco (não o valor sintético que
+//     LoadConfig devolve quando não há config nenhuma, que apontaria
+//     silenciosamente para o banco global mesmo sem o usuário ter
+//     configurado nada)
+//  4. ./advpp.db — banco local do diretório de trabalho atual. Nada
+//     configurado e nada encontrado: cria (OpenSQLite materializa o
+//     arquivo no primeiro open) e usa um banco local aqui em vez do
+//     global ~/.advpp/ADVPP.db, para que `advplc run/check/compile/serve`
+//     sempre tenham um banco ali mesmo, e as demais ferramentas
+//     (adveditor/advpp-ide) rodadas no MESMO diretório enxerguem o mesmo
+//     arquivo automaticamente (mesmo resolver). O banco global só volta a
+//     valer depois que o usuário configura explicitamente
+//     ~/.advpp/advpp_config.json (passo 3).
+//
+// O resultado é sempre um caminho absoluto. A criação física do arquivo
+// (se ainda não existir) é feita por OpenSQLite no primeiro open, não
+// aqui — esta função só decide QUAL caminho usar.
 func ResolveDatabasePath(explicit string) string {
 	candidate := explicit
 	if candidate == "" {
@@ -217,12 +193,53 @@ func ResolveDatabasePath(explicit string) string {
 		}
 	}
 	if candidate == "" {
-		candidate = LocalDatabaseName
+		// Passo 4 com uma ressalva: "./advpp.db" pressupoe diretorio de
+		// trabalho gravavel. Vale para a CLI num diretorio de projeto e nao
+		// vale para adveditor/advpp-ide abertos por um atalho que aponta
+		// para dentro de Program Files -- ali o SQLite nao cria nada, quem
+		// chamou recebe um engine nulo e o erro so aparece la na frente,
+		// como falha de query ou como janela que fecha sem mensagem.
+		return bancoLocalOuPastaDeDados("")
 	}
 	if abs, err := filepath.Abs(candidate); err == nil {
 		return abs
 	}
 	return candidate
+}
+
+// bancoLocalOuPastaDeDados devolve ./advpp.db quando isso e viavel, e um
+// caminho na pasta de dados do usuario quando nao e. subpasta separa o banco
+// por aplicacao (vazio = banco comum das ferramentas AdvPP).
+func bancoLocalOuPastaDeDados(subpasta string) string {
+	// Banco que ja existe no diretorio manda, gravavel ou nao: mudar o
+	// caminho por baixo de quem ja usa trocaria o banco em uso por um vazio.
+	if _, err := os.Stat(LocalDatabaseName); err == nil {
+		if abs, err := filepath.Abs(LocalDatabaseName); err == nil {
+			return abs
+		}
+	}
+	if dirGravavel(".") {
+		if abs, err := filepath.Abs(LocalDatabaseName); err == nil {
+			return abs
+		}
+	}
+
+	base, err := os.UserConfigDir()
+	if err != nil || base == "" {
+		base = os.TempDir()
+	}
+	partes := []string{base, "advpp"}
+	if subpasta != "" {
+		partes = append(partes, subpasta)
+	}
+	dir := filepath.Join(partes...)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		// Ultimo recurso: TempDir e gravavel em qualquer plataforma. Banco
+		// volatil e ruim, mas some junto com o problema -- melhor que a
+		// ferramenta nao abrir.
+		return filepath.Join(os.TempDir(), LocalDatabaseName)
+	}
+	return filepath.Join(dir, LocalDatabaseName)
 }
 
 // SaveConfig salva a configuração no arquivo

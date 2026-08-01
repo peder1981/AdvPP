@@ -2,6 +2,29 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.11] — 2026-08-01
+
+### Corrigido
+
+- **`adveditor` e `advpp-ide` morriam quando abertos por atalho para dentro
+  de `Program Files`.** Mesma causa raiz que a 2.0.10 corrigiu no stub, um
+  nível acima: o passo 4 do `ResolveDatabasePath` devolve `./advpp.db`, e o
+  diretório de trabalho de um atalho é a pasta de instalação. O SQLite não
+  cria nada ali, quem chamou recebe um engine nulo, e o erro só aparece
+  adiante — como falha de query, ou como janela que fecha sem mensagem.
+
+  Agora o passo 4 verifica se dá para escrever: banco já existente no
+  diretório manda (gravável ou não — trocar o caminho por baixo de quem já
+  usa substituiria o banco em uso por um vazio), depois o diretório atual se
+  gravável, depois a pasta de dados do usuário. Os passos 1 a 3 não mudaram.
+  A verificação é uma escrita de teste, não um `os.Stat`: no Windows a
+  permissão efetiva depende da ACL, e `Program Files` parece um diretório
+  comum até a hora de gravar.
+
+  Confirmado em campo: o mesmo executável que não abria com duplo clique em
+  `Program Files` subia normalmente quando lançado de um `.bat` numa pasta
+  do usuário — a única diferença era o diretório de trabalho.
+
 ## [2.0.10] — 2026-08-01
 
 ### Corrigido

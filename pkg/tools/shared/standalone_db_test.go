@@ -106,3 +106,35 @@ func TestSanitizaNomeApp(t *testing.T) {
 		}
 	}
 }
+
+// O caso do adveditor/advpp-ide: eles usam ResolveDatabasePath, nao o
+// resolver de standalone. Aberto por um atalho apontando para dentro de
+// Program Files, o diretorio de trabalho e a pasta de instalacao -- e era ali
+// que o "./advpp.db" ia parar, sem nunca abrir.
+func TestResolveDatabasePathNaoDevolveCaminhoSemEscrita(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod 0555 não vale como ACL no Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root escreve em diretório 0555")
+	}
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+	entraEm(t, dir)
+	t.Setenv("ADVPP_DB", "")
+	// HOME próprio: sem isto o passo 3 acharia a config real da máquina.
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	got := ResolveDatabasePath("")
+	if strings.HasPrefix(got, dir) {
+		t.Fatalf("devolveu caminho sem escrita: %q", got)
+	}
+	if err := os.WriteFile(got, []byte("x"), 0o644); err != nil {
+		t.Fatalf("caminho escolhido não é gravável: %v", err)
+	}
+	os.Remove(got)
+}
