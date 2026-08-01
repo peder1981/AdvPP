@@ -2,6 +2,18 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.8] — 2026-08-01
+
+### Corrigido
+
+- **Cabeçalho de coluna do browse invadia a coluna vizinha.** A largura vinha
+  só do `X3_TAMANHO`, que descreve o *dado*, não o título. `DES_COMPET` tem 7
+  caracteres de dado e título "Competência" com 11, então o cabeçalho saía
+  colado no seguinte — na grade de Despesas lia-se `CompetênciaData
+  Lançamento`. Agora a largura é o maior entre dado e título. A contagem usa
+  runes, não bytes: caractere acentuado ocupa mais de um byte em UTF-8 e
+  inflaria a coluna sem necessidade.
+
 ## [2.0.7] — 2026-08-01
 
 ### Adicionado
