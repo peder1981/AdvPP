@@ -114,7 +114,9 @@ jobs:
           mkdir -p out/advpp-src
           cp -r pkg cmd go.mod go.sum out/advpp-src/
           du -sh out/advpp-src
-          cp installer/advpp.iss out/
+          # Os .bat vao para out/ junto do .iss: o ISCC resolve Source
+          # relativo ao diretorio do proprio .iss, e aqui ele roda de out/.
+          cp installer/advpp.iss installer/*.bat out/
           choco install innosetup --no-progress -y
           # // e o escape do MSYS: com /D simples o bash converteria o
           # argumento num caminho do Windows antes do ISCC ver.

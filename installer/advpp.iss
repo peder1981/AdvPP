@@ -96,8 +96,8 @@ Source: "advpp-src\*"; DestDir: "{app}\advpp-src"; Flags: ignoreversion recurses
 ; executaveis, e so quando o OpenGL do sistema nao serve.
 Source: "mesa\opengl32.dll";        DestDir: "{app}\mesa"; Flags: ignoreversion
 Source: "mesa\libgallium_wgl.dll";  DestDir: "{app}\mesa"; Flags: ignoreversion
-Source: "installer\Ativar-renderizacao-por-software.bat";    DestDir: "{app}"; Flags: ignoreversion
-Source: "installer\Desativar-renderizacao-por-software.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Ativar-renderizacao-por-software.bat";    DestDir: "{app}"; Flags: ignoreversion
+Source: "Desativar-renderizacao-por-software.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 
 [Dirs]
