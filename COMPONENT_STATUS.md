@@ -53,6 +53,14 @@ descobertos ao tentar usar um app de verdade (e-Gov) interativamente:
   / `ptysession_windows_test.go` — mesmo teste, mesmas asserções, cobertura
   real nas três plataformas que o release publica
 
+**Adendo (2026-08-01):** `advplc build --gui` fixa a decisão console-vs-GUI
+em tempo de compilação (a heurística acima descrita continua sendo o
+comportamento padrão sem a flag). Diferença prática do `ADVPP_FORCE_GUI`
+já documentado: `--gui` também linka o binário Windows no subsistema GUI
+(`-H=windowsgui`, `pkg/compiler/standalone.go:goBuildArgs`), então nenhuma
+janela de console aparece nem por um instante — `ADVPP_FORCE_GUI` sozinho
+não muda o subsistema. Obrigatório para programas com `MSDIALOG`.
+
 ## Componentes UI
 
 ### Status Atual: Renderização Visual Implementada

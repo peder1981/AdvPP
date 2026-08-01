@@ -295,6 +295,12 @@ externas, idêntico em Linux, Windows e macOS.
 # Construir executável standalone (embute bytecode e runtime)
 ./advplc build program.prw -o program
 
+# Construir como app desktop (obrigatório para programas com MSDIALOG) —
+# a janela Fyne abre sempre, sem tentar console primeiro, e no Windows o
+# binário é linkado no subsistema GUI (-H=windowsgui: nenhuma janela de
+# console aparece, nem por um instante)
+./advplc build program.prw -o program --gui
+
 # Verificar apenas sintaxe
 ./advplc check program.prw
 
@@ -643,21 +649,31 @@ Return
 
 **Limitação:** Semáforos são **intra-VM** — protegem threads dentro de um único processo `advplc`. Aplicações multi-processo (ex.: múltiplas instâncias de `advplc` num servidor de apps) **não** veem os locks um do outro — o banco SQLite usa `busy_timeout` e WAL mode para evitar contenção, mas sem consenso distribuído, a concorrência inter-processo é arriscada para operações ACID fortes.
 
-**Recomendação:** Para produção multi-processo, implemente locks no banco (ex.: uma tabela de semáforos) ou use `GetMV` para coordenar via variáveis de sistema Protheus (se disponível).
+**Recomendação:** Para produção multi-processo, implemente locks no próprio banco (ex.: uma tabela de semáforos). **Não** use `GetMV`/`GetNewPar` para isso — no AdvPP são stubs que apenas ecoam o valor default recebido como argumento, sem consultar nenhuma tabela de parâmetros (SX6); não existe leitura real de configuração nem `SuperGetMV`/`Pergunte`.
 
-### Modo Console Interativo (CLI)
+### Modo Console Interativo (CLI) vs. App Desktop (`--gui`)
 
 **Status:** `advplc build programa.prw` sobe um executável com **interface interativa de verdade** se detectar operações de terminal (`FWGetText`, `FWMenuSelect`, `ConIn`, formulários `MSDIALOG`, `FWMBrowse`).
 
-**Detecção:** Varre o bytecode em busca de `OP_CALL_NATIVE` a UI natives e `OP_NEW_INSTANCE` de componentes (FWMBrowse, MSDIALOG). Ambientes headless/sem TTY usam dialogs PO-UI em modo silencioso (nenhuma interação real).
+**Detecção:** Varre o bytecode em busca de `OP_CALL_NATIVE` a UI natives (`FWGetText`, `FWMenuSelect`) e `OP_NEW_INSTANCE` de componentes (`FWMBrowse`, `MSDIALOG` e afins) ou anotações REST (`@Get`/`@Post`/etc). Se nada disso for encontrado (ex.: programa que só usa `ConOut`/`ConIn`), o binário roda sempre em console, mesmo sem TTY — não há UI para mostrar. Se algo for encontrado **e** stdin **não** for um terminal real (TTY) — executável aberto por duplo-clique num gerenciador de arquivos, por exemplo — ele abre uma **janela Fyne de verdade**; não é o mesmo renderer PO-UI/web do `advplc serve`, standalone e web são dois caminhos de UI independentes, e o binário `build` nunca usa PO-UI. Com TTY presente e algo detectado, roda em console.
 
-**Forçar GUI:** `ADVPP_FORCE_GUI=1 ./programa` força renderização Fyne mesmo em terminal — útil para apps que preferem GUI como padrão (e-Gov, GesCon).
+Três formas de decidir esse comportamento, do mais fraco ao mais forte:
+
+1. **Automático (padrão):** console se TTY ou nada de UI detectado no bytecode; Fyne caso contrário — descrito acima.
+2. **`ADVPP_FORCE_GUI=1 ./programa`** (variável de ambiente, decidida em tempo de **execução**): força a janela Fyne mesmo rodando de um terminal — útil quando um script wrapper quer isso por plataforma, sem recompilar.
+3. **`advplc build programa.prw -o programa --gui`** (flag no **build**, decidida em tempo de compilação): marca o programa como app desktop de forma permanente — a fallback de console nunca é tentada, **e** no Windows o binário é linkado no subsistema GUI (`-H=windowsgui`), então nenhuma janela de console aparece, nem por um instante (sem `--gui`, um `.exe` Windows fica no subsistema console mesmo abrindo uma janela Fyne por cima). **Obrigatório para qualquer programa que use `MSDIALOG`.**
+
+Use `--gui` quando o app é desktop por natureza (e-Gov, GesCon) e será distribuído para usuários finais — é a opção correta para produção no Windows. Reserve `ADVPP_FORCE_GUI` para alternar o comportamento de um binário já compilado sem GUI fixa, ou para testes locais.
 
 Exemplo:
 ```bash
 advplc build meu_app.prw -o meu_app
-./meu_app                            # Interativo se stdin for TTY
-ADVPP_FORCE_GUI=1 ./meu_app          # Força janela Fyne
+./meu_app                            # Console se stdin for TTY, senão Fyne
+
+ADVPP_FORCE_GUI=1 ./meu_app          # Força janela Fyne neste binário, em runtime
+
+advplc build meu_app.prw -o meu_app --gui   # GUI fixa no binário (build-time);
+./meu_app                                   #   no Windows, sem subsistema console
 ```
 
 ### Motor LLM: Limitações de Modelo
@@ -684,17 +700,15 @@ Local oA := Tensor():New({2,2}, "float64")
 Local oB := oA:Add(Tensor():New({2,2}))  // promocão: resultado é f64
 ```
 
-### Autodiff + Treino: Apenas Forward + SGD
+### Autodiff + Treino: Forward + Backward, SGD e Adam
 
-**Status:** Classe `Variable` implementa **forward pass + reverse-mode autodiff + otimizador SGD**.
+**Status:** Classe `Variable` implementa **forward pass + reverse-mode autodiff**, com otimizadores `SGD` e `Adam` (v1.9.0+) e `SoftmaxCE()` diferenciável (loss + gradiente `(softmax − onehot)/N`) para perda de classificação.
 
 **Limitações:**
-- Softmax + Cross-Entropy: Classe `Variable` não implementa ainda; use `Tensor:SoftmaxCE()` para perda de classificação (sem backward diferenciável neste ciclo)
-- Otimizadores: Apenas **SGD** fornecido; Adam foi adicionado posteriormente (v1.9.0+)
 - Módulos: Suporte básico a `Linear` e `Embedding`; não há Convolução, RNN, Transformer
 - Batch: Forward/backward por exemplo; batches são do usuário (loop manual)
 
-**Roadmap:** Softmax/CE diferenciável, Adam, módulos complexos vêm em ciclos futuros.
+**Roadmap:** módulos complexos (Convolução, RNN, Transformer) ficam para ciclos futuros.
 
 ### Treinamento Neural (pt_neural.prw): Pequeno Modelo
 
@@ -729,11 +743,11 @@ Ressalva: Prova de conceito que treino real funciona; não é um LLM produção.
 
 ### Servidor Standalone: Detecção Console-vs-GUI
 
-**Status:** Binários standalone (`advplc build`) detectam automaticamente se devem usar console (TTY) ou GUI (Fyne).
+**Status:** Binários standalone (`advplc build`) detectam automaticamente se devem usar console (TTY) ou GUI (Fyne) — ver detalhamento completo, incluindo a flag `--gui` de build-time e `ADVPP_FORCE_GUI` de runtime, em [Modo Console Interativo (CLI) vs. App Desktop](#modo-console-interativo-cli-vs-app-desktop---gui).
 
-**Heurística:** Varre bytecode em busca de UI natives (`FWGetText`, `FWMenuSelect`, diálogos). Se achados, sobe GUI Fyne; caso contrário, console puro.
+**Heurística:** Varre bytecode em busca de UI natives (`FWGetText`, `FWMenuSelect`), instanciação de classes de UI (`FWMBrowse`, `MSDIALOG` e afins) e anotações REST (`@Get`/`@Post`/etc). Só sobe GUI Fyne se **algo disso foi detectado E stdin não é um TTY**; caso contrário (nada detectado, ou TTY presente), roda em console — a menos que `--gui` (build-time) ou `ADVPP_FORCE_GUI` (runtime) force Fyne mesmo assim.
 
-**Caso de borda:** Apps que usam only `ConOut` e `ConIn` (sem diálogos) rodamem console mesmo com stdin desacoplado (ex.: em cron ou daemon) — nenhuma interação ocorre, só logs silent. Use `ADVPP_FORCE_GUI=1` se quiser GUI mesmo sem UI natives detectadas.
+**Caso de borda:** Apps que usam apenas `ConOut`/`ConIn` (sem diálogos) rodam em console mesmo com stdin desacoplado (ex.: em cron ou daemon) — nenhuma interação ocorre, só logs. Use `ADVPP_FORCE_GUI=1` (ou compile com `--gui`) se quiser GUI mesmo sem UI natives detectadas.
 
 ### Contagem de Funções Nativas
 
@@ -769,6 +783,6 @@ Ultrapassar esses limites retorna erro capturável via `Try/Catch` ou falha grac
 
 ### Versão da Extensão VS Code
 
-**Status:** Extensão AdvPL/TLPP (marketplace + `.vsix` em Releases) é **v2.0.4** a partir de 2026-07-29.
+**Status:** Extensão AdvPL/TLPP (marketplace + `.vsix` em Releases) segue a mesma versão do compilador — confira `tools/vscode-advpl/package.json` para o número exato publicado no momento (atualizado a cada release do `advplc`, não é reafirmado aqui para não ficar desatualizado).
 
 **Incluída:** Compilador AdvPP embutido (linux-x64, linux-arm64, win32-x64, darwin-arm64); F5 e F9 para run/debug.

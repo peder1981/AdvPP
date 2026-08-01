@@ -46,10 +46,12 @@ this extension → `PATH`.
 
 | Shortcut | Command | Runs |
 |----------|---------|------|
-| `Ctrl+F9` | AdvPL: Build standalone executable | `advplc build <file> -o <file-without-ext>` |
+| `Ctrl+F9` | AdvPL: Build standalone executable | `advplc build <file> -o <file-without-ext> --gui` |
 | `F9` / `F5` | AdvPL: Run current file | `advplc run <file>` |
 | `Ctrl+Shift+F9` | AdvPL: Compile current file (bytecode) | `advplc compile <file>` |
 | `Ctrl+Alt+F9` | AdvPL: Serve current file (web / PO-UI) | `advplc serve <file> --debug-port <port>` |
+
+Note: `Ctrl+F9` passes `--gui` by default (`advpl.buildGui` setting) so the built binary always opens the Fyne window and, on Windows, links into the GUI subsystem — no console window flashing behind it, and `MSDIALOG` renders correctly. This has no effect on programs with no UI at all (they run as console regardless). Set `advpl.buildGui` to `false` if you want the binary to fall back to the interactive terminal UI when launched from a real terminal instead.
 
 Note: `F9` also collides with VS Code's built-in "Toggle Breakpoint" (`when: editorTextFocus`) — our binding took priority in testing, but if you ever see it toggle a breakpoint instead of running, that's the conflict surfacing; rebind one of them from **Preferences → Keyboard Shortcuts**.
 

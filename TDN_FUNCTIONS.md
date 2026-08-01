@@ -229,8 +229,9 @@ TTOC(seconds)  // Retorna string formatada
 - XFILIAL
 
 ### MVC
-- FWFORMMODEL, FWFORMVIEW, FWFORMBROWSE
-- FWFORMSTRUCT, FWMBROWSE, VIEWDEF, AXCADASTRO
+- FWFORMMODEL, FWFORMVIEW, FWFORMBROWSE — chamadas como função procedural (`FWFormModel()`) usam o motor real em `pkg/mvc` (validações, colunas, eventos). Instanciadas via OOP (`FWFormModel():New()`) criam apenas um objeto com propriedades default, sem o motor por trás — ver [`COMPONENT_STATUS.md`](COMPONENT_STATUS.md).
+- FWFORMSTRUCT, FWMBROWSE — `FWMBROWSE` real: grid CRUD vinculado a SX3, usado por `advplc serve`.
+- VIEWDEF, AXCADASTRO — **stubs no-op**: apenas retornam `Nil`, sem implementação por trás.
 
 ### JSON
 - JSONOBJECT
@@ -239,8 +240,10 @@ TTOC(seconds)  // Retorna string formatada
 - HELP, SETDATE, SETCENT, SET
 - FREEOBJ, SLEEP
 - PROCNAME, PROCLINE
-- GETMV, GETNEWPAR, GETENV
-- FILE, MAKEDIR, CURDIR, GETSRVNAME
+- GETMV, GETNEWPAR — **stubs**: retornam o valor default recebido como argumento, sem consultar nenhuma tabela de parâmetros (SX6). Não há `SuperGetMV` nem `Pergunte` implementados.
+- GETENV — real, lê variável de ambiente do SO
+- FILE, GETSRVNAME — `GETSRVNAME` é hardcoded para `"localhost"`
+- MAKEDIR, CURDIR — **stubs**: `MAKEDIR` não cria diretório algum; `CURDIR` sempre retorna `"./"`
 
 ## Teste de Funções TDN
 

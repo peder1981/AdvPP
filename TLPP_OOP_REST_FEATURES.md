@@ -83,9 +83,38 @@ ConOut(oPessoa:GetNome())
 
 ## Recursos REST
 
-### WSRESTFUL
+Há dois caminhos para REST no AdvPP, com status bem diferentes — **não confunda um com o outro**:
 
-Define um serviço REST completo com metadata e endpoints.
+### Anotações `@Get`/`@Post`/`@Put`/`@Patch`/`@Delete` — funcional, servidor HTTP real
+
+Este é o caminho **executável**. Uma `User Function` anotada é registrada como rota
+real num `WSRestServer` (`net/http` puro, sem framework externo), com path params,
+corpo JSON parseado/serializado de verdade e dispatch real para a função AdvPL:
+
+```advpl
+@Get("/clientes/{id}")
+User Function GetCliente(id)
+    Local jResp := { "codigo" : id, "nome" : "Cliente Teste" }
+Return jResp
+
+User Function Main()
+    Local oRest := WSRestServer():New("API", "1.0")
+    oRest:AddRoute("GET", "/status", "GetStatus")
+    oRest:Serve(8080)
+Return
+```
+
+Cada requisição roda numa instância de VM isolada (não reentra a VM que está
+servindo), o que torna o dispatch seguro sob concorrência. Ver seção
+"Servidor REST" do [`README.md`](README.md#servidor-rest-wsrestserver) para
+o exemplo completo.
+
+### WSRESTFUL (DSL clássico) — apenas parsing, não executa
+
+Define a *sintaxe* de um serviço REST completo com metadata e endpoints — mas
+o AdvPP **reconhece a sintaxe e descarta verbo/PATH no parser**; não há
+dispatch nem servidor HTTP por trás deste DSL. Para expor os mesmos endpoints
+de verdade, reescreva como `User Function` com anotações (acima).
 
 ```advpl
 WSRESTFUL ClienteService
@@ -105,7 +134,8 @@ EndWSRESTFUL
 
 ### WSDATA
 
-Define campos de dados para o serviço REST.
+Define campos de dados para o serviço REST (DSL clássico). Parseado, mas —
+como o `WSRESTFUL` que o contém — sem efeito em runtime.
 
 ```advpl
 WSDATA cCodigo as String
@@ -116,7 +146,8 @@ WSDATA nLimiteCredito as Decimal
 
 ### WSMETHOD
 
-Define métodos/endpoints do serviço REST com verbos HTTP.
+Define métodos/endpoints do serviço REST com verbos HTTP (DSL clássico —
+mesma ressalva de execução acima).
 
 ```advpl
 WSMETHOD GET ListarClientes Description "Lista todos os clientes"
@@ -126,7 +157,7 @@ WSMETHOD PUT AtualizarCliente Description "Atualiza cliente existente"
 WSMETHOD DELETE ExcluirCliente Description "Exclui cliente por código"
 ```
 
-**Verbos HTTP Suportados:**
+**Verbos HTTP Suportados (ambos os caminhos):**
 - GET
 - POST
 - PUT
@@ -183,20 +214,20 @@ Method Validar() as Logical
 | Herança | ✅ Completo | Suporte a `from` e `Super:New()` |
 | Construtores | ✅ Completo | `Constructor` suportado |
 | Métodos | ✅ Completo | Definição dentro/fora da classe |
-| WSRESTFUL | ✅ Parsing | Sintaxe parseada, não executada |
-| WSDATA | ✅ Parsing | Campos definidos corretamente |
-| WSMETHOD | ✅ Parsing | Verbos HTTP reconhecidos |
+| Anotações `@Get`/`@Post`/`@Put`/`@Patch`/`@Delete` | ✅ Completo | Servidor HTTP real (`net/http`) via `WSRestServer`, dispatch de verdade |
+| WSRESTFUL (DSL clássico) | ⚠️ Apenas Parsing | Sintaxe parseada; verbo/PATH descartados, sem servidor por trás — use anotações acima |
+| WSDATA | ⚠️ Apenas Parsing | Campos parseados, sem efeito em runtime (DSL clássico) |
+| WSMETHOD | ⚠️ Apenas Parsing | Verbos HTTP reconhecidos, sem dispatch (DSL clássico) |
 | JSON Inline | ✅ Completo | Sintaxe `{ "key" : "value" }` funciona |
-| Try/Catch | ⚠️ Parcial | Parsing funciona, execução limitada |
-| Tipagem Estática | ⚠️ Parcial | `as` parseado, não validado |
+| Try/Catch | ✅ Completo | Try/Catch real na VM: pilha de handlers por frame, desenrolamento entre chamadas aninhadas, `Throw`/`UserException` propagam erro capturável |
+| Tipagem Estática | ⚠️ Parcial | `as` parseado, tipo é documentário — não há checagem estática nem validação em runtime |
 
 ## Limitações Atuais
 
-1. **REST Execution**: WSRESTFUL é parseado mas não executado (requer servidor HTTP)
-2. **Try/Catch**: Parsing funciona mas tratamento de exceções é limitado
-3. **Tipagem**: Declarações de tipos são parseadas mas não validadas em runtime
-4. **Modificadores de Acesso**: PUBLIC/PRIVATE/PROTECTED são parseados mas não enforcement
-5. **Interfaces**: Sintaxe `implements` é parseada mas não validada
+1. **REST Execution (DSL clássico)**: `WSRESTFUL`/`WSMETHOD` são parseados mas não executados — use anotações `@Get`/`@Post`/etc para endpoints reais (ver seção acima)
+2. **Tipagem**: Declarações de tipos são parseadas mas não validadas em runtime
+3. **Modificadores de Acesso**: PUBLIC/PRIVATE/PROTECTED são parseados mas sem enforcement
+4. **Interfaces**: bloco `Interface ... EndInterface` é parseado (métodos declarados viram um `InterfaceDecl` real); não há, porém, cláusula `implements` em `Class` nem checagem de que uma classe realmente implementa os métodos declarados
 
 ## Exemplo Completo
 
@@ -211,8 +242,7 @@ Veja `tests/tlpp_oop_rest_test.tlpp` para um exemplo completo demonstrando:
 
 ## Recomendações
 
-1. **Para REST**: Adicionar servidor HTTP (net/http) para executar endpoints WSRESTFUL
-2. **Para Try/Catch**: Melhorar tratamento de exceções na VM
-3. **Para Tipagem**: Implementar validação de tipos em runtime
-4. **Para Modificadores**: Implementar enforcement de PUBLIC/PRIVATE/PROTECTED
-5. **Para Interfaces**: Implementar validação de implementação de interface
+1. **Para REST**: já existe servidor HTTP real (`net/http` via `WSRestServer` + anotações `@Get`/`@Post`/etc) — se seu código usa `WSRESTFUL`/`WSMETHOD`, reescreva como `User Function` anotada para ter dispatch de verdade
+2. **Para Tipagem**: Implementar validação de tipos em runtime (hoje é só documentário)
+3. **Para Modificadores**: Implementar enforcement de PUBLIC/PRIVATE/PROTECTED
+4. **Para Interfaces**: Implementar cláusula `implements` em `Class` + checagem de que os métodos da interface foram de fato implementados

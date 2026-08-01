@@ -97,9 +97,19 @@ function activate(context) {
 	registerCommand(context, 'advpl.check', f => ['check', f]);
 	registerCommand(context, 'advpl.run', f => ['run', f]);
 	registerCommand(context, 'advpl.compile', f => ['compile', f]);
-	registerCommand(context, 'advpl.build', f => [
-		'build', f, '-o', f.replace(/\.(prw|prg|prx|tlpp)$/i, '')
-	]);
+	registerCommand(context, 'advpl.build', f => {
+		const args = ['build', f, '-o', f.replace(/\.(prw|prg|prx|tlpp)$/i, '')];
+		// --gui: sem efeito em programas sem UI (console roda de qualquer
+		// forma), mas obrigatório pra MSDIALOG renderizar no Windows e pro
+		// binário sair do subsistema console (-H=windowsgui) — sem isso, um
+		// duplo-clique no .exe abre um console real por trás da janela Fyne.
+		// Desligável via advpl.buildGui pra quem quer o fallback de console/
+		// TUI interativo ao rodar o binário de um terminal de verdade.
+		if (vscode.workspace.getConfiguration('advpl').get('buildGui', true)) {
+			args.push('--gui');
+		}
+		return args;
+	});
 	registerCommand(context, 'advpl.serve', f => [
 		'serve', f, '--debug-port', String(debugPort())
 	]);

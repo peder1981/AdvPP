@@ -139,6 +139,7 @@
 | `--watch`, `-w` | Hot reload: recompila ao detectar mudança no fonte |
 | `--debug-port <n>` | Abre listener TCP DAP para attach debugging |
 | `-o <arquivo>` | Arquivo de saída (para `compile` e `build`) |
+| `--gui` | `build`: fixa o binário como app desktop — janela Fyne sempre, sem tentar console; no Windows linka no subsistema GUI (`-H=windowsgui`, ldflags, ver `goBuildArgs` em `pkg/compiler/standalone.go`), sem flash de console. Obrigatório para programas com `MSDIALOG`. Sem essa flag, o binário standalone decide sozinho em runtime (console se TTY + nada de UI detectado no bytecode; Fyne caso contrário) — ver `pkg/compiler/stub_template.go`. `ADVPP_FORCE_GUI=1` é o equivalente em runtime, mais fraco (não muda o subsistema Windows). |
 
 ### Pipeline Interno de `loadAndCompile()`
 
@@ -294,7 +295,7 @@ Todos os commands legacy AdvPL (DEFINE/REDEFINE, @SCREEN SAY/GET, CLIPPER DB com
 |--------|-----------|
 | `SaveBytecode(bc, filename string)` | Marshal → JSON file |
 | `LoadBytecode(filename string)` | Unmarshal JSON → `*Bytecode` |
-| `BuildStandalone(bc, outputFile, title, logWriter)` | Embed bytecode em stub Go compilável → executável native |
+| `BuildStandaloneGUI(bc, outputFile, title, gui, logWriter)` | Embed bytecode em stub Go compilável → executável native (`gui bool` = flag `--gui`, ver seção 10) |
 
 ---
 
@@ -1487,20 +1488,31 @@ Arquivo: `pkg/compiler/standalone.go`
 
 | Função | Args | Retorno | Descrição |
 |--------|------|---------|-----------|
-| `BuildStandalone(bc, outputFile, title, buildLog)` | *Bytecode, 3 strings | error | Embed bytecode in Go stub, compile → native executable with Fyne GUI |
+| `BuildStandaloneGUI(bc, outputFile, title, gui, buildLog)` | *Bytecode, 2 strings, bool, io.Writer | error | Embed bytecode in Go stub, compile → native executable. `gui` vem da flag `--gui` (ver Opções Globais acima) — baked in no stub via `__ADVPP_BUILT_AS_GUI__` e usado tanto para decidir o caminho de execução quanto para adicionar `-H=windowsgui` ao `go build` no Windows (`goBuildArgs`). |
 
 ### Stub Template Embutido
 
-O template Go embutido via `//go:embed` cria um executável que:
+O template Go (`pkg/compiler/stub_template.go`) é embutido no build via string
+replace de placeholders (`__ADVPP_APP_TITLE__`, `__ADVPP_BUILT_AS_GUI__`) e
+compilado de verdade (`go build`) contra um `go.mod` gerado que faz
+`replace` do módulo AdvPP apontando pro checkout (`ADVPP_SRC` ou raiz do
+repo). Em runtime, o binário resultante escolhe um de dois caminhos:
 
 1. Unmarshal bytecode.json embutido → `*Bytecode`
-2. Cria app Fyne com tema custom AdvPP
-3. Window com título especificado
-4. Console output widget
-5. VM(bc, traceMode=true), console writer + Fyne UI provider
-6. DB factory (SQLite via shared.ResolveDatabasePath)
-7. `v.Run()` em goroutine, `ShowAndRun()` bloqueia main
-8. Ao completar: a.Quit(), exit code
+2. Varre o bytecode em busca de UI natives/classes/anotações REST (`hasUI`)
+3. Decide o caminho:
+   - **Console** se `!hasUI`, ou stdin for TTY (e o binário não foi
+     `--gui`/`ADVPP_FORCE_GUI`), ou `ADVPP_HEADLESS_STANDALONE` setado —
+     anexa `TerminalUIProvider` se for TTY de fato, roda `v.Run()`
+     diretamente e sai (sem Fyne, sem `app.New()`)
+   - **Fyne** nos demais casos: cria app Fyne com tema custom AdvPP, window
+     com título especificado, console output widget, `VM(bc, traceMode=true)`
+     com console writer + `FyneUIProvider`, DB factory (SQLite via
+     `shared.ResolveStandaloneDatabasePath`), `v.Run()` em goroutine,
+     `ShowAndRun()` bloqueia main; ao completar, `a.Quit()` e exit code
+
+O caminho console nunca instancia `app.New()`/Fyne — importante para apps
+batch/CI que não podem depender de um display disponível.
 
 ---
 
@@ -1640,7 +1652,7 @@ O template Go embutido via `//go:embed` cria um executável que:
 | **CP-1252 conversion** | ✅ Full | Full 256-byte table lookup |
 | **Preprocessor** | ✅ Full | #include, #define, #ifdef, #xcommand, BEGINSQL |
 | **Bytecode serialization** | ✅ Full | Save/Load .abf JSON |
-| **Standalone build** | ✅ Full | Embed bytecode + Fyne GUI → native executable |
+| **Standalone build** | ✅ Full | Embed bytecode → native executable; console ou Fyne GUI (auto-detect, ou fixado via `--gui`) |
 | **Check (multi-file parallel)** | ✅ Full | Worker pool per CPU |
 | **Watch / Hot Reload** | ✅ Full | mtime polling 500ms |
 
