@@ -93,6 +93,29 @@ jobs:
            the same SQLite database (~/.advpp/ADVPP.db).
           EOF
           dpkg-deb --build --root-owner-group $PKG "dist/advpp_${VERSION}_amd64.deb"
+      # Depois do zip, de proposito: o Mesa entra so no instalador, nao no
+      # pacote solto. As duas GUIs (advpp-ide, adveditor) sao Fyne e morrem
+      # em maquina sem driver de video; o instalador oferece a renderizacao
+      # por software como opcao marcavel, e ainda poe o advplc no PATH.
+      - name: Instalador Windows (Inno Setup)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          MESA_VERSAO: 26.1.4
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          curl -fsSL -o mesa.7z \
+            "https://github.com/pal1000/mesa-dist-win/releases/download/${MESA_VERSAO}/mesa3d-${MESA_VERSAO}-release-msvc.7z"
+          7z e -y mesa.7z x64/opengl32.dll x64/libgallium_wgl.dll -oout/mesa
+          cp installer/advpp.iss out/
+          choco install innosetup --no-progress -y
+          # // e o escape do MSYS: com /D simples o bash converteria o
+          # argumento num caminho do Windows antes do ISCC ver.
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
+            //DAppVersion="$VERSION" out/advpp.iss
+          mkdir -p dist && mv out/AdvPP-Setup-*.exe dist/
+          ls -la dist/
+
       - uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.platform }}
@@ -100,6 +123,7 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
             dist/*.deb
+            dist/*.exe
 
   release:
     needs: [cli-cross, native]
