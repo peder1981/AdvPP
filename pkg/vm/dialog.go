@@ -27,6 +27,7 @@ type dlgControl struct {
 	Text    string  `json:"text,omitempty"`    // texto do SAY / rótulo do BUTTON
 	Value   string  `json:"value,omitempty"`   // valor atual do GET
 	Picture string  `json:"picture,omitempty"` // PICTURE do GET
+	Width   float64 `json:"width,omitempty"`   // SIZE <w> do GET, em unidades PIXEL
 	Index   int     `json:"index"`             // índice do BUTTON
 
 	valType string        // C | N | L — tipo original do GET para converter de volta
@@ -87,6 +88,7 @@ func (v *VM) registerDialogNatives(natives map[string]func([]advplrt.Value) (adv
 				Name:    advplrt.ToString(getArg(args, 2)),
 				Value:   strings.TrimRight(advplrt.ToString(val), " "),
 				Picture: dialogClause(args, 4, "PICTURE"),
+				Width:   dialogClauseFloat(args, 4, "SIZE"),
 				valType: valueTypeOf(val),
 				frame:   v.current,
 			}
@@ -295,6 +297,17 @@ func dialogClause(args []advplrt.Value, from int, clause string) string {
 		return advplrt.ToString(val)
 	}
 	return ""
+}
+
+// dialogClauseFloat lê a primeira componente numérica de uma cláusula —
+// `SIZE <largura>,<altura>` chega como os args "SIZE", largura, altura, e
+// para dimensionar um GET só a largura interessa. Devolve 0 quando a
+// cláusula não foi declarada, deixando a decisão de tamanho para a UI.
+func dialogClauseFloat(args []advplrt.Value, from int, clause string) float64 {
+	if val := dialogClauseValue(args, from, clause); val != nil {
+		return advplrt.ToFloat(val)
+	}
+	return 0
 }
 
 func dialogClauseValue(args []advplrt.Value, from int, clause string) advplrt.Value {
