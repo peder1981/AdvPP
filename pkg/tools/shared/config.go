@@ -109,20 +109,19 @@ func dirGravavel(dir string) bool {
 // ResolveStandaloneDatabasePath escolhe o banco de um executavel gerado por
 // `advplc build`.
 //
-// Existe separado do ResolveDatabasePath porque as premissas sao outras. A
-// CLI roda dentro de um diretorio de projeto, que e do desenvolvedor e e
-// gravavel -- "./advpp.db" ali e exatamente o que se quer. Um app
-// distribuido e lancado de onde o usuario mandar: atalho do menu Iniciar,
-// duplo clique dentro de Program Files, pendrive, pasta de rede. Cair em
-// "./advpp.db" nesses casos devolve um caminho onde o SQLite nao consegue
-// abrir nada, a fabrica de banco do stub devolve nil, e a primeira chamada
-// de TCSqlExec derruba o programa -- que no subsistema GUI do Windows some
-// da tela sem mensagem nenhuma.
+// Regra diferente da do ResolveDatabasePath, e de proposito. As ferramentas
+// (advplc, adveditor, advpp-ide) rodam dentro de um diretorio de projeto e
+// devem compartilhar o "./advpp.db" dali -- e o que faz o editor enxergar o
+// banco que o compilador acabou de usar. Um app distribuido nao tem
+// diretorio de projeto: e lancado do menu Iniciar, da Area de Trabalho, de
+// Documentos, de um pendrive. Se o banco seguisse o diretorio de trabalho, o
+// mesmo app lancado de duas pastas usaria dois bancos, e o dado do usuario
+// ficaria partido sem nenhum aviso -- alem de colidir com o banco das
+// ferramentas quando por acaso caissem na mesma pasta.
 //
-// Ordem: ADVPP_DB > banco que ja existe no diretorio atual > diretorio
-// atual, se gravavel > pasta de dados do usuario. O segundo passo e o que
-// preserva quem ja usa o app: mudar o caminho por baixo trocaria o banco em
-// uso por um vazio.
+// Por isso: ADVPP_DB, se definida, e o resto sempre na pasta de dados do
+// usuario, numa subpasta com o nome do app. Um caminho so, independente de
+// onde o atalho aponta. Quem quiser banco por diretorio define ADVPP_DB.
 func ResolveStandaloneDatabasePath(appName string) string {
 	if env := os.Getenv("ADVPP_DB"); env != "" {
 		if abs, err := filepath.Abs(env); err == nil {
@@ -130,7 +129,7 @@ func ResolveStandaloneDatabasePath(appName string) string {
 		}
 		return env
 	}
-	return bancoLocalOuPastaDeDados(sanitizaNomeApp(appName))
+	return pastaDeDados(sanitizaNomeApp(appName))
 }
 
 // sanitizaNomeApp reduz o titulo do app a algo seguro como nome de pasta.
@@ -224,6 +223,12 @@ func bancoLocalOuPastaDeDados(subpasta string) string {
 		}
 	}
 
+	return pastaDeDados(subpasta)
+}
+
+// pastaDeDados devolve o caminho do banco na pasta de dados do usuario.
+// subpasta separa por aplicacao; vazio = banco comum das ferramentas AdvPP.
+func pastaDeDados(subpasta string) string {
 	base, err := os.UserConfigDir()
 	if err != nil || base == "" {
 		base = os.TempDir()

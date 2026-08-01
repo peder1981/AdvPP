@@ -21,63 +21,51 @@ func entraEm(t *testing.T, dir string) {
 	t.Cleanup(func() { os.Chdir(anterior) })
 }
 
-func TestStandaloneDBUsaDiretorioAtualQuandoGravavel(t *testing.T) {
-	dir := t.TempDir()
-	entraEm(t, dir)
+// Um app distribuido tem que achar o MESMO banco venha de onde vier. Este
+// teste existe porque a versao anterior seguia o diretorio de trabalho: o
+// mesmo GesCon lancado da Area de Trabalho e de Documentos usava dois bancos,
+// e o dado do condominio ficava partido sem aviso nenhum.
+func TestStandaloneDBEstavelIndependenteDoDiretorio(t *testing.T) {
 	t.Setenv("ADVPP_DB", "")
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	got := ResolveStandaloneDatabasePath("GesCon")
-	// macOS resolve TempDir por /var, link para /private/var: compara o
-	// diretório resolvido, não a string.
-	quer, _ := filepath.EvalSymlinks(filepath.Join(dir, LocalDatabaseName))
-	gotResolvido, _ := filepath.EvalSymlinks(got)
-	if gotResolvido != quer {
-		t.Fatalf("diretório gravável devia mandar: got %q, quer %q", gotResolvido, quer)
-	}
-}
+	dirA := t.TempDir()
+	entraEm(t, dirA)
+	a := ResolveStandaloneDatabasePath("GesCon")
 
-func TestStandaloneDBCaiParaAppDataQuandoDiretorioNaoGravavel(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("chmod 0555 não vale como ACL no Windows")
-	}
-	if os.Geteuid() == 0 {
-		t.Skip("root escreve em diretório 0555")
-	}
-	dir := t.TempDir()
-	if err := os.Chmod(dir, 0o555); err != nil {
+	dirB := t.TempDir()
+	if err := os.Chdir(dirB); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chmod(dir, 0o755) })
-	entraEm(t, dir)
-	t.Setenv("ADVPP_DB", "")
+	b := ResolveStandaloneDatabasePath("GesCon")
 
-	got := ResolveStandaloneDatabasePath("GesCon")
-	if strings.HasPrefix(got, dir) {
-		t.Fatalf("caiu no diretório sem escrita, o defeito que este teste existe para pegar: %q", got)
+	if a != b {
+		t.Fatalf("banco mudou com o diretorio: %q vs %q", a, b)
 	}
-	if !strings.Contains(got, "GesCon") {
-		t.Fatalf("esperava o nome do app na pasta de dados: %q", got)
+	if strings.HasPrefix(a, dirA) || strings.HasPrefix(a, dirB) {
+		t.Fatalf("banco caiu no diretorio de trabalho: %q", a)
 	}
-	// Só serve se der para escrever de verdade.
-	if err := os.WriteFile(got, []byte("x"), 0o644); err != nil {
-		t.Fatalf("caminho escolhido não é gravável: %v", err)
+	if !strings.Contains(a, "GesCon") {
+		t.Fatalf("esperava o nome do app na pasta de dados: %q", a)
 	}
-	os.Remove(got)
+	if err := os.WriteFile(a, []byte("x"), 0o644); err != nil {
+		t.Fatalf("caminho escolhido nao e gravavel: %v", err)
+	}
+	os.Remove(a)
 }
 
-func TestStandaloneDBPreservaBancoJaExistenteNoDiretorio(t *testing.T) {
-	dir := t.TempDir()
-	entraEm(t, dir)
+// Dois apps diferentes nao podem dividir o mesmo arquivo: era o que fazia
+// GesCon e advpp-ide nao abrirem ao mesmo tempo quando lancados da mesma
+// pasta.
+func TestStandaloneDBSeparaPorApp(t *testing.T) {
 	t.Setenv("ADVPP_DB", "")
-	existente := filepath.Join(dir, LocalDatabaseName)
-	if err := os.WriteFile(existente, []byte("banco em uso"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	entraEm(t, t.TempDir())
 
-	got, _ := filepath.EvalSymlinks(ResolveStandaloneDatabasePath("GesCon"))
-	quer, _ := filepath.EvalSymlinks(existente)
-	if got != quer {
-		t.Fatalf("trocou o banco em uso por outro caminho: got %q, quer %q", got, quer)
+	if a, b := ResolveStandaloneDatabasePath("GesCon"), ResolveStandaloneDatabasePath("OutroApp"); a == b {
+		t.Fatalf("dois apps dividindo o mesmo banco: %q", a)
 	}
 }
 
