@@ -9,8 +9,17 @@
 ;
 ;  1. PATH. Sem isso `advplc` so funciona com caminho completo.
 ;  2. Atalhos para as duas GUIs (advpp-ide, adveditor).
-;  3. Mesa3D opcional: as duas GUIs sao Fyne e morrem em maquina sem driver
-;     de video com "WGL: The driver does not appear to support OpenGL".
+;  3. Mesa3D FORA do caminho de carregamento. opengl32.dll e import ESTATICO
+;     dos binarios Fyne: o Windows o carrega na criacao do processo, antes de
+;     qualquer codigo nosso. Um Mesa que nao inicializa nesta maquina --
+;     visto em VM QEMU/QXL, provavelmente instrucoes de CPU que o
+;     libgallium_wgl.dll usa e a vCPU nao tem -- mata o processo no
+;     carregador: sem janela, sem saida, sem log de aplicacao. Instalar o
+;     Mesa ao lado dos executaveis trocava um erro visivel ("WGL: driver
+;     does not support OpenGL") por silencio total.
+;
+;     Entao ele vai para {app}\mesa\, fora do caminho de busca de DLL, e so
+;     entra em jogo por acao explicita no .bat de ativacao.
 ;
 ;  4. Toolchain de compilacao sob demanda. `advplc build` embute o bytecode
 ;     num stub Go e chama `go build`, o que exige o Go e -- porque o stub
@@ -70,7 +79,6 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 [Tasks]
 Name: "path"; Description: "Adicionar o AdvPP ao PATH (permite chamar advplc de qualquer pasta)"
 Name: "desktopicon"; Description: "Criar atalho da IDE na Area de Trabalho"; Flags: unchecked
-Name: "mesa"; Description: "Renderizacao por software (maquina virtual ou sem driver de video)"; GroupDescription: "Compatibilidade:"; Flags: unchecked
 ; ~370 MB de download. Marcada por InitializeWizard quando nao ha Go na
 ; maquina -- quem ja tem o proprio nao precisa de outro.
 Name: "toolchain"; Description: "Baixar o toolchain de compilacao: Go {#GoVersao} + compilador C, ~350 MB (necessario apenas para o comando advplc build)"; GroupDescription: "Compilacao:"; Flags: unchecked
@@ -84,10 +92,12 @@ Source: "advpp-ide.exe";  DestDir: "{app}"; Flags: ignoreversion
 ; sem a opcao de toolchain -- assim quem ja tem Go proprio nao precisa
 ; clonar o repositorio.
 Source: "advpp-src\*"; DestDir: "{app}\advpp-src"; Flags: ignoreversion recursesubdirs createallsubdirs
-; Os DLLs vao para a pasta dos executaveis porque e la que o Windows procura
-; DLL antes do System32 -- o diretorio de trabalho nao entra nessa busca.
-Source: "mesa\opengl32.dll";        DestDir: "{app}"; Tasks: mesa; Flags: ignoreversion
-Source: "mesa\libgallium_wgl.dll";  DestDir: "{app}"; Tasks: mesa; Flags: ignoreversion
+; Fora do caminho de busca de DLL. So o .bat abaixo os poe junto dos
+; executaveis, e so quando o OpenGL do sistema nao serve.
+Source: "mesa\opengl32.dll";        DestDir: "{app}\mesa"; Flags: ignoreversion
+Source: "mesa\libgallium_wgl.dll";  DestDir: "{app}\mesa"; Flags: ignoreversion
+Source: "installer\Ativar-renderizacao-por-software.bat";    DestDir: "{app}"; Flags: ignoreversion
+Source: "installer\Desativar-renderizacao-por-software.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 
 [Dirs]
@@ -100,6 +110,8 @@ Name: "{userappdata}\..\.advpp"
 [Icons]
 Name: "{group}\AdvPP IDE"; Filename: "{app}\advpp-ide.exe"
 Name: "{group}\AdvEditor (banco e dicionario)"; Filename: "{app}\adveditor.exe"
+Name: "{group}\Ativar renderizacao por software"; Filename: "{app}\Ativar-renderizacao-por-software.bat"; \
+    IconFilename: "{app}\advpp-ide.exe"
 Name: "{group}\Desinstalar o AdvPP"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\AdvPP IDE"; Filename: "{app}\advpp-ide.exe"; Tasks: desktopicon
 
@@ -130,26 +142,10 @@ Filename: "{app}\advpp-ide.exe"; Description: "Abrir a IDE agora"; Flags: nowait
 Type: filesandordirs; Name: "{app}\toolchain"
 
 [Code]
-// Heuristica para o estado inicial da caixa "Renderizacao por software".
-// Um driver de video WDDM real registra OpenGLDriverName na chave da classe
-// Display; o Microsoft Basic Display Adapter, nao. So define o default -- o
-// usuario marca ou desmarca por cima, entao um palpite errado nao custa nada.
-function TemDriverOpenGL(): Boolean;
-var
-  I: Integer;
-  Chave, Valor: String;
-begin
-  Result := False;
-  for I := 0 to 7 do
-  begin
-    Chave := Format('SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\%.4d', [I]);
-    if RegQueryStringValue(HKEY_LOCAL_MACHINE, Chave, 'OpenGLDriverName', Valor) and (Valor <> '') then
-    begin
-      Result := True;
-      Exit;
-    end;
-  end;
-end;
+// A heuristica de driver OpenGL que existia aqui foi removida junto com a
+// caixa que ela marcava. Ela adivinhava, pelo registro, se a maquina tinha
+// driver de verdade, e errou numa VM QXL -- e o preco do erro nao era "roda
+// mais devagar", era "nao abre e nao diz nada".
 
 function NecessitaPath(Pasta: String): Boolean;
 var
@@ -189,8 +185,6 @@ begin
     'Go e compilador C, necessarios para o comando advplc build.',
     @AoBaixar);
 
-  if not TemDriverOpenGL() then
-    WizardSelectTasks('mesa');
   // Quem ja tem Go proprio nao precisa de outro: a caixa so vem marcada
   // quando nao ha nenhum na maquina.
   if not TemGo() then
