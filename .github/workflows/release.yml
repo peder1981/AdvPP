@@ -107,6 +107,13 @@ jobs:
           curl -fsSL -o mesa.7z \
             "https://github.com/pal1000/mesa-dist-win/releases/download/${MESA_VERSAO}/mesa3d-${MESA_VERSAO}-release-msvc.7z"
           7z e -y mesa.7z x64/opengl32.dll x64/libgallium_wgl.dll -oout/mesa
+          # Fontes do modulo Go: o stub gerado por `advplc build` importa
+          # este modulo, entao ele tem que existir em disco na maquina do
+          # usuario. So pkg/, cmd/ e os arquivos de modulo -- ~7 MB, contra
+          # 636 MB do repositorio inteiro.
+          mkdir -p out/advpp-src
+          cp -r pkg cmd go.mod go.sum out/advpp-src/
+          du -sh out/advpp-src
           cp installer/advpp.iss out/
           choco install innosetup --no-progress -y
           # // e o escape do MSYS: com /D simples o bash converteria o

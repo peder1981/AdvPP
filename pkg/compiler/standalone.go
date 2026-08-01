@@ -38,6 +38,12 @@ func findModuleRoot() (string, error) {
 	if env := os.Getenv("ADVPP_SRC"); env != "" {
 		candidates = append([]string{env}, candidates...)
 	}
+	// Fontes que o instalador pode ter colocado junto do advplc. Vai por
+	// ultimo de proposito: quem esta dentro do proprio checkout do AdvPP, ou
+	// definiu ADVPP_SRC, quer aquele, nao o do instalador.
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "advpp-src"))
+	}
 
 	for _, start := range candidates {
 		if root := walkUpForModule(start); root != "" {
@@ -143,7 +149,11 @@ replace %s => %s
 	// means the caller decides the extension (e.g. ".exe" on Windows) —
 	// same convention advplc's CLI callers already use.
 	tempOutput := filepath.Base(outputFile)
-	cmd := exec.Command("go", goBuildArgs(tempOutput, gui, targetGOOS())...)
+	goExe, err := goBinario()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(goExe, goBuildArgs(tempOutput, gui, targetGOOS())...)
 	cmd.Dir = tempDir
 	cmd.Stdout = buildLog
 	cmd.Stderr = buildLog
@@ -154,7 +164,7 @@ replace %s => %s
 	// `go mod tidy` first — everything it needs is normally already in the
 	// local module cache (this compiler already depends on the same
 	// packages), so this shouldn't need network access in practice.
-	cmd.Env = append(os.Environ(), "GOFLAGS=-mod=mod")
+	cmd.Env = ambienteDeBuild()
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("build failed: %v", err)
 	}

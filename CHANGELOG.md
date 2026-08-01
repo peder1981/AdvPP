@@ -2,6 +2,38 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.12] — 2026-08-01
+
+### Adicionado
+
+- **`advplc build` deixa de exigir Go no PATH.** O comando embute o bytecode
+  num stub Go e chama `go build`, o que precisa do toolchain Go e — porque o
+  stub importa o Fyne — de um compilador C, já que CGO é obrigatório (sem
+  ele o build morre em `go-gl/gl: build constraints exclude all Go files`).
+
+  O `advplc` agora procura uma pasta `toolchain/` ao lado do próprio
+  executável: `toolchain/go/bin/go` e um `gcc` em qualquer subpasta com
+  `bin/`. Nada precisa entrar no PATH. `ADVPP_GO` continua tendo precedência,
+  e sem a pasta o comportamento é exatamente o de antes — `go` e `gcc` vêm do
+  PATH. `run`, `check` e `serve` não passam por aqui.
+
+  O instalador do Windows ganhou a opção *Baixar o toolchain de compilação*,
+  que traz Go 1.24.2 (com SHA-256 conferido) e o mingw-w64 durante a
+  instalação, ~350 MB. Ela vem marcada quando não há Go na máquina, e falha de
+  rede não derruba a instalação: avisa, desmarca e segue — o AdvPP é útil sem
+  ela. Embutir os dois no pacote levaria o instalador de 43 MB para ~760 MB
+  por causa de um subcomando.
+
+  O instalador passa também a levar os fontes do módulo Go (`{app}\advpp-src`,
+  ~7 MB), consultados por `findModuleRoot` como último recurso — `ADVPP_SRC` e
+  o checkout do desenvolvedor seguem com precedência.
+
+### Corrigido
+
+- O ambiente do `go build` era montado com `append` em `os.Environ()`, o que
+  deixava a mesma chave duas vezes quando ela já existia; qual delas vale fica
+  por conta da plataforma. Agora substitui.
+
 ## [2.0.11] — 2026-08-01
 
 ### Corrigido
