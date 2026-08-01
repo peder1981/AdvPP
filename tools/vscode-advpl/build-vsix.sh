@@ -27,4 +27,6 @@ chmod +x bin/linux-x64/advplc bin/linux-arm64/advplc bin/darwin-arm64/advplc
 echo "Empacotando .vsix..."
 vsce package
 
-echo "Pronto: $(ls *.vsix | tail -1)"
+# -t (mais recente primeiro) e nao ordem alfabetica: "2.0.8" vem depois de
+# "2.0.14" numa comparacao de texto, entao a linha anunciava o .vsix errado.
+echo "Pronto: $(ls -t *.vsix | head -1)"
