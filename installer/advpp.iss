@@ -60,6 +60,9 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 WizardStyle=modern
+; Exigido pelo flag "extractarchive" do [Files]: o padrao e "basic", que nao
+; extrai arquivos compactados. "enhanced" embarca o extrator do 7-Zip.
+ArchiveExtraction=enhanced
 DisableProgramGroupPage=yes
 UninstallDisplayName=AdvPP {#AppVersion}
 UninstallDisplayIcon={app}\advpp-ide.exe
