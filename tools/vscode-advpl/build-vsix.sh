@@ -9,7 +9,10 @@ set -e
 
 cd "$(dirname "$0")"
 ROOT="$(cd ../.. && pwd)"
+# O Makefile ja monta -X main.version=v$(VERSION), entao um "v" no argumento
+# vira "vv2.0.7" no --version. Tira o prefixo se vier.
 VERSION="${1:-dev}"
+VERSION="${VERSION#v}"
 
 echo "Cross-compilando advplc ($VERSION) para as 4 plataformas..."
 (cd "$ROOT" && make cross VERSION="$VERSION")
