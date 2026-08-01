@@ -25,8 +25,7 @@
 ;     findModuleRoot consulta como ultimo recurso -- assim ADVPP_SRC e o
 ;     checkout do desenvolvedor continuam com precedencia.
 
-; Exige Inno Setup 6.3+ pelo flag "extractarchive" (extracao de .zip nativa)
-; e 6.1+ pelo CreateDownloadPage. O choco instala o 6.x atual.
+; Exige Inno Setup 6.1+ pelo CreateDownloadPage. O choco instala o 6.x atual.
 #ifndef AppVersion
   #define AppVersion "0.0.0-dev"
 #endif
@@ -60,9 +59,6 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 WizardStyle=modern
-; Exigido pelo flag "extractarchive" do [Files]: o padrao e "basic", que nao
-; extrai arquivos compactados. "enhanced" embarca o extrator do 7-Zip.
-ArchiveExtraction=enhanced
 DisableProgramGroupPage=yes
 UninstallDisplayName=AdvPP {#AppVersion}
 UninstallDisplayIcon={app}\advpp-ide.exe
@@ -93,15 +89,10 @@ Source: "advpp-src\*"; DestDir: "{app}\advpp-src"; Flags: ignoreversion recurses
 Source: "mesa\opengl32.dll";        DestDir: "{app}"; Tasks: mesa; Flags: ignoreversion
 Source: "mesa\libgallium_wgl.dll";  DestDir: "{app}"; Tasks: mesa; Flags: ignoreversion
 
-; Baixados por NextButtonClick para {tmp} antes desta etapa. "external" diz
-; ao Inno que o arquivo nao esta dentro do setup; "extractarchive" extrai o
-; zip em vez de copia-lo. Os dois arquivos trazem a propria pasta raiz
-; (go\, mingw64\), e o advplc procura o gcc dentro de toolchain\ sem
-; depender desse nome.
-Source: "{tmp}\go.zip";    DestDir: "{app}\toolchain"; Tasks: toolchain; Flags: external ignoreversion extractarchive
-Source: "{tmp}\mingw.zip"; DestDir: "{app}\toolchain"; Tasks: toolchain; Flags: external ignoreversion extractarchive
 
 [Dirs]
+; Destino dos zips baixados, extraidos pelo [Run] logo abaixo.
+Name: "{app}\toolchain"; Tasks: toolchain
 ; As tres ferramentas compartilham o mesmo banco (~/.advpp/ADVPP.db); a pasta
 ; e por usuario, entao nao precisa de permissao especial.
 Name: "{userappdata}\..\.advpp"
@@ -120,6 +111,17 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
     Tasks: path; Check: NecessitaPath(ExpandConstant('{app}'))
 
 [Run]
+; tar.exe do proprio Windows (bsdtar, presente desde o Windows 10 1803) em vez
+; do "extractarchive" do Inno: com ele o instalador abortava em "O formato do
+; arquivo compactado nao e compativel" para um zip deflate perfeitamente
+; valido -- SHA-256 conferido, o 7-Zip le sem reclamar. Os dois arquivos
+; trazem a propria pasta raiz (go\, mingw64\), e o advplc procura o gcc
+; dentro de toolchain\ sem depender desse nome.
+Filename: "{sys}\tar.exe"; Parameters: "-xf ""{tmp}\go.zip"" -C ""{app}\toolchain"""; \
+    StatusMsg: "Extraindo o toolchain Go..."; Flags: runhidden waituntilterminated; Tasks: toolchain
+Filename: "{sys}\tar.exe"; Parameters: "-xf ""{tmp}\mingw.zip"" -C ""{app}\toolchain"""; \
+    StatusMsg: "Extraindo o compilador C..."; Flags: runhidden waituntilterminated; Tasks: toolchain
+
 Filename: "{app}\advpp-ide.exe"; Description: "Abrir a IDE agora"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
@@ -200,6 +202,16 @@ begin
   Result := True;
   if (CurPageID <> wpReady) or (not WizardIsTaskSelected('toolchain')) then
     Exit;
+
+  if not FileExists(ExpandConstant('{sys}\tar.exe')) then
+  begin
+    MsgBox('Esta versao do Windows nao tem o tar.exe, usado para extrair o '
+      + 'toolchain de compilacao. A instalacao continua sem ele: funcionam '
+      + '"advplc run", "advplc check" e "advplc serve", mas nao "advplc build".',
+      mbInformation, MB_OK);
+    WizardSelectTasks('!toolchain');
+    Exit;
+  end;
 
   PaginaDownload.Clear;
   PaginaDownload.Add('{#GoURL}', 'go.zip', '{#GoSHA256}');
