@@ -2,6 +2,37 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.10] — 2026-08-01
+
+### Corrigido
+
+- **Erro na partida de um executável standalone sumia da tela.** O stub
+  rodava o VM numa goroutine e chamava `w.Close()` assim que ela terminasse.
+  Erro precoce — banco que não abre, função que não existe — acontece em
+  milissegundos, então o `Close` corria junto com o `ShowAndRun`: a janela
+  fechava antes de pintar e o programa desaparecia sem mensagem. No
+  subsistema GUI do Windows não há stderr visível, então o usuário só via "o
+  aplicativo não abre". Agora a janela fica aberta com o erro e o caminho do
+  banco em uso.
+
+- **Banco de um app distribuído nascia no diretório de trabalho.** O stub
+  usava `ResolveDatabasePath`, que cai em `./advpp.db` — premissa válida para
+  a CLI, que roda num diretório de projeto, e errada para um app lançado com
+  duplo clique dentro de `Program Files`. O SQLite não abria nada, a fábrica
+  devolvia `nil`, e a primeira chamada de `TCSqlExec` derrubava o programa.
+  Novo `ResolveStandaloneDatabasePath`: `ADVPP_DB` > banco já existente no
+  diretório atual > diretório atual, se gravável > pasta de dados do usuário.
+  O segundo passo preserva quem já usa o app — mudar o caminho por baixo
+  trocaria o banco em uso por um vazio.
+
+### Conhecido
+
+- `Try/Catch` **não** captura erro levantado por função nativa: o erro sai de
+  `callNative` como erro Go e passa por cima do frame do `try`, abortando o
+  programa. Um `.prw` não tem como se defender de `TCSqlExec` sem banco.
+  Tornar erro de nativa capturável é mudança de semântica do VM e fica para
+  uma versão própria.
+
 ## [2.0.9] — 2026-08-01
 
 ### Adicionado

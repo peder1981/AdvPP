@@ -124,7 +124,7 @@ func main() {
 			v.SetUIProvider(ui.NewTerminalUIProvider())
 		}
 		v.SetDBFactory(func() vm.DBEngine {
-			dbPath := shared.ResolveDatabasePath("")
+			dbPath := shared.ResolveStandaloneDatabasePath("__ADVPP_APP_TITLE__")
 			engine, err := db.NewSQLiteEngine(dbPath)
 			if err != nil {
 				return nil
@@ -156,11 +156,14 @@ func main() {
 	v.SetOutputWriter(ui.NewConsoleWriter(console))
 	v.SetUIProvider(ui.NewFyneUIProvider(w))
 
-	dbPath := shared.ResolveDatabasePath("")
+	// ResolveStandaloneDatabasePath, e nao ResolveDatabasePath: um app
+	// distribuido e lancado de onde o usuario mandar, e "./advpp.db" dentro
+	// de Program Files e um caminho onde o SQLite nao abre nada.
+	dbPath := shared.ResolveStandaloneDatabasePath("__ADVPP_APP_TITLE__")
 	v.SetDBFactory(func() vm.DBEngine {
 		engine, err := db.NewSQLiteEngine(dbPath)
 		if err != nil {
-			console.Append("Database warning: " + err.Error())
+			console.Append("Aviso de banco (" + dbPath + "): " + err.Error())
 			return nil
 		}
 		return engine
@@ -168,15 +171,25 @@ func main() {
 
 	done := make(chan int, 1)
 	go func() {
-		code := 1
 		_, err := v.Run()
 		if err != nil {
-			console.Append("Runtime error: " + err.Error())
-		} else {
-			code = 0
+			// A janela NAO fecha aqui, de proposito. Erro precoce -- banco
+			// que nao abre, funcao que nao existe -- acontece em
+			// milissegundos, e o w.Close() que ficava neste ponto corria
+			// junto com o ShowAndRun: a janela fechava antes de pintar e o
+			// programa sumia sem mensagem nenhuma. No subsistema GUI do
+			// Windows nao ha stderr visivel, entao o usuario so via "o
+			// aplicativo nao abre". Agora a mensagem fica na tela ate ele
+			// fechar.
+			console.Append("")
+			console.Append("ERRO DE EXECUCAO: " + err.Error())
+			console.Append("Banco em uso: " + dbPath)
+			console.Append("A janela continua aberta para a leitura da mensagem.")
+			done <- 1
+			return
 		}
 		w.Close() // Signals ShowAndRun to return
-		done <- code
+		done <- 0
 	}()
 
 	w.ShowAndRun()
