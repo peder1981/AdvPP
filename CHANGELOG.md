@@ -2,6 +2,20 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.13] — 2026-08-01
+
+### Corrigido
+
+- **O instalador abortava ao extrair o toolchain**: *"O formato do arquivo
+  compactado não é compatível"*, para o `go1.24.2.windows-amd64.zip` — um zip
+  deflate perfeitamente válido, com SHA-256 conferido pelo próprio download do
+  Inno e que o 7-Zip lê sem reclamar. O extrator do `ArchiveExtraction`
+  simplesmente não dá conta dele.
+
+  Trocado pelo `tar.exe` do próprio Windows (bsdtar, presente desde o Windows
+  10 1803), que extrai zip nativamente. Se ele não existir, o instalador avisa
+  e segue sem o toolchain em vez de baixar 350 MB para nada.
+
 ## [2.0.12] — 2026-08-01
 
 ### Adicionado
