@@ -27,6 +27,12 @@ import (
 var bytecodeData []byte
 
 func main() {
+	// Antes de tudo: se ha um Mesa3D instalado ao lado deste executavel, o
+	// programa se relanca com o driver llvmpipe fixado. Sem isso o Mesa tenta
+	// o d3d12 primeiro e, em VM, morre com 0x80070057 depois de ja ter
+	// desenhado a janela. Nao retorna quando relanca.
+	shared.ForcaMesaPorSoftware()
+
 	elog := func(msg string) {
 		fmt.Fprintf(os.Stderr, "[ADVPP] %s\n", msg)
 	}
