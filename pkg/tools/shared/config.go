@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Config representa a configuração compartilhada entre as ferramentas
@@ -113,6 +114,88 @@ const LocalDatabaseName = "advpp.db"
 // O resultado é sempre um caminho absoluto. A criação física do arquivo
 // (se ainda não existir) é feita por OpenSQLite no primeiro open, não
 // aqui — esta função só decide QUAL caminho usar.
+// dirGravavel diz se e possivel criar arquivo em dir. Um os.Stat do
+// diretorio nao serve: no Windows a permissao efetiva depende da ACL, e
+// Program Files aparece como diretorio normal ate a hora de escrever.
+func dirGravavel(dir string) bool {
+	f, err := os.CreateTemp(dir, ".advpp-w-*")
+	if err != nil {
+		return false
+	}
+	nome := f.Name()
+	f.Close()
+	os.Remove(nome)
+	return true
+}
+
+// ResolveStandaloneDatabasePath escolhe o banco de um executavel gerado por
+// `advplc build`.
+//
+// Existe separado do ResolveDatabasePath porque as premissas sao outras. A
+// CLI roda dentro de um diretorio de projeto, que e do desenvolvedor e e
+// gravavel -- "./advpp.db" ali e exatamente o que se quer. Um app
+// distribuido e lancado de onde o usuario mandar: atalho do menu Iniciar,
+// duplo clique dentro de Program Files, pendrive, pasta de rede. Cair em
+// "./advpp.db" nesses casos devolve um caminho onde o SQLite nao consegue
+// abrir nada, a fabrica de banco do stub devolve nil, e a primeira chamada
+// de TCSqlExec derruba o programa -- que no subsistema GUI do Windows some
+// da tela sem mensagem nenhuma.
+//
+// Ordem: ADVPP_DB > banco que ja existe no diretorio atual > diretorio
+// atual, se gravavel > pasta de dados do usuario. O segundo passo e o que
+// preserva quem ja usa o app: mudar o caminho por baixo trocaria o banco em
+// uso por um vazio.
+func ResolveStandaloneDatabasePath(appName string) string {
+	if env := os.Getenv("ADVPP_DB"); env != "" {
+		if abs, err := filepath.Abs(env); err == nil {
+			return abs
+		}
+		return env
+	}
+
+	if _, err := os.Stat(LocalDatabaseName); err == nil {
+		if abs, err := filepath.Abs(LocalDatabaseName); err == nil {
+			return abs
+		}
+	}
+
+	if dirGravavel(".") {
+		if abs, err := filepath.Abs(LocalDatabaseName); err == nil {
+			return abs
+		}
+	}
+
+	base, err := os.UserConfigDir()
+	if err != nil || base == "" {
+		base = os.TempDir()
+	}
+	dir := filepath.Join(base, "advpp", sanitizaNomeApp(appName))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		// Ultimo recurso: TempDir e gravavel em qualquer plataforma. Banco
+		// volatil e ruim, mas some junto com o problema -- melhor que o app
+		// nao abrir.
+		return filepath.Join(os.TempDir(), LocalDatabaseName)
+	}
+	return filepath.Join(dir, LocalDatabaseName)
+}
+
+// sanitizaNomeApp reduz o titulo do app a algo seguro como nome de pasta.
+func sanitizaNomeApp(nome string) string {
+	limpo := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			return r
+		case r == '-', r == '_':
+			return r
+		}
+		return -1
+	}, nome)
+	if limpo == "" {
+		return "app"
+	}
+	return limpo
+}
+
 func ResolveDatabasePath(explicit string) string {
 	candidate := explicit
 	if candidate == "" {
