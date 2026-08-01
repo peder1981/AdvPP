@@ -106,7 +106,11 @@ func main() {
 	// whose author decided a desktop window is the better default (a
 	// wrapper script sets this per-app; it's not this stub's call to make
 	// for every AdvPP program launched from a terminal).
-	isTTY := ui.IsTerminal(os.Stdin) && os.Getenv("ADVPP_FORCE_GUI") == ""
+	// builtAsGUI is baked in by `advplc build --gui`: the author declared
+	// this program a desktop app, so the terminal fallback never applies to
+	// it and no wrapper script has to export ADVPP_FORCE_GUI per platform.
+	const builtAsGUI = __ADVPP_BUILT_AS_GUI__
+	isTTY := ui.IsTerminal(os.Stdin) && !builtAsGUI && os.Getenv("ADVPP_FORCE_GUI") == ""
 	if !hasUI || isTTY || os.Getenv("ADVPP_HEADLESS_STANDALONE") != "" {
 		// If stdin is a real terminal, attach a TerminalUIProvider so
 		// FWGetText/FWMenuSelect/FWMBrowse/Msg* actually work (without any

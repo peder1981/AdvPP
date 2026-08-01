@@ -2,6 +2,28 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.7] — 2026-08-01
+
+### Adicionado
+
+- `advplc build --gui`: marca o programa como app desktop. O executável
+  sempre abre a janela Fyne em vez de cair na UI de terminal, e no Windows é
+  linkado no subsistema GUI (`-ldflags -H=windowsgui`).
+
+### Corrigido
+
+- **Executável Windows caía na UI de terminal.** `advplc build` produzia um
+  binário de console. No Windows o duplo-clique aloca um console, então
+  `IsTerminal(os.Stdin)` respondia verdadeiro, o stub escolhia o
+  `TerminalUIProvider` — que não implementa diálogos — e todo `MSDIALOG`
+  morria com "requer o modo web". Não havia contorno prático: a variável
+  `ADVPP_FORCE_GUI` exige um shell, e quem clica no `.exe` não tem um.
+  Compile com `--gui`.
+- **`advplc build ... -o` era ignorado depois de qualquer flag.** O caminho
+  de saída só era lido quando `-o` caía exatamente em `os.Args[3]`; em
+  `build app.prw --gui -o App` o binário saía calado em `./output`. Agora
+  `-o` é procurado em qualquer posição.
+
 ## [2.0.6] — 2026-08-01
 
 A partir desta versão o compilador e a extensão do VS Code compartilham o
