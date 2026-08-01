@@ -85,9 +85,15 @@ func main() {
 			os.Exit(1)
 		}
 		sourceFile := os.Args[2]
+		// -o era lido so quando caia exatamente em os.Args[3]: qualquer
+		// flag antes dele (`build app.prw --gui -o App`) fazia o binario
+		// sair calado em ./output. Procura em qualquer posicao.
 		outputFile := "output"
-		if len(os.Args) >= 4 && os.Args[3] == "-o" && len(os.Args) >= 5 {
-			outputFile = os.Args[4]
+		for i := 3; i+1 < len(os.Args); i++ {
+			if os.Args[i] == "-o" {
+				outputFile = os.Args[i+1]
+				break
+			}
 		}
 		opts := parseOptions(os.Args[3:])
 		if err := buildStandalone(sourceFile, outputFile, opts); err != nil {
@@ -196,6 +202,7 @@ type Options struct {
 	dbBackend string
 	port      string
 	watch     bool
+	gui       bool // advplc build --gui: app desktop (janela sempre, subsistema GUI no Windows)
 	debugPort string // advplc serve --debug-port: liga um listener DAP TCP (attach)
 }
 
@@ -241,6 +248,8 @@ func parseOptions(args []string) *Options {
 				opts.port = args[i+1]
 				i++
 			}
+		case "--gui":
+			opts.gui = true
 		case "--watch", "-w":
 			opts.watch = true
 		case "--debug-port":
@@ -723,7 +732,7 @@ func buildStandalone(sourceFile, outputFile string, opts *Options) error {
 	} else {
 		title = "AdvPP"
 	}
-	return compiler.BuildStandalone(bc, outputFile, title, os.Stdout)
+	return compiler.BuildStandaloneGUI(bc, outputFile, title, opts.gui, os.Stdout)
 }
 
 func printAST(sourceFile string, opts *Options) error {
@@ -839,6 +848,12 @@ Options:
                                 ~/.advpp/advpp_config.json, or 8080)
   -w, --watch                   Web mode: recompile on source change and
                                 reload browser sessions (hot reload)
+  --gui                         build: mark the program as a desktop app.
+                                The executable always opens the Fyne window
+                                instead of falling back to the terminal UI,
+                                and on Windows it is linked into the GUI
+                                subsystem (no console window). Required for
+                                any program that uses MSDIALOG.
 
 Examples:
   advplc run hello.prw
@@ -848,5 +863,6 @@ Examples:
   advplc check program.prw --include ./includes
   advplc serve program.prw --port 9000 --watch
   advplc build program.prw -o myapp --db-path ./data.db
+  advplc build app.prw -o MyApp --gui
   advplc bytecode program.prw`)
 }

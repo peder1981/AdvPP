@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -73,7 +75,19 @@ func walkUpForModule(start string) string {
 // the resulting binary to outputFile. title becomes the app window's
 // title (falls back to "AdvPP" if empty). buildLog receives the `go
 // build` subprocess's combined stdout/stderr (pass os.Stdout for CLI use).
+//
+// gui marks the program as a desktop app: the stub always opens the Fyne
+// window instead of falling back to the terminal UI, and on Windows the
+// binary is linked into the GUI subsystem. Without it a Windows build is a
+// console executable, so double-clicking it allocates a console, stdin
+// looks like a TTY, and the stub picks the terminal UI -- which has no
+// MSDIALOG support at all. See BuildStandaloneGUI.
 func BuildStandalone(bc *Bytecode, outputFile, title string, buildLog io.Writer) error {
+	return BuildStandaloneGUI(bc, outputFile, title, false, buildLog)
+}
+
+// BuildStandaloneGUI is BuildStandalone with the desktop-app switch.
+func BuildStandaloneGUI(bc *Bytecode, outputFile, title string, gui bool, buildLog io.Writer) error {
 	moduleRoot, err := findModuleRoot()
 	if err != nil {
 		return err
@@ -103,7 +117,9 @@ func BuildStandalone(bc *Bytecode, outputFile, title string, buildLog io.Writer)
 		if strings.Contains(line, "+build ignore") || strings.Contains(line, "//go:build ignore") {
 			continue
 		}
-		cleanStub = append(cleanStub, strings.ReplaceAll(line, "__ADVPP_APP_TITLE__", title))
+		line = strings.ReplaceAll(line, "__ADVPP_APP_TITLE__", title)
+		line = strings.ReplaceAll(line, "__ADVPP_BUILT_AS_GUI__", strconv.FormatBool(gui))
+		cleanStub = append(cleanStub, line)
 	}
 	stubDst := filepath.Join(tempDir, "main.go")
 	if err := os.WriteFile(stubDst, []byte(strings.Join(cleanStub, "\n")), 0644); err != nil {
@@ -127,7 +143,7 @@ replace %s => %s
 	// means the caller decides the extension (e.g. ".exe" on Windows) —
 	// same convention advplc's CLI callers already use.
 	tempOutput := filepath.Base(outputFile)
-	cmd := exec.Command("go", "build", "-o", tempOutput, ".")
+	cmd := exec.Command("go", goBuildArgs(tempOutput, gui, targetGOOS())...)
 	cmd.Dir = tempDir
 	cmd.Stdout = buildLog
 	cmd.Stderr = buildLog
@@ -147,6 +163,28 @@ replace %s => %s
 		return fmt.Errorf("cannot move executable: %v", err)
 	}
 	return nil
+}
+
+// goBuildArgs assembles the `go build` argv. -H=windowsgui puts the binary
+// in the Windows GUI subsystem: no console window behind the app, and no
+// console handles either -- which is what makes the stub's
+// IsTerminal(os.Stdin) check answer false and route to Fyne. It means
+// nothing on other platforms, so it only goes in where it applies.
+func goBuildArgs(output string, gui bool, goos string) []string {
+	args := []string{"build", "-o", output}
+	if gui && goos == "windows" {
+		args = append(args, "-ldflags", "-H=windowsgui")
+	}
+	return append(args, ".")
+}
+
+// targetGOOS is the platform `go build` will emit for: the GOOS env var
+// when the caller cross-compiles, otherwise this process's own platform.
+func targetGOOS() string {
+	if goos := os.Getenv("GOOS"); goos != "" {
+		return goos
+	}
+	return runtime.GOOS
 }
 
 // moveFile moves src to dst, falling back to copy+remove when they're on
