@@ -2,6 +2,24 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.9] — 2026-08-01
+
+### Adicionado
+
+- **Instalador do Windows** (`AdvPP-Setup-<versão>.exe`, Inno Setup).
+  O zip solto não entrega o que faz uma toolchain ser usável: o instalador põe
+  `advplc` no PATH da máquina, cria atalhos para a IDE e o AdvEditor, e
+  desinstala. Traz também o Mesa3D como opção marcável — `advpp-ide` e
+  `adveditor` são Fyne e morrem com *"WGL: The driver does not appear to
+  support OpenGL"* em máquina sem driver de vídeo ou em VM; a opção vem
+  pré-marcada quando nenhum driver OpenGL está registrado.
+
+  Fora do escopo de propósito: `advplc build` compila o bytecode dentro de um
+  stub Go, então continua exigindo o Go e o repositório do AdvPP
+  (`ADVPP_SRC`) na máquina. Embutir o Go trocaria um download de 25 MB por um
+  de 200 MB por causa de um subcomando. O instalador avisa quando não acha o
+  Go; `advplc run|check|serve` funcionam sem ele.
+
 ## [2.0.8] — 2026-08-01
 
 ### Corrigido
