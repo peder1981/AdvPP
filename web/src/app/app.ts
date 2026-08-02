@@ -83,8 +83,11 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
       }
     </po-modal>
 
-    <!-- FWMenuSelect: lista de opções com ícone, navegação entre telas -->
-    <po-modal #menuModal [p-title]="menu()?.title || 'Menu'" [p-hide-close]="true" p-size="sm">
+    <!-- FWMenuSelect: lista de opções com ícone, navegação entre telas.
+         Botão "Fechar" fecha sem escolher opção — mesmo contrato do
+         FWMenuSelect real: devolve 0 pro código (ver menuClose()) em vez
+         de travar a VM esperando uma resposta que nunca chega. -->
+    <po-modal #menuModal [p-title]="menu()?.title || 'Menu'" [p-secondary-action]="menuCloseAction" [p-hide-close]="true" p-size="sm">
       @if (menu(); as m) {
         <div class="advpp-menu">
           @for (item of m.items; track $index) {
@@ -319,6 +322,21 @@ export class App {
     this.menu.set(null);
     this.reply(this.menuId, String(index));
   }
+
+  // Fecha o menu sem escolher opção (botão "Fechar") — mesmo contrato do
+  // FWMenuSelect real (ex.: PADRAO_GUI.md do GesCon): devolve 0 pro
+  // código chamador em vez de deixar a VM bloqueada pra sempre esperando
+  // um /reply que nunca chega (era exatamente esse bloqueio, combinado
+  // com o EventSource reconectando sozinho, que fazia o programa inteiro
+  // "reiniciar" do nada na 2ª chamada de FWMenuSelect — ver server.go).
+  protected menuCloseAction: PoModalAction = {
+    label: 'Fechar',
+    action: () => {
+      this.menuModal.close();
+      this.menu.set(null);
+      this.reply(this.menuId, '0');
+    },
+  };
 
   protected inputConfirmAction: PoModalAction = { label: 'OK', action: () => this.inputConfirm() };
   protected inputCancelAction: PoModalAction = { label: 'Cancelar', action: () => this.inputCancel() };
