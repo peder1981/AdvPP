@@ -2,6 +2,38 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.18] — 2026-08-02
+
+Bug relatado por **Wilson Kraft**, que testou o renderer web do AdvPP com um
+programa próprio de cadastro de contatos (`FWMenuSelect` + `FWMBrowse`) e
+identificou o comportamento de reinício descrito abaixo — obrigado pelo
+relato detalhado, incluindo o log técnico e o código de reprodução, que
+tornaram possível isolar a causa raiz de primeira.
+
+### Corrigido
+
+- **`advplc serve`: reconexão do EventSource reiniciava o programa do zero
+  quando havia um diálogo pendente.** O browser reconecta sozinho no
+  `/events` sempre que a conexão SSE cai (proxy, aba suspensa, blip de
+  rede) — sem recarregar a página, reusando o mesmo id de sessão. O
+  handler tratava toda reconexão como sessão nova: recriava o estado e
+  reexecutava o programa inteiro, enquanto a goroutine anterior ficava
+  presa pra sempre esperando uma resposta que nunca chegaria. Sintoma
+  visível: um `FWMenuSelect` (ou qualquer outro diálogo) parado esperando
+  o usuário, numa 2ª tela do fluxo, e do nada o log técnico "reiniciava"
+  sozinho — nenhuma linha de código rodando entre a ação do usuário e o
+  reset aparente. Agora uma reconexão com id de sessão já conhecido e
+  ainda em execução retoma o mesmo stream em vez de recriar tudo; a
+  sessão só é descartada quando o programa realmente termina.
+
+- **`FWMenuSelect` no renderer web não tinha como fechar sem escolher uma
+  opção.** O popup não tinha botão de fechar nem reagia a ESC/clique fora
+  — a única saída documentada (fechar sem escolher devolve `0` pro código
+  chamador) não existia na prática, e qualquer tentativa de fechar deixava
+  a execução bloqueada indefinidamente esperando uma resposta que nunca
+  seria enviada. Adicionado o botão "Fechar", que agora devolve `0`
+  corretamente — mesmo contrato do `FWMenuSelect` real.
+
 ## [vscode-2.0.17] — 2026-08-01
 
 ### Corrigido

@@ -4,9 +4,10 @@
 // embutido (console, diálogos e FWMBrowse→po-table + SX3→po-dynamic-form).
 //
 // Protocolo (backend stdlib apenas, sem WebSocket):
-//   GET  /            → app PO-UI embutido (embed.FS)
-//   GET  /events?s=ID → stream SSE: {type:"output"|"dialog"|"browse"|"menu"|"input"|"done"|"error", ...}
-//   POST /reply?s=ID  → resposta: {"id":N,"result":"ok"|"yes"|"no"|<ação JSON do browse>}
+//
+//	GET  /            → app PO-UI embutido (embed.FS)
+//	GET  /events?s=ID → stream SSE: {type:"output"|"dialog"|"browse"|"menu"|"input"|"done"|"error", ...}
+//	POST /reply?s=ID  → resposta: {"id":N,"result":"ok"|"yes"|"no"|<ação JSON do browse>}
 //
 // Cada conexão /events cria uma sessão com VM própria (isolada, como um
 // work process) — recarregar a página reexecuta o programa.
@@ -20,6 +21,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"sync/atomic"
 )
 
 // dist é o app PO-UI/Angular compilado (fase 2) — regenerar com `make web`.
@@ -41,6 +43,12 @@ type session struct {
 	mu      sync.Mutex
 	waiting map[int]chan string
 	nextID  int
+	// done vira true quando run() termina de verdade (evento "done" já
+	// enfileirado). Usado pelo handler de /events pra decidir, na queda da
+	// conexão, se a sessão pode ser descartada (programa realmente acabou)
+	// ou se precisa ficar viva esperando uma reconexão retomar (ver New
+	// no handler de /events).
+	done atomic.Bool
 }
 
 func newSession() *session {
@@ -215,15 +223,25 @@ func (srv *Server) Serve(addr string) error {
 			http.Error(w, "missing session", http.StatusBadRequest)
 			return
 		}
-		s := newSession()
+
+		// O sid só muda quando a página recarrega de verdade (App gera um
+		// novo Math.random() no constructor — ver web/src/app/app.ts). O
+		// EventSource do browser, por outro lado, reconecta sozinho em
+		// qualquer queda de conexão (proxy, aba suspensa, blip de rede),
+		// reusando o MESMO sid, sem recarregar a página. Se essa reconexão
+		// cair aqui como sessão nova, o programa reexecuta do zero por
+		// baixo dos panos — inclusive enquanto uma goroutine anterior
+		// segue presa esperando resposta de um diálogo (FWMenuSelect,
+		// FWGetText, MsgYesNo...) que nunca mais vai chegar. Por isso:
+		// sid já conhecido e ainda vivo (done == false) reaproveita a
+		// mesma sessão em vez de criar uma nova.
 		mu.Lock()
-		sessions[sid] = s
+		s, resumed := sessions[sid]
+		if !resumed {
+			s = newSession()
+			sessions[sid] = s
+		}
 		mu.Unlock()
-		defer func() {
-			mu.Lock()
-			delete(sessions, sid)
-			mu.Unlock()
-		}()
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -232,15 +250,26 @@ func (srv *Server) Serve(addr string) error {
 			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 			return
 		}
+		// Envia os headers (200 + text/event-stream) imediatamente. Sem
+		// isso, numa sessão retomada (sem goroutine nova, sem primeiro
+		// evento síncrono), o cliente ficaria esperando a resposta HTTP
+		// em si até o próximo evento — que só chega quando o usuário
+		// responder ao diálogo pendente. EventSource/curl não veem uma
+		// conexão SSE aberta enquanto os headers não saem.
+		w.WriteHeader(http.StatusOK)
+		flusher.Flush()
 
-		// Executa o programa em goroutine própria; eventos fluem pelo canal
-		go func() {
-			s.events <- event{Type: "output", Text: "── executando " + sourceName + " ──"}
-			if err := run(&Provider{s}, &OutWriter{s}); err != nil {
-				s.events <- event{Type: "error", Text: err.Error()}
-			}
-			s.events <- event{Type: "done"}
-		}()
+		if !resumed {
+			// Executa o programa em goroutine própria; eventos fluem pelo canal
+			go func() {
+				s.events <- event{Type: "output", Text: "── executando " + sourceName + " ──"}
+				if err := run(&Provider{s}, &OutWriter{s}); err != nil {
+					s.events <- event{Type: "error", Text: err.Error()}
+				}
+				s.events <- event{Type: "done"}
+				s.done.Store(true)
+			}()
+		}
 
 		enc := json.NewEncoder(w)
 		for {
@@ -253,6 +282,16 @@ func (srv *Server) Serve(addr string) error {
 				// não encerra no "done": a conexão fica aberta para eventos
 				// posteriores (ex.: reload do --watch)
 			case <-r.Context().Done():
+				// Só descarta a sessão se o programa já terminou de verdade
+				// (done == true). Enquanto estiver rodando/bloqueada num
+				// diálogo, ela fica no mapa pra uma eventual reconexão
+				// retomar (ver comentário acima) — o goroutine dela segue
+				// vivo, com o canal de eventos aberto, esperando o /reply.
+				if s.done.Load() {
+					mu.Lock()
+					delete(sessions, sid)
+					mu.Unlock()
+				}
 				return
 			}
 		}
