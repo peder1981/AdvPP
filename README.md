@@ -751,7 +751,7 @@ Ressalva: Prova de conceito que treino real funciona; não é um LLM produção.
 
 ### Contagem de Funções Nativas
 
-**Claim:** README diz "~200+" funções nativas; **Real:** 243 funções implementadas (medido em `pkg/vm/natives.go`).
+**Claim:** README diz "~200+" funções nativas; **Real:** 263 funções implementadas — 256 em `pkg/vm/natives.go` + 7 em `pkg/vm/ui_render.go` (natives de TUI: UiBox, UiStreamBox, UiStreamReset, UiMarkdown, UiAltScreenEnter, UiAltScreenExit, UiTermWidth — v2.0.19).
 
 **Nota:** Muitas são stubs/no-ops (ex.: `FWCLEARHLP`, `HELP`, `MSDOCUMENT`). A contagem ~200+ é aproximada por design; detalhes em `GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md`.
 

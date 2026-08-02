@@ -2,6 +2,50 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.19] — 2026-08-02
+
+### Adicionado
+
+- **Primitivas de TUI de terminal** (`pkg/vm/ui_render.go`), estilo
+  opencode/Claude Code — um programa AdvPL/TLPP compilado com `advplc build`
+  agora pode compor a própria interface de terminal em vez de só usar os
+  diálogos prontos (`MSDIALOG`/`FWGetText`/`FWMenuSelect`):
+  - `UiBox(cTitle, cBody, cColor, [nWidth])` — caixa com borda arredondada
+    (lipgloss)
+  - `UiStreamBox(...)` / `UiStreamReset()` — mesma caixa, mas auto-redesenha
+    por cima da anterior a cada chamada (streaming de LLM token a token,
+    efeito de "cartão crescendo ao vivo")
+  - `UiMarkdown(cMarkdown, [nWidth])` — markdown renderizado em ANSI via
+    glamour (negrito, itálico, listas, código, títulos)
+  - `UiAltScreenEnter()` / `UiAltScreenExit()` — tela alternativa do
+    terminal (buffer do vim/less/htop), com handler de Ctrl+C que restaura
+    a tela normal antes de encerrar
+  - `UiTermWidth([nDefault])` — largura real do terminal, com fallback
+    quando stdout não é TTY
+- **`ConOutRaw(cText)`** — escreve sem newline, para texto em streaming na
+  mesma linha do terminal.
+- **`ProcRun(cPath, aArgs, bOnStdoutLine, [bOnStderrLine])`** — executa um
+  processo filho (sem shell) com callback síncrono por linha de
+  stdout/stderr — consumo de NDJSON em streaming (ex.: CLI de um LLM)
+  direto de dentro do AdvPL.
+- Nova dependência: `github.com/charmbracelet/glamour` (+ `go-colorable`
+  para paridade de cores ANSI no Windows, aplicado a toda a saída de
+  console: `CONOUT`/`CONOUTW`/`CONIN`/`CONOUTRAW` e as natives de TUI
+  acima).
+
+### Corrigido
+
+- **`JsonObject:FromJson()` era um stub que sempre devolvia Nil sem
+  parsear nada.** Agora é um parser real (`encoding/json` da stdlib):
+  objetos aninhados viram `JsonObject` (acesso via `oJ["chave"]`), arrays
+  viram `Array` 1-based, `null` vira Nil. Em JSON inválido ou top-level
+  não-objeto, devolve `.F.` sem mutar o objeto e sem lançar erro.
+- **`ConIn()` não distinguia EOF real de linha vazia.** Se o stdin fechasse
+  de verdade (Ctrl+D, pipe esgotado), `ConIn()` devolvia `""` — igual ao
+  caso normal de "usuário só apertou Enter". Agora devolve Nil no EOF real
+  (checar com `IsNil()`), permitindo que um REPL saia do loop em vez de
+  reimprimir o prompt pra sempre.
+
 ## [2.0.18] — 2026-08-02
 
 Bug relatado por **Wilson Kraft**, que testou o renderer web do AdvPP com um

@@ -133,7 +133,9 @@
 
 | Feature | Status | Implemented | Parsed | Unsupported | Example | Limitations | Audit Status |
 |---------|--------|-------------|--------|-------------|---------|------------|--------------|
-| **Native functions (~240+)** | 🟢 | ✅ | — | — | ConOut, AllTrim, Str, Val, etc. | See GUIA for full list | ✅ Complete |
+| **Native functions (~250+)** | 🟢 | ✅ | — | — | ConOut, AllTrim, Str, Val, etc. | See GUIA for full list | ✅ Complete |
+| **TUI rendering primitives** | 🟢 | ✅ | — | — | UiBox, UiStreamBox, UiMarkdown (glamour), UiAltScreenEnter/Exit, UiTermWidth | Terminal only, no raw-mode keyboard input | ✅ Complete |
+| **ProcRun (subprocess streaming)** | 🟢 | ✅ | — | — | `ProcRun(path, args, {\|line\| ...})` | Sync per-line callback, no shell | ✅ Complete |
 | **String functions** | 🟢 | ✅ | — | — | AllTrim, SubStr, Len, Upper, Lower | Native functions | ✅ Complete |
 | **Array functions** | 🟢 | ✅ | — | — | aAdd, aDel, aScan, ASort, AEval | High-order with blocks | ✅ Complete |
 | **File I/O (MemoRead/MemoWrite)** | 🟢 | ✅ | — | — | Whole-file operations | Max 10MB | ✅ Complete |
@@ -213,7 +215,7 @@
 
 ## Summary by Status
 
-### 🟢 Fully Implemented (51 features)
+### 🟢 Fully Implemented (53 features)
 Core language, OOP, control flow, data types, most DB/UI, all runtimes, ML/tensors, security
 
 ### 🟡 Limited/Partial (7 features)
