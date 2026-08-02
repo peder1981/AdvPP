@@ -2,6 +2,7 @@ package vm
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -112,6 +113,7 @@ type VM struct {
 	httpLastError  string                   // último erro HTTP (FWHttpError)
 	stdinReader    *bufio.Reader            // leitor de linha do stdin (ConIn), lazy
 	dynEnv         map[string]advplrt.Value // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
+	lastBoxLines   int                      // altura (linhas) do último UiStreamBox renderizado, p/ apagar e redesenhar no próximo delta
 }
 
 type namedArgInfo struct {
@@ -1540,6 +1542,37 @@ func (v *VM) callErrorClassMethod(obj *advplrt.ObjectValue, method string, _ []a
 	}
 }
 
+// jsonToAdvplValue converte o resultado de json.Unmarshal (interface{}: nil,
+// bool, float64, string, []interface{}, map[string]interface{}) para a árvore
+// de advplrt.Value equivalente — objetos aninhados viram *ObjectValue classe
+// "JsonObject" (suporta oJ["chave"]["sub"]), arrays viram *ArrayValue 1-based.
+func jsonToAdvplValue(val interface{}) advplrt.Value {
+	switch t := val.(type) {
+	case nil:
+		return advplrt.Nil
+	case bool:
+		return advplrt.NewBool(t)
+	case float64:
+		return advplrt.NewNumber(t)
+	case string:
+		return advplrt.NewString(t)
+	case []interface{}:
+		elems := make([]advplrt.Value, len(t))
+		for i, e := range t {
+			elems[i] = jsonToAdvplValue(e)
+		}
+		return advplrt.NewArray(elems)
+	case map[string]interface{}:
+		obj := advplrt.NewObject("JsonObject", nil)
+		for k, v := range t {
+			obj.SetProp(k, jsonToAdvplValue(v))
+		}
+		return obj
+	default:
+		return advplrt.Nil
+	}
+}
+
 func (v *VM) callJsonObjectMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
 	switch method {
 	case "TOSTRING", "TOJSON":
@@ -1571,13 +1604,28 @@ func (v *VM) callJsonObjectMethod(obj *advplrt.ObjectValue, method string, args 
 	case "FROMJSON":
 		if len(args) > 0 {
 			if s, ok := args[0].(*advplrt.StringValue); ok {
-				// Simple JSON parse - just return Nil for now, full parser TODO
-				_ = s
-				v.push(advplrt.Nil)
+				var parsed interface{}
+				if err := json.Unmarshal([]byte(s.Val), &parsed); err != nil {
+					v.push(advplrt.False)
+					return nil
+				}
+				root, ok := parsed.(map[string]interface{})
+				if !ok {
+					// Top-level JSON não é objeto (ex.: array ou escalar) — não há
+					// como popular Props/Keys de obj; devolve .F. sem mutar.
+					v.push(advplrt.False)
+					return nil
+				}
+				obj.Props = make(map[string]advplrt.Value, len(root))
+				obj.Keys = obj.Keys[:0]
+				for k, val := range root {
+					obj.SetProp(k, jsonToAdvplValue(val))
+				}
+				v.push(advplrt.True)
 				return nil
 			}
 		}
-		v.push(advplrt.Nil)
+		v.push(advplrt.False)
 		return nil
 	case "GETNAMES":
 		// Ordem de inserção das chaves (mesma semântica do native GetNames).

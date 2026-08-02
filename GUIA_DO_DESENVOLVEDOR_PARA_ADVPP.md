@@ -18,7 +18,8 @@
     - 4.1 [Tipos de Valor (`pkg/runtime/values.go`)](#41-tipos-de-valor-pkgruntimevaluesgo)
     - 4.2 [Ambiente de Variáveis (`pkg/runtime/environment.go`)](#42-ambiente-de-vari%C3%A1veis-pkgruntimeenvironmentgo)
     - 4.3 [VM Core (`pkg/vm/vm.go`)](#43-vm-core-pkgvmvmgo)
-    - 4.4 [Funções Nativas Registradas (~200+)](#44-fun%C3%A7%C3%B5es-nativas-registradas-200)
+    - 4.4 [Funções Nativas Registradas (~250+)](#44-fun%C3%A7%C3%B5es-nativas-registradas-250)
+        - 4.4.1 [TUI / Terminal (`pkg/vm/ui_render.go`)](#441-tui--terminal-pkgvmui_rendergo)
     - 4.5 [Sistema de Diálogo (MsDialog)](#45-sistema-de-di%C3%A1logo-msdialog)
     - 4.6 [Browse (FWMBrowse Auto-CRUD)](#46-browse-fwmbrowse-auto-crud)
     - 4.7 [Grid Process (FWGridProcess)](#47-grid-process-fwgridprocess)
@@ -68,7 +69,7 @@
                        │
           ┌────────────▼────────────┐
           │     VM Execution Engine │  Run() / RunFunction() / StartJob()
-          │   + 200+ Native Fns     │  Strings, Math, Date, Array, File, DB, UI
+          │   + 250+ Native Fns     │  Strings, Math, Date, Array, File, DB, UI, TUI
           └────────────┬────────────┘
                        │
          ┌─────────────┼──────────────────┐
@@ -450,16 +451,25 @@ Implementa variáveis Private/Public com scoped chaining.
 | 59 | FORLOOP_CMP | Step-aware for-loop condition |
 | 60-61 | LOAD/STORE_UPVAL, LOAD/STORE_DYN, DECL_DYN | Closures & dynamic vars |
 
-### 4.4 Funções Nativas Registradas (~200+)
+### 4.4 Funções Nativas Registradas (~250+)
 
-Todas registradas em `pkg/vm/natives.go` com `v.natives[UPPERCASE_NAME] = fn`.
+Todas registradas em `pkg/vm/natives.go` (e `pkg/vm/ui_render.go`, ver 4.4.1) com
+`v.natives[UPPERCASE_NAME] = fn`.
 
 #### Saída / Diálogos
+
+Toda saída que pode conter sequências ANSI (cores, cursor, alt-screen) passa por
+`stdoutW` (`pkg/vm/natives.go`), um `io.Writer` — `os.Stdout` puro em
+Linux/macOS, e `go-colorable` no Windows (traduz os escapes ANSI em chamadas da
+Win32 Console API, já que `cmd.exe`/PowerShell sem
+`ENABLE_VIRTUAL_TERMINAL_PROCESSING` os imprimiria literalmente). Garante
+paridade visual entre as 3 plataformas para as mesmas sequências de bytes.
 
 | Função | Args | Retorno | Descrição |
 |--------|------|---------|-----------|
 | `CONOUT(...)` | variádico | Nil | Imprime no stderr + buffer de output |
 | `CONOUTW(...)` | variádico | Nil | Same via fmt.Println (sem prefixo stderr) |
+| `CONOUTRAW(cText)` | string | Nil | Escreve sem newline nem separador — só o 1º arg. Streaming (deltas de LLM token a token) na mesma linha do terminal |
 | `MSGINFO(msg, [title])` | string, optional title | Nil | Dialog info |
 | `MSGSTOP(msg, [title])` | string, optional title | Nil | Dialog stop/error |
 | `MSGALERT(msg, [title])` | string, optional title | Nil | Dialog alert |
@@ -467,7 +477,26 @@ Todas registradas em `pkg/vm/natives.go` com `v.natives[UPPERCASE_NAME] = fn`.
 | `ALERT(msg)` | string | Nil | Dialog alert |
 | `FWGETTEXT(prompt, [default], [bIsPassword])` | string | string | Input text dialog |
 | `FWMENUSELECT(items[], [title])` | array | Number | Menu selection (1-based) |
-| `CONIN([prompt])` | optional string | string | Read line from stdin |
+| `CONIN([prompt])` | optional string | string \| Nil | Lê uma linha do stdin. **Nil no EOF real** (Ctrl+D, pipe esgotado) — distingue de `""` (usuário só apertou Enter), pra um REPL poder sair do loop em vez de reimprimir o prompt pra sempre; checar com `IsNil()` |
+
+#### 4.4.1 TUI / Terminal (`pkg/vm/ui_render.go`)
+
+Primitivas visuais de baixo nível (lipgloss + glamour) para TUIs de terminal
+escritas em AdvPL/TLPP e compiladas com `advplc build` — estilo
+opencode/Claude Code (caixas com borda, markdown renderizado, tela
+alternativa). O programa AdvPL compõe a interface com essas primitivas, em vez
+de usar widgets prontos (`MSDIALOG`/`FWGETTEXT`/`FWMENUSELECT`, que continuam
+existindo para diálogos tradicionais).
+
+| Função | Args | Retorno | Descrição |
+|--------|------|---------|-----------|
+| `UIBOX(cTitle, cBody, cColor, [nWidth])` | string×3, optional number | string | Caixa com borda arredondada (lipgloss), título em negrito na 1ª linha. `cColor` = código ANSI 256 (`"39"`=ciano, `"212"`=rosa, `"240"`=cinza). `nWidth` omitido/0 = largura automática. Só renderiza a string — quem chama decide se imprime |
+| `UISTREAMBOX(cTitle, cBodySoFar, cColor, [nWidth])` | string×3, optional number | Nil | Igual `UiBox`, mas **auto-redesenha**: apaga com ANSI a caixa anterior (altura rastreada em `v.lastBoxLines`) antes de imprimir a nova. Chamar a cada delta de um LLM com o texto acumulado até agora (não só o delta) — efeito de "cartão crescendo ao vivo", sem raw-mode de teclado nem redesenho de tela inteira |
+| `UISTREAMRESET()` | — | Nil | Zera o rastreador de altura do `UiStreamBox` — chamar ao fechar um turno de streaming, antes do próximo elemento de tela |
+| `UIMARKDOWN(cMarkdown, [nWidth])` | string, optional number | string | Renderiza markdown (negrito, itálico, listas, blocos de código, títulos) para ANSI via glamour, estilo "dark" fixo (não usa auto-detecção de tema via OSC 11 — pode travar em terminais/multiplexers que não respondem a essa query, mesma cautela já documentada para lipgloss em `pkg/ui/terminal.go`). `nWidth` padrão 80. Em erro de parse devolve `cMarkdown` sem alteração, nunca falha |
+| `UIALTSCREENENTER()` | — | Nil | Entra na tela alternativa do terminal (mesmo buffer que vim/less/htop usam) — a saída normal do shell fica preservada. Instala handler de Ctrl+C (`os.Interrupt`, portátil) que restaura a tela antes de encerrar |
+| `UIALTSCREENEXIT()` | — | Nil | Sai da tela alternativa, restaura o conteúdo normal — chamar na saída normal do programa |
+| `UITERMWIDTH([nDefault])` | optional number | number | Largura do terminal em colunas. `nDefault` (padrão 80) é usado quando stdout não é um tty real (pipe/redirecionamento), onde `term.GetSize` falha |
 
 #### Manipulação de Strings
 
@@ -680,6 +709,7 @@ Todas registradas em `pkg/vm/natives.go` com `v.natives[UPPERCASE_NAME] = fn`.
 | `USRRETNAME()` | — | string | Username stub |
 | `MSRETPATH()` | — | string | "./" stub |
 | `WAITRUN(cmd)` | string | number | Executa shell command, retorna exit code |
+| `PROCRUN(cPath, aArgs, bOnStdoutLine, [bOnStderrLine])` | string, array, codeblock×2 | number | Executa `cPath` com `aArgs` (sem shell, stdin fechado). Para cada linha de stdout chama `bOnStdoutLine(cLinha)` **sincronamente** — o AdvPL pode desenhar direto na tela, ideal pra TUIs consumindo NDJSON de um processo filho em streaming (ex.: CLI de um LLM). `bOnStderrLine` opcional (stderr descartado se omitido). Bloqueia até o processo terminar; retorna o exit code, ou -1 se não iniciou |
 
 #### Funções Database (Workarea)
 
@@ -734,6 +764,17 @@ Todas registradas em `pkg/vm/natives.go` com `v.natives[UPPERCASE_NAME] = fn`.
 | Função | Args | Retorno | Descrição |
 |--------|------|---------|-----------|
 | `JSONOBJECT()` | — | Object | Cria JsonObject |
+
+##### Métodos JsonObject
+
+Acesso a chave é por colchete (`oJ["chave"]`, `oJ["a"]["b"]`), não por dois-pontos —
+`oJ:chave` não resolve propriedades dinâmicas (só campos declarados de classe).
+
+| Método | Args | Retorno | Descrição |
+|--------|------|---------|-----------|
+| `oJ:FromJson(cJson)` | string | Bool | Parser real (`encoding/json` da stdlib) — antes era stub que sempre devolvia Nil sem parsear nada. Objetos aninhados viram `JsonObject`, arrays viram `Array` 1-based, `null`→Nil. `.F.` se `cJson` não parsear como objeto (JSON inválido, ou top-level array/escalar) — nunca falha/lança erro |
+| `oJ:ToString()` / `oJ:ToJson()` | — | string | Serializa de volta para JSON |
+| `GetNames(oJ)` | JsonObject | array | Lista as propriedades, na ordem de inserção |
 
 #### Math/Stat Extended
 
@@ -1629,7 +1670,8 @@ batch/CI que não podem depender de um display disponível.
 | **Native Fns (file IO)** | ✅ Full | FCreate, FOpen, FReadStr, FWrite, FSeek, FClose, FError, Memoread/Memowrite |
 | **Native Fns (DB workarea)** | ✅ Full | SelectArea, Seek, Skip, GoTop, RecLock, MsUnlock, Append |
 | **Native Fns (raw SQL)** | ✅ Full | TCsqlExec, TCsqlQuery via SQLEngine interface |
-| **Native Fns (JSON)** | ✅ Full | JsonObject, GetNames |
+| **Native Fns (JSON)** | ✅ Full | JsonObject, GetNames, FromJson (parser real, `encoding/json`) |
+| **Native Fns (TUI/terminal)** | ✅ Full | UiBox, UiStreamBox/Reset, UiMarkdown (glamour), UiAltScreenEnter/Exit, UiTermWidth, ConOutRaw, ProcRun |
 | **Native Fns (MVC)** | ✅ Full | FwFormModel, FwFormView, FwFormBrowse, FwMBrowse |
 | **Native Fns (FWGridProcess)** | ✅ Full | Pool com threads, meters, afterExecute |
 | **Native Fns (geometry)** | ✅ Full | Vec add/sub/dot/cross/norm/normalize/dist/angle/scale/rotate |

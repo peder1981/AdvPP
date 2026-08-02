@@ -17,7 +17,19 @@ import (
 
 	"github.com/advpl/compiler/pkg/mvc"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
+	"github.com/mattn/go-colorable"
 )
+
+// stdoutW é o destino de TODA saída de console (ConOut/ConOutRaw/ConIn) que
+// pode conter sequências ANSI (cores, cursor, alt-screen — usadas pelas
+// natives UiBox/UiStreamBox e por qualquer AdvPL que escreva Chr(27)+"[...".
+// No Linux/macOS é literalmente os.Stdout (repassa os bytes como estão). No
+// Windows, go-colorable intercepta e traduz os códigos ANSI em chamadas da
+// Win32 Console API — sem isso, um `cmd.exe`/PowerShell antigo sem
+// ENABLE_VIRTUAL_TERMINAL_PROCESSING imprimiria os escapes literalmente em
+// vez de aplicá-los. É o que garante 100% de paridade visual entre Linux,
+// Windows e macOS para os mesmos bytes de saída.
+var stdoutW = colorable.NewColorableStdout()
 
 func (v *VM) registerNatives() {
 	natives := map[string]func(args []advplrt.Value) (advplrt.Value, error){
@@ -28,14 +40,23 @@ func (v *VM) registerNatives() {
 			if debugVM {
 				fmt.Fprintf(os.Stderr, "[VM] CONOUT: %q\n", msg)
 			}
-			fmt.Println(msg)
+			fmt.Fprintln(stdoutW, msg)
 			v.writeOut(msg)
 			v.output.WriteString(msg + "\n")
 			return advplrt.Nil, nil
 		},
+		// ConOutRaw(cText): escreve sem newline nem separador de espaços entre
+		// argumentos (usa só o 1º arg) — para renderizar texto em streaming
+		// (ex.: deltas de um LLM token a token) numa mesma linha do terminal.
+		"CONOUTRAW": func(args []advplrt.Value) (advplrt.Value, error) {
+			msg := getArgString(args, 0, "")
+			fmt.Fprint(stdoutW, msg)
+			v.output.WriteString(msg)
+			return advplrt.Nil, nil
+		},
 		"CONOUTW": func(args []advplrt.Value) (advplrt.Value, error) {
 			msg := buildOutputString(args)
-			fmt.Println(msg)
+			fmt.Fprintln(stdoutW, msg)
 			v.writeOut(msg)
 			v.output.WriteString(msg + "\n")
 			return advplrt.Nil, nil
@@ -1627,11 +1648,14 @@ func (v *VM) registerNatives() {
 			return last, nil
 		},
 
-		// ConIn([cPrompt]): le uma linha do stdin (sem o \n); "" no EOF.
+		// ConIn([cPrompt]): le uma linha do stdin (sem o \n); Nil (não "") no
+		// EOF real — distingue "usuário só apertou Enter" de "stdin fechou"
+		// (Ctrl+D, ou pipe esgotado), pra um REPL poder sair do loop em vez
+		// de ficar reimprimindo o prompt pra sempre. ValType(x)=="U" no EOF.
 		// Contraparte de ConOut para programas de console interativos.
 		"CONIN": func(args []advplrt.Value) (advplrt.Value, error) {
 			if p := getArgString(args, 0, ""); p != "" {
-				fmt.Print(p)
+				fmt.Fprint(stdoutW, p)
 			}
 			if v.stdinReader == nil {
 				v.stdinReader = bufio.NewReader(os.Stdin)
@@ -1639,7 +1663,7 @@ func (v *VM) registerNatives() {
 			line, err := v.stdinReader.ReadString('\n')
 			line = strings.TrimRight(line, "\r\n")
 			if err != nil && line == "" {
-				return advplrt.NewString(""), nil
+				return advplrt.Nil, nil
 			}
 			return advplrt.NewString(line), nil
 		},
@@ -1842,10 +1866,82 @@ func (v *VM) registerNatives() {
 			}
 			return advplrt.NewNumber(0), nil
 		},
+
+		// ProcRun(cPath, aArgs, bOnStdoutLine[, bOnStderrLine]): executa cPath
+		// com aArgs (array de strings, sem shell) e stdin fechado. Para cada
+		// linha de stdout, chama bOnStdoutLine(cLinha) sincronamente (o AdvPL
+		// pode desenhar direto na tela — ideal para TUIs que consomem NDJSON
+		// de um processo filho em streaming). bOnStderrLine é opcional; se
+		// omitido, stderr é descartado. Bloqueia até o processo terminar.
+		// Retorna o exit code (nNumber), ou -1 se não foi possível iniciar.
+		"PROCRUN": func(args []advplrt.Value) (advplrt.Value, error) {
+			path := getArgString(args, 0, "")
+			if path == "" {
+				return advplrt.NewNumber(-1), nil
+			}
+			var argv []string
+			if a, ok := getArg(args, 1).(*advplrt.ArrayValue); ok {
+				for _, el := range a.Elements {
+					argv = append(argv, advplrt.ToString(el))
+				}
+			}
+			onLine, hasOnLine := getArg(args, 2).(*advplrt.CodeBlockValue)
+			onErrLine, hasOnErrLine := getArg(args, 3).(*advplrt.CodeBlockValue)
+
+			cmd := exec.Command(path, argv...)
+			stdout, err := cmd.StdoutPipe()
+			if err != nil {
+				return advplrt.NewNumber(-1), nil
+			}
+			var stderr interface {
+				Read([]byte) (int, error)
+			}
+			if hasOnErrLine {
+				if p, err := cmd.StderrPipe(); err == nil {
+					stderr = p
+				}
+			}
+			if err := cmd.Start(); err != nil {
+				return advplrt.NewNumber(-1), nil
+			}
+
+			done := make(chan struct{})
+			if stderr != nil {
+				go func() {
+					sc := bufio.NewScanner(stderr)
+					sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+					for sc.Scan() {
+						_, _ = v.callBlockSync(onErrLine, advplrt.NewString(sc.Text()))
+					}
+					close(done)
+				}()
+			} else {
+				close(done)
+			}
+
+			sc := bufio.NewScanner(stdout)
+			sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+			for sc.Scan() {
+				if hasOnLine {
+					if _, cbErr := v.callBlockSync(onLine, advplrt.NewString(sc.Text())); cbErr != nil {
+						break
+					}
+				}
+			}
+			<-done
+			if err := cmd.Wait(); err != nil {
+				if ee, ok := err.(*exec.ExitError); ok {
+					return advplrt.NewNumber(float64(ee.ExitCode())), nil
+				}
+				return advplrt.NewNumber(-1), nil
+			}
+			return advplrt.NewNumber(0), nil
+		},
 	}
 
 	v.registerDialogNatives(natives)
 	v.registerHttpNatives(natives)
+	v.registerUiRenderNatives(natives)
 	registerGeometryNatives(natives)
 	registerMathStatNatives(natives)
 	registerP2PNatives(natives)

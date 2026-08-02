@@ -1,5 +1,59 @@
 # Relatório de Status dos Componentes
 
+## Primitivas de TUI de baixo nível (atualizado 2026-08-02)
+
+### Status Atual: Funcional e coberto por teste de integração
+
+Além do `TerminalUIProvider` (diálogos prontos: `MSDIALOG`/`FWGetText`/
+`FWMenuSelect`), o AdvPP agora expõe primitivas visuais de baixo nível para
+um programa AdvPL compor a própria TUI — estilo opencode/Claude Code (caixas
+com borda, markdown renderizado no terminal, tela alternativa, streaming de
+LLM token a token). Ver `pkg/vm/ui_render.go` e seção 4.4.1 do
+`GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md`.
+
+### O Que Funciona:
+- ✅ **`UiBox`/`UiStreamBox`/`UiStreamReset`** (lipgloss): caixa com borda
+  arredondada e título; a variante `Stream` apaga e redesenha por cima a
+  cada chamada (altura rastreada em `VM.lastBoxLines`), dando o efeito de
+  "cartão crescendo ao vivo" sem raw-mode de teclado
+- ✅ **`UiMarkdown`** (glamour): negrito/itálico/listas/código/títulos para
+  ANSI, estilo "dark" fixo — mesma cautela contra auto-detecção de tema via
+  OSC 11 (pode travar em terminal/multiplexer que não responde) já aplicada
+  ao lipgloss em `pkg/ui/terminal.go`
+- ✅ **`UiAltScreenEnter`/`UiAltScreenExit`**: tela alternativa (buffer do
+  vim/less/htop) com handler de Ctrl+C que restaura antes de encerrar —
+  sem isso um Ctrl+C durante o app travaria o terminal do usuário na tela
+  alternativa
+- ✅ **`UiTermWidth`**: largura real do terminal, cai num default
+  configurável quando stdout não é TTY
+- ✅ **`ConOutRaw`**: escreve sem newline — texto em streaming (deltas de
+  LLM) na mesma linha
+- ✅ **`ConIn` distingue EOF real de linha vazia**: agora devolve Nil (não
+  `""`) quando stdin fecha de verdade (Ctrl+D, pipe esgotado) — um REPL
+  consegue sair do loop em vez de reimprimir o prompt pra sempre
+- ✅ **`ProcRun`**: executa um processo filho (sem shell) com callback
+  síncrono por linha de stdout/stderr — consumo de NDJSON em streaming
+  (ex.: CLI de um LLM) direto de dentro do AdvPL
+- ✅ **`JsonObject:FromJson` é um parser real** (era stub que sempre
+  devolvia Nil sem parsear nada): objetos aninhados viram `JsonObject`,
+  arrays viram `Array` 1-based, `null`→Nil; `.F.` (não erro) em JSON
+  inválido
+- ✅ **Paridade Windows**: toda saída que pode conter ANSI passa por
+  `stdoutW` (`go-colorable` no Windows, `os.Stdout` puro no
+  Linux/macOS) — sem isso `cmd.exe`/PowerShell sem
+  `ENABLE_VIRTUAL_TERMINAL_PROCESSING` imprimiriam os escapes literalmente
+
+### Notas de Implementação:
+- `pkg/vm/ui_render.go`: as 7 natives de TUI (`registerUiRenderNatives`)
+- `pkg/vm/natives.go`: `stdoutW`, `CONOUTRAW`, `PROCRUN`, `CONIN` (EOF→Nil)
+- `pkg/vm/vm.go`: `VM.lastBoxLines`, `jsonToAdvplValue`,
+  `JsonObject:FromJson` real
+- Nova dependência: `github.com/charmbracelet/glamour` (+ `go-colorable`)
+- Teste: `cmd/advplc/tui_natives_test.go` + fixture
+  `tests/tui_natives_test.prw` — exercita as 7 natives de TUI, `ConOutRaw`,
+  `ProcRun` (contra o próprio binário buildado, portátil entre SOs),
+  `FromJson` (válido/inválido/aninhado) e o EOF de `ConIn`
+
 ## Executável Standalone — Console/TUI (atualizado 2026-07-29)
 
 ### Status Atual: Funcional e coberto por teste de integração
