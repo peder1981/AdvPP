@@ -111,6 +111,8 @@ type VM struct {
 	httpLastBody   string                   // último corpo de resposta HTTP (FWHttpBody)
 	httpLastStatus int                      // último status HTTP (FWHttpStatus)
 	httpLastError  string                   // último erro HTTP (FWHttpError)
+	httpTimeoutSec int                      // timeout em segundos p/ próxima requisição HTTP (FWHTTPTIMEOUT), 0 = default (30s)
+	httpHeaders    map[string]string        // headers custom aplicados às próximas requisições HTTP (FWHTTPHEADER), até FWHTTPCLEARHEADERS
 	stdinReader    *bufio.Reader            // leitor de linha do stdin (ConIn), lazy
 	dynEnv         map[string]advplrt.Value // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
 	lastBoxLines   int                      // altura (linhas) do último UiStreamBox renderizado, p/ apagar e redesenhar no próximo delta
