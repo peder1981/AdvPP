@@ -64,6 +64,37 @@ func (v *VM) registerHttpNatives(natives map[string]func(args []advplrt.Value) (
 	natives["FWHTTPERROR"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return advplrt.NewString(v.httpLastError), nil
 	}
+
+	// FWHTTPTIMEOUT(nSeconds) -> Nil
+	// Sets the timeout (in seconds) applied to every subsequent FWHTTPGET/POST/PUT/PATCH/DELETE
+	// call, until changed again. nSeconds <= 0 restores the 30s default.
+	natives["FWHTTPTIMEOUT"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		if len(args) > 0 {
+			v.httpTimeoutSec = int(advplrt.ToFloat(args[0]))
+		}
+		return advplrt.Nil, nil
+	}
+
+	// FWHTTPHEADER(cName, cValue) -> Nil
+	// Sets a custom header applied to every subsequent FWHTTPGET/POST/PUT/PATCH/DELETE
+	// call (e.g. Authorization), until FWHTTPCLEARHEADERS() is called.
+	natives["FWHTTPHEADER"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		if len(args) < 2 {
+			return advplrt.Nil, nil
+		}
+		if v.httpHeaders == nil {
+			v.httpHeaders = map[string]string{}
+		}
+		v.httpHeaders[advplrt.ToString(args[0])] = advplrt.ToString(args[1])
+		return advplrt.Nil, nil
+	}
+
+	// FWHTTPCLEARHEADERS() -> Nil
+	// Removes all custom headers set via FWHTTPHEADER.
+	natives["FWHTTPCLEARHEADERS"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		v.httpHeaders = nil
+		return advplrt.Nil, nil
+	}
 }
 
 // fwHTTPRequest performs an HTTPS request with secure configuration.
@@ -135,8 +166,13 @@ func (v *VM) fwHTTPRequest(method string, args []advplrt.Value) (advplrt.Value, 
 		}
 	}
 
+	timeoutSec := v.httpTimeoutSec
+	if timeoutSec <= 0 {
+		timeoutSec = 30
+	}
+
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: time.Duration(timeoutSec) * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
 		},
@@ -164,6 +200,10 @@ func (v *VM) fwHTTPRequest(method string, args []advplrt.Value) (advplrt.Value, 
 	if err != nil {
 		v.httpLastError = fmt.Sprintf("Failed to create request: %v", err)
 		return advplrt.NewNumber(0), nil
+	}
+
+	for name, value := range v.httpHeaders {
+		req.Header.Set(name, value)
 	}
 
 	resp, err := client.Do(req)
