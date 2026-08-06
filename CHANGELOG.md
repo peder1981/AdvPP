@@ -2,6 +2,25 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.20] — 2026-08-06
+
+### Adicionado
+
+- **Line editor com histórico no `ConIn`** (`pkg/vm/lineeditor.go`) — motivado
+  pelo uso real no projeto `shortcoder`. Em terminal interativo de verdade
+  (`term.IsTerminal`), `ConIn` entra em raw mode e roda um mini line-editor:
+  setas ↑/↓ navegam as últimas 20 linhas digitadas (ignora repetição
+  consecutiva, como `HISTCONTROL=ignoredups` do bash), ←/→/Home/End/Ctrl+A/
+  Ctrl+E movem o cursor, Backspace/Delete editam, Ctrl+U/Ctrl+K apagam até
+  o início/fim da linha, Ctrl+L limpa a tela, Ctrl+C cancela a linha atual.
+  Em stdin não-interativo (pipe/redirect) o comportamento continua idêntico
+  ao anterior — sem mudança de API para scripts existentes.
+- **`FWHTTPHEADER(cName, cValue)` / `FWHTTPCLEARHEADERS()`** — headers
+  customizados (ex.: `Authorization: Bearer ...`) aplicados a toda
+  requisição `FWHTTPGET/POST/PUT/PATCH/DELETE` seguinte, até serem limpos.
+- **`FWHTTPTIMEOUT(nSeconds)`** — timeout configurável por requisição HTTP
+  (default seguia fixo em 30s).
+
 ## [2.0.19] — 2026-08-02
 
 ### Adicionado
