@@ -299,10 +299,10 @@ func (v *VM) registerNatives() {
 			// Search for substring (case-sensitive, 1-based index)
 			idx := strings.Index(s, search)
 			if idx == -1 {
-				return advplrt.NewNumber(0), nil  // Not found
+				return advplrt.NewNumber(0), nil // Not found
 			}
 
-			return advplrt.NewNumber(float64(idx + 1)), nil  // 1-based index
+			return advplrt.NewNumber(float64(idx + 1)), nil // 1-based index
 		},
 		"RAT": func(args []advplrt.Value) (advplrt.Value, error) {
 			search := advplrt.ToString(getArg(args, 0))
@@ -317,10 +317,10 @@ func (v *VM) registerNatives() {
 			// Search for last occurrence of substring (case-sensitive, 1-based index)
 			idx := strings.LastIndex(s, search)
 			if idx == -1 {
-				return advplrt.NewNumber(0), nil  // Not found
+				return advplrt.NewNumber(0), nil // Not found
 			}
 
-			return advplrt.NewNumber(float64(idx + 1)), nil  // 1-based index
+			return advplrt.NewNumber(float64(idx + 1)), nil // 1-based index
 		},
 		"UPPER": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewString(strings.ToUpper(advplrt.ToString(getArg(args, 0)))), nil
@@ -1654,18 +1654,7 @@ func (v *VM) registerNatives() {
 		// de ficar reimprimindo o prompt pra sempre. ValType(x)=="U" no EOF.
 		// Contraparte de ConOut para programas de console interativos.
 		"CONIN": func(args []advplrt.Value) (advplrt.Value, error) {
-			if p := getArgString(args, 0, ""); p != "" {
-				fmt.Fprint(stdoutW, p)
-			}
-			if v.stdinReader == nil {
-				v.stdinReader = bufio.NewReader(os.Stdin)
-			}
-			line, err := v.stdinReader.ReadString('\n')
-			line = strings.TrimRight(line, "\r\n")
-			if err != nil && line == "" {
-				return advplrt.Nil, nil
-			}
-			return advplrt.NewString(line), nil
+			return v.readLine(getArgString(args, 0, ""))
 		},
 
 		// --- BLAS ternária (multiply-free) ---

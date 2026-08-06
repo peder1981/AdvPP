@@ -114,6 +114,7 @@ type VM struct {
 	httpTimeoutSec int                      // timeout em segundos p/ próxima requisição HTTP (FWHTTPTIMEOUT), 0 = default (30s)
 	httpHeaders    map[string]string        // headers custom aplicados às próximas requisições HTTP (FWHTTPHEADER), até FWHTTPCLEARHEADERS
 	stdinReader    *bufio.Reader            // leitor de linha do stdin (ConIn), lazy
+	inputHistory   []string                 // histórico de linhas do ConIn (setas up/down), últimas inputHistoryLimit
 	dynEnv         map[string]advplrt.Value // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
 	lastBoxLines   int                      // altura (linhas) do último UiStreamBox renderizado, p/ apagar e redesenhar no próximo delta
 }
