@@ -479,6 +479,17 @@ paridade visual entre as 3 plataformas para as mesmas sequências de bytes.
 | `FWMENUSELECT(items[], [title])` | array | Number | Menu selection (1-based) |
 | `CONIN([prompt])` | optional string | string \| Nil | Lê uma linha do stdin. **Nil no EOF real** (Ctrl+D, pipe esgotado) — distingue de `""` (usuário só apertou Enter), pra um REPL poder sair do loop em vez de reimprimir o prompt pra sempre; checar com `IsNil()` |
 
+Quando o stdin é um terminal interativo de verdade (`term.IsTerminal`),
+`CONIN` entra em raw mode e roda um mini line-editor (`pkg/vm/lineeditor.go`)
+em vez do antigo `bufio.ReadString('\n')` puro: setas ↑/↓ navegam as
+últimas 20 linhas digitadas (ignora repetição consecutiva, como
+`HISTCONTROL=ignoredups` do bash), ←/→/Home/End/Ctrl+A/Ctrl+E movem o
+cursor, Backspace/Delete editam, Ctrl+U/Ctrl+K apagam até o início/fim da
+linha, Ctrl+L limpa a tela e Ctrl+C cancela a linha atual (equivale a
+Enter em branco). Em stdin não-interativo (pipe/redirect, como testes
+`printf ... | ./binario`) o comportamento continua idêntico ao antigo —
+sem raw mode. Sem mudança de API: mesma assinatura, mesmo retorno.
+
 #### 4.4.1 TUI / Terminal (`pkg/vm/ui_render.go`)
 
 Primitivas visuais de baixo nível (lipgloss + glamour) para TUIs de terminal
@@ -658,6 +669,17 @@ existindo para diálogos tradicionais).
 | `GETSRVNAME()` | — | string | "localhost" |
 | `FWHTTPENCODE(str)` | string | string | URL percent encoding |
 | `FWURIDECODE(str)` | string | string | URI decode (pass-through) |
+| `FWHTTPGET(cURL, [cCert, cPass])` | string, opcionais | number | Requisição GET, retorna o status HTTP |
+| `FWHTTPPOST(cURL, cBody, cContentType, [cCert, cPass])` | string×3, opcionais | number | Requisição POST |
+| `FWHTTPPUT(cURL, cBody, cContentType, [cCert, cPass])` | string×3, opcionais | number | Requisição PUT |
+| `FWHTTPPATCH(cURL, cBody, cContentType, [cCert, cPass])` | string×3, opcionais | number | Requisição PATCH |
+| `FWHTTPDELETE(cURL, [cCert, cPass])` | string, opcionais | number | Requisição DELETE |
+| `FWHTTPBODY()` | — | string | Corpo da resposta da última requisição |
+| `FWHTTPSTATUS()` | — | number | Status HTTP da última requisição |
+| `FWHTTPERROR()` | — | string | Mensagem de erro da última requisição (se houver) |
+| `FWHTTPTIMEOUT(nSeconds)` | number | Nil | Define o timeout (segundos) aplicado a toda requisição `FWHTTPGET/POST/PUT/PATCH/DELETE` seguinte, até ser trocado de novo. `nSeconds <= 0` restaura o default de 30s |
+| `FWHTTPHEADER(cName, cValue)` | string, string | Nil | Registra um header customizado (ex.: `Authorization: Bearer ...`) aplicado a toda requisição seguinte, até `FWHTTPCLEARHEADERS()` |
+| `FWHTTPCLEARHEADERS()` | — | Nil | Remove todos os headers customizados definidos via `FWHTTPHEADER` |
 | `FWLOADSM0()` | — | bool | .T. stub |
 | `FWJOINFILIAL(field, alias)` | 2 strings | string | Concat filial |
 | `FWRESTAREA/FWGETAREA/FWAPPSTACK/FWCALLAPP` | — | Nil/string | Stubs |
