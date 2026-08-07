@@ -117,6 +117,8 @@ type VM struct {
 	inputHistory   []string                 // histórico de linhas do ConIn (setas up/down), últimas inputHistoryLimit
 	dynEnv         map[string]advplrt.Value // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
 	lastBoxLines   int                      // altura (linhas) do último UiStreamBox renderizado, p/ apagar e redesenhar no próximo delta
+	jobResults     sync.Map                 // map[string]*asyncJobResult — resultados de FWJOBSTART pendentes/prontos, indexados por job id (FWJOBPOLL)
+	jobIDSeq       int64                    // contador atômico p/ gerar job ids únicos (FWJOBSTART)
 }
 
 type namedArgInfo struct {
