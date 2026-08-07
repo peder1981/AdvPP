@@ -2,6 +2,27 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [2.0.21] — 2026-08-07
+
+### Adicionado
+
+- **`FWJOBSTART(cFuncName, params...) -> cJobId`** — job assíncrono com
+  retorno de valor, complementar ao `StartJob`/`STARTJOB` existente (que
+  continua fire-and-forget, sem alteração). Dispara a função pelo nome
+  (case-insensitive, aceita `Static Function`) numa goroutine com VM
+  isolado, respeitando o mesmo limite `MaxConcurrentJobs` já usado por
+  `StartJob`. Motivado pelo agente `orchestrator` do `shortcoder`.
+- **`FWJOBDONE(cJobId) -> lDone`** — checagem não-destrutiva de conclusão,
+  separada da leitura do resultado. Resolve uma ambiguidade do design
+  inicial: `FWJOBPOLL` usa `Nil` tanto para "pendente" quanto para "job
+  terminou e retornou Nil", com leitura destrutiva — sem `FWJOBDONE`, uma
+  função-alvo que legitimamente retornasse Nil travaria o polling para
+  sempre. `FWJOBSTART` agora grava um placeholder `done:false` antes de
+  disparar a goroutine, para que a entrada exista desde o início.
+- **`FWJOBPOLL(cJobId) -> uResultado`** — `Nil` enquanto pendente; valor
+  (tipicamente Character) assim que pronto, com leitura única (a entrada é
+  removida do armazenamento interno ao ser lida).
+
 ## [2.0.20] — 2026-08-06
 
 ### Adicionado
