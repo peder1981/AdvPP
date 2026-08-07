@@ -1934,6 +1934,7 @@ func (v *VM) registerNatives() {
 	registerGeometryNatives(natives)
 	registerMathStatNatives(natives)
 	registerP2PNatives(natives)
+	v.registerAsyncJobNatives(natives)
 
 	for name, fn := range natives {
 		v.natives[name] = &advplrt.FunctionValue{Name: name, Fn: fn}
