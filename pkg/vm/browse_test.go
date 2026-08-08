@@ -66,6 +66,58 @@ func TestBrowseFiltraPorFilial(t *testing.T) {
 	}
 }
 
+func TestBrowseAlterarRecusaCrossFilial(t *testing.T) {
+	tmpDir := t.TempDir()
+	eng, err := db.NewSQLiteEngine(tmpDir + "/browse_test3.db")
+	if err != nil {
+		t.Fatalf("NewSQLiteEngine: %v", err)
+	}
+	defer eng.Close()
+
+	if err := eng.Exec(`CREATE TABLE UNI (
+		R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT,
+		D_E_L_E_T_ TEXT DEFAULT ' ',
+		UNI_CODIGO TEXT,
+		FILIAL TEXT
+	)`); err != nil {
+		t.Fatalf("create UNI: %v", err)
+	}
+	if err := eng.Exec("INSERT INTO UNI (UNI_CODIGO, FILIAL) VALUES ('101', '010101')"); err != nil {
+		t.Fatalf("seed A: %v", err)
+	}
+
+	cols, hasDelete, hasFilial, err := (&VM{}).browseColumns(eng, "UNI")
+	if err != nil {
+		t.Fatalf("browseColumns: %v", err)
+	}
+	if !hasFilial {
+		t.Fatal("hasFilial deveria ser true (tabela tem coluna FILIAL)")
+	}
+
+	// A linha '101' pertence à filial 010101 (recno 1). Tenta alterá-la
+	// passando cFilial = 010102 (outra filial) -- deve ser recusado
+	// silenciosamente (0 linhas afetadas, sem erro), preservando os dados.
+	err = browseSave(eng, "UNI", cols, hasDelete, hasFilial, "010102",
+		browseAction{Action: "save", Recno: 1, Data: map[string]string{"UNI_CODIGO": "FORJADO"}})
+	if err != nil {
+		t.Fatalf("browseSave (alterar cross-filial): %v", err)
+	}
+
+	rows, err := eng.QueryRows("SELECT UNI_CODIGO, FILIAL FROM UNI WHERE rowid = 1")
+	if err != nil {
+		t.Fatalf("QueryRows: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("esperava 1 linha, veio %d", len(rows))
+	}
+	if rows[0]["UNI_CODIGO"] != "101" {
+		t.Errorf("UNI_CODIGO foi alterado para %q por um update cross-filial, quer permanecer '101'", rows[0]["UNI_CODIGO"])
+	}
+	if rows[0]["FILIAL"] != "010101" {
+		t.Errorf("FILIAL foi alterado para %q por um update cross-filial, quer permanecer '010101'", rows[0]["FILIAL"])
+	}
+}
+
 func TestBrowseSemColunaFilialComportamentoInalterado(t *testing.T) {
 	tmpDir := t.TempDir()
 	eng, err := db.NewSQLiteEngine(tmpDir + "/browse_test2.db")

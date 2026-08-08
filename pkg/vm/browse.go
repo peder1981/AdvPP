@@ -310,8 +310,13 @@ func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete, has
 	for i, n := range names {
 		sets[i] = n + " = ?"
 	}
+	where := "rowid = ?"
 	vals = append(vals, act.Recno)
-	return eng.Exec(fmt.Sprintf("UPDATE %s SET %s WHERE rowid = ?", alias, strings.Join(sets, ", ")), vals...)
+	if hasFilial {
+		where += " AND FILIAL = ?"
+		vals = append(vals, cFilial)
+	}
+	return eng.Exec(fmt.Sprintf("UPDATE %s SET %s WHERE %s", alias, strings.Join(sets, ", "), where), vals...)
 }
 
 // browseDelete deletes a record via soft-delete or hard-delete.
