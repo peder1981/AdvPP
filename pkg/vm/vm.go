@@ -113,6 +113,7 @@ type VM struct {
 	httpLastError  string                   // último erro HTTP (FWHttpError)
 	httpTimeoutSec int                      // timeout em segundos p/ próxima requisição HTTP (FWHTTPTIMEOUT), 0 = default (30s)
 	httpHeaders    map[string]string        // headers custom aplicados às próximas requisições HTTP (FWHTTPHEADER), até FWHTTPCLEARHEADERS
+	filialAtiva    string                   // filial ativa da sessão (RpcSetEnv/FWxFilial), 6 chars GG+UU+FF; "" = nenhuma definida ainda
 	stdinReader    *bufio.Reader            // leitor de linha do stdin (ConIn), lazy
 	inputHistory   []string                 // histórico de linhas do ConIn (setas up/down), últimas inputHistoryLimit
 	dynEnv         map[string]advplrt.Value // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
