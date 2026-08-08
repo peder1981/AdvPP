@@ -2,6 +2,19 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [Unreleased]
+
+### Adicionado
+
+- **`RpcSetEnv(cFilial)`/`FWxFilial(cAlias)`** — estado de sessão multi-filial
+  (convenção Protheus: 6 caracteres, GG+UU+FF). `FWxFilial` devolve a filial
+  ativa truncada conforme o nível de compartilhamento configurado por tabela
+  em `X2_FILIAL_COMPART` (default: nível 6, exclusiva — falha segura sem
+  configuração).
+- **`FWMBrowse` filtra e estampa `FILIAL` automaticamente** quando a tabela
+  física tem essa coluna — mesmo mecanismo que já existe para `D_E_L_E_T_`.
+  Motivado pelo multi-condomínio do GesCon.
+
 ## [2.0.21] — 2026-08-07
 
 ### Adicionado
