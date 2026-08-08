@@ -50,3 +50,4 @@ tests/llm/code_corpus.txt
 testdata/fuzz/
 corpus/
 *.fuzz
+.worktrees/
