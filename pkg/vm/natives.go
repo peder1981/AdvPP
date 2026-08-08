@@ -1305,6 +1305,18 @@ func (v *VM) registerNatives() {
 			return advplrt.True, nil
 		},
 
+		// FWxFilial(cAlias): devolve a filial ativa truncada conforme o
+		// nivel de compartilhamento de cAlias (ver resolveFilial,
+		// pkg/vm/filial.go). O parametro existe por fidelidade a
+		// assinatura real do Protheus -- hoje o nivel e' lido de
+		// X2_FILIAL_COMPART, uma tabela por instalacao, nao por alias
+		// dentro do mesmo banco.
+		"FWXFILIAL": func(args []advplrt.Value) (advplrt.Value, error) {
+			alias := advplrt.ToString(getArg(args, 0))
+			sqlEng, _ := v.dbEngine.(SQLEngine)
+			return advplrt.NewString(v.resolveFilial(sqlEng, alias)), nil
+		},
+
 		// --- MVC ---
 		"FWFORMMODEL": func(args []advplrt.Value) (advplrt.Value, error) {
 			name := advplrt.ToString(getArg(args, 0))
