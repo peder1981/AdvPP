@@ -191,6 +191,50 @@ func TestBrowseFilialNaoEhColunaEditavel(t *testing.T) {
 	}
 }
 
+func TestBrowseDeleteRecusaCrossFilial(t *testing.T) {
+	tmpDir := t.TempDir()
+	eng, err := db.NewSQLiteEngine(tmpDir + "/browse_test5.db")
+	if err != nil {
+		t.Fatalf("NewSQLiteEngine: %v", err)
+	}
+	defer eng.Close()
+
+	if err := eng.Exec(`CREATE TABLE UNI (
+		R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT,
+		D_E_L_E_T_ TEXT DEFAULT ' ',
+		UNI_CODIGO TEXT,
+		FILIAL TEXT
+	)`); err != nil {
+		t.Fatalf("create UNI: %v", err)
+	}
+	if err := eng.Exec("INSERT INTO UNI (UNI_CODIGO, FILIAL) VALUES ('101', '010101')"); err != nil {
+		t.Fatalf("seed A: %v", err)
+	}
+
+	cols, hasDelete, hasFilial, err := (&VM{}).browseColumns(eng, "UNI")
+	if err != nil {
+		t.Fatalf("browseColumns: %v", err)
+	}
+	_ = cols
+
+	// Tenta excluir o recno 1 (filial real 010101) sob cFilial=010102 --
+	// deve ser recusado silenciosamente (0 linhas afetadas, sem erro).
+	if err := browseDelete(eng, "UNI", hasDelete, hasFilial, "010102", 1); err != nil {
+		t.Fatalf("browseDelete (cross-filial): %v", err)
+	}
+
+	rows, err := eng.QueryRows("SELECT D_E_L_E_T_ FROM UNI WHERE rowid = 1")
+	if err != nil {
+		t.Fatalf("QueryRows: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("esperava 1 linha, veio %d", len(rows))
+	}
+	if rows[0]["D_E_L_E_T_"] != " " {
+		t.Errorf("D_E_L_E_T_ = %q, quer ' ' (linha NÃO deveria ter sido soft-deletada por um browseDelete cross-filial)", rows[0]["D_E_L_E_T_"])
+	}
+}
+
 func TestBrowseSemColunaFilialComportamentoInalterado(t *testing.T) {
 	tmpDir := t.TempDir()
 	eng, err := db.NewSQLiteEngine(tmpDir + "/browse_test2.db")

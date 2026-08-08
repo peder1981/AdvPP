@@ -147,7 +147,7 @@ func (v *VM) runBrowse(b *browseState) error {
 				return err
 			}
 		case "delete":
-			if err := browseDelete(sqlEng, b.alias, hasDelete, act.Recno); err != nil {
+			if err := browseDelete(sqlEng, b.alias, hasDelete, hasFilial, cFilial, act.Recno); err != nil {
 				return err
 			}
 		default: // close
@@ -327,12 +327,18 @@ func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete, has
 // browseDelete deletes a record via soft-delete or hard-delete.
 // Table names (alias) are validated by caller before invocation.
 // Uses parameterized queries (rowid = ?) to prevent SQL injection (CWE-89, OWASP A03:2021).
-func browseDelete(eng SQLEngine, alias string, hasDelete bool, recno int64) error {
+func browseDelete(eng SQLEngine, alias string, hasDelete, hasFilial bool, cFilial string, recno int64) error {
 	if recno == 0 {
 		return nil
 	}
-	if hasDelete { // soft-delete padrão Protheus
-		return eng.Exec(fmt.Sprintf("UPDATE %s SET D_E_L_E_T_ = '*' WHERE rowid = ?", alias), recno)
+	where := "rowid = ?"
+	args := []any{recno}
+	if hasFilial {
+		where += " AND FILIAL = ?"
+		args = append(args, cFilial)
 	}
-	return eng.Exec(fmt.Sprintf("DELETE FROM %s WHERE rowid = ?", alias), recno)
+	if hasDelete { // soft-delete padrão Protheus
+		return eng.Exec(fmt.Sprintf("UPDATE %s SET D_E_L_E_T_ = '*' WHERE %s", alias, where), args...)
+	}
+	return eng.Exec(fmt.Sprintf("DELETE FROM %s WHERE %s", alias, where), args...)
 }
