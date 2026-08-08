@@ -1294,6 +1294,17 @@ func (v *VM) registerNatives() {
 			return advplrt.NewArray(elems), nil
 		},
 
+		// --- Multi-filial (RpcSetEnv/FWxFilial) ---
+		// RpcSetEnv grava a filial ativa da sessão (convenção Protheus,
+		// 6 chars GG+UU+FF). Chamada uma vez no login/troca de contexto de
+		// quem usa o recurso — programas que nunca chamam isto continuam
+		// com filialAtiva == "", e FWMBrowse/FWxFilial se comportam
+		// exatamente como hoje (ver Task 3).
+		"RPCSETENV": func(args []advplrt.Value) (advplrt.Value, error) {
+			v.filialAtiva = advplrt.ToString(getArg(args, 0))
+			return advplrt.True, nil
+		},
+
 		// --- MVC ---
 		"FWFORMMODEL": func(args []advplrt.Value) (advplrt.Value, error) {
 			name := advplrt.ToString(getArg(args, 0))
