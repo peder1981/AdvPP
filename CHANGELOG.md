@@ -14,6 +14,32 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 - **`FWMBrowse` filtra e estampa `FILIAL` automaticamente** quando a tabela
   física tem essa coluna — mesmo mecanismo que já existe para `D_E_L_E_T_`.
   Motivado pelo multi-condomínio do GesCon.
+  - A guarda de escrita cobre Incluir, Alterar **e Excluir** — não só o
+    Listar (`SELECT`). Alterar reconfere `FILIAL = ?` no `WHERE` do
+    `UPDATE` (não confia apenas no recno já ter passado pelo filtro do
+    Listar) e Excluir faz o mesmo tanto no soft-delete
+    (`D_E_L_E_T_ = '*'`) quanto no hard-delete. Um recno forjado/obsoleto
+    de outra filial é recusado silenciosamente (0 linhas afetadas, sem
+    erro) em vez de alterar/excluir a linha errada.
+  - `FILIAL` nunca é um campo editável pelo cliente — é gerido pelo
+    sistema, exatamente como `D_E_L_E_T_`. Não aparece na lista de colunas
+    do browse (nem via fallback físico, nem via SX3), então um valor
+    forjado enviado pelo cliente em `Data["FILIAL"]` é ignorado; a linha é
+    sempre estampada/mantida na filial ativa resolvida no servidor.
+  - Reconhece apenas uma coluna chamada literalmente `FILIAL` — variantes
+    prefixadas (ex.: `A1_FILIAL`) não são detectadas. É um limite de
+    escopo deliberado desta primeira versão, não um bug.
+  - Contrato DDL de `X2_FILIAL_COMPART`, exigido por quem for popular essa
+    tabela (ex.: o instalador do GesCon):
+    `CREATE TABLE X2_FILIAL_COMPART (TABELA TEXT PRIMARY KEY, NIVEL INTEGER NOT NULL)`.
+    Sem uma linha para a tabela consultada, `resolveFilial` usa o default
+    fail-closed (nível 6, exclusiva).
+- **`RpcSetEnv(cFilial)` valida o tamanho do argumento** — deve ter
+  exatamente 6 caracteres (convenção Protheus GG+UU+FF). Um valor de outro
+  tamanho é recusado (`.F.`, filial ativa da sessão permanece a anterior)
+  em vez de ser silenciosamente truncado/espaçado por `truncarFilial`, o
+  que colapsaria dois códigos de filial pretendidos distintos no mesmo
+  valor.
 
 ## [2.0.21] — 2026-08-07
 
