@@ -19,6 +19,26 @@ func TestRpcSetEnvGravaFilialAtiva(t *testing.T) {
 	}
 }
 
+func TestRpcSetEnvRejeitaTamanhoErrado(t *testing.T) {
+	v := NewVM(&compiler.Bytecode{}, false)
+	v.filialAtiva = "010101" // valor prévio, deve permanecer intocado
+
+	cases := []string{"01010199", "0101", ""}
+	for _, c := range cases {
+		got, err := v.natives["RPCSETENV"].Fn([]advplrt.Value{advplrt.NewString(c)})
+		if err != nil {
+			t.Fatalf("RpcSetEnv(%q) retornou erro: %v", c, err)
+		}
+		b, ok := got.(*advplrt.BoolValue)
+		if !ok || b.Val {
+			t.Errorf("RpcSetEnv(%q) = %v, quer .F. (tamanho != 6)", c, got)
+		}
+		if v.filialAtiva != "010101" {
+			t.Errorf("RpcSetEnv(%q) alterou filialAtiva para %q, quer permanecer '010101' (valor prévio)", c, v.filialAtiva)
+		}
+	}
+}
+
 func TestTruncarFilial(t *testing.T) {
 	cases := []struct {
 		filial string
