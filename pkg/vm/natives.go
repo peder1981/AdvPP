@@ -1301,7 +1301,17 @@ func (v *VM) registerNatives() {
 		// com filialAtiva == "", e FWMBrowse/FWxFilial se comportam
 		// exatamente como hoje (ver Task 3).
 		"RPCSETENV": func(args []advplrt.Value) (advplrt.Value, error) {
-			v.filialAtiva = advplrt.ToString(getArg(args, 0))
+			cFilial := advplrt.ToString(getArg(args, 0))
+			// Convenção Protheus: filial é sempre 6 caracteres (GG+UU+FF).
+			// Um valor de outro tamanho não é truncamento legítimo -- é
+			// um identificador de tenant diferente sendo silenciosamente
+			// coagido pelo truncarFilial() downstream (ver resolveFilial),
+			// o que colapsaria dois códigos de filial pretendidos
+			// distintos no mesmo valor. Rejeita em vez de adivinhar.
+			if len(cFilial) != 6 {
+				return advplrt.False, nil
+			}
+			v.filialAtiva = cFilial
 			return advplrt.True, nil
 		},
 
