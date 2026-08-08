@@ -84,3 +84,25 @@ func TestFWxFilialComNivelConfigurado(t *testing.T) {
 		t.Errorf("FWxFilial('UNI') sem config = %q, quer %q (default nivel 6)", got2.(*advplrt.StringValue).Val, "010101")
 	}
 }
+
+func TestResolveFilialComTableNaoExiste(t *testing.T) {
+	tmpDir := t.TempDir()
+	eng, err := db.NewSQLiteEngine(tmpDir + "/filial_missing_table_test.db")
+	if err != nil {
+		t.Fatalf("NewSQLiteEngine: %v", err)
+	}
+	defer eng.Close()
+
+	// Propositalmente não criar a tabela X2_FILIAL_COMPART -- isso fará
+	// QueryRows retornar um erro (table not found), exercitando o
+	// caminho fail-closed do resolveFilial.
+
+	v := NewVM(&compiler.Bytecode{}, false)
+	v.SetDBEngine(eng)
+	v.filialAtiva = "010101"
+
+	got := v.resolveFilial(eng, "QUALQUERTABELA")
+	if got != "010101" {
+		t.Errorf("resolveFilial com table inexistente = %q, quer %q (default nivel 6, fail-closed)", got, "010101")
+	}
+}
