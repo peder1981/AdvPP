@@ -184,7 +184,12 @@ func (v *VM) browseColumns(eng SQLEngine, alias string) ([]browseColumn, bool, b
 	if err == nil {
 		for _, f := range sx3 {
 			campo := strings.ToUpper(strings.TrimSpace(f["X3_CAMPO"]))
-			if !physSet[campo] || !identRe.MatchString(campo) {
+			// FILIAL nunca é campo editável pelo cliente — é gerido pelo
+			// sistema (auto-estampado/filtrado, ver hasFilial acima),
+			// exatamente como D_E_L_E_T_. Nenhuma tabela hoje tem uma
+			// entrada SX3 para FILIAL, mas isso fecha o buraco mesmo que
+			// uma passe a ter no futuro.
+			if !physSet[campo] || !identRe.MatchString(campo) || campo == "FILIAL" {
 				continue
 			}
 			size, _ := strconv.Atoi(f["X3_TAMANHO"])
@@ -211,7 +216,7 @@ func (v *VM) browseColumns(eng SQLEngine, alias string) ([]browseColumn, bool, b
 			// do e-Gov, EG0–EG7) nunca passa por este fallback — só
 			// aparece em tabelas sem dicionário, onde ninguém tinha
 			// notado até o teste de FWMBrowse via console pegar.
-			if name == "D_E_L_E_T_" || name == "R_E_C_N_O_" || name == "R_E_C_D_E_L_" || !identRe.MatchString(name) {
+			if name == "D_E_L_E_T_" || name == "R_E_C_N_O_" || name == "R_E_C_D_E_L_" || name == "FILIAL" || !identRe.MatchString(name) {
 				continue
 			}
 			cols = append(cols, browseColumn{Property: name, Label: name, Type: "C"})
