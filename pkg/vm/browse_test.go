@@ -118,6 +118,79 @@ func TestBrowseAlterarRecusaCrossFilial(t *testing.T) {
 	}
 }
 
+func TestBrowseFilialNaoEhColunaEditavel(t *testing.T) {
+	tmpDir := t.TempDir()
+	eng, err := db.NewSQLiteEngine(tmpDir + "/browse_test4.db")
+	if err != nil {
+		t.Fatalf("NewSQLiteEngine: %v", err)
+	}
+	defer eng.Close()
+
+	if err := eng.Exec(`CREATE TABLE UNI (
+		R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT,
+		D_E_L_E_T_ TEXT DEFAULT ' ',
+		UNI_CODIGO TEXT,
+		FILIAL TEXT
+	)`); err != nil {
+		t.Fatalf("create UNI: %v", err)
+	}
+	if err := eng.Exec("INSERT INTO UNI (UNI_CODIGO, FILIAL) VALUES ('101', '010101')"); err != nil {
+		t.Fatalf("seed A: %v", err)
+	}
+
+	cols, hasDelete, hasFilial, err := (&VM{}).browseColumns(eng, "UNI")
+	if err != nil {
+		t.Fatalf("browseColumns: %v", err)
+	}
+	if !hasFilial {
+		t.Fatal("hasFilial deveria ser true (tabela tem coluna FILIAL)")
+	}
+	for _, c := range cols {
+		if c.Property == "FILIAL" {
+			t.Fatal("FILIAL não deveria aparecer em cols -- é campo gerido pelo sistema, não editável pelo cliente")
+		}
+	}
+
+	// Incluir: cliente forja um FILIAL diferente do cFilial ativo em
+	// act.Data. Como FILIAL não está em cols, esse valor forjado deve ser
+	// ignorado; a linha deve ficar estampada com o cFilial ATIVO (010101),
+	// não com o valor forjado.
+	err = browseSave(eng, "UNI", cols, hasDelete, hasFilial, "010101",
+		browseAction{Action: "save", Recno: 0, Data: map[string]string{
+			"UNI_CODIGO": "202",
+			"FILIAL":     "999999", // forjado
+		}})
+	if err != nil {
+		t.Fatalf("browseSave (incluir com FILIAL forjado): %v", err)
+	}
+	rows, _ := eng.QueryRows("SELECT FILIAL FROM UNI WHERE UNI_CODIGO = '202'")
+	if len(rows) != 1 || rows[0]["FILIAL"] != "010101" {
+		t.Errorf("linha incluida com FILIAL = %v, quer '010101' (cFilial ativo, não o forjado)", rows)
+	}
+
+	// Alterar: mesma tentativa, agora sobre a linha existente (recno 1,
+	// filial real 010101 == cFilial ativo, então o UPDATE deve ser
+	// aplicado -- mas o FILIAL forjado em Data deve ser ignorado).
+	err = browseSave(eng, "UNI", cols, hasDelete, hasFilial, "010101",
+		browseAction{Action: "save", Recno: 1, Data: map[string]string{
+			"UNI_CODIGO": "101-EDITADO",
+			"FILIAL":     "999999", // forjado
+		}})
+	if err != nil {
+		t.Fatalf("browseSave (alterar com FILIAL forjado): %v", err)
+	}
+	rows2, _ := eng.QueryRows("SELECT UNI_CODIGO, FILIAL FROM UNI WHERE rowid = 1")
+	if len(rows2) != 1 {
+		t.Fatalf("esperava 1 linha, veio %d", len(rows2))
+	}
+	if rows2[0]["UNI_CODIGO"] != "101-EDITADO" {
+		t.Errorf("UNI_CODIGO = %q, quer '101-EDITADO' (o resto do update deveria ter sido aplicado)", rows2[0]["UNI_CODIGO"])
+	}
+	if rows2[0]["FILIAL"] != "010101" {
+		t.Errorf("FILIAL = %q por um Alterar com FILIAL forjado em Data, quer permanecer '010101'", rows2[0]["FILIAL"])
+	}
+}
+
 func TestBrowseSemColunaFilialComportamentoInalterado(t *testing.T) {
 	tmpDir := t.TempDir()
 	eng, err := db.NewSQLiteEngine(tmpDir + "/browse_test2.db")
