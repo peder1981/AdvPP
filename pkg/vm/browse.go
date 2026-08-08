@@ -108,13 +108,18 @@ func (v *VM) runBrowse(b *browseState) error {
 		return fmt.Errorf("FWMBrowse: alias inválido %q", b.alias)
 	}
 
-	cols, hasDelete, err := v.browseColumns(sqlEng, b.alias)
+	cols, hasDelete, hasFilial, err := v.browseColumns(sqlEng, b.alias)
 	if err != nil {
 		return err
 	}
 
+	cFilial := ""
+	if hasFilial {
+		cFilial = v.resolveFilial(sqlEng, b.alias)
+	}
+
 	for {
-		items, err := browseItems(sqlEng, b.alias, cols, hasDelete)
+		items, err := browseItems(sqlEng, b.alias, cols, hasDelete, hasFilial, cFilial)
 		if err != nil {
 			return err
 		}
@@ -138,7 +143,7 @@ func (v *VM) runBrowse(b *browseState) error {
 
 		switch act.Action {
 		case "save":
-			if err := browseSave(sqlEng, b.alias, cols, hasDelete, act); err != nil {
+			if err := browseSave(sqlEng, b.alias, cols, hasDelete, hasFilial, cFilial, act); err != nil {
 				return err
 			}
 		case "delete":
@@ -153,18 +158,22 @@ func (v *VM) runBrowse(b *browseState) error {
 
 // browseColumns monta as colunas a partir do dicionário SX3, limitadas às
 // colunas físicas da tabela. Sem SX3, usa as colunas físicas (fallback).
-func (v *VM) browseColumns(eng SQLEngine, alias string) ([]browseColumn, bool, error) {
+func (v *VM) browseColumns(eng SQLEngine, alias string) ([]browseColumn, bool, bool, error) {
 	phys, err := eng.QueryRows(fmt.Sprintf("PRAGMA table_info(%s)", alias))
 	if err != nil || len(phys) == 0 {
-		return nil, false, fmt.Errorf("FWMBrowse: tabela %s não encontrada", alias)
+		return nil, false, false, fmt.Errorf("FWMBrowse: tabela %s não encontrada", alias)
 	}
 	physSet := map[string]bool{}
 	hasDelete := false
+	hasFilial := false
 	for _, p := range phys {
 		name := strings.ToUpper(p["NAME"])
 		physSet[name] = true
 		if name == "D_E_L_E_T_" {
 			hasDelete = true
+		}
+		if name == "FILIAL" {
+			hasFilial = true
 		}
 	}
 
@@ -208,13 +217,13 @@ func (v *VM) browseColumns(eng SQLEngine, alias string) ([]browseColumn, bool, e
 			cols = append(cols, browseColumn{Property: name, Label: name, Type: "C"})
 		}
 	}
-	return cols, hasDelete, nil
+	return cols, hasDelete, hasFilial, nil
 }
 
 // browseItems reads all records from the table with the selected columns.
 // Uses parameterized queries for field values to prevent SQL injection (CWE-89, OWASP A03:2021).
 // Table names (alias) are validated by caller before invocation.
-func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete bool) ([]map[string]any, error) {
+func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete, hasFilial bool, cFilial string) ([]map[string]any, error) {
 	names := make([]string, len(cols))
 	for i, c := range cols {
 		names[i] = c.Property
@@ -227,10 +236,19 @@ func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete boo
 	// back as 0, turning every edit into a duplicate INSERT instead of an
 	// UPDATE).
 	query := fmt.Sprintf("SELECT rowid AS browse_recno_, %s FROM %s", strings.Join(names, ", "), alias)
+	var conds []string
+	var qargs []any
 	if hasDelete {
-		query += " WHERE D_E_L_E_T_ <> '*'"
+		conds = append(conds, "D_E_L_E_T_ <> '*'")
 	}
-	rows, err := eng.QueryRows(query)
+	if hasFilial {
+		conds = append(conds, "FILIAL = ?")
+		qargs = append(qargs, cFilial)
+	}
+	if len(conds) > 0 {
+		query += " WHERE " + strings.Join(conds, " AND ")
+	}
+	rows, err := eng.QueryRows(query, qargs...)
 	if err != nil {
 		return nil, fmt.Errorf("FWMBrowse: %w", err)
 	}
@@ -256,7 +274,7 @@ func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete boo
 // browseSave inserts or updates a record via parameterized queries.
 // Table names (alias) are validated by caller before invocation.
 // Uses ? placeholders for all field values to prevent SQL injection (CWE-89, OWASP A03:2021).
-func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete bool, act browseAction) error {
+func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete, hasFilial bool, cFilial string, act browseAction) error {
 	names := []string{}
 	vals := []any{}
 	for _, c := range cols {
@@ -279,6 +297,10 @@ func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete bool
 		if hasDelete {
 			names = append(names, "D_E_L_E_T_")
 			vals = append(vals, " ")
+		}
+		if hasFilial {
+			names = append(names, "FILIAL")
+			vals = append(vals, cFilial)
 		}
 		q := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", alias,
 			strings.Join(names, ", "), strings.TrimSuffix(strings.Repeat("?, ", len(names)), ", "))
