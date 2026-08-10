@@ -1940,6 +1940,7 @@ func (v *VM) registerNatives() {
 	v.registerManipulacaodeclasseNatives(natives)
 	v.registerManipulacaodeRPONatives(natives)
 	v.registerManipulacaodematrizHashMapNatives(natives)
+	v.registerManipulacaodoarquivoININatives(natives)
 
 	for name, fn := range natives {
 		v.natives[name] = &advplrt.FunctionValue{Name: name, Fn: fn}
