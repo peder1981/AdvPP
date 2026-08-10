@@ -122,6 +122,13 @@ type VM struct {
 	jobIDSeq       int64                    // contador atômico p/ gerar job ids únicos (FWJOBSTART)
 	namedLocks     map[string]bool          // locks nomeados (GlbNmLock/GlbNmUnlock): nome -> bloqueado
 	namedLocksMu   sync.Mutex               // proteção das operações sobre namedLocks
+	ipcSemaphores  map[string]*ipcSemaphoreState // semaphores for IPC (IPCGo/IPCWaitEx/IPCCount)
+	ipcSemaphoresMu sync.Mutex              // proteção das operações sobre ipcSemaphores
+}
+
+type ipcSemaphoreState struct {
+	waiters int                  // número de threads esperando
+	ch      chan []advplrt.Value // canal para passar dados de IPCGo para threads esperando
 }
 
 type namedArgInfo struct {
@@ -204,6 +211,7 @@ func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 		nextFH:       1,
 		dynEnv:       make(map[string]advplrt.Value),
 		namedLocks:   make(map[string]bool),
+		ipcSemaphores: make(map[string]*ipcSemaphoreState),
 	}
 	v.registerClasses()
 	v.registerNatives()
