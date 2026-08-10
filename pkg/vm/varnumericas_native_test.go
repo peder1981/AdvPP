@@ -271,7 +271,8 @@ func TestRandomize(t *testing.T) {
 				t.Errorf("Randomize(%s) retornou tipo incorreto: %v", c.name, got)
 				continue
 			}
-			// Check bounds: should be >= minBound and <= maxBound-1
+			// Check bounds: range is [minBound, maxBound] after clamping to 32767-value window
+			// (i.e., result in [nMinimo, nMinimo+32766] when upper bound exceeds nMinimo+32767)
 			if n.Val < c.minBound || n.Val > c.maxBound {
 				t.Errorf("Randomize(%s) = %v, esperado entre [%v, %v]", c.name, n.Val, c.minBound, c.maxBound)
 			}
