@@ -15,6 +15,7 @@ import (
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 // --- Infraestrutura de teste: servidor SFTP embutido em processo ---
@@ -49,8 +50,9 @@ func generateTestHostKey(t *testing.T) ssh.Signer {
 
 // testSFTPServer descreve um servidor SFTP de teste rodando em processo.
 type testSFTPServer struct {
-	Addr string
-	Dir  string
+	Addr    string
+	Dir     string
+	HostKey ssh.PublicKey // chave pública de host, para testes de known_hosts
 }
 
 // startTestSFTPServerPassword sobe um servidor SFTP de teste que aceita apenas
@@ -70,7 +72,9 @@ func startTestSFTPServerPassword(t *testing.T, user, password string) testSFTPSe
 	}
 	config.AddHostKey(hostKey)
 
-	return startTestSFTPListener(t, config, dir)
+	srv := startTestSFTPListener(t, config, dir)
+	srv.HostKey = hostKey.PublicKey()
+	return srv
 }
 
 // startTestSFTPServerKey sobe um servidor SFTP de teste que aceita apenas
@@ -479,6 +483,70 @@ func TestSFTPUpld2ParametrosObrigatoriosFaltando(t *testing.T) {
 	if !ok || n.Val != -1111 {
 		t.Errorf("SFTPUpld2 com sRemotePath vazio = %v, quer -1111", got)
 	}
+}
+
+// TestSFTPConnectComKnownHostsOptIn cobre o escape hatch ADVPP_SFTP_KNOWN_HOSTS:
+// quando configurado com a chave de host correta, a conexão deve funcionar
+// normalmente (verificação estrita passa); quando configurado com uma chave
+// diferente da real, a conexão deve falhar (verificação estrita rejeita o MITM
+// simulado). Sem a variável definida (comportamento default, já coberto pelos
+// demais testes desta suíte), a verificação é pulada.
+func TestSFTPConnectComKnownHostsOptIn(t *testing.T) {
+	srv := startTestSFTPServerPassword(t, "user", "password")
+	if err := os.WriteFile(filepath.Join(srv.Dir, "arquivo.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	t.Run("chave correta no known_hosts: conecta normalmente", func(t *testing.T) {
+		knownHostsPath := filepath.Join(t.TempDir(), "known_hosts")
+		line := knownhosts.Line([]string{srv.Addr}, srv.HostKey)
+		if err := os.WriteFile(knownHostsPath, []byte(line+"\n"), 0o600); err != nil {
+			t.Fatalf("setup known_hosts: %v", err)
+		}
+		t.Setenv("ADVPP_SFTP_KNOWN_HOSTS", knownHostsPath)
+
+		v := NewVM(&compiler.Bytecode{}, false)
+		got, err := v.natives["SFTPDIRLS"].Fn([]advplrt.Value{
+			advplrt.NewString(srv.Addr),
+			advplrt.NewString(srv.Dir),
+			advplrt.NewString("user"),
+			advplrt.NewString("password"),
+		})
+		if err != nil {
+			t.Fatalf("erro Go inesperado: %v", err)
+		}
+		if _, ok := got.(*advplrt.ArrayValue); !ok {
+			t.Errorf("SFTPDirLs com known_hosts correto = %v (%T), esperava array (conexão deveria ter passado na verificação estrita)", got, got)
+		}
+	})
+
+	t.Run("chave diferente no known_hosts: rejeita a conexão", func(t *testing.T) {
+		wrongKey := generateTestHostKey(t)
+		knownHostsPath := filepath.Join(t.TempDir(), "known_hosts")
+		line := knownhosts.Line([]string{srv.Addr}, wrongKey.PublicKey())
+		if err := os.WriteFile(knownHostsPath, []byte(line+"\n"), 0o600); err != nil {
+			t.Fatalf("setup known_hosts: %v", err)
+		}
+		t.Setenv("ADVPP_SFTP_KNOWN_HOSTS", knownHostsPath)
+
+		v := NewVM(&compiler.Bytecode{}, false)
+		got, err := v.natives["SFTPDIRLS"].Fn([]advplrt.Value{
+			advplrt.NewString(srv.Addr),
+			advplrt.NewString(srv.Dir),
+			advplrt.NewString("user"),
+			advplrt.NewString("password"),
+		})
+		if err != nil {
+			t.Fatalf("erro Go inesperado: %v", err)
+		}
+		if _, ok := got.(*advplrt.ArrayValue); ok {
+			t.Errorf("SFTPDirLs com known_hosts incorreto = array, esperava código de erro (verificação estrita deveria ter rejeitado a chave divergente)")
+		}
+		n, ok := got.(*advplrt.NumberValue)
+		if !ok || n.Val == 0 {
+			t.Errorf("SFTPDirLs com known_hosts incorreto = %v, quer código de erro != 0", got)
+		}
+	})
 }
 
 func TestSftpStatusFromErr(t *testing.T) {
