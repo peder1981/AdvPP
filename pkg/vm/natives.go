@@ -960,12 +960,6 @@ func (v *VM) registerNatives() {
 			}
 			return args[2], nil
 		},
-		"VALTYPE": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewString(advplrt.ValType(getArg(args, 0))), nil
-		},
-		"TYPE": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewString(advplrt.ValType(getArg(args, 0))), nil
-		},
 		"ISNIL": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewBool(advplrt.IsNil(getArg(args, 0))), nil
 		},
@@ -1932,6 +1926,7 @@ func (v *VM) registerNatives() {
 	registerP2PNatives(natives)
 	v.registerAsyncJobNatives(natives)
 	v.registerValidacaoNatives(natives)
+	v.registerVerificacaodostiposdevariaveisNatives(natives)
 	v.registerSincronismoNatives(natives)
 	v.registerControledeacessoNatives(natives)
 	v.registerExecucaoentreprocessosNatives(natives)
