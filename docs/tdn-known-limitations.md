@@ -245,3 +245,38 @@ não reprova o XML só por isso; a checagem de boa-formação + existência de
 arquivo continua valendo). `XmlFVldSch` não deve ser usado como gate de
 validação de schema completo em produção fora do subconjunto documentado
 acima.
+
+## Controle de processo: pool de threads de AppServer inexistente (`ManualJob`, `SmartJob`)
+
+As funções `ManualJob` e `SmartJob` (pkg/vm/controleprocessamento_native.go,
+Task 25) no Protheus real dependem da infraestrutura de Jobs/pool de threads
+do AppServer (seções `[SMARTJOB]`/OnStart do ini, alocação de `nMin`/`nMax`/
+`nIncr` threads, fila FIFO com controle de recursos `memload`/`minjobs`/
+`maxjobs`). AdvPP é um runtime headless **sem AppServer** e sem essa
+infraestrutura — portanto:
+
+- **`ManualJob`** executa a função-alvo do job num job isolado (via
+  `StartJob`, um VM novo em goroutine) em vez de gerenciar um pool de
+  threads. Para `cJobType='MDI'` executa `cOnStart` com `cSSKey` como
+  argumento; para qualquer outro tipo executa `cOnConnect`. Os parâmetros
+  de pool (`nInactive`, `nMin`, `nMax`, `nMinFree`, `nIncr`, `nWaitTime`)
+  são aceitos para preservar a assinatura, mas **ignorados** — não há
+  escalonamento multi-thread a controlar.
+- **`SmartJob`** dispara `cName` num job isolado não-bloqueante (mesma
+  semântica de `StartJob(wait=.F.)`). O `lWait` é sempre tratado como `.F.`
+  internamente (conforme TDN). A **fila FIFO e o controle de recursos**
+  (memload/minjobs/maxjobs da seção `[SMARTJOB]`) **não existem**: a função
+  valida a existência do alvo (`VM.functionExists`) e dispara imediatamente,
+  retornando `.T.`; o limite global de jobs concorrentes é o `MaxConcurrentJobs`
+  já usado pelo `StartJob`.
+- **`ExUserException`** no Protheus exibe a janela de Error log antes de
+  abortar. No runtime headless não há janela; a semântica observável é a
+  interrupção da execução com a mensagem (propagada como erro).
+
+### Stubs mantidos (sem appserver para implementar)
+
+`KillApp`, `setFinishAppHandler`, `KillUser`, `SysRefresh`, `JobInfo`,
+`ProcLine`, `UserException`, `ProcName` continuam como stubs (ver
+`docs/tdn-gap-stubs.md`) — exigem estado de processo/sessão do AppServer
+que o runtime embutido não mantém.
+
