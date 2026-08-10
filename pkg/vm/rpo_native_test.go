@@ -68,27 +68,25 @@ func TestGetAPOInfo(t *testing.T) {
 func TestGetApoRes(t *testing.T) {
 	v := NewVM(&compiler.Bytecode{}, false)
 
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "recurso.per")
-	if err := os.WriteFile(path, []byte("conteudo do resource"), 0644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	got, err := v.natives["GETAPORES"].Fn([]advplrt.Value{advplrt.NewString(path)})
+	// cRes é um identificador de resource interno ao container do RPO
+	// (obtido via GetResArray, que AdvPP não implementa) — não um caminho
+	// de disco. Sem container de resources, a resposta honesta é sempre
+	// "" (comportamento de limitação documentada, não leitura de arquivo).
+	got, err := v.natives["GETAPORES"].Fn([]advplrt.Value{advplrt.NewString("qualquer.per")})
 	if err != nil {
 		t.Fatalf("GetApoRes retornou erro: %v", err)
 	}
-	if got.(*advplrt.StringValue).Val != "conteudo do resource" {
-		t.Errorf("GetApoRes() = %q, quer %q", got.(*advplrt.StringValue).Val, "conteudo do resource")
+	if got.(*advplrt.StringValue).Val != "" {
+		t.Errorf("GetApoRes() = %q, quer \"\" (sem container de resources em AdvPP)", got.(*advplrt.StringValue).Val)
 	}
 
-	// Edge case: resource inexistente -> ""
-	got2, err := v.natives["GETAPORES"].Fn([]advplrt.Value{advplrt.NewString(filepath.Join(tmpDir, "naoexiste.per"))})
+	// Edge case: cRes vazio -> ""
+	got2, err := v.natives["GETAPORES"].Fn([]advplrt.Value{advplrt.NewString("")})
 	if err != nil {
-		t.Fatalf("GetApoRes(inexistente) retornou erro: %v", err)
+		t.Fatalf("GetApoRes('') retornou erro: %v", err)
 	}
 	if got2.(*advplrt.StringValue).Val != "" {
-		t.Errorf("GetApoRes(inexistente) = %q, quer \"\"", got2.(*advplrt.StringValue).Val)
+		t.Errorf("GetApoRes('') = %q, quer \"\"", got2.(*advplrt.StringValue).Val)
 	}
 }
 
