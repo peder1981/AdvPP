@@ -119,13 +119,17 @@ func TestPutGlbVarsAndGetGlbVars(t *testing.T) {
 		t.Fatalf("PutGlbVars failed: %v", err)
 	}
 
-	// GetGlbVars should return the stored values
-	// We need to pass variables by reference, but since we're calling the native directly,
-	// we'll check the internal storage
+	// GetGlbVars should return .T. indicating the stored values exist.
+	// LIMITATION: AdvPP does not support reference parameters (@xValue1...N) for native
+	// functions, so the actual values stored in the global variable cannot be retrieved
+	// and assigned back to the caller's variables. This is an architectural VM limitation
+	// documented in pkg/vm/varglobais_native.go and docs/tdn-known-limitations.md.
+	// The test only verifies what is actually implemented: the boolean return value
+	// indicating whether the variable exists.
 	result, err := v.natives["GETGLBVARS"].Fn([]advplrt.Value{
 		advplrt.NewString(cGlbName),
-		advplrt.NewArray([]advplrt.Value{}), // placeholder for returned array
-		advplrt.NewNumber(0), // placeholder for returned number
+		advplrt.NewArray([]advplrt.Value{}), // placeholder (not used due to limitation)
+		advplrt.NewNumber(0),               // placeholder (not used due to limitation)
 	})
 	if err != nil {
 		t.Fatalf("GetGlbVars failed: %v", err)
@@ -136,7 +140,7 @@ func TestPutGlbVarsAndGetGlbVars(t *testing.T) {
 		t.Fatalf("GetGlbVars returned %T, expected BoolValue", result)
 	}
 	if !b.Val {
-		t.Errorf("GetGlbVars returned false, expected true")
+		t.Errorf("GetGlbVars returned false, expected true (indicating variable exists)")
 	}
 }
 

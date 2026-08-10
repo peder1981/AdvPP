@@ -35,7 +35,6 @@ func (v *VM) registerManipulacaodevariaveisglobaisNatives(natives map[string]fun
 
 	// GetGlbVars(cGlbName, @xValue1...N) -> lRet — retorna múltiplos valores de uma variável global
 	// Retorna .T. se encontrado, .F. caso contrário
-	// Os valores são copiados para os argumentos passados por referência
 	natives["GETGLBVARS"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		cGlbName := advplrt.ToString(getArg(args, 0))
 
@@ -47,18 +46,19 @@ func (v *VM) registerManipulacaodevariaveisglobaisNatives(natives map[string]fun
 			return advplrt.NewBool(false), nil
 		}
 
-		// Copy retrieved values to the reference parameters
-		// Arguments 1 onwards are the output variables (passed by reference)
-		for i, val := range values {
-			argIdx := 1 + i
-			if argIdx >= len(args) {
-				break
-			}
-			// Copy the value to the reference parameter
-			// In a real implementation, we'd need proper reference handling,
-			// but for now we store it as a simple copy
-			args[argIdx] = val
-		}
+		// LIMITAÇÃO: AdvPP não implementa suporte a argumentos por referência
+		// para funções nativas. A TDN especifica que GetGlbVars deve permitir
+		// recuperar até N argumentos por referência (via @xValue1...N) que seriam
+		// mutados com os valores armazenados. Isso é uma limitação arquitetural
+		// do VM que afeta potencialmente várias outras funções.
+		//
+		// Comportamento atual: a função retorna .T. corretamente (valores encontrados),
+		// mas os dados armazenados não são refletidos nas variáveis do caller.
+		// Para usar GetGlbVars corretamente nesta implementação, seria necessário
+		// repensar o mecanismo de chamada de nativas ou usar workarounds
+		// (ex.: armazenar valores em variáveis globais acessíveis, usar retorno estruturado).
+		//
+		_ = values // valores recuperados, mas não podem ser passados ao caller via @params
 
 		return advplrt.NewBool(true), nil
 	}

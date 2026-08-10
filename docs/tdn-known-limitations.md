@@ -15,10 +15,12 @@ passada com `@`. Descoberto na Task 5 (`IPCWaitEx`, que segundo o TDN
 recupera dados via parâmetros por referência).
 
 Funções afetadas até agora: `IPCWaitEx` (pkg/vm/execucaoprocessos_native.go);
-`SFTPDirLs`, `SFTPDwld1`, `SFTPDwld2`, `SFTPUpld1`, `SFTPUpld2`
-(pkg/vm/sftp_native.go) — o parâmetro final `@sError`/`@cError` de todas as cinco
-não é populado; o valor de retorno principal (array/código de status) permanece
-correto e é a forma suportada de checar sucesso/falha.
+`GetGlbVars` (pkg/vm/varglobais_native.go) — os parâmetros `@xValue1...N` não são
+populados com os valores armazenados; o valor de retorno (.T./.F.) permanece correto
+e é a forma suportada de checar sucesso/falha; `SFTPDirLs`, `SFTPDwld1`, `SFTPDwld2`,
+`SFTPUpld1`, `SFTPUpld2` (pkg/vm/sftp_native.go) — o parâmetro final `@sError`/`@cError`
+de todas as cinco não é populado; o valor de retorno principal (array/código de status)
+permanece correto e é a forma suportada de checar sucesso/falha.
 
 `SFTPDirLs`/`SFTPDwld1`/`SFTPDwld2`/`SFTPUpld1`/`SFTPUpld2` também documentam, no
 código (`pkg/vm/sftp_native.go`), um trade-off de segurança deliberado: a
