@@ -36,6 +36,16 @@ parâmetros da TDN documenta `aVal` como tipo "vetor"), a mutação in-place fun
 é aplicada. `HMList` (mesmo arquivo) não sofre a limitação: seu `@aElem` é
 inequivocamente array na TDN, então a lista é sempre populada de volta.
 
+`VarGet`, `VarGetX`, `VarGetXD`, `VarGetD` (pkg/vm/varglobaishashmap_native.go,
+Task 28) — o parâmetro escalar `@xValor` (N/C/D/L) não é populado de volta na
+variável do chamador; o valor de retorno lógico (.T./.F.) permanece correto e é a
+forma suportada de checar sucesso/falha, e o conteúdo armazenado na "Tabela X"
+continua acessível via `VarGetXA` (listagem que inclui os valores). Exceção
+parcial: os parâmetros de array `@aValor` (em `VarGetA`/`VarGetAD`/`VarGetD`/
+`VarGet`) e `@aListCV`/`@aListCV_X`/`@aListCV_A` (em `VarGet_A`/`VarGetXA`/
+`VarGetAA`) são populados in-place, pois arrays são tipo referência neste VM
+(mesmo mecanismo de `HMGet`/`HMList`, Task 19).
+
 `XmlC14N`, `XmlC14NFile`, `XmlFVldSch`, `XmlParser`, `XmlParserFile`
 (pkg/vm/xml_native.go, Task 23) — todas têm, na TDN, os últimos 1-2
 parâmetros como saída por referência (`@cError`/`@cWarning`), nunca
