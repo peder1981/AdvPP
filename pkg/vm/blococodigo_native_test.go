@@ -77,6 +77,54 @@ func TestAEval(t *testing.T) {
 			},
 		},
 		{
+			name: "AEval with empty array",
+			args: []advplrt.Value{
+				advplrt.NewArray([]advplrt.Value{}),
+				block,
+			},
+			wantErr: false,
+			checkType: func(val advplrt.Value) bool {
+				arr, ok := val.(*advplrt.ArrayValue)
+				return ok && len(arr.Elements) == 0
+			},
+		},
+		{
+			name: "AEval with nStart parameter",
+			args: []advplrt.Value{
+				advplrt.NewArray([]advplrt.Value{
+					advplrt.NewString("A"),
+					advplrt.NewString("B"),
+					advplrt.NewString("C"),
+				}),
+				block,
+				advplrt.NewNumber(2), // nStart = 2
+			},
+			wantErr: false,
+			checkType: func(val advplrt.Value) bool {
+				arr, ok := val.(*advplrt.ArrayValue)
+				return ok && len(arr.Elements) == 3
+			},
+		},
+		{
+			name: "AEval with nStart and nCount",
+			args: []advplrt.Value{
+				advplrt.NewArray([]advplrt.Value{
+					advplrt.NewString("A"),
+					advplrt.NewString("B"),
+					advplrt.NewString("C"),
+					advplrt.NewString("D"),
+				}),
+				block,
+				advplrt.NewNumber(2), // nStart = 2
+				advplrt.NewNumber(2), // nCount = 2
+			},
+			wantErr: false,
+			checkType: func(val advplrt.Value) bool {
+				arr, ok := val.(*advplrt.ArrayValue)
+				return ok && len(arr.Elements) == 4
+			},
+		},
+		{
 			name: "AEval with non-array",
 			args: []advplrt.Value{
 				advplrt.NewString("not an array"),
