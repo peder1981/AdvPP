@@ -215,7 +215,8 @@ func TestEval(t *testing.T) {
 
 // TestDBEVal tests the DBEVal function that evaluates a codeblock for database records.
 func TestDBEVal(t *testing.T) {
-	v := NewVM(&compiler.Bytecode{}, false)
+	bc := createBytecodeWithIdentityBlock()
+	v := NewVM(bc, false)
 
 	cases := []struct {
 		name      string
@@ -235,15 +236,30 @@ func TestDBEVal(t *testing.T) {
 			wantErr:   true,
 			checkType: func(val advplrt.Value) bool { return true },
 		},
+		{
+			name: "DBEVal without database engine (no-op, returns nil)",
+			args: []advplrt.Value{
+				&advplrt.CodeBlockValue{FuncName: "__BLOCK_001"},
+			},
+			wantErr: false,
+			checkType: func(val advplrt.Value) bool {
+				// Sem engine de banco, retorna nil
+				return val == advplrt.Nil
+			},
+		},
 	}
 
 	for _, c := range cases {
-		_, err := v.natives["DBEVAL"].Fn(c.args)
+		got, err := v.natives["DBEVAL"].Fn(c.args)
 		if (err != nil) != c.wantErr {
 			t.Errorf("DBEVal(%s) erro = %v, wantErr %v", c.name, err, c.wantErr)
 		}
+		if err == nil && !c.checkType(got) {
+			t.Errorf("DBEVal(%s) retornou tipo incorreto: %v", c.name, got)
+		}
 	}
 }
+
 
 // TestGetCbSource tests the GetCbSource function that retrieves codeblock source code.
 func TestGetCbSource(t *testing.T) {

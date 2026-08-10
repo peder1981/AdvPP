@@ -69,23 +69,126 @@ func (v *VM) registerManipulacaodoblocodecodigoNatives(natives map[string]func(a
 
 	// DBEval(bBlock, [bFirstCondition], [bSecondCondition], [nCount], [nRecno], [lRest]) -> nil
 	// Avalia um bloco de código para cada registro que atenda um escopo definido.
-	// NOTA: Esta implementação é limitada por falta de acesso direto ao banco de dados.
-	// O comportamento real requer integração com o motor de banco de dados do Protheus,
-	// que não está disponível neste runtime headless.
+	// Sintaxe TDN:
+	//   bBlock: código a executar por registro
+	//   bFirstCondition: bloco de código (condição de inclusão - primeira)
+	//   bSecondCondition: bloco de código (condição de inclusão - segunda)
+	//   nCount: número máximo de registros a processar
+	//   nRecno: processa apenas um registro específico
+	//   lRest: processa registros restantes (a partir da posição atual)
 	natives["DBEVAL"] = func(args []advplrt.Value) (advplrt.Value, error) {
-		// Parâmetro 1: codeblock
+		// Parâmetro 1: codeblock (obrigatório)
 		blockVal := getArg(args, 0)
-		_, ok := blockVal.(*advplrt.CodeBlockValue)
+		block, ok := blockVal.(*advplrt.CodeBlockValue)
 		if !ok {
 			return advplrt.Nil, fmt.Errorf("DBEval: primeiro argumento deve ser um bloco de código")
 		}
 
-		// Os demais parâmetros são condições de filtro e controle:
-		// [bFirstCondition], [bSecondCondition], [nCount], [nRecno], [lRest]
-		// Sem acesso ao banco, apenas validamos o argumento principal
+		// Se não há engine de banco, não há registros para processar
+		// Caso legítimo: nenhuma área de banco aberta
+		if v.dbEngine == nil {
+			return advplrt.Nil, nil
+		}
 
-		// TODO: Implementação futura requer integração com banco de dados
-		// Por enquanto, retorna nil como documentado (sempre retorna nulo)
+		// Parâmetro 2: bFirstCondition (opcional)
+		bFirstCondition := getArg(args, 1)
+
+		// Parâmetro 3: bSecondCondition (opcional)
+		bSecondCondition := getArg(args, 2)
+
+		// Parâmetro 4: nCount (opcional, máximo de registros)
+		nCount := 0 // 0 significa ilimitado
+		if countVal := getArg(args, 3); countVal != nil && countVal != advplrt.Nil {
+			nCount = int(advplrt.ToFloat(countVal))
+		}
+
+		// Parâmetro 5: nRecno (opcional, um registro específico)
+		nRecno := 0 // 0 significa não aplicável
+		if recnoVal := getArg(args, 4); recnoVal != nil && recnoVal != advplrt.Nil {
+			nRecno = int(advplrt.ToFloat(recnoVal))
+		}
+
+		// Parâmetro 6: lRest (opcional, processar registros restantes)
+		lRest := false
+		if restVal := getArg(args, 5); restVal != nil && restVal != advplrt.Nil {
+			lRest = advplrt.ToBool(restVal)
+		}
+
+		// Se nRecno foi especificado, processa apenas esse registro
+		if nRecno > 0 {
+			v.dbEngine.GoTop()
+			if v.dbEngine.RecNo() == nRecno && !v.dbEngine.EOF() {
+				// Avalia primeira condição
+				if bFirstCondition != nil && bFirstCondition != advplrt.Nil {
+					if fb, ok := bFirstCondition.(*advplrt.CodeBlockValue); ok {
+						result, _ := v.RunFunction(fb.FuncName, []advplrt.Value{fb})
+						if !advplrt.ToBool(result) {
+							return advplrt.Nil, nil
+						}
+					}
+				}
+
+				// Avalia segunda condição
+				if bSecondCondition != nil && bSecondCondition != advplrt.Nil {
+					if sb, ok := bSecondCondition.(*advplrt.CodeBlockValue); ok {
+						result, _ := v.RunFunction(sb.FuncName, []advplrt.Value{sb})
+						if !advplrt.ToBool(result) {
+							return advplrt.Nil, nil
+						}
+					}
+				}
+
+				// Executa o bloco principal para este registro
+				_, _ = v.RunFunction(block.FuncName, []advplrt.Value{block})
+			}
+			return advplrt.Nil, nil
+		}
+
+		// Se lRest for true, comece a partir do registro atual
+		// Caso contrário, comece do topo
+		if !lRest {
+			v.dbEngine.GoTop()
+		}
+
+		// Itera sobre os registros
+		processed := 0
+		for !v.dbEngine.EOF() {
+			// Respeita nCount (limite máximo de registros)
+			if nCount > 0 && processed >= nCount {
+				break
+			}
+
+			// Avalia primeira condição
+			if bFirstCondition != nil && bFirstCondition != advplrt.Nil {
+				if fb, ok := bFirstCondition.(*advplrt.CodeBlockValue); ok {
+					result, _ := v.RunFunction(fb.FuncName, []advplrt.Value{fb})
+					if !advplrt.ToBool(result) {
+						v.dbEngine.Skip(1)
+						continue
+					}
+				}
+			}
+
+			// Avalia segunda condição
+			if bSecondCondition != nil && bSecondCondition != advplrt.Nil {
+				if sb, ok := bSecondCondition.(*advplrt.CodeBlockValue); ok {
+					result, _ := v.RunFunction(sb.FuncName, []advplrt.Value{sb})
+					if !advplrt.ToBool(result) {
+						v.dbEngine.Skip(1)
+						continue
+					}
+				}
+			}
+
+			// Executa o bloco principal para este registro
+			_, _ = v.RunFunction(block.FuncName, []advplrt.Value{block})
+			processed++
+
+			// Move para o próximo registro
+			v.dbEngine.Skip(1)
+		}
+
+		// Sempre retorna nil como especificado no TDN
 		return advplrt.Nil, nil
 	}
 
