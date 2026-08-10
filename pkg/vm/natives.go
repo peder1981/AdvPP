@@ -1968,6 +1968,7 @@ func (v *VM) registerNatives() {
 	registerMathStatNatives(natives)
 	registerP2PNatives(natives)
 	v.registerAsyncJobNatives(natives)
+	v.registerValidacaoNatives(natives)
 
 	for name, fn := range natives {
 		v.natives[name] = &advplrt.FunctionValue{Name: name, Fn: fn}
