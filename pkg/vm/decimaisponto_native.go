@@ -231,8 +231,11 @@ func decDivPrecScale(p1, s1, p2, s2 int) (int, int) {
 // decModPrecScale calcula a precisão/escala do resultado de DEC_MOD: o
 // resto de uma divisão é sempre menor (em módulo) que o divisor, então a
 // parte inteira do resultado é limitada pela parte inteira de dRight
-// (convenção própria — ver nota em decAddSubPrecScale).
+// (convenção própria — ver nota em decAddSubPrecScale). p1 (precisão do
+// dividendo) é intencionalmente ignorado: a magnitude do resto depende só
+// do divisor, não da precisão de dLeft.
 func decModPrecScale(p1, s1, p2, s2 int) (int, int) {
+	_ = p1
 	scale := s1
 	if s2 > scale {
 		scale = s2
@@ -404,18 +407,22 @@ func (v *VM) registerDecimaisdePontoFixoNatives(natives map[string]func(args []a
 		if len(args) > 2 && args[2] != nil {
 			mode = int(math.Trunc(advplrt.ToFloat(args[2])))
 		}
-		if mode < 0 || mode > 2 {
-			return advplrt.Nil, fmt.Errorf("DEC_RESCALE: nRound deve ser 0, 1 ou 2")
-		}
 		// A precisão total (quantidade de dígitos) não muda em RESCALE,
 		// apenas a escala e o valor arredondado a ela — só a escala está
 		// documentada como parâmetro alterável.
 		prec := d.prec
-		if newScale < 0 {
-			newScale = 0
+		// Documentado literalmente em DEC_RESCALE.md: "Caso <dNum> não
+		// seja do tipo decimal, ou <nScale> seja menor que 0 ou maior o
+		// igual à precisão do número, ou <nRound> seja menor que 0 ou
+		// maior que 2, uma exceção será lançada" — mesmo contrato de
+		// DEC_RESIZE, não apenas clamping defensivo (correção pós-review:
+		// a primeira versão desta native clampava nScale silenciosamente
+		// em vez de lançar erro, por leitura incorreta do documento).
+		if newScale < 0 || newScale >= prec {
+			return advplrt.Nil, fmt.Errorf("DEC_RESCALE: nScale deve ser maior ou igual a zero e menor que a precisão de dNum")
 		}
-		if newScale > prec-1 {
-			newScale = prec - 1
+		if mode < 0 || mode > 2 {
+			return advplrt.Nil, fmt.Errorf("DEC_RESCALE: nRound deve ser 0, 1 ou 2")
 		}
 		rounded := decRoundRat(d.val, newScale, mode)
 		return decNewObject(&decState{val: rounded, prec: prec, scale: newScale}), nil

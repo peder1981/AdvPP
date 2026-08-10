@@ -178,6 +178,20 @@ func TestDecRescale(t *testing.T) {
 	if got := decFormat(dTrunc); got != "1.2" {
 		t.Errorf("DEC_RESCALE(1.25,1,2) truncate = %q, quer %q", got, "1.2")
 	}
+
+	// Edge case (regressão do code review): DEC_RESCALE.md documenta
+	// literalmente exceção quando nScale < 0 ou nScale >= precisão de
+	// dNum — mesmo contrato de DEC_RESIZE. dec1 tem precisão 21, então
+	// nScale=21 (== precisão) e nScale=-1 devem lançar erro, não clampar
+	// silenciosamente.
+	_, err := v.natives["DEC_RESCALE"].Fn([]advplrt.Value{decNewObject(dec1), advplrt.NewNumber(21)})
+	if err == nil {
+		t.Errorf("DEC_RESCALE com nScale == precisão de dNum deveria retornar erro")
+	}
+	_, err = v.natives["DEC_RESCALE"].Fn([]advplrt.Value{decNewObject(dec1), advplrt.NewNumber(-1)})
+	if err == nil {
+		t.Errorf("DEC_RESCALE com nScale negativo deveria retornar erro")
+	}
 }
 
 func TestDecResize(t *testing.T) {
