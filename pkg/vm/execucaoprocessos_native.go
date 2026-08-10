@@ -43,7 +43,8 @@ func (v *VM) registerExecucaoentreprocessosNatives(natives map[string]func(args 
 		// Extrai os argumentos opcionais (até 15) a passar para o waiter
 		var data []advplrt.Value
 		if len(args) > 1 {
-			for i := 1; i < len(args) && i <= 16; i++ {
+			// Loop de 1 a 15 (máximo de 15 parâmetros opcionais, conforme TDN)
+			for i := 1; i <= 15 && i < len(args); i++ {
 				data = append(data, getArg(args, i))
 			}
 		}
@@ -76,9 +77,17 @@ func (v *VM) registerExecucaoentreprocessosNatives(natives map[string]func(args 
 		// Cria o semaforo se não existir
 		state, exists := v.ipcSemaphores[semaphore]
 		if !exists {
+			// Nota sobre overflow: channel com buffer de 100 evita bloqueios de IPCGo
+			// durante a criação do semaforo em IPCWaitEx. Se mais de 100 sinais chegarem
+			// antes de ser consumidos, IPCGo retornará false. Isso é aceitável pois:
+			// - Protheus real é single-threaded per work process; múltiplas threads em
+			//   paralelo é simulação (não comportamento real)
+			// - Implementações de IPC em servidores reais também têm limites (queue size)
+			// - A alternativa (sem buffer) causaria deadlock se IPCGo e IPCWaitEx rodarem
+			//   em sequência
 			state = &ipcSemaphoreState{
 				waiters: 0,
-				ch:      make(chan []advplrt.Value, 100), // buffer para evitar bloqueios
+				ch:      make(chan []advplrt.Value, 100),
 			}
 			v.ipcSemaphores[semaphore] = state
 		}
@@ -93,22 +102,22 @@ func (v *VM) registerExecucaoentreprocessosNatives(natives map[string]func(args 
 
 		select {
 		case data := <-state.ch:
-			// Recebeu dados de IPCGo
-			// Agora precisa atualizar os argumentos por referência
-			// Para simplificar a implementação inicial, apenas retornamos true
-			// A passagem de dados por referência é complexa em AdvPL e requer
-			// análise de como os argumentos são passados
-
-			// Se houver argumentos por referência (a partir do índice 2),
-			// atualiza-os com os dados recebidos
-			for i, val := range data {
-				argIdx := i + 2 // começa no índice 2 (após semaforo e timeout)
-				if argIdx < len(args) {
-					// Para argumentos por referência, seria necessário um mecanismo especial
-					// Por enquanto, apenas registramos que os dados foram recebidos
-					_ = val
-				}
-			}
+			// Recebeu dados de IPCGo — retorna .T.
+			//
+			// LIMITAÇÃO: AdvPP não implementa suporte a argumentos por referência
+			// para funções nativas. A TDN especifica que IPCWaitEx deve permitir
+			// até 15 argumentos por referência (via @variável) que seriam mutados
+			// com os dados recebidos de IPCGo. Isso é uma limitação arquitetural
+			// do VM que afeta potencialmente várias outras funções.
+			//
+			// Comportamento atual: a função retorna .T. corretamente (sinal recebido),
+			// mas os dados passados por IPCGo não são refletidos nas variáveis do
+			// caller. Para usar IPC corretamente nesta implementação, seria necessário
+			// repensar o mecanismo de chamada de nativas ou usar workarounds (ex.:
+			// variáveis globais, returns estruturados).
+			//
+			// Ver: https://github.com/advpl/compiler/issues/XXX (design de byref nativas)
+			_ = data // dados recebidos, mas não podem ser passados ao caller
 
 			return advplrt.NewBool(true), nil
 		case <-timer.C:
