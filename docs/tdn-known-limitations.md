@@ -377,3 +377,62 @@ TDN). Limitações e divergências conhecidas:
 - **`Valores-de-Content-Types`** é uma tabela de referência MIME do TDN, não
   uma função — nada a implementar (o `Content-Type` é informado via
   `aHeadStr`, ex. `"Content-Type| application/json"`).
+
+## Manipulação de string: by-ref e formatos proprietários (Task 30)
+
+As 25 funções novas de `Manipulacao-de-string`
+(`pkg/vm/string_native.go`, Task 30) implementam o comportamento
+documentado no TDN com as seguintes divergências conhecidas:
+
+- **`@cBufferOut`/`@nLenghtOut` (por referência) não são populados.** Em
+  `NotBit`, `StuffBit`, `UnStuff`, `Compress`, `UnCompress`, `GzStrComp`,
+  `GzStrDecomp` o buffer/string **modificado é devolvido como valor de
+  retorno** (única forma de resultado suportada neste VM — ver a limitação
+  arquitetural de `@var` no topo deste arquivo). `UnStuff`/`NotBit`
+  adicionam `@nResultPos` como parâmetro final opcional (índice da string
+  de retorno, `.T.` na TDN) — como não há by-ref, o índice é aceito mas a
+  posição é sempre a de retorno natural. `Compress`/`UnCompress`/`GzStrComp`/
+  `GzStrDecomp` retornam `Nil` em caso de erro (fonte/destino inválidos,
+  dados corrompidos) — mesmo mapeamento de erro que as demais natives.
+- **Compress/UnCompress usam zlib (RFC 1950)**, não o algoritmo proprietário
+  TOTVS (que não é reproduzível sem o binário original). O round-trip
+  `Compress`→`UnCompress` é fiel, mas buffers produzidos pelo Protheus real
+  (e vice-versa) **não** são compatíveis — documentado, não tentado.
+- **GzStrComp/GzStrDecomp usam gzip real (`compress/gzip`, RFC 1952)**, com
+  round-trip fiel — estas sim são compatíveis com arquivos `.gz` do Protheus.
+- **ANSIToOEM/OEMToANSI usam CP850** (a tabela DOS do português/ibérica),
+  não CP437: o CP437 não encoda `ã`/`õ`/`À`, e o exemplo da TDN não
+  discrimina qual tabela usar. Para texto estritamente US-ASCII as duas
+  tabelas coincidem; para acentuação pt-BR, CP850 é a escolha correta.
+- **STRICONV/Encode/Decode UTF-8/UTF-16** usam `golang.org/x/text`
+  (dependência transitiva já existente). `STRICONV("...","UTF-8")` trata o
+  codepage UTF-8 como passthrough (sem transcodificação). Codepages
+  desconhecidos em `STRICONV`/`Encode*` retornam `Nil`; em `DecodeUTF8`/
+  `DecodeUTF16` retornam `Nil` quando o bytes não formam UTF-8/UTF-16 válido.
+- **`Encode64`/`Decode64` com `cFilePath`** (variante de arquivo em disco)
+  retornam `Nil` — não suportada (só a variante string).
+- **`Pad`** preenche com espaço por padrão quando `cChar` não é informado,
+  e **trunca** o resultado se o tamanho final exceder `nLen` (comportamento
+  TDN "preenche e trunca", diferentemente de `PADC/PADL/PADR` que truncam
+  só o prefixo/sufixo).
+- **`Match`** implementa curingas Clipper/Harbour: `*` (qualquer sequência,
+  inclui string vazia), `?` (um caractere qualquer), `!` (nega o próximo
+  padrão), `[classe]` (conjunto, com intervalos `a-z` e negação `[!...]`) e
+  `#` (um dígito). **Não** suporta o operador de alternância Clipper
+  `|` (listas de padrões separadas por `|`) nem classes predefinidas como
+  `$`/`~`.
+- **`MLCount`** usa largura de linha default 79 quando `nLinLen` é 0 ou não
+  informado, e `nTabSize` default 4; com `lQuebra=.F.` trima o espaço
+  inicial da linha seguinte ao quebrar no limite (comportamento observado
+  no exemplo da TDN, que espera 9 linhas para um texto de 362 chars).
+- **`GetDToVal`** aceita `nType` 0/1/2 (0=double, 1=int, 2=string) e `nDec`
+  default 10 quando não informado — `nType` inválido cai para double.
+- **`StrTokArr2`** aceita `cSep` default `";"` e `nEsc` default `"\x1a"`
+  (caractere de escape SUB/CTRL-Z) quando não informados; o escape é
+  preservado literalmente na saída (igual à TDN, que documenta "o caractere
+  escape é removido da string de resultado").
+- **`DecodeUTF16`/`EncodeUTF16`** usam UTF-16 little-endian com BOM
+  (`0xFEFF`), que é a variante do Windows usada pelo Protheus.
+- **`Descend`** ordena bytes em ordem decrescente (ordem reversa dos bytes,
+  ex.: "AAAA" → "aaaa"; igual ao exemplo do TDN) — documentado pois
+  funciona por reordenação de bytes, não por collation.
