@@ -51,3 +51,4 @@ testdata/fuzz/
 corpus/
 *.fuzz
 .worktrees/
+.superpowers/
