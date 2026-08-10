@@ -156,7 +156,7 @@ Páginas do TDN sem corpo real (stub) — não implementar sem spec.
 - setSPCert (Functions/SAML) — https://tdn.totvs.com/display/tec/setSPCert
 - setSAMLID (Functions/SAML) — https://tdn.totvs.com/display/tec/setSAMLID
 - getSAMLID (Functions/SAML) — https://tdn.totvs.com/display/tec/getSAMLID
-- Transform (Functions/Manipulacao-de-string) — ?
+- Transform (Functions/Manipulacao-de-string) — página TDN stub (sem corpo), mas já implementado: `applyTransform` (pkg/vm/natives.go:2021) cobre máscaras básicas (@E, 9/#); fora do escopo da Task 30
 - ctreeDelIdxs (Functions/Banco-de-Dados/Funcoes-cTree) — ?
 - ctreeDelInt (Functions/Banco-de-Dados/Funcoes-cTree) — ?
 - CTUpdateIntName (Functions/Banco-de-Dados/Funcoes-cTree) — ?
