@@ -338,3 +338,42 @@ numéricos do TDN — registradas aqui para revisão:
   de qualquer BPP que o gobmp decodifique (o TDN restringe a 8/16/24 BPP
   com BITMAPV3INFOHEADER conforme a build do AppServer; aqui não há essa
   restrição de build). Não há UI para exibir erro — apenas o retorno `-1`.
+
+## Interface-HTTP: família HTTP*/HTTPS* legada (Task 29)
+
+As funções `HTTPGet`, `HTTPCGet`, `HTTPPost`, `HTTPCPost`, `HTTPQuote`,
+`HTTPSGet`, `HTTPSPost`, `HTTPSQuote`, `HTTPGetStatus`, `HTTPSetPass`,
+`SetProxy`, `SetNoProxyFor` (pkg/vm/interfacehttp_native.go) fazem
+requisições HTTP/HTTPS **reais** via `net/http` (GET/POST/método arbitrário
+via `HTTPQuote`/`HTTPSQuote`, headers customizados no formato `"Nome| Valor"`
+ou `"Nome: Valor"`, time-out configurável com default de 120s, e suporte a
+proxy com lista de exceções por domínio). Retornam a string do documento
+solicitado, ou `Nil` em caso de time-out/falha de DNS/erro de URL (conforme
+TDN). Limitações e divergências conhecidas:
+
+- **`@cHeaderGet`/`@cHeaderRet` (por referência) não são populados.** O
+  header de resposta fica gravado em `v.legacyHTTPHeader` e o status em
+  `v.legacyHTTPStatus`, consultáveis via `HTTPGetStatus()` — mas a variável
+  do chamador passada com `@` não recebe o valor (mesma limitação arquitetural
+  de `@var` documentada no topo deste arquivo). `HTTPGetStatus(@cError)`
+  também não popula a descrição do erro por referência; ela fica em
+  `v.legacyHTTPError` e o retorno numérico (status HTTP, `<100` = erro) é a
+  forma suportada de checar o resultado.
+- **`HTTPSetPass`/`SetProxy`/`SetNoProxyFor` são estados do VM** válidos
+  apenas dentro da sessão (não configuram proxy/autenticação a nível de
+  sistema operacional). O `lClient` (SmartClient vs AppServer) é aceito e
+  ignorado — o runtime embutido não tem SmartClient. `SetProxy` aplica o
+  proxy a todas as requisições HTTP*/HTTPS* subsequentes (honrando a lista
+  de `SetNoProxyFor`, com curingas `*.domínio`/`prefixo.*`), exceto quando
+  a variável de ambiente `HTTP_PROXY`/`HTTPS_PROXY` do processo já define um
+  proxy (ProxyFromEnvironment tem precedência).
+- **Certificados nas variantes HTTPS***: `cCertificate`/`cPrivKey` são
+  arquivos PEM lidos do disco local (paths estilo Windows `"\certs\..."` são
+  rejeitados com a mensagem "only server path are allowed", espelhando o
+  TDN). A verificação da cadeia de certificados do servidor é **habilitada**
+  por padrão (TLS 1.2+); para testes contra servidores self-signed existe o
+  escape hatch `ADVPP_HTTP_INSECURE=1` (mesmo padrão opt-in do
+  `ADVPP_SFTP_KNOWN_HOSTS`).
+- **`Valores-de-Content-Types`** é uma tabela de referência MIME do TDN, não
+  uma função — nada a implementar (o `Content-Type` é informado via
+  `aHeadStr`, ex. `"Content-Type| application/json"`).
