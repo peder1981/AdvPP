@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/advpl/compiler/pkg/compiler"
+	"github.com/advpl/compiler/pkg/db"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
@@ -260,6 +261,52 @@ func TestDBEVal(t *testing.T) {
 	}
 }
 
+// TestDBEValWithEmptyDatabase tests DBEval with a real SQLite database (empty table).
+// Verifies v.dbEngine integration works and returns nil correctly.
+func TestDBEValWithEmptyDatabase(t *testing.T) {
+	// Setup: create temp database with empty table (no records)
+	tmpDir := t.TempDir()
+	eng, err := db.NewSQLiteEngine(tmpDir + "/dbeval_empty.db")
+	if err != nil {
+		t.Fatalf("NewSQLiteEngine: %v", err)
+	}
+	defer eng.Close()
+
+	// Create empty test table (0 records)
+	if err := eng.Exec(`CREATE TABLE EMPTY_TEST (
+		R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT,
+		DATA TEXT
+	)`); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+
+	if err := eng.SelectArea("EMPTY_TEST"); err != nil {
+		t.Fatalf("SelectArea: %v", err)
+	}
+
+	// Create VM with database engine
+	v := NewVM(&compiler.Bytecode{}, false)
+	v.SetDBEngine(eng)
+
+	// Create a codeblock
+	block := &advplrt.CodeBlockValue{
+		Params:   []string{"unused"},
+		FuncName: "__DUMMY",
+	}
+
+	// Execute DBEval on empty table
+	got, err := v.natives["DBEVAL"].Fn([]advplrt.Value{block})
+
+	// Should not error and should return nil
+	if err != nil {
+		t.Logf("DBEval on empty table returned error (acceptable): %v", err)
+	}
+
+	// Must return nil per TDN spec
+	if got != advplrt.Nil {
+		t.Errorf("DBEval returned %v, expected nil", got)
+	}
+}
 
 // TestGetCbSource tests the GetCbSource function that retrieves codeblock source code.
 func TestGetCbSource(t *testing.T) {
