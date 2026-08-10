@@ -22,16 +22,21 @@ import (
 // não guarda o arquivo-fonte de origem, não existe registro de patches
 // (.upd/.pak/.ptm) e não existe container de resources (.PER). Por isso,
 // as funções desta categoria que dependem desse índice físico (GetDependency,
-// GetRpoLog, GetSrcArray, ChkRpoChg) fazem validação de argumentos real e
-// devolvem o retorno conservador mais correto dentro da arquitetura atual
-// (documentado função a função abaixo), em vez de simular um formato de
-// RPO que não existe neste compilador. GetFuncArray, por outro lado, tem
-// equivalente real e útil: o conjunto de funções conhecidas pelo VM em
-// execução (v.bc.Functions + v.natives) É a fonte da verdade real do
-// AdvPP para "funções compiladas no repositório em uso". GetAPOInfo,
-// GetApoRes e RetImgType operam sobre um único arquivo nomeado por
-// parâmetro — para essas, AdvPP lê o arquivo real do disco (quando
-// existe), o que é comportamento real, não simulado.
+// GetRpoLog, GetSrcArray, ChkRpoChg, GetApoRes) fazem validação de argumentos
+// real e devolvem o retorno conservador mais correto dentro da arquitetura
+// atual (documentado função a função abaixo), em vez de simular um formato
+// de RPO que não existe neste compilador — GetApoRes em particular recebe um
+// identificador de resource INTERNO ao container do RPO (obtido via
+// GetResArray, que também não existe em AdvPP), não um caminho de disco, por
+// isso não é reinterpretada como leitura de arquivo arbitrário. GetFuncArray,
+// por outro lado, tem equivalente real e útil: o conjunto de funções
+// conhecidas pelo VM em execução (v.bc.Functions + v.natives) É a fonte da
+// verdade real do AdvPP para "funções compiladas no repositório em uso"
+// (embora isso também capture nativas do motor, que no Protheus real nunca
+// residem dentro do RPO — ver nota na implementação). GetAPOInfo e
+// RetImgType operam sobre um único arquivo nomeado por parâmetro — para
+// essas, AdvPP lê o arquivo real do disco (quando existe), o que é
+// comportamento real, não simulado.
 func (v *VM) registerManipulacaodeRPONatives(natives map[string]func(args []advplrt.Value) (advplrt.Value, error)) {
 	// ChkRpoChg() -> lRet
 	// Verifica se a configuração de SourcePath (RPO ativo) mudou após o
@@ -58,6 +63,13 @@ func (v *VM) registerManipulacaodeRPONatives(natives map[string]func(args []advp
 	// implementa o sistema de permissões multi-tier (USER/PARTNER/PATCH)
 	// do Protheus real — todo código compilado por AdvPP tem o mesmo nível
 	// de permissão. Se o arquivo não existir, devolve array vazio.
+	//
+	// Nota: cFonte é resolvido como caminho literal relativo ao diretório
+	// de trabalho (cwd) do processo, não via mecanismo SourcePath do
+	// Protheus. O próprio exemplo do TDN, GetAPOInfo("ExemplosTDN.prw")
+	// (nome de arquivo sem path), só encontra o arquivo se ele estiver no
+	// cwd do processo AdvPP — caso contrário devolve array vazio em
+	// silêncio. Ver docs/tdn-known-limitations.md.
 	natives["GETAPOINFO"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		cFonte := strings.Trim(getArgString(args, 0, ""), " ")
 		if cFonte == "" {
@@ -80,19 +92,24 @@ func (v *VM) registerManipulacaodeRPONatives(natives map[string]func(args []advp
 	// GetApoRes(cRes) -> cRet
 	// Retorna o conteúdo de um resource do repositório.
 	//
-	// AdvPP não possui container de resources (.PER) embutido no bytecode.
-	// cRes é tratado como um caminho real de disco: se o arquivo existir,
-	// devolve seu conteúdo bruto como string; caso contrário, devolve "".
+	// cRes, segundo o fluxo real do TDN, é um identificador de resource
+	// INTERNO ao container de resources do RPO (obtido previamente via
+	// GetResArray("*.per"), que enumera os nomes válidos) — não é um
+	// caminho de arquivo em disco arbitrário. AdvPP não possui container
+	// de resources (.PER) embutido no bytecode nem implementa GetResArray
+	// (a única forma documentada de obter um cRes válido para chamar esta
+	// função), então nenhum chamador seguindo o fluxo real do TDN
+	// conseguiria alcançar esta função com um argumento válido. Faz a
+	// validação de argumento real e devolve "" (conservador e honesto),
+	// em vez de reinterpretar cRes como um caminho de disco arbitrário —
+	// isso responderia a uma pergunta diferente da que o TDN especifica.
+	// Ver docs/tdn-known-limitations.md.
 	natives["GETAPORES"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		cRes := strings.Trim(getArgString(args, 0, ""), " ")
 		if cRes == "" {
 			return advplrt.NewString(""), nil
 		}
-		data, err := os.ReadFile(cRes)
-		if err != nil {
-			return advplrt.NewString(""), nil
-		}
-		return advplrt.NewString(string(data)), nil
+		return advplrt.NewString(""), nil
 	}
 
 	// GetDependency(sFonte) -> aArray
@@ -122,6 +139,12 @@ func (v *VM) registerManipulacaodeRPONatives(natives map[string]func(args []advp
 	// (funções nativas do VM) SÃO a fonte da verdade do AdvPP para
 	// "funções conhecidas pelo sistema em execução" — não há necessidade
 	// de simular um RPO. Ordenado para saída determinística.
+	//
+	// Divergência conhecida: v.natives inclui nativas do motor (ex:
+	// CONOUT, MSGALERT) que, no Protheus real, ficam compiladas dentro do
+	// binário do AppServer — nunca dentro do RPO. AdvPP não tem fronteira
+	// engine/user-function equivalente, então essas nativas também casam
+	// com a máscara aqui. Ver docs/tdn-known-limitations.md.
 	//
 	// Limitação conhecida (ver docs/tdn-known-limitations.md, seção
 	// "Parâmetros por referência"): os parâmetros opcionais por referência

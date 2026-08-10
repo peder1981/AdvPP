@@ -66,7 +66,7 @@ que testes automatizados não podem validar a autenticação real de forma
 portável. Portanto, a implementação atual (fail-closed, retorna .F.) é
 apropriada para um compilador standalone.
 
-## Ausência de índice físico de RPO (`ChkRpoChg`, `GetDependency`, `GetRpoLog`, `GetSrcArray`)
+## Ausência de índice físico de RPO (`ChkRpoChg`, `GetApoRes`, `GetDependency`, `GetRpoLog`, `GetSrcArray`)
 
 O Protheus real compila fontes AdvPL para um RPO binário próprio (formato
 proprietário TOTVS, "Repositório de Programas Objeto"), que retém em disco
@@ -88,6 +88,17 @@ configurável).
 - `ChkRpoChg()` sempre retorna `.T.` — como não existe mecanismo de recarga
   de config/SourcePath em tempo de execução, "nenhuma mudança detectada" é
   a resposta real e honesta, não uma simulação.
+- `GetApoRes(cRes)` valida o argumento (`cRes` não pode ser vazio) e sempre
+  devolve `""`. Diferente das outras três desta seção, o motivo aqui não é
+  só "não existe container de resources": `cRes`, no fluxo real do TDN, é
+  um identificador de resource INTERNO ao container do RPO, obtido
+  previamente via `GetResArray("*.per")` — que enumera os nomes válidos e
+  que AdvPP também não implementa. Ou seja, nenhum chamador seguindo o
+  fluxo documentado pelo TDN conseguiria alcançar `GetApoRes` com um
+  argumento válido. Por isso `cRes` NÃO é reinterpretado como um caminho
+  de disco arbitrário (uma primeira versão desta função fazia
+  `os.ReadFile(cRes)`, o que foi revertido por responder a uma pergunta
+  diferente da que o TDN especifica — ver histórico do commit desta task).
 - `GetDependency(sFonte)` valida o argumento (`sFonte` não pode ser vazio)
   e sempre devolve array vazio — não há grafo de chamadas por arquivo
   retido no bytecode; reconstruí-lo exigiria reanalisar o AST do parser
@@ -103,16 +114,30 @@ configurável).
   para consultar.
 
 Nenhuma das quatro tenta simular o formato binário do RPO real ou inventar
-dados de patch/dependência que não existem. `GetFuncArray`, em contraste,
-tem equivalente real em AdvPP porque não depende de um índice físico: o
-conjunto de funções conhecidas pelo VM em execução (`v.bc.Functions` +
-`v.natives`) é a fonte da verdade real do compilador para "funções
-compiladas no repositório em uso", então essa função foi implementada com
-lógica real (ver seção de parâmetros por referência acima para a
-limitação dos parâmetros `@`). `GetAPOInfo`, `GetApoRes` e `RetImgType`
-também não se enquadram aqui: operam sobre um único arquivo nomeado por
-parâmetro, e AdvPP lê esse arquivo real do disco quando ele existe —
-comportamento real, não simulado.
+dados de patch/dependência/resource que não existem. `GetFuncArray`, em
+contraste, tem equivalente real em AdvPP porque não depende de um índice
+físico: o conjunto de funções conhecidas pelo VM em execução
+(`v.bc.Functions` + `v.natives`) é a fonte da verdade real do compilador
+para "funções compiladas no repositório em uso", então essa função foi
+implementada com lógica real (ver seção de parâmetros por referência acima
+para a limitação dos parâmetros `@`). **Divergência conhecida de
+`GetFuncArray`:** o casamento inclui também `v.natives` — as funções
+nativas do motor AdvPP (ex: `CONOUT`, `MSGALERT`). No Protheus real essas
+nativas ficam compiladas dentro do binário do TOTVS Application Server, e
+nunca residem dentro do RPO — logo `GetFuncArray` real nunca as retornaria.
+AdvPP não tem uma fronteira engine/user-function equivalente à do
+AppServer, então essa divergência é uma escolha defensável (dado que
+"funções conhecidas pelo VM" é a melhor aproximação disponível), mas é
+comportamento diferente do TDN e fica registrado aqui.
 
-**Afetadas:** `ChkRpoChg`, `GetDependency`, `GetRpoLog`, `GetSrcArray`
-(pkg/vm/rpo_native.go, Task 17).
+`GetAPOInfo` e `RetImgType` também não se enquadram nesta seção: operam
+sobre um único arquivo nomeado por parâmetro, e AdvPP lê esse arquivo real
+do disco quando ele existe — comportamento real, não simulado. Nota sobre
+`GetAPOInfo(cFonte)`: `cFonte` é resolvido como caminho literal relativo
+ao diretório de trabalho (cwd) do processo, não via mecanismo `SourcePath`
+do Protheus — o próprio exemplo do TDN, `GetAPOInfo("ExemplosTDN.prw")`
+(nome de arquivo sem path), só encontra o arquivo se ele estiver no cwd do
+processo AdvPP; caso contrário, devolve array vazio em silêncio.
+
+**Afetadas:** `ChkRpoChg`, `GetApoRes`, `GetDependency`, `GetRpoLog`,
+`GetSrcArray` (pkg/vm/rpo_native.go, Task 17).
