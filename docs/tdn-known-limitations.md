@@ -280,3 +280,22 @@ infraestrutura — portanto:
 `docs/tdn-gap-stubs.md`) — exigem estado de processo/sessão do AppServer
 que o runtime embutido não mantém.
 
+
+## Impressão: sem AppServer/SmartClient nem spooler (`GetPortActive`)
+
+`GetPortActive` (pkg/vm/controleimpressao_native.go, Task 26) no Protheus real
+distingue portas do Application Server (`lDirect=.T.`) das do Smart Client
+(`lDirect=.F.`). O runtime embutido é headless, sem AppServer nem SmartClient:
+a função aceita `lDirect` mas ambas as direções retornam a mesma enumeração —
+as portas seriais/paralelas reais do host (lidas de `/dev` via
+`enumerateSerialPorts`: `ttyS*`, `ttyUSB*`, `ttyACM*`, `ttyAMA*`,
+`ttyXRUSB*`, `lp*`), ou `{}` quando nenhuma existe (comportamento das builds
+>7.00.111010P, conforme TDN).
+
+As demais 18 funções de Controle de impressão (`__Eject`, `_PCol`, `_PRow`,
+`DevOut`, `DevOutPict`, `DevPos`, `FechaRel`, `GetConnStatus`, `GetImpInf`,
+`InitPrint`, `PreparePrint`, `PrintOut`, `PrnFlush`, `QOut`, `QQOut`,
+`RmvToken`, `SetPrc`, `SndToPrnWin`) não foram implementadas por serem stubs
+genuínos do TDN (páginas com corpo vazio, sem spec) — ver
+`docs/tdn-gap-stubs.md`. Além disso, a maior parte delas exigiria um spooler
+de impressão/UI de relatório que não existe no runtime.
