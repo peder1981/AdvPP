@@ -13,9 +13,6 @@ func registerMathStatNatives(natives map[string]func(args []advplrt.Value) (advp
 	natives["ATAN2"] = func(a []advplrt.Value) (advplrt.Value, error) {
 		return advplrt.NewNumber(math.Atan2(advplrt.ToFloat(getArg(a, 0)), advplrt.ToFloat(getArg(a, 1)))), nil
 	}
-	natives["LOG10"] = func(a []advplrt.Value) (advplrt.Value, error) {
-		return advplrt.NewNumber(math.Log10(advplrt.ToFloat(getArg(a, 0)))), nil
-	}
 	natives["POW"] = func(a []advplrt.Value) (advplrt.Value, error) {
 		return advplrt.NewNumber(math.Pow(advplrt.ToFloat(getArg(a, 0)), advplrt.ToFloat(getArg(a, 1)))), nil
 	}
