@@ -1971,6 +1971,7 @@ func (v *VM) registerNatives() {
 	v.registerValidacaoNatives(natives)
 	v.registerSincronismoNatives(natives)
 	v.registerExecucaoentreprocessosNatives(natives)
+	v.registerIntegracaoExcelNatives(natives)
 
 	for name, fn := range natives {
 		v.natives[name] = &advplrt.FunctionValue{Name: name, Fn: fn}
