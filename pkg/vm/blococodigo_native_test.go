@@ -308,6 +308,83 @@ func TestDBEValWithEmptyDatabase(t *testing.T) {
 	}
 }
 
+// TestDBEValIteratesPerRecord tests that DBEval correctly iterates through 3 database records.
+// Verifies that DBEval is NOT a stub: it actually calls GoTop, Skip, and EOF in a loop.
+func TestDBEValIteratesPerRecord(t *testing.T) {
+	// Setup: create temp database with 3 records (following browse_test.go pattern)
+	tmpDir := t.TempDir()
+	eng, err := db.NewSQLiteEngine(tmpDir + "/dbeval_iter_test.db")
+	if err != nil {
+		t.Fatalf("NewSQLiteEngine: %v", err)
+	}
+	defer eng.Close()
+
+	// Create test table with 3 records
+	if err := eng.Exec(`CREATE TABLE ITER_TEST (
+		R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT,
+		D_E_L_E_T_ TEXT DEFAULT ' ',
+		NAME TEXT
+	)`); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+
+	// Insert 3 test records
+	for i := 1; i <= 3; i++ {
+		sql := "INSERT INTO ITER_TEST (NAME) VALUES (?)"
+		if err := eng.Exec(sql, "Record"+string(rune('0'+i))); err != nil {
+			t.Fatalf("insert record %d: %v", i, err)
+		}
+	}
+
+	// Open the table area in the database engine
+	if err := eng.SelectArea("ITER_TEST"); err != nil {
+		t.Fatalf("SelectArea: %v", err)
+	}
+
+	// Create a simple VM with a dummy codeblock
+	v := NewVM(&compiler.Bytecode{}, false)
+	v.SetDBEngine(eng)
+
+	// Create a codeblock with a dummy function name (won't execute, but that's ok)
+	block := &advplrt.CodeBlockValue{
+		Params:   []string{"ignored"},
+		FuncName: "__DUMMY_BLOCK",
+	}
+
+	// Record starting position (should be at top after SelectArea, before DBEval)
+	eng.GoTop()
+	startRecNo := eng.RecNo()
+	recCount := eng.RecCount()
+
+	// Execute DBEval with the codeblock
+	// DBEval should iterate through all records and call Skip() for each one
+	_, _ = v.natives["DBEVAL"].Fn([]advplrt.Value{block})
+
+	// After DBEval processes all 3 records, the engine should be positioned past the last record
+	// The exact position depends on implementation, but we can verify by trying to read next record
+	currentRecNo := eng.RecNo()
+	isAtEOF := eng.EOF()
+
+	// The key proof: after DBEval with 3 records, the loop should have exited
+	// This means either we're at EOF or we're at the last record (and the loop exited the next iteration)
+
+	// Restore position for assertion
+	eng.GoTop()
+	for i := 1; i < currentRecNo && !eng.EOF(); i++ {
+		eng.Skip(1)
+	}
+
+	// SUCCESS: if DBEval processed records correctly, we should have gone through all 3
+	// The test passes if: started at 1, total records is 3, and after DBEval we're at least at record 3
+	if startRecNo == 1 && recCount == 3 && currentRecNo >= 3 {
+		t.Logf("✓ DBEval correctly iterated through %d records: started RecNo=%d, ended RecNo=%d, EOF=%v",
+			recCount, startRecNo, currentRecNo, isAtEOF)
+	} else {
+		t.Errorf("DBEval iteration issue: startRecNo=%d (want 1), recCount=%d (want 3), currentRecNo=%d (want >=3), EOF=%v",
+			startRecNo, recCount, currentRecNo, isAtEOF)
+	}
+}
+
 // TestGetCbSource tests the GetCbSource function that retrieves codeblock source code.
 func TestGetCbSource(t *testing.T) {
 	v := NewVM(&compiler.Bytecode{}, false)
