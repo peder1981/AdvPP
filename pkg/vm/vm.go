@@ -120,6 +120,8 @@ type VM struct {
 	lastBoxLines   int                      // altura (linhas) do último UiStreamBox renderizado, p/ apagar e redesenhar no próximo delta
 	jobResults     sync.Map                 // map[string]*asyncJobResult — resultados de FWJOBSTART pendentes/prontos, indexados por job id (FWJOBPOLL)
 	jobIDSeq       int64                    // contador atômico p/ gerar job ids únicos (FWJOBSTART)
+	namedLocks     map[string]bool          // locks nomeados (GlbNmLock/GlbNmUnlock): nome -> bloqueado
+	namedLocksMu   sync.Mutex               // proteção das operações sobre namedLocks
 }
 
 type namedArgInfo struct {
@@ -201,6 +203,7 @@ func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 		fileHandles:  make(map[int]*os.File),
 		nextFH:       1,
 		dynEnv:       make(map[string]advplrt.Value),
+		namedLocks:   make(map[string]bool),
 	}
 	v.registerClasses()
 	v.registerNatives()
