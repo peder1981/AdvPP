@@ -33,7 +33,10 @@ func isEmptyValue(val advplrt.Value) bool {
 	}
 	switch t := val.(type) {
 	case *advplrt.StringValue:
-		return len(strings.TrimSpace(t.Val)) == 0
+		// TDN Observações: "a string somente é considerada vazia caso ela tenha
+		// comprimento vazio (len() = 0) ou apenas espaços em branco (ASCII 32)"
+		// — usa Trim(space) NOT TrimSpace (que também remove tabs/newlines)
+		return len(strings.Trim(t.Val, " ")) == 0
 	case *advplrt.NumberValue:
 		return t.Val == 0
 	case *advplrt.BoolValue:
