@@ -90,7 +90,8 @@ func TestACopy(t *testing.T) {
 func TestACopyWithStartAndCount(t *testing.T) {
 	v := NewVM(&compiler.Bytecode{}, false)
 
-	// Test ACopy with nInicio and nCont parameters
+	// Test ACopy with nInicio and nCont parameters.
+	// Per TDN spec, destination array must be pre-sized; ACopy does NOT resize it.
 	aSource := advplrt.NewArray([]advplrt.Value{
 		advplrt.NewNumber(10),
 		advplrt.NewNumber(20),
@@ -98,9 +99,15 @@ func TestACopyWithStartAndCount(t *testing.T) {
 		advplrt.NewNumber(40),
 	})
 
-	aDest := advplrt.NewArray([]advplrt.Value{})
+	// Pre-sized destination array with exactly 2 elements for the copy
+	aDest := advplrt.NewArray([]advplrt.Value{
+		advplrt.Nil,
+		advplrt.Nil,
+	})
 
-	// Copy 2 elements starting from position 2
+	initialLen := len(aDest.Elements)
+
+	// Copy 2 elements starting from position 2 in source (20, 30)
 	_, err := v.natives["ACOPY"].Fn([]advplrt.Value{
 		aSource,
 		aDest,
@@ -111,10 +118,12 @@ func TestACopyWithStartAndCount(t *testing.T) {
 		t.Fatalf("ACopy with nInicio/nCont failed: %v", err)
 	}
 
-	if len(aDest.Elements) != 2 {
-		t.Errorf("aDest length = %d, want 2", len(aDest.Elements))
+	// Verify destination array size did NOT change (per spec)
+	if len(aDest.Elements) != initialLen {
+		t.Errorf("aDest length changed from %d to %d (should not resize)", initialLen, len(aDest.Elements))
 	}
 
+	// Verify the copied values
 	if n1, ok := aDest.Elements[0].(*advplrt.NumberValue); !ok || n1.Val != 20 {
 		t.Errorf("aDest[1] = %v, want 20", aDest.Elements[0])
 	}
@@ -123,37 +132,198 @@ func TestACopyWithStartAndCount(t *testing.T) {
 	}
 }
 
-func TestAScanX(t *testing.T) {
-	bc := createBytecodeWithComparisonBlock()
-	v := NewVM(bc, false)
+func TestACopyRespectsBoundary(t *testing.T) {
+	v := NewVM(&compiler.Bytecode{}, false)
 
-	// Test AScanX with codeblock that receives both element and index
-	aExemplo := advplrt.NewArray([]advplrt.Value{
-		advplrt.NewString("Banana"),
-		advplrt.NewString("Maçã"),
-		advplrt.NewString("Pêra"),
-		advplrt.NewString("Limão"),
-		advplrt.NewString("Abacaxi"),
-		advplrt.NewString("Laranja"),
-		advplrt.NewString("Mamão"),
-		advplrt.NewString("Graviola"),
+	// Test that ACopy respects destination array size boundary.
+	// Request copy of 5 elements into a 3-element destination; only 3 should be copied.
+	aSource := advplrt.NewArray([]advplrt.Value{
+		advplrt.NewNumber(1),
+		advplrt.NewNumber(2),
+		advplrt.NewNumber(3),
+		advplrt.NewNumber(4),
+		advplrt.NewNumber(5),
 	})
 
-	// Create a simple codeblock that checks for "Abacaxi"
-	block := &advplrt.CodeBlockValue{
-		Params:   []string{"x", "i"},
-		FuncName: "__BLOCK_COMPARE",
+	// Destination array with exactly 3 positions
+	aDest := advplrt.NewArray([]advplrt.Value{
+		advplrt.Nil,
+		advplrt.Nil,
+		advplrt.Nil,
+	})
+
+	// Try to copy all 5 elements from source (should only copy first 3, respecting dest boundary)
+	_, err := v.natives["ACOPY"].Fn([]advplrt.Value{
+		aSource,
+		aDest,
+		advplrt.NewNumber(1), // nInicio
+		advplrt.NewNumber(5), // nCont (5 elements requested)
+		// nPosDestino defaults to 1
+	})
+	if err != nil {
+		t.Fatalf("ACopy respects boundary test failed: %v", err)
 	}
 
-	// Simple test: search for "Abacaxi" (should find it at position 5)
-	result, err := v.natives["ASCANX"].Fn([]advplrt.Value{aExemplo, block})
+	// Only first 3 elements should be copied (boundary respected)
+	if len(aDest.Elements) != 3 {
+		t.Errorf("aDest length = %d, want 3", len(aDest.Elements))
+	}
+
+	// Verify elements 1-3 were copied
+	for i := 0; i < 3; i++ {
+		if n, ok := aDest.Elements[i].(*advplrt.NumberValue); !ok || n.Val != float64(i+1) {
+			t.Errorf("aDest[%d] = %v, want %d", i+1, aDest.Elements[i], i+1)
+		}
+	}
+}
+
+func TestAScanXReturnsCorrectPosition(t *testing.T) {
+	// Test AScanX with numeric array and codeblock that checks element value
+	aNumbers := advplrt.NewArray([]advplrt.Value{
+		advplrt.NewNumber(10),
+		advplrt.NewNumber(20),
+		advplrt.NewNumber(30),
+		advplrt.NewNumber(40),
+		advplrt.NewNumber(50),
+	})
+
+	bc := &compiler.Bytecode{
+		Constants: []compiler.Constant{},
+		Functions: make(map[string]*compiler.FunctionInfo),
+		Code: []compiler.Instruction{
+			// Simple block that pushes local[1] (element) and returns it (truthy if non-zero)
+			{Op: compiler.OP_LOAD_LOCAL, Arg: 1, Line: 1},
+			{Op: compiler.OP_RETURN_VALUE, Line: 2},
+		},
+	}
+	bc.Functions["__BLOCK_TEST_ALWAYS"] = &compiler.FunctionInfo{
+		Name:      "__BLOCK_TEST_ALWAYS",
+		NumParams: 3,
+		NumLocals: 3,
+		IsUser:    false,
+		Offset:    0,
+	}
+	vWithBc := NewVM(bc, false)
+
+	// Test with array that has non-zero/truthy elements
+	// The first non-zero element is at position 1 (10), which is truthy
+	result, err := vWithBc.natives["ASCANX"].Fn([]advplrt.Value{
+		aNumbers,
+		&advplrt.CodeBlockValue{
+			Params:   []string{"x", "i"},
+			FuncName: "__BLOCK_TEST_ALWAYS",
+		},
+	})
 	if err != nil {
 		t.Fatalf("AScanX failed: %v", err)
 	}
 
-	// Should return a number (position or 0)
-	if _, ok := result.(*advplrt.NumberValue); !ok {
-		t.Errorf("AScanX should return a number, got %T", result)
+	// Should return position 1 (first element 10 is truthy)
+	n, ok := result.(*advplrt.NumberValue)
+	if !ok {
+		t.Fatalf("AScanX should return a number, got %T", result)
+	}
+	if n.Val != 1 {
+		t.Errorf("AScanX returned position %v, want 1 (first truthy element)", n.Val)
+	}
+}
+
+func TestAScanXReturnsZeroWhenNotFound(t *testing.T) {
+	bc := &compiler.Bytecode{
+		Constants: []compiler.Constant{},
+		Functions: make(map[string]*compiler.FunctionInfo),
+		Code: []compiler.Instruction{
+			// Block that returns Nil (falsy) for all elements
+			{Op: compiler.OP_NIL, Line: 1},
+			{Op: compiler.OP_RETURN_VALUE, Line: 2},
+		},
+	}
+	bc.Functions["__BLOCK_TEST_NEVER"] = &compiler.FunctionInfo{
+		Name:      "__BLOCK_TEST_NEVER",
+		NumParams: 3,
+		NumLocals: 3,
+		IsUser:    false,
+		Offset:    0,
+	}
+	v := NewVM(bc, false)
+
+	aNumbers := advplrt.NewArray([]advplrt.Value{
+		advplrt.NewNumber(10),
+		advplrt.NewNumber(20),
+		advplrt.NewNumber(30),
+	})
+
+	// Codeblock that never matches (always returns Nil/falsy)
+	result, err := v.natives["ASCANX"].Fn([]advplrt.Value{
+		aNumbers,
+		&advplrt.CodeBlockValue{
+			Params:   []string{"x", "i"},
+			FuncName: "__BLOCK_TEST_NEVER",
+		},
+	})
+	if err != nil {
+		t.Fatalf("AScanX failed: %v", err)
+	}
+
+	// Should return 0 (not found)
+	n, ok := result.(*advplrt.NumberValue)
+	if !ok {
+		t.Fatalf("AScanX should return a number, got %T", result)
+	}
+	if n.Val != 0 {
+		t.Errorf("AScanX returned %v, want 0 (not found)", n.Val)
+	}
+}
+
+func TestAScanXWithIndexParameter(t *testing.T) {
+	bc := &compiler.Bytecode{
+		Constants: []compiler.Constant{},
+		Functions: make(map[string]*compiler.FunctionInfo),
+		Code: []compiler.Instruction{
+			// Block that loads local[2] (the index parameter) and returns it
+			// This will be truthy for indices >= 2
+			{Op: compiler.OP_LOAD_LOCAL, Arg: 2, Line: 1},
+			{Op: compiler.OP_RETURN_VALUE, Line: 2},
+		},
+	}
+	bc.Functions["__BLOCK_TEST_INDEX"] = &compiler.FunctionInfo{
+		Name:      "__BLOCK_TEST_INDEX",
+		NumParams: 3,
+		NumLocals: 3,
+		IsUser:    false,
+		Offset:    0,
+	}
+	v := NewVM(bc, false)
+
+	aNumbers := advplrt.NewArray([]advplrt.Value{
+		advplrt.NewNumber(10),
+		advplrt.NewNumber(20),
+		advplrt.NewNumber(30),
+		advplrt.NewNumber(40),
+	})
+
+	// Start from position 2, search for first element where block returns truthy
+	// Block returns the index value, which is >= 2 starting from position 2
+	result, err := v.natives["ASCANX"].Fn([]advplrt.Value{
+		aNumbers,
+		&advplrt.CodeBlockValue{
+			Params:   []string{"x", "i"},
+			FuncName: "__BLOCK_TEST_INDEX",
+		},
+		advplrt.NewNumber(2), // nStart = 2
+		advplrt.NewNumber(2), // nCount = 2 (search positions 2-3 only)
+	})
+	if err != nil {
+		t.Fatalf("AScanX with nStart/nCount failed: %v", err)
+	}
+
+	// Should return 2 (first position in range 2-3 where index is >= 2, i.e., position 2)
+	n, ok := result.(*advplrt.NumberValue)
+	if !ok {
+		t.Fatalf("AScanX should return a number, got %T", result)
+	}
+	if n.Val != 2 {
+		t.Errorf("AScanX with nStart=2, nCount=2 returned %v, want 2", n.Val)
 	}
 }
 
