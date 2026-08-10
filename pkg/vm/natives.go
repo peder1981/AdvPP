@@ -1936,6 +1936,7 @@ func (v *VM) registerNatives() {
 	v.registerInterfaceSFTPNatives(natives)
 	v.registerManipulacaodememoriaNatives(natives)
 	v.registerManipulacaodevariaveisglobaisNatives(natives)
+	v.registerManipulacaodeclasseNatives(natives)
 
 	for name, fn := range natives {
 		v.natives[name] = &advplrt.FunctionValue{Name: name, Fn: fn}
