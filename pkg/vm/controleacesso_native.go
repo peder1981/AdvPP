@@ -14,8 +14,8 @@ func (v *VM) registerControledeacessoNatives(natives map[string]func(args []advp
 	// Valida credenciais de usuário no Active Directory.
 	// Retorna .T. se autenticação bem-sucedida, .F. caso contrário.
 	// NOTA: Implementação atual retorna .F. pois AdvPP (Go) não possui integração
-	// real com AD/LDAP. Apenas valida argumentos e documenta a limitação.
-	natives["ADUSERSVALID"] = func(args []advplrt.Value) (advplrt.Value, error) {
+	// real com AD/LDAP. Ver docs/tdn-known-limitations.md para detalhes.
+	natives["ADUSERVALID"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		domainOrSID := getArg(args, 0)
 		userName := getArg(args, 1)
 		password := getArg(args, 2)
@@ -40,12 +40,8 @@ func (v *VM) registerControledeacessoNatives(natives map[string]func(args []advp
 			return advplrt.NewBool(false), nil
 		}
 
-		// NOTA: AdvPP (compilador Go) não possui integração com AD/LDAP.
-		// Autenticação real AD/LDAP requer bibliotecas nativas (advapi32, netapi32)
-		// ou bibliotecas Go especializadas (github.com/go-ldap/ldap).
-		// Aqui retornamos .F. (falso) para indicar que a autenticação não foi realizada,
-		// mantendo compatibilidade com código que espera um booleano como retorno.
-		// Ver docs/tdn-known-limitations.md
+		// AdvPP não possui integração com AD/LDAP: retorna .F. conservativamente.
+		// Ver docs/tdn-known-limitations.md para detalhes.
 		return advplrt.NewBool(false), nil
 	}
 
@@ -63,16 +59,12 @@ func (v *VM) registerControledeacessoNatives(natives map[string]func(args []advp
 	// GetAuthArgs() -> oAuthMap
 	// Recupera parâmetros utilizados para autenticação.
 	// Retorna um objeto (THashMap) com chaves como "ECPF", "SAML".
-	// Em contexto de teste sem autenticação real, retorna mapa vazio.
+	// NOTA: AdvPP retorna THashMap vazio pois não possui autenticação real (e-CPF, SAML).
+	// Ver docs/tdn-known-limitations.md
 	natives["GETAUTHARGS"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		// Cria objeto do tipo THASMAP (simulando THashMap do Protheus)
 		authMap := advplrt.NewObject("THASMAP", nil)
-
-		// Em contexto de AdvPP (compilador Go), não há mecanismo de autenticação
-		// real (e-CPF, SAML, etc.). O mapa é retornado vazio.
-		// Em produção no Protheus, este seria preenchido com credenciais reais.
-		// Ver docs/tdn-known-limitations.md
-
+		// Em contexto de AdvPP, nenhuma credencial real disponível para popular o mapa
 		return authMap, nil
 	}
 
