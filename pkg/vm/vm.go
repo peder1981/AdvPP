@@ -132,11 +132,23 @@ type VM struct {
 	globalVarsSingleMu sync.Mutex                    // proteção das operações sobre globalVarsSingle
 	globalVarsMulti    map[string][]advplrt.Value    // variáveis globais múltiplas (PutGlbVars/GetGlbVars)
 	globalVarsMultiMu  sync.Mutex                    // proteção das operações sobre globalVarsMulti
+	varSessions        map[string]*varSession        // sessões nomeadas de Variáveis Globais HashMap (VarSetUID/VarIsUID/...)
+	varSessionsMu      sync.Mutex                    // proteção das operações sobre varSessions
 }
 
 type ipcSemaphoreState struct {
 	waiters int                  // número de threads esperando
 	ch      chan []advplrt.Value // canal para passar dados de IPCGo para threads esperando
+}
+
+// varSession é uma sessão nomeada de Variáveis Globais (TDN: "Manipulação de
+// variáveis globais (HashMap)"). Mantém duas tabelas de "chave" -> "valor"
+// (a Tabela X com dados primários e a Tabela A com listas de valores), mais
+// o controle de transações por chave (VarBeginT/VarEndT).
+type varSession struct {
+	x      map[string]advplrt.Value // Tabela X: chave -> valor primário (N/C/D/L)
+	a      map[string]advplrt.Value // Tabela A: chave -> array de valores
+	locked map[string]bool          // chaves com transação em curso (VarBeginT sem VarEndT)
 }
 
 type namedArgInfo struct {
@@ -224,6 +236,7 @@ func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 		remoteMemory:     make(map[string][]advplrt.Value),
 		globalVarsSingle: make(map[string]string),
 		globalVarsMulti:  make(map[string][]advplrt.Value),
+		varSessions:      make(map[string]*varSession),
 	}
 	v.registerClasses()
 	v.registerNatives()

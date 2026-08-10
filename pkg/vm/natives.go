@@ -1940,6 +1940,7 @@ func (v *VM) registerNatives() {
 	v.registerInterfaceSFTPNatives(natives)
 	v.registerManipulacaodememoriaNatives(natives)
 	v.registerManipulacaodevariaveisglobaisNatives(natives)
+	v.registerVarglobaishashmapNatives(natives)
 	v.registerManipulacaodevariaveisnumericasNatives(natives)
 	v.registerManipulacaodeDataHoraNatives(natives)
 	v.registerManipulacaodeclasseNatives(natives)
