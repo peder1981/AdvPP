@@ -114,6 +114,16 @@ type VM struct {
 	httpLastError      string                        // último erro HTTP (FWHttpError)
 	httpTimeoutSec     int                           // timeout em segundos p/ próxima requisição HTTP (FWHTTPTIMEOUT), 0 = default (30s)
 	httpHeaders        map[string]string             // headers custom aplicados às próximas requisições HTTP (FWHTTPHEADER), até FWHTTPCLEARHEADERS
+	legacyHTTPStatus   int                           // último status HTTP da família HTTP*/HTTPS* (HTTPGetStatus)
+	legacyHTTPHeader   string                        // último header de resposta da família HTTP*/HTTPS* (cHeaderGet/cHeaderRet)
+	legacyHTTPError    string                        // último erro HTTP da família HTTP*/HTTPS* (HTTPGetStatus @cError)
+	legacyHTTPUser     string                        // usuário de autenticação HTTP (HTTPSetPass)
+	legacyHTTPPass     string                        // senha de autenticação HTTP (HTTPSetPass)
+	legacyProxyServer  string                        // servidor de proxy HTTP (SetProxy)
+	legacyProxyPort    int                           // porta do proxy HTTP (SetProxy)
+	legacyProxyUser    string                        // usuário do proxy HTTP (SetProxy)
+	legacyProxyPass    string                        // senha do proxy HTTP (SetProxy)
+	legacyNoProxyFor   []string                      // domínios que não usam proxy (SetNoProxyFor), com curingas *
 	filialAtiva        string                        // filial ativa da sessão (RpcSetEnv/FWxFilial), 6 chars GG+UU+FF; "" = nenhuma definida ainda
 	stdinReader        *bufio.Reader                 // leitor de linha do stdin (ConIn), lazy
 	inputHistory       []string                      // histórico de linhas do ConIn (setas up/down), últimas inputHistoryLimit
