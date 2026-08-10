@@ -161,53 +161,128 @@ func toNumber(val advplrt.Value) float64 {
 
 // INI file manipulation functions
 
-type iniSection struct {
-	Name string
-	Keys map[string]string
+// iniLine represents a single line in an INI file (either a key=value, comment, or blank)
+type iniLine struct {
+	LineType string // "key", "comment", "blank"
+	Key      string // only for "key" type (uppercase)
+	Value    string // only for "key" type
+	RawLine  string // original line for comments/blanks
 }
 
-// parseINI parses an INI file and returns sections
+type iniSection struct {
+	Name   string
+	Lines  []iniLine       // preserves order, comments, blanks
+	Keys   []string        // insertion order of keys (for deterministic iteration)
+	KeyMap map[string]int  // maps uppercase key to index in Keys array
+}
+
+type iniFile struct {
+	Preamble []iniLine     // comments/blanks before first section
+	Sections []iniSection
+}
+
+// parseINI parses an INI file and returns sections, preserving comments and blank lines
 func parseINI(path string) ([]iniSection, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	var sections []iniSection
+	var file iniFile
 	var currentSection *iniSection
 	lines := strings.Split(string(data), "\n")
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+	for _, rawLine := range lines {
+		trimmed := strings.TrimSpace(rawLine)
 
-		// Skip empty lines and comments
-		if line == "" || strings.HasPrefix(line, ";") || strings.HasPrefix(line, "#") {
+		// Handle blank lines
+		if trimmed == "" {
+			if currentSection != nil {
+				currentSection.Lines = append(currentSection.Lines, iniLine{
+					LineType: "blank",
+					RawLine:  rawLine,
+				})
+			} else {
+				// Blank line before first section: add to preamble
+				file.Preamble = append(file.Preamble, iniLine{
+					LineType: "blank",
+					RawLine:  rawLine,
+				})
+			}
+			continue
+		}
+
+		// Handle comment lines
+		if strings.HasPrefix(trimmed, ";") || strings.HasPrefix(trimmed, "#") {
+			if currentSection != nil {
+				currentSection.Lines = append(currentSection.Lines, iniLine{
+					LineType: "comment",
+					RawLine:  rawLine,
+				})
+			} else {
+				// Comment before first section: add to preamble
+				file.Preamble = append(file.Preamble, iniLine{
+					LineType: "comment",
+					RawLine:  rawLine,
+				})
+			}
 			continue
 		}
 
 		// Check for section header
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			sectionName := strings.TrimSpace(line[1 : len(line)-1])
-			currentSection = &iniSection{
-				Name: sectionName,
-				Keys: make(map[string]string),
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			sectionName := strings.TrimSpace(trimmed[1 : len(trimmed)-1])
+			newSection := iniSection{
+				Name:   sectionName,
+				Lines:  []iniLine{},
+				Keys:   []string{},
+				KeyMap: make(map[string]int),
 			}
-			sections = append(sections, *currentSection)
+			file.Sections = append(file.Sections, newSection)
+			currentSection = &file.Sections[len(file.Sections)-1]
 			continue
 		}
 
 		// Parse key=value
-		if currentSection != nil && strings.Contains(line, "=") {
-			parts := strings.SplitN(line, "=", 2)
+		if currentSection != nil && strings.Contains(trimmed, "=") {
+			parts := strings.SplitN(trimmed, "=", 2)
 			if len(parts) == 2 {
 				key := strings.TrimSpace(parts[0])
 				value := strings.TrimSpace(parts[1])
-				currentSection.Keys[strings.ToUpper(key)] = value
+				upperKey := strings.ToUpper(key)
+
+				// Track insertion order only once per key
+				if _, exists := currentSection.KeyMap[upperKey]; !exists {
+					currentSection.Keys = append(currentSection.Keys, upperKey)
+					currentSection.KeyMap[upperKey] = len(currentSection.Keys) - 1
+				}
+
+				currentSection.Lines = append(currentSection.Lines, iniLine{
+					LineType: "key",
+					Key:      upperKey,
+					Value:    value,
+					RawLine:  rawLine,
+				})
 			}
 		}
 	}
 
-	return sections, nil
+	// Return just sections for backwards compatibility (parseINI returns []iniSection)
+	// We need to store the preamble somewhere accessible, so we'll use a hack:
+	// If there are pre-section comments/blanks, create a special "preamble" section with negative index
+	if len(file.Preamble) > 0 {
+		// Create a special section to hold preamble
+		preambleSection := iniSection{
+			Name:   "\x00PREAMBLE", // Special marker
+			Lines:  file.Preamble,
+			Keys:   []string{},
+			KeyMap: make(map[string]int),
+		}
+		// Insert preamble as first section
+		file.Sections = append([]iniSection{preambleSection}, file.Sections...)
+	}
+
+	return file.Sections, nil
 }
 
 // iniGetKey retrieves a value from an INI file
@@ -222,8 +297,10 @@ func iniGetKey(path, section, key string) (string, error) {
 
 	for _, sec := range sections {
 		if strings.ToUpper(sec.Name) == upperSection {
-			if val, ok := sec.Keys[upperKey]; ok {
-				return val, nil
+			for _, line := range sec.Lines {
+				if line.LineType == "key" && line.Key == upperKey {
+					return line.Value, nil
+				}
 			}
 			return "", nil
 		}
@@ -233,47 +310,68 @@ func iniGetKey(path, section, key string) (string, error) {
 	return "", nil
 }
 
-// iniSetKey sets a value in an INI file (create or update)
+// iniSetKey sets a value in an INI file (create or update, preserving comments and formatting)
 func iniSetKey(path, section, key, value string) (bool, error) {
 	sections, err := parseINI(path)
 	if err != nil && !os.IsNotExist(err) {
 		return false, err
 	}
 
-	// Ensure section exists
-	sectionFound := false
+	upperKey := strings.ToUpper(key)
+	upperSection := strings.ToUpper(section)
+
+	// Find or create section
+	sectionIdx := -1
 	for i, sec := range sections {
-		if strings.ToUpper(sec.Name) == strings.ToUpper(section) {
-			sections[i].Keys[strings.ToUpper(key)] = value
-			sectionFound = true
+		if strings.ToUpper(sec.Name) == upperSection {
+			sectionIdx = i
 			break
 		}
 	}
 
-	if !sectionFound {
-		sections = append(sections, iniSection{
-			Name: section,
-			Keys: map[string]string{strings.ToUpper(key): value},
-		})
-	}
+	if sectionIdx == -1 {
+		// Create new section
+		newSection := iniSection{
+			Name:   section,
+			Lines:  []iniLine{{LineType: "key", Key: upperKey, Value: value}},
+			Keys:   []string{upperKey},
+			KeyMap: map[string]int{upperKey: 0},
+		}
+		sections = append(sections, newSection)
+	} else {
+		// Update existing section: find and replace key line, or append if not found
+		keyFound := false
+		for i, line := range sections[sectionIdx].Lines {
+			if line.LineType == "key" && line.Key == upperKey {
+				sections[sectionIdx].Lines[i].Value = value
+				keyFound = true
+				break
+			}
+		}
 
-	// Write back to file
-	var content strings.Builder
-	for _, sec := range sections {
-		content.WriteString("[" + sec.Name + "]\n")
-		for k, v := range sec.Keys {
-			content.WriteString(k + "=" + v + "\n")
+		if !keyFound {
+			// Add new key to section
+			if _, exists := sections[sectionIdx].KeyMap[upperKey]; !exists {
+				sections[sectionIdx].Keys = append(sections[sectionIdx].Keys, upperKey)
+				sections[sectionIdx].KeyMap[upperKey] = len(sections[sectionIdx].Keys) - 1
+			}
+			sections[sectionIdx].Lines = append(sections[sectionIdx].Lines, iniLine{
+				LineType: "key",
+				Key:      upperKey,
+				Value:    value,
+			})
 		}
 	}
 
-	if err := os.WriteFile(path, []byte(content.String()), 0644); err != nil {
-		return false, err
+	// Reconstruct file preserving comments and blank lines
+	if !serializeINI(path, sections) {
+		return false, nil
 	}
 
 	return true, nil
 }
 
-// iniDeleteKey deletes a key from a section
+// iniDeleteKey deletes a key from a section, preserving comments and other formatting
 func iniDeleteKey(path, section, key string) (bool, error) {
 	sections, err := parseINI(path)
 	if err != nil {
@@ -286,9 +384,23 @@ func iniDeleteKey(path, section, key string) (bool, error) {
 
 	for i, sec := range sections {
 		if strings.ToUpper(sec.Name) == upperSection {
-			if _, ok := sections[i].Keys[upperKey]; ok {
-				delete(sections[i].Keys, upperKey)
-				keyFound = true
+			// Find and remove the key line
+			for j := 0; j < len(sections[i].Lines); j++ {
+				if sections[i].Lines[j].LineType == "key" && sections[i].Lines[j].Key == upperKey {
+					sections[i].Lines = append(sections[i].Lines[:j], sections[i].Lines[j+1:]...)
+					keyFound = true
+					break
+				}
+			}
+			// Also remove from Keys array to maintain consistency
+			if keyFound {
+				for j, k := range sections[i].Keys {
+					if k == upperKey {
+						sections[i].Keys = append(sections[i].Keys[:j], sections[i].Keys[j+1:]...)
+						delete(sections[i].KeyMap, upperKey)
+						break
+					}
+				}
 			}
 			break
 		}
@@ -298,23 +410,14 @@ func iniDeleteKey(path, section, key string) (bool, error) {
 		return false, nil
 	}
 
-	// Write back to file
-	var content strings.Builder
-	for _, sec := range sections {
-		content.WriteString("[" + sec.Name + "]\n")
-		for k, v := range sec.Keys {
-			content.WriteString(k + "=" + v + "\n")
-		}
-	}
-
-	if err := os.WriteFile(path, []byte(content.String()), 0644); err != nil {
-		return false, err
+	if !serializeINI(path, sections) {
+		return false, nil
 	}
 
 	return true, nil
 }
 
-// iniDeleteSection deletes a section from the INI file
+// iniDeleteSection deletes a section from the INI file, preserving other sections' comments
 func iniDeleteSection(path, section string) (bool, error) {
 	sections, err := parseINI(path)
 	if err != nil {
@@ -337,20 +440,50 @@ func iniDeleteSection(path, section string) (bool, error) {
 		return false, nil
 	}
 
-	// Write back to file
+	if !serializeINI(path, newSections) {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// serializeINI writes sections back to file in deterministic order (insertion-order for keys)
+func serializeINI(path string, sections []iniSection) bool {
 	var content strings.Builder
-	for _, sec := range newSections {
+
+	for _, sec := range sections {
+		// Skip preamble section header, but output its lines
+		if sec.Name == "\x00PREAMBLE" {
+			for _, line := range sec.Lines {
+				if line.LineType == "comment" {
+					content.WriteString(line.RawLine + "\n")
+				} else if line.LineType == "blank" {
+					content.WriteString(line.RawLine + "\n")
+				}
+			}
+			continue
+		}
+
+		// Output section header (but not for preamble)
 		content.WriteString("[" + sec.Name + "]\n")
-		for k, v := range sec.Keys {
-			content.WriteString(k + "=" + v + "\n")
+
+		// Output lines in their original order (preserving comments/blanks)
+		for _, line := range sec.Lines {
+			if line.LineType == "key" {
+				content.WriteString(line.Key + "=" + line.Value + "\n")
+			} else if line.LineType == "comment" {
+				content.WriteString(line.RawLine + "\n")
+			} else if line.LineType == "blank" {
+				content.WriteString(line.RawLine + "\n")
+			}
 		}
 	}
 
 	if err := os.WriteFile(path, []byte(content.String()), 0644); err != nil {
-		return false, err
+		return false
 	}
 
-	return true, nil
+	return true
 }
 
 // iniGetSections retrieves all section names from an INI file
