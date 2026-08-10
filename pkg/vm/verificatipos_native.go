@@ -41,10 +41,10 @@ func (v *VM) registerVerificacaodostiposdevariaveisNatives(natives map[string]fu
 		// Check field from current alias FIRST (e.g., "A1_COD").
 		// In real AdvPL, fields take priority over same-named PRIVATE/PUBLIC variables
 		// unless prefixed with M->. This implementation maintains that priority.
-		if v.currentAlias != "" && v.dbEngine != nil {
-			if fieldVal, err := v.dbEngine.FieldGet(expr); err == nil {
-				return advplrt.NewString(advplrt.ValType(fieldVal)), nil
-			}
+		// Use FieldPos() to detect if field actually exists (returns >0 if found, 0 if not).
+		if v.currentAlias != "" && v.dbEngine != nil && v.dbEngine.FieldPos(expr) > 0 {
+			fieldVal, _ := v.dbEngine.FieldGet(expr)
+			return advplrt.NewString(advplrt.ValType(fieldVal)), nil
 		}
 
 		// Fall back to lookup in dynEnv (PRIVATE/PUBLIC variables)
