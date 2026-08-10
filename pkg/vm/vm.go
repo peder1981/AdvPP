@@ -124,6 +124,8 @@ type VM struct {
 	namedLocksMu   sync.Mutex               // proteção das operações sobre namedLocks
 	ipcSemaphores  map[string]*ipcSemaphoreState // semaphores for IPC (IPCGo/IPCWaitEx/IPCCount)
 	ipcSemaphoresMu sync.Mutex              // proteção das operações sobre ipcSemaphores
+	mailObjects    map[string]advplrt.Value // objetos tMailManager armazenados (GetMailObj/SetMailObj)
+	mailObjectsMu  sync.Mutex               // proteção das operações sobre mailObjects
 }
 
 type ipcSemaphoreState struct {
@@ -212,6 +214,7 @@ func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 		dynEnv:       make(map[string]advplrt.Value),
 		namedLocks:   make(map[string]bool),
 		ipcSemaphores: make(map[string]*ipcSemaphoreState),
+		mailObjects:  make(map[string]advplrt.Value),
 	}
 	v.registerClasses()
 	v.registerNatives()
