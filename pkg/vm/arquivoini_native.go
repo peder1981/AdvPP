@@ -486,7 +486,7 @@ func serializeINI(path string, sections []iniSection) bool {
 	return true
 }
 
-// iniGetSections retrieves all section names from an INI file
+// iniGetSections retrieves all section names from an INI file (excluding internal preamble marker)
 func iniGetSections(path string) ([]string, error) {
 	sections, err := parseINI(path)
 	if err != nil {
@@ -495,7 +495,10 @@ func iniGetSections(path string) ([]string, error) {
 
 	var names []string
 	for _, sec := range sections {
-		names = append(names, sec.Name)
+		// Skip internal preamble marker (used to preserve comments before first section)
+		if sec.Name != "\x00PREAMBLE" {
+			names = append(names, sec.Name)
+		}
 	}
 
 	return names, nil
