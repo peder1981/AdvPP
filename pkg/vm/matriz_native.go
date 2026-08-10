@@ -8,6 +8,7 @@ import (
 // ACopy, AScanX, ATail.
 func (v *VM) registerManipulacaodematrizNatives(natives map[string]func(args []advplrt.Value) (advplrt.Value, error)) {
 	// ACopy(aOrigem, aDestino, [nInicio], [nCont], [nPosDestino]): copia elementos de um array para outro.
+	// A função pressupõe que o array de destino já possui estrutura compatível; não altera o tamanho do destino.
 	// Retorna referência a aDestino.
 	natives["ACOPY"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		source, ok := getArg(args, 0).(*advplrt.ArrayValue)
@@ -44,16 +45,19 @@ func (v *VM) registerManipulacaodematrizNatives(natives map[string]func(args []a
 			nPosDestino = int(n.Val)
 		}
 
-		// Ensure destination array has enough capacity
-		requiredLen := nPosDestino - 1 + nCont
-		for len(dest.Elements) < requiredLen {
-			dest.Elements = append(dest.Elements, advplrt.Nil)
-		}
-
-		// Copy elements
+		// Copy elements, but ONLY into positions that already exist in destination.
+		// Per TDN spec: "a função não altera a estrutura do array destino para viabilizar a cópia"
+		// (the function does NOT alter the destination structure to enable the copy).
+		// Copies only up to the capacity of the destination array.
+		destCapacity := len(dest.Elements)
 		for i := 0; i < nCont; i++ {
 			srcIdx := nInicio - 1 + i
 			dstIdx := nPosDestino - 1 + i
+
+			// Stop if we've reached the end of the destination array
+			if dstIdx >= destCapacity {
+				break
+			}
 
 			if srcIdx >= 0 && srcIdx < len(source.Elements) {
 				dest.Elements[dstIdx] = source.Elements[srcIdx]
