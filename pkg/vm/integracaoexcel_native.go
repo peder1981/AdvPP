@@ -15,24 +15,18 @@ func (v *VM) registerIntegracaoExcelNatives(natives map[string]func(args []advpl
 	// Sintaxe: SIGA("NomeFuncao"; [param1]; [param2]; [...]; [paramN])
 	// Retorna o resultado da função invocada.
 	//
-	// LIMITAÇÃO: AdvPP não suporta integração com Excel. Esta implementação:
-	// - Permite chamar funções nativas (built-in) registradas em v.natives
-	// - Retorna erro para funções de usuário (não há mecanismo de reflexão para chamá-las)
-	// - A integração com Excel requer uma extensão do Excel (add-in) e um servidor
-	//   Protheus real; isso não é reproduzível em AdvPP.
+	// Funcionalidade:
+	// - Suporta chamadas a funções nativas (built-in) registradas em v.natives
+	// - Suporta chamadas a funções AdvPL de usuário compiladas em v.bc.Functions
+	// - Tenta lookup em nativas primeiro, depois em funções compiladas (via RunFunction)
+	// - A integração completa com Excel (renderização de valores em células) requer
+	//   uma extensão do Excel (add-in) e um servidor Protheus real
 	natives["SIGA"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		if len(args) == 0 {
 			return advplrt.Nil, fmt.Errorf("SIGA: função não informada")
 		}
 
 		funcName := advplrt.ToString(getArg(args, 0))
-		funcName = strings.ToUpper(funcName)
-
-		// Procura a função em v.natives
-		nativeFn, exists := v.natives[funcName]
-		if !exists {
-			return advplrt.Nil, fmt.Errorf("SIGA: função '%s' não encontrada", funcName)
-		}
 
 		// Prepara os argumentos para passar à função (excluindo o primeiro que é o nome)
 		var fnArgs []advplrt.Value
@@ -40,8 +34,20 @@ func (v *VM) registerIntegracaoExcelNatives(natives map[string]func(args []advpl
 			fnArgs = args[1:]
 		}
 
-		// Chama a função nativa com os argumentos
-		return nativeFn.Fn(fnArgs)
+		// Tenta encontrar a função em nativas (built-in) primeiro
+		funcNameUpper := strings.ToUpper(funcName)
+		if nativeFn, exists := v.natives[funcNameUpper]; exists {
+			return nativeFn.Fn(fnArgs)
+		}
+
+		// Tenta encontrar a função em funções compiladas de usuário
+		// RunFunction faz lookup case-insensitive e trata o prefixo U_
+		result, err := v.RunFunction(funcName, fnArgs)
+		if err != nil {
+			return advplrt.Nil, fmt.Errorf("SIGA: função '%s' não encontrada ou erro na execução: %w", funcName, err)
+		}
+
+		return result, nil
 	}
 
 	// MsGetArray(oCell, xExecuteFunction) -> xRet
