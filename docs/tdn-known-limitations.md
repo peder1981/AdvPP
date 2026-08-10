@@ -26,6 +26,16 @@ permanece correto e é a forma suportada de checar sucesso/falha; `GetFuncArray`
 de nomes de função que casam com a máscara, derivado de `v.bc.Functions` +
 `v.natives`) permanece correto e é a forma suportada de usar a função.
 
+`HMGet`/`HMGetN` (pkg/vm/matrizhashmap_native.go, Task 19) — o parâmetro `@aVal`
+não é populado quando o chamador segue o exemplo literal da TDN (variável escalar,
+ex.: `Local oVal := nil; HMGet(oHash,chave,oVal)`); o retorno `lRet` (achou/não achou)
+permanece correto e é a forma suportada de checar o resultado. Exceção parcial: como
+arrays já são tipo referência neste VM (sem precisar de `@`, igual ao AdvPL real), se o
+chamador passar um `*advplrt.ArrayValue` como terceiro argumento (a própria tabela de
+parâmetros da TDN documenta `aVal` como tipo "vetor"), a mutação in-place funciona e
+é aplicada. `HMList` (mesmo arquivo) não sofre a limitação: seu `@aElem` é
+inequivocamente array na TDN, então a lista é sempre populada de volta.
+
 `SFTPDirLs`/`SFTPDwld1`/`SFTPDwld2`/`SFTPUpld1`/`SFTPUpld2` também documentam, no
 código (`pkg/vm/sftp_native.go`), um trade-off de segurança deliberado: a
 verificação de host key usa `ssh.InsecureIgnoreHostKey()` por padrão (a TDN não
