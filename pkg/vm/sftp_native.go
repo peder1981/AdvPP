@@ -10,6 +10,7 @@ import (
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 // sftpDialTimeout é o timeout de rede + handshake SSH aplicado a toda conexão SFTP
@@ -31,6 +32,13 @@ const sftpDialTimeout = 30 * time.Second
 // API HTTP tem como validar; aqui a API SFTP do TDN simplesmente não oferece meio de
 // especificar known_hosts). Se uma revisão futura da TDN destas funções vier a
 // documentar um parâmetro de host-key/fingerprint, ele deve substituir isto.
+//
+// ESCAPE HATCH: um chamador que controla seu próprio deployment e quer verificação
+// estrita de host key pode definir a variável de ambiente ADVPP_SFTP_KNOWN_HOSTS
+// apontando para um arquivo known_hosts (mesmo formato do OpenSSH). Quando definida,
+// a conexão passa a validar a chave do host via golang.org/x/crypto/ssh/knownhosts em
+// vez de ignorá-la — ver sftpHostKeyCallback. O default (variável não definida)
+// permanece inalterado.
 //
 // LIMITAÇÃO CONHECIDA (ver docs/tdn-known-limitations.md): o parâmetro final de todas
 // as cinco funções é "por referência" (@sError/@cError) e deveria devolver ao chamador
@@ -106,14 +114,42 @@ func sftpDial(server string, config *ssh.ClientConfig) (*ssh.Client, *sftp.Clien
 	return conn, client, nil
 }
 
+// sftpHostKeyCallback decide como validar a chave do host SFTP remoto.
+//
+// Por padrão (nenhuma configuração), replica o comportamento pragmático descrito em
+// registerInterfaceSFTPNatives: ssh.InsecureIgnoreHostKey(), já que nenhuma das 5
+// funções TDN oferece parâmetro de known_hosts/fingerprint. Isso permanece o default
+// para preservar paridade com a especificação.
+//
+// ESCAPE HATCH: quando a variável de ambiente ADVPP_SFTP_KNOWN_HOSTS aponta para um
+// arquivo known_hosts (mesmo formato usado por ssh/sftp de linha de comando), a
+// verificação estrita via golang.org/x/crypto/ssh/knownhosts é usada em seu lugar —
+// qualquer chamador que controle seu próprio deployment pode optar por segurança
+// real sem alterar o comportamento default de ninguém mais.
+func sftpHostKeyCallback() (ssh.HostKeyCallback, error) {
+	knownHostsPath := strings.Trim(os.Getenv("ADVPP_SFTP_KNOWN_HOSTS"), " ")
+	if knownHostsPath == "" {
+		return ssh.InsecureIgnoreHostKey(), nil //nolint:gosec // ver comentário de segurança em registerInterfaceSFTPNatives
+	}
+	callback, err := knownhosts.New(knownHostsPath)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao carregar ADVPP_SFTP_KNOWN_HOSTS %q: %w", knownHostsPath, err)
+	}
+	return callback, nil
+}
+
 // sftpConnectPassword conecta usando autenticação usuário/senha (SFTPDirLs, SFTPDwld1,
 // SFTPUpld1). Ver comentário de segurança sobre InsecureIgnoreHostKey em
-// registerInterfaceSFTPNatives.
+// registerInterfaceSFTPNatives e o escape hatch em sftpHostKeyCallback.
 func sftpConnectPassword(server, user, password string) (*ssh.Client, *sftp.Client, error) {
+	hostKeyCallback, err := sftpHostKeyCallback()
+	if err != nil {
+		return nil, nil, err
+	}
 	config := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // ver comentário de segurança acima
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         sftpDialTimeout,
 	}
 	return sftpDial(server, config)
@@ -142,10 +178,14 @@ func sftpConnectKey(server, user string) (*ssh.Client, *sftp.Client, error) {
 		return nil, nil, fmt.Errorf("falha ao decodificar chave privada: %w", err)
 	}
 
+	hostKeyCallback, err := sftpHostKeyCallback()
+	if err != nil {
+		return nil, nil, err
+	}
 	config := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // ver comentário de segurança acima
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         sftpDialTimeout,
 	}
 	return sftpDial(server, config)
@@ -203,8 +243,8 @@ func sftpDirLs(args []advplrt.Value) advplrt.Value {
 	if err != nil {
 		return advplrt.NewNumber(sftpStatusFromErr(err))
 	}
-	defer client.Close()
 	defer conn.Close()
+	defer client.Close()
 
 	entries, err := client.ReadDir(remotePath)
 	if err != nil {
@@ -234,8 +274,8 @@ func sftpDwld1(args []advplrt.Value) advplrt.Value {
 	if err != nil {
 		return advplrt.NewNumber(sftpStatusFromErr(err))
 	}
-	defer client.Close()
 	defer conn.Close()
+	defer client.Close()
 
 	return advplrt.NewNumber(sftpDownload(client, remotePath, localPath))
 }
@@ -255,8 +295,8 @@ func sftpDwld2(args []advplrt.Value) advplrt.Value {
 	if err != nil {
 		return advplrt.NewNumber(sftpStatusFromErr(err))
 	}
-	defer client.Close()
 	defer conn.Close()
+	defer client.Close()
 
 	return advplrt.NewNumber(sftpDownload(client, remotePath, localPath))
 }
@@ -302,8 +342,8 @@ func sftpUpld1(args []advplrt.Value) advplrt.Value {
 	if err != nil {
 		return advplrt.NewNumber(sftpStatusFromErr(err))
 	}
-	defer client.Close()
 	defer conn.Close()
+	defer client.Close()
 
 	return advplrt.NewNumber(sftpUpload(client, localPath, remotePath))
 }
@@ -323,8 +363,8 @@ func sftpUpld2(args []advplrt.Value) advplrt.Value {
 	if err != nil {
 		return advplrt.NewNumber(sftpStatusFromErr(err))
 	}
-	defer client.Close()
 	defer conn.Close()
+	defer client.Close()
 
 	return advplrt.NewNumber(sftpUpload(client, localPath, remotePath))
 }
