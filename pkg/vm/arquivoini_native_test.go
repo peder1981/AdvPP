@@ -458,6 +458,60 @@ func TestCommentsPreserved(t *testing.T) {
 	}
 }
 
+func TestGetINISessionsNoPreambleLeakage(t *testing.T) {
+	v := NewVM(&compiler.Bytecode{}, false)
+	dir := t.TempDir()
+
+	// Create INI with leading comment (preamble) - common real-world pattern
+	iniPath := createTempINI(t, dir, "test.ini",
+		"; Configuration file\n"+
+			"; Last modified: 2026-08-10\n"+
+			"[SECTION1]\n"+
+			"KEY1=VALUE1\n"+
+			"[SECTION2]\n"+
+			"KEY2=VALUE2\n")
+
+	// Call GetINISessions on this file with leading comment
+	result, err := v.natives["GETINISESSIONS"].Fn([]advplrt.Value{
+		advplrt.NewString(iniPath),
+		advplrt.Nil,
+	})
+	if err != nil {
+		t.Fatalf("GetINISessions failed: %v", err)
+	}
+
+	arr := result.(*advplrt.ArrayValue)
+
+	// Should return exactly 2 sections: SECTION1 and SECTION2
+	// Must NOT include the internal "\x00PREAMBLE" marker
+	if len(arr.Elements) != 2 {
+		t.Errorf("expected 2 sections, got %d", len(arr.Elements))
+	}
+
+	// Verify section names
+	sections := make([]string, len(arr.Elements))
+	for i, elem := range arr.Elements {
+		sections[i] = elem.(*advplrt.StringValue).Val
+	}
+
+	expectedSections := []string{"SECTION1", "SECTION2"}
+	for i, expected := range expectedSections {
+		if i < len(sections) && sections[i] != expected {
+			t.Errorf("section %d: expected %q, got %q", i, expected, sections[i])
+		}
+	}
+
+	// Critical: verify preamble marker does NOT appear in results
+	for _, sec := range sections {
+		if sec == "\x00PREAMBLE" {
+			t.Error("REGRESSION: internal preamble marker leaked into GetINISessions result")
+		}
+		if strings.Contains(sec, "\x00") {
+			t.Errorf("REGRESSION: section name contains null byte: %q", sec)
+		}
+	}
+}
+
 func TestKeyOrderDeterministic(t *testing.T) {
 	v := NewVM(&compiler.Bytecode{}, false)
 	dir := t.TempDir()
