@@ -1970,6 +1970,7 @@ func (v *VM) registerNatives() {
 	v.registerAsyncJobNatives(natives)
 	v.registerValidacaoNatives(natives)
 	v.registerSincronismoNatives(natives)
+	v.registerControledeacessoNatives(natives)
 	v.registerExecucaoentreprocessosNatives(natives)
 	v.registerIntegracaoExcelNatives(natives)
 	v.registerManipulacaodoblocodecodigoNatives(natives)
