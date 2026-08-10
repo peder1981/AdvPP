@@ -187,7 +187,7 @@ Nenhum destes casos aparece nos exemplos da própria página TDN de
 exemplo usado, apenas chamam a função sobre ele) — não há, portanto,
 ground-truth documentado pela própria TDN para validar contra.
 
-## Ausência de validador XML Schema (XSD) real (`XmlFVldSch`)
+## Ausência de validador XML Schema (XSD) completo (`XmlFVldSch`)
 
 `XmlFVldSch` (pkg/vm/xml_native.go, Task 23) segundo o TDN valida um
 arquivo XML contra um XSD e retorna `.T.`/`.F.` populando `@cError`/
@@ -195,25 +195,53 @@ arquivo XML contra um XSD e retorna `.T.`/`.F.` populando `@cError`/
 TDN, `invalid.xml` com `<Quantidade>ABC</Quantidade>` deveria falhar porque
 `ABC` não é um `xs:integer` válido).
 
-AdvPP não tem, em nenhum lugar, um validador de XML Schema: não há suporte
-no stdlib Go (`encoding/xml` só faz parsing, não validação de schema) e
-`go.mod` não lista nenhuma dependência de schema/XSD (checado antes de
-implementar). Escrever um validador XSD completo (tipos simples/complexos,
-`xs:integer`/`xs:enumeration`/`xs:pattern`/cardinalidade/`xs:sequence` vs.
-`xs:choice`, etc.) é um projeto por si só, fora do escopo desta task — e a
-própria página TDN não inclui o conteúdo dos arquivos de exemplo
-(`schema_definition.xsd`, `valid.xml`, `invalid.xml` são apenas
-referenciados como anexos, não mostrados inline), então não haveria
-ground-truth para validar uma implementação parcial mesmo que se tentasse.
+AdvPP não tem, em nenhum lugar, um validador de XML Schema completo: não há
+suporte no stdlib Go (`encoding/xml` só faz parsing, não validação de
+schema) e `go.mod` não lista nenhuma dependência de schema/XSD (checado
+antes de implementar). Escrever um validador XSD 1.1 completo (tipos
+simples/complexos derivados por restrição, `xs:pattern`/`xs:enumeration`,
+`xs:choice`/`xs:all`, cardinalidade avançada, atributos, etc.) é um projeto
+por si só, fora do escopo desta task.
 
-**Comportamento em AdvPP:** `XmlFVldSch` lê de fato os dois arquivos do
-disco (`cXML`, `cXSD`) e retorna `.F.` se qualquer um não existir/não for
-legível. Se ambos existirem, checa boa-formação XML sintática de ambos
-(via `encoding/xml`) — não checa NENHUM constraint de schema (tipo,
-obrigatoriedade, enumeração, cardinalidade). **Isto significa que, ao
-contrário do segundo exemplo da própria TDN, esta implementação retornaria
-`.T.` para um `invalid.xml` bem-formado mesmo violando o schema** — a
-função só prova boa-formação + existência dos arquivos, não conformidade
-real de schema. Documentado aqui explicitamente para não ser confundido com
-um validador XSD funcional: não deve ser usado como gate de validação de
-schema em produção.
+**Revisão (code review, Task 23):** uma primeira versão desta função
+verificava só boa-formação XML e retornava `.T.` para qualquer par de
+arquivos bem-formados — o que respondia **errado** exatamente o exemplo de
+maior destaque da própria página do TDN (schema tipando `Quantidade` como
+`xs:integer`, XML com `Quantidade='ABC'` deveria reprovar). Isso foi
+corrigido: em vez de tratar a função inteira como fora de escopo, foi
+implementado um **verificador estrutural mínimo, mas real**
+(`xsdCheckSchema`/`xsdValidateInstance`/`buildXsdNode` em
+`pkg/vm/xml_native.go`) cobrindo exatamente os dois mecanismos de falha que
+os exemplos da TDN exercitam:
+1. **Presença de elemento obrigatório** — `xs:sequence` com `minOccurs`
+   (default 1); elemento ausente na instância XML → inválido.
+2. **Tipo primitivo do conteúdo de um elemento tipado** — `xs:integer`
+   (e as demais variantes inteiras XSD), `xs:decimal`/`xs:float`/`xs:double`,
+   `xs:boolean`, `xs:date`, `xs:dateTime`; conteúdo que não faz parse como o
+   tipo declarado → inválido. `xs:string` (e qualquer tipo não reconhecido)
+   nunca reprova por formato.
+
+Isto já resolve corretamente o exemplo de `Quantidade`/`xs:integer` da
+própria TDN (coberto por `TestXmlFVldSchExemploTDNQuantidadeXsInteger` em
+`pkg/vm/xml_native_test.go`, que reproduz o par valid.xml/invalid.xml
+literalmente descrito na página, incluindo a mensagem de erro exata
+"Element 'Quantidade': 'ABC' is not a valid value of the atomic type
+'xs:integer'." — gerada internamente por `xsdValidateInstance`, ainda que
+não possa ser escrita em `@cError` por causa da limitação de parâmetros por
+referência, ver seção acima).
+
+**O que continua fora de escopo** (documentado, não fingido):
+`xs:choice`/`xs:all` (só `xs:sequence` é interpretado), `xs:pattern`/
+`xs:enumeration`/`xs:minLength`/etc., tipos simples nomeados derivados por
+restrição (exceto o caso trivial de `<xs:simpleType><xs:restriction
+base="xs:integer">` inline, que É resolvido), `complexType` referenciado com
+prefixo de namespace não resolvido para um tipo primitivo/complexType de
+topo conhecido, e atributos XML (só elementos são checados, não `@attr`).
+Quando o schema usa algum desses recursos, ou quando a forma raiz do
+documento XML não bate com nenhum `<xs:element>` de topo do schema, o
+verificador não consegue se aplicar e `xsdCheckSchema` cai de volta na
+postura anterior — retorna `.T.` (schema fora do subconjunto reconhecido
+não reprova o XML só por isso; a checagem de boa-formação + existência de
+arquivo continua valendo). `XmlFVldSch` não deve ser usado como gate de
+validação de schema completo em produção fora do subconjunto documentado
+acima.

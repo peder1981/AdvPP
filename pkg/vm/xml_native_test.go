@@ -181,7 +181,96 @@ func TestXmlFVldSchXmlValidoBemFormado(t *testing.T) {
 	}
 	b, ok := got.(*advplrt.BoolValue)
 	if !ok || !b.Val {
-		t.Errorf("XmlFVldSch(xml e xsd bem-formados) = %v, quer .T. (well-formedness apenas, ver limitação documentada)", got)
+		t.Errorf("XmlFVldSch(xml e xsd bem-formados, schema sem elementos de topo) = %v, quer .T. (schema sem forma reconhecida cai em bem-formação apenas, ver limitação documentada)", got)
+	}
+}
+
+// TestXmlFVldSchExemploTDNQuantidadeXsInteger reproduz o cenário descrito
+// literalmente na própria página XmlFVldSch.md: um schema que tipa
+// <Quantidade> como xs:integer, validado contra um XML com Quantidade
+// numérico (deve passar, .T.) e contra um XML com Quantidade='ABC' (deve
+// reprovar, .F. — a TDN documenta a mensagem de erro exata: "Element
+// 'Quantidade': 'ABC' is not a valid value of the atomic type
+// 'xs:integer'."). Este é o teste de regressão para o bug encontrado em
+// code review: uma versão anterior desta função só checava boa-formação e
+// retornava .T. para os dois casos, inclusive o inválido.
+func TestXmlFVldSchExemploTDNQuantidadeXsInteger(t *testing.T) {
+	dir := t.TempDir()
+	xsdPath := filepath.Join(dir, "schema_definition.xsd")
+	os.WriteFile(xsdPath, []byte(`<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="pedido">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Quantidade" type="xs:integer"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>`), 0644)
+
+	v := NewVM(&compiler.Bytecode{}, false)
+
+	validPath := filepath.Join(dir, "valid.xml")
+	os.WriteFile(validPath, []byte(`<pedido><Quantidade>1</Quantidade></pedido>`), 0644)
+	got, err := v.natives["XMLFVLDSCH"].Fn([]advplrt.Value{
+		advplrt.NewString(validPath),
+		advplrt.NewString(xsdPath),
+		advplrt.NewString(""),
+		advplrt.NewString(""),
+	})
+	if err != nil {
+		t.Fatalf("XmlFVldSch(valid.xml) retornou erro: %v", err)
+	}
+	if b, ok := got.(*advplrt.BoolValue); !ok || !b.Val {
+		t.Errorf("XmlFVldSch(valid.xml, Quantidade=1 contra xs:integer) = %v, quer .T.", got)
+	}
+
+	invalidPath := filepath.Join(dir, "invalid.xml")
+	os.WriteFile(invalidPath, []byte(`<pedido><Quantidade>ABC</Quantidade></pedido>`), 0644)
+	got, err = v.natives["XMLFVLDSCH"].Fn([]advplrt.Value{
+		advplrt.NewString(invalidPath),
+		advplrt.NewString(xsdPath),
+		advplrt.NewString(""),
+		advplrt.NewString(""),
+	})
+	if err != nil {
+		t.Fatalf("XmlFVldSch(invalid.xml) retornou erro: %v", err)
+	}
+	if b, ok := got.(*advplrt.BoolValue); !ok || b.Val {
+		t.Errorf("XmlFVldSch(invalid.xml, Quantidade='ABC' contra xs:integer) = %v, quer .F. (TDN: \"Element 'Quantidade': 'ABC' is not a valid value of the atomic type 'xs:integer'.\")", got)
+	}
+}
+
+// TestXmlFVldSchElementoObrigatorioAusente cobre o outro mecanismo do
+// verificador mínimo: presença de elemento obrigatório (minOccurs padrão 1).
+func TestXmlFVldSchElementoObrigatorioAusente(t *testing.T) {
+	dir := t.TempDir()
+	xsdPath := filepath.Join(dir, "schema.xsd")
+	os.WriteFile(xsdPath, []byte(`<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="pedido">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Quantidade" type="xs:integer"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>`), 0644)
+	xmlPath := filepath.Join(dir, "sem_quantidade.xml")
+	os.WriteFile(xmlPath, []byte(`<pedido></pedido>`), 0644)
+
+	v := NewVM(&compiler.Bytecode{}, false)
+	got, err := v.natives["XMLFVLDSCH"].Fn([]advplrt.Value{
+		advplrt.NewString(xmlPath),
+		advplrt.NewString(xsdPath),
+		advplrt.NewString(""),
+		advplrt.NewString(""),
+	})
+	if err != nil {
+		t.Fatalf("XmlFVldSch retornou erro: %v", err)
+	}
+	if b, ok := got.(*advplrt.BoolValue); !ok || b.Val {
+		t.Errorf("XmlFVldSch(pedido sem Quantidade obrigatória) = %v, quer .F.", got)
 	}
 }
 
