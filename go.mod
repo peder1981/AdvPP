@@ -13,6 +13,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/creack/pty v1.1.24
 	github.com/mattn/go-colorable v0.1.15
+	github.com/pkg/sftp v1.13.9
 	golang.org/x/crypto v0.36.0
 	golang.org/x/term v0.36.0
 	modernc.org/sqlite v1.38.2
@@ -50,6 +51,7 @@ require (
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
