@@ -163,6 +163,20 @@ func (e *SQLiteEngine) Seek(key string) (bool, error) {
 
 // Skip moves the record pointer by count records
 // Thread-safe via read-write lock (CWE-362)
+//
+// Bug fixed 2026-08-10 (task-7 escalation, DBEval invocation-proof test):
+// clamping e.current to len(e.records)-1 meant EOF() (e.current >=
+// len(e.records)) could NEVER become true once the last record was reached —
+// Skip(1) on the last record was a silent no-op forever. Any AdvPL loop of
+// the canonical form `While !Eof() ... dbSkip() ... EndDo` (and DBEval's own
+// internal iteration) would therefore never terminate on its own; it only
+// stopped because DBEval carries a 100000-iteration safety cap. Clamping to
+// len(e.records) instead lets the cursor reach the true EOF sentinel
+// position, matching dBase/Clipper/AdvPL semantics where Skip() past the
+// last record moves to a position where Eof() is .T. FieldGet/FieldPut/
+// RecLock already guard on `e.current >= len(e.records)`, so this sentinel
+// position was always handled safely by every other reader — only Skip()
+// prevented reaching it.
 func (e *SQLiteEngine) Skip(count int) error {
 	e.recordsMutex.Lock()
 	defer e.recordsMutex.Unlock()
@@ -175,8 +189,8 @@ func (e *SQLiteEngine) Skip(count int) error {
 	if e.current < 0 {
 		e.current = 0
 	}
-	if e.current >= len(e.records) {
-		e.current = len(e.records) - 1
+	if e.current > len(e.records) {
+		e.current = len(e.records)
 	}
 
 	return nil
