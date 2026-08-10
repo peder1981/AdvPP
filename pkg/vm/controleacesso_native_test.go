@@ -83,7 +83,7 @@ func TestADUserValidArgumentValidation(t *testing.T) {
 	v := NewVM(&compiler.Bytecode{}, false)
 
 	// Testa com 3 argumentos (deve validar)
-	result, err := v.natives["ADUSERSVALID"].Fn([]advplrt.Value{
+	result, err := v.natives["ADUSERVALID"].Fn([]advplrt.Value{
 		advplrt.NewString("DOMAIN"),
 		advplrt.NewString("user"),
 		advplrt.NewString("password"),
@@ -106,7 +106,7 @@ func TestADUserValidWithEmptyArgs(t *testing.T) {
 	v := NewVM(&compiler.Bytecode{}, false)
 
 	// Testa com strings vazias
-	result, err := v.natives["ADUSERSVALID"].Fn([]advplrt.Value{
+	result, err := v.natives["ADUSERVALID"].Fn([]advplrt.Value{
 		advplrt.NewString(""),
 		advplrt.NewString(""),
 		advplrt.NewString(""),
@@ -123,3 +123,29 @@ func TestADUserValidWithEmptyArgs(t *testing.T) {
 		t.Errorf("ADUserValid com args vazios = true, esperado false")
 	}
 }
+
+func TestControledeacessoNativesDiscoverability(t *testing.T) {
+	// Testa que os nomes dos natives são exatamente corretos e descobríveis via lookup real.
+	// Este teste verifica a correção dos nomes das chaves no mapa de nativas
+	// (evita regressão de typos como "ADUSERSVALID" vs "ADUSERVALID").
+	v := NewVM(&compiler.Bytecode{}, false)
+
+	cases := []string{
+		"ADUSERVALID",    // Nome correto: ADUserValid()
+		"COMPUTERNAME",   // ComputerName()
+		"GETAUTHARGS",    // GetAuthArgs()
+		"LOGUSERNAME",    // LogUserName()
+	}
+
+	for _, nativeName := range cases {
+		fn, ok := v.natives[nativeName]
+		if !ok {
+			t.Errorf("Native %q not found in v.natives map (typo ou nome incorreto)", nativeName)
+			continue
+		}
+		if fn == nil {
+			t.Errorf("Native %q exists but value is nil", nativeName)
+		}
+	}
+}
+
