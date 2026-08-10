@@ -36,6 +36,13 @@ parâmetros da TDN documenta `aVal` como tipo "vetor"), a mutação in-place fun
 é aplicada. `HMList` (mesmo arquivo) não sofre a limitação: seu `@aElem` é
 inequivocamente array na TDN, então a lista é sempre populada de volta.
 
+`XmlC14N`, `XmlC14NFile`, `XmlFVldSch`, `XmlParser`, `XmlParserFile`
+(pkg/vm/xml_native.go, Task 23) — todas têm, na TDN, os últimos 1-2
+parâmetros como saída por referência (`@cError`/`@cWarning`), nunca
+populados; o valor de retorno principal de cada uma (string canonicalizada,
+lógico de validação, ou objeto/NIL) permanece correto e é a forma suportada
+de checar sucesso/falha.
+
 `SFTPDirLs`/`SFTPDwld1`/`SFTPDwld2`/`SFTPUpld1`/`SFTPUpld2` também documentam, no
 código (`pkg/vm/sftp_native.go`), um trade-off de segurança deliberado: a
 verificação de host key usa `ssh.InsecureIgnoreHostKey()` por padrão (a TDN não
@@ -151,3 +158,62 @@ processo AdvPP; caso contrário, devolve array vazio em silêncio.
 
 **Afetadas:** `ChkRpoChg`, `GetApoRes`, `GetDependency`, `GetRpoLog`,
 `GetSrcArray` (pkg/vm/rpo_native.go, Task 17).
+
+## Canonicalização C14N não-exclusiva incompleta (`XmlC14N`, `XmlC14NFile`)
+
+`XmlC14N`/`XmlC14NFile` (pkg/vm/xml_native.go, Task 23) implementam de fato
+o núcleo do algoritmo W3C REC-xml-c14n-20010315 (não é stub): remoção de
+comentários e da declaração XML/demais PIs, conversão de CDATA para
+conteúdo literal, ordenação alfabética de atributos e de declarações de
+namespace, elementos vazios sempre com tag de fechamento explícita (nunca
+self-closing), e escaping de caracteres exatamente conforme a especificação
+(texto: `&`,`<`,`>`,CR; atributo: `&`,`<`,`"`,TAB,LF,CR).
+
+**O que NÃO é implementado** (verificado: `go.mod` não lista nenhuma
+dependência de C14N/xmlsec — checado antes de escrever a implementação;
+escrever um C14N 100% conforme ao "namespace axis" completo é um projeto
+maior que esta task): o eixo de namespace do C14N não-exclusivo, que exige
+re-renderizar em CADA elemento todo namespace herdado que esteja em escopo
+— mesmo quando declarado só em um ancestral distante e nunca redeclarado no
+caminho até o elemento atual. A implementação em `pkg/vm/xml_native.go`
+(`canonicalizeXML`) só resolve um prefixo se o `xmlns:*` correspondente
+aparece em algum elemento realmente visitado na pilha do documento sendo
+processado (o que cobre o caso comum de documentos com namespaces
+declarados uma vez perto da raiz e reutilizados abaixo, mas não o caso
+adversarial de reconstrução do eixo completo por elemento). Atributos
+`xml:lang`/`xml:space` também não recebem tratamento de herança dedicado.
+Nenhum destes casos aparece nos exemplos da própria página TDN de
+`XmlC14N`/`XmlC14NFile` (que não incluem o conteúdo do arquivo XML de
+exemplo usado, apenas chamam a função sobre ele) — não há, portanto,
+ground-truth documentado pela própria TDN para validar contra.
+
+## Ausência de validador XML Schema (XSD) real (`XmlFVldSch`)
+
+`XmlFVldSch` (pkg/vm/xml_native.go, Task 23) segundo o TDN valida um
+arquivo XML contra um XSD e retorna `.T.`/`.F.` populando `@cError`/
+`@cWarning` com o motivo de uma eventual falha (ex.: no exemplo da própria
+TDN, `invalid.xml` com `<Quantidade>ABC</Quantidade>` deveria falhar porque
+`ABC` não é um `xs:integer` válido).
+
+AdvPP não tem, em nenhum lugar, um validador de XML Schema: não há suporte
+no stdlib Go (`encoding/xml` só faz parsing, não validação de schema) e
+`go.mod` não lista nenhuma dependência de schema/XSD (checado antes de
+implementar). Escrever um validador XSD completo (tipos simples/complexos,
+`xs:integer`/`xs:enumeration`/`xs:pattern`/cardinalidade/`xs:sequence` vs.
+`xs:choice`, etc.) é um projeto por si só, fora do escopo desta task — e a
+própria página TDN não inclui o conteúdo dos arquivos de exemplo
+(`schema_definition.xsd`, `valid.xml`, `invalid.xml` são apenas
+referenciados como anexos, não mostrados inline), então não haveria
+ground-truth para validar uma implementação parcial mesmo que se tentasse.
+
+**Comportamento em AdvPP:** `XmlFVldSch` lê de fato os dois arquivos do
+disco (`cXML`, `cXSD`) e retorna `.F.` se qualquer um não existir/não for
+legível. Se ambos existirem, checa boa-formação XML sintática de ambos
+(via `encoding/xml`) — não checa NENHUM constraint de schema (tipo,
+obrigatoriedade, enumeração, cardinalidade). **Isto significa que, ao
+contrário do segundo exemplo da própria TDN, esta implementação retornaria
+`.T.` para um `invalid.xml` bem-formado mesmo violando o schema** — a
+função só prova boa-formação + existência dos arquivos, não conformidade
+real de schema. Documentado aqui explicitamente para não ser confundido com
+um validador XSD funcional: não deve ser usado como gate de validação de
+schema em produção.

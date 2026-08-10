@@ -1919,6 +1919,7 @@ func (v *VM) registerNatives() {
 
 	v.registerDialogNatives(natives)
 	v.registerHttpNatives(natives)
+	v.registerTratamentodeXMLNatives(natives)
 	v.registerUiRenderNatives(natives)
 	registerGeometryNatives(natives)
 	registerMathStatNatives(natives)
