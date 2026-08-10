@@ -628,19 +628,8 @@ func (v *VM) registerNatives() {
 			pow := math.Pow(10, float64(decimals))
 			return advplrt.NewNumber(math.Trunc(val*pow) / pow), nil
 		},
-		"CEILING": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewNumber(math.Ceil(advplrt.ToFloat(getArg(args, 0)))), nil
-		},
 		"FLOOR": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewNumber(math.Floor(advplrt.ToFloat(getArg(args, 0)))), nil
-		},
-		"MOD": func(args []advplrt.Value) (advplrt.Value, error) {
-			a := advplrt.ToFloat(getArg(args, 0))
-			b := advplrt.ToFloat(getArg(args, 1))
-			if b == 0 {
-				return advplrt.NewNumber(0), nil
-			}
-			return advplrt.NewNumber(math.Mod(a, b)), nil
 		},
 		"MAX": func(args []advplrt.Value) (advplrt.Value, error) {
 			if len(args) == 0 {
@@ -666,15 +655,6 @@ func (v *VM) registerNatives() {
 			}
 			return result, nil
 		},
-		"SQRT": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewNumber(math.Sqrt(advplrt.ToFloat(getArg(args, 0)))), nil
-		},
-		"EXP": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewNumber(math.Exp(advplrt.ToFloat(getArg(args, 0)))), nil
-		},
-		"LOG": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewNumber(math.Log(advplrt.ToFloat(getArg(args, 0)))), nil
-		},
 		"RANDOM": func(args []advplrt.Value) (advplrt.Value, error) {
 			max := int(advplrt.ToFloat(getArg(args, 0)))
 			if max <= 0 {
@@ -698,24 +678,6 @@ func (v *VM) registerNatives() {
 		},
 		"PI": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewNumber(math.Pi), nil
-		},
-		"SIN": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewNumber(math.Sin(advplrt.ToFloat(getArg(args, 0)))), nil
-		},
-		"COS": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewNumber(math.Cos(advplrt.ToFloat(getArg(args, 0)))), nil
-		},
-		"TAN": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewNumber(math.Tan(advplrt.ToFloat(getArg(args, 0)))), nil
-		},
-		"ASIN": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewNumber(math.Asin(advplrt.ToFloat(getArg(args, 0)))), nil
-		},
-		"ACOS": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewNumber(math.Acos(advplrt.ToFloat(getArg(args, 0)))), nil
-		},
-		"ATAN": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewNumber(math.Atan(advplrt.ToFloat(getArg(args, 0)))), nil
 		},
 		"DEG2RAD": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewNumber(advplrt.ToFloat(getArg(args, 0)) * math.Pi / 180), nil
@@ -1966,6 +1928,7 @@ func (v *VM) registerNatives() {
 	v.registerUiRenderNatives(natives)
 	registerGeometryNatives(natives)
 	registerMathStatNatives(natives)
+	v.registerMatematicaNatives(natives)
 	registerP2PNatives(natives)
 	v.registerAsyncJobNatives(natives)
 	v.registerValidacaoNatives(natives)
