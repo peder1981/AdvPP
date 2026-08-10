@@ -1930,6 +1930,7 @@ func (v *VM) registerNatives() {
 	v.registerVerificacaodostiposdevariaveisNatives(natives)
 	v.registerSincronismoNatives(natives)
 	v.registerControledeacessoNatives(natives)
+	v.registerControledeprocessamentoNatives(natives)
 	v.registerExecucaoentreprocessosNatives(natives)
 	v.registerIntegracaoExcelNatives(natives)
 	v.registerManipulacaodoblocodecodigoNatives(natives)

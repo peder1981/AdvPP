@@ -59,6 +59,7 @@ type CallFrame struct {
 	Locals     []advplrt.Value
 	StackBase  int
 	Self       advplrt.Value
+	ArgCount   int // nº de argumentos passados na chamada (para PCount())
 	TryDepth   int
 	TryCatches []*TryCatch
 	dynRestore []dynBinding // bindings dinâmicos a restaurar quando este frame retornar
@@ -82,55 +83,55 @@ type TryCatch struct {
 // VM is the AdvPL/TLPP virtual machine executing bytecode.
 // It maintains execution stack, call frames, native functions, and state for UI, database, and file I/O.
 type VM struct {
-	bc             *compiler.Bytecode
-	stack          []advplrt.Value
-	frames         []*CallFrame
-	current        *CallFrame
-	natives        map[string]*advplrt.FunctionValue
-	classes        map[string]*advplrt.ClassDef
-	methodBodies   map[string]interface{}
-	uiEnabled      bool
-	dbEngine       DBEngine
-	currentAlias   string // último alias passado para DbSelectArea, para GetArea()/RestArea()
-	uiProvider     UIProvider
-	output         strings.Builder
-	namedArgs      []namedArgInfo // tracks named parameter info for current call
-	argCounter     int            // counts args pushed for current call
-	mvcModels      map[int]*mvc.FWFormModel
-	mvcViews       map[int]*mvc.FWFormView
-	mvcBrowses     map[int]*mvc.FWFormBrowse
-	mvcNextID      int
-	dbFactory      func() DBEngine          // cria um engine próprio por job (StartJob)
-	jobs           sync.WaitGroup           // jobs em background pendentes
-	outWriter      io.Writer                // espelho opcional da saída de console (modo web)
-	curDialog      *webDialog               // MSDIALOG em construção (fase 4 do renderer web)
-	debugger       *Debugger                // hook opcional (advplc debug); nil em execução normal
-	fileHandles    map[int]*os.File         // handles abertos por FOpen/FCreate
-	nextFH         int                      // próximo handle a distribuir
-	lastFError     int                      // último erro de IO (FError())
-	httpLastBody   string                   // último corpo de resposta HTTP (FWHttpBody)
-	httpLastStatus int                      // último status HTTP (FWHttpStatus)
-	httpLastError  string                   // último erro HTTP (FWHttpError)
-	httpTimeoutSec int                      // timeout em segundos p/ próxima requisição HTTP (FWHTTPTIMEOUT), 0 = default (30s)
-	httpHeaders    map[string]string        // headers custom aplicados às próximas requisições HTTP (FWHTTPHEADER), até FWHTTPCLEARHEADERS
-	filialAtiva    string                   // filial ativa da sessão (RpcSetEnv/FWxFilial), 6 chars GG+UU+FF; "" = nenhuma definida ainda
-	stdinReader    *bufio.Reader            // leitor de linha do stdin (ConIn), lazy
-	inputHistory   []string                 // histórico de linhas do ConIn (setas up/down), últimas inputHistoryLimit
-	dynEnv         map[string]advplrt.Value // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
-	lastBoxLines   int                      // altura (linhas) do último UiStreamBox renderizado, p/ apagar e redesenhar no próximo delta
-	jobResults     sync.Map                 // map[string]*asyncJobResult — resultados de FWJOBSTART pendentes/prontos, indexados por job id (FWJOBPOLL)
-	jobIDSeq       int64                    // contador atômico p/ gerar job ids únicos (FWJOBSTART)
-	namedLocks     map[string]bool          // locks nomeados (GlbNmLock/GlbNmUnlock): nome -> bloqueado
-	namedLocksMu   sync.Mutex               // proteção das operações sobre namedLocks
-	ipcSemaphores  map[string]*ipcSemaphoreState // semaphores for IPC (IPCGo/IPCWaitEx/IPCCount)
-	ipcSemaphoresMu sync.Mutex              // proteção das operações sobre ipcSemaphores
-	mailObjects    map[string]advplrt.Value // objetos tMailManager armazenados (GetMailObj/SetMailObj)
-	mailObjectsMu  sync.Mutex               // proteção das operações sobre mailObjects
-	remoteMemory   map[string][]advplrt.Value // armazenamento remoto: identificador -> array de valores (__SaveRmt/__DeleteRmt/__LoadRmt)
-	globalVarsSingle map[string]string      // variáveis globais string (PutGlbValue/GetGlbValue)
-	globalVarsSingleMu sync.Mutex           // proteção das operações sobre globalVarsSingle
-	globalVarsMulti map[string][]advplrt.Value // variáveis globais múltiplas (PutGlbVars/GetGlbVars)
-	globalVarsMultiMu sync.Mutex            // proteção das operações sobre globalVarsMulti
+	bc                 *compiler.Bytecode
+	stack              []advplrt.Value
+	frames             []*CallFrame
+	current            *CallFrame
+	natives            map[string]*advplrt.FunctionValue
+	classes            map[string]*advplrt.ClassDef
+	methodBodies       map[string]interface{}
+	uiEnabled          bool
+	dbEngine           DBEngine
+	currentAlias       string // último alias passado para DbSelectArea, para GetArea()/RestArea()
+	uiProvider         UIProvider
+	output             strings.Builder
+	namedArgs          []namedArgInfo // tracks named parameter info for current call
+	argCounter         int            // counts args pushed for current call
+	mvcModels          map[int]*mvc.FWFormModel
+	mvcViews           map[int]*mvc.FWFormView
+	mvcBrowses         map[int]*mvc.FWFormBrowse
+	mvcNextID          int
+	dbFactory          func() DBEngine               // cria um engine próprio por job (StartJob)
+	jobs               sync.WaitGroup                // jobs em background pendentes
+	outWriter          io.Writer                     // espelho opcional da saída de console (modo web)
+	curDialog          *webDialog                    // MSDIALOG em construção (fase 4 do renderer web)
+	debugger           *Debugger                     // hook opcional (advplc debug); nil em execução normal
+	fileHandles        map[int]*os.File              // handles abertos por FOpen/FCreate
+	nextFH             int                           // próximo handle a distribuir
+	lastFError         int                           // último erro de IO (FError())
+	httpLastBody       string                        // último corpo de resposta HTTP (FWHttpBody)
+	httpLastStatus     int                           // último status HTTP (FWHttpStatus)
+	httpLastError      string                        // último erro HTTP (FWHttpError)
+	httpTimeoutSec     int                           // timeout em segundos p/ próxima requisição HTTP (FWHTTPTIMEOUT), 0 = default (30s)
+	httpHeaders        map[string]string             // headers custom aplicados às próximas requisições HTTP (FWHTTPHEADER), até FWHTTPCLEARHEADERS
+	filialAtiva        string                        // filial ativa da sessão (RpcSetEnv/FWxFilial), 6 chars GG+UU+FF; "" = nenhuma definida ainda
+	stdinReader        *bufio.Reader                 // leitor de linha do stdin (ConIn), lazy
+	inputHistory       []string                      // histórico de linhas do ConIn (setas up/down), últimas inputHistoryLimit
+	dynEnv             map[string]advplrt.Value      // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
+	lastBoxLines       int                           // altura (linhas) do último UiStreamBox renderizado, p/ apagar e redesenhar no próximo delta
+	jobResults         sync.Map                      // map[string]*asyncJobResult — resultados de FWJOBSTART pendentes/prontos, indexados por job id (FWJOBPOLL)
+	jobIDSeq           int64                         // contador atômico p/ gerar job ids únicos (FWJOBSTART)
+	namedLocks         map[string]bool               // locks nomeados (GlbNmLock/GlbNmUnlock): nome -> bloqueado
+	namedLocksMu       sync.Mutex                    // proteção das operações sobre namedLocks
+	ipcSemaphores      map[string]*ipcSemaphoreState // semaphores for IPC (IPCGo/IPCWaitEx/IPCCount)
+	ipcSemaphoresMu    sync.Mutex                    // proteção das operações sobre ipcSemaphores
+	mailObjects        map[string]advplrt.Value      // objetos tMailManager armazenados (GetMailObj/SetMailObj)
+	mailObjectsMu      sync.Mutex                    // proteção das operações sobre mailObjects
+	remoteMemory       map[string][]advplrt.Value    // armazenamento remoto: identificador -> array de valores (__SaveRmt/__DeleteRmt/__LoadRmt)
+	globalVarsSingle   map[string]string             // variáveis globais string (PutGlbValue/GetGlbValue)
+	globalVarsSingleMu sync.Mutex                    // proteção das operações sobre globalVarsSingle
+	globalVarsMulti    map[string][]advplrt.Value    // variáveis globais múltiplas (PutGlbVars/GetGlbVars)
+	globalVarsMultiMu  sync.Mutex                    // proteção das operações sobre globalVarsMulti
 }
 
 type ipcSemaphoreState struct {
@@ -203,26 +204,26 @@ func newLocals(n int) []advplrt.Value {
 // It initializes the execution stack, call frames, native functions, and UI/DB state.
 func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 	v := &VM{
-		bc:           bc,
-		stack:        make([]advplrt.Value, 0, 256),
-		frames:       make([]*CallFrame, 0, 32),
-		natives:      make(map[string]*advplrt.FunctionValue),
-		classes:      make(map[string]*advplrt.ClassDef),
-		methodBodies: make(map[string]interface{}),
-		uiEnabled:    uiEnabled,
-		mvcModels:    make(map[int]*mvc.FWFormModel),
-		mvcViews:     make(map[int]*mvc.FWFormView),
-		mvcBrowses:   make(map[int]*mvc.FWFormBrowse),
-		mvcNextID:    1,
-		fileHandles:  make(map[int]*os.File),
-		nextFH:       1,
-		dynEnv:       make(map[string]advplrt.Value),
-		namedLocks:   make(map[string]bool),
-		ipcSemaphores: make(map[string]*ipcSemaphoreState),
-		mailObjects:  make(map[string]advplrt.Value),
-		remoteMemory: make(map[string][]advplrt.Value),
+		bc:               bc,
+		stack:            make([]advplrt.Value, 0, 256),
+		frames:           make([]*CallFrame, 0, 32),
+		natives:          make(map[string]*advplrt.FunctionValue),
+		classes:          make(map[string]*advplrt.ClassDef),
+		methodBodies:     make(map[string]interface{}),
+		uiEnabled:        uiEnabled,
+		mvcModels:        make(map[int]*mvc.FWFormModel),
+		mvcViews:         make(map[int]*mvc.FWFormView),
+		mvcBrowses:       make(map[int]*mvc.FWFormBrowse),
+		mvcNextID:        1,
+		fileHandles:      make(map[int]*os.File),
+		nextFH:           1,
+		dynEnv:           make(map[string]advplrt.Value),
+		namedLocks:       make(map[string]bool),
+		ipcSemaphores:    make(map[string]*ipcSemaphoreState),
+		mailObjects:      make(map[string]advplrt.Value),
+		remoteMemory:     make(map[string][]advplrt.Value),
 		globalVarsSingle: make(map[string]string),
-		globalVarsMulti: make(map[string][]advplrt.Value),
+		globalVarsMulti:  make(map[string][]advplrt.Value),
 	}
 	v.registerClasses()
 	v.registerNatives()
@@ -419,6 +420,7 @@ func (v *VM) RunFunction(name string, args []advplrt.Value) (advplrt.Value, erro
 		IP:        info.Offset,
 		Locals:    locals,
 		StackBase: len(v.stack),
+		ArgCount:  len(args),
 	}
 	v.frames = append(v.frames, frame)
 	v.current = frame
@@ -435,6 +437,18 @@ func (v *VM) RunFunction(name string, args []advplrt.Value) (advplrt.Value, erro
 // Implements goroutine limit (MaxConcurrentJobs) to prevent resource exhaustion (CWE-362, CWE-400).
 // For async jobs: increments counter before spawning, decrements in defer to ensure cleanup.
 // Thread-safe via atomic operations to prevent goroutine leaks.
+// functionExists verifica se uma função (nativa ou do bytecode) está
+// disponível no VM atual. Usada por natives que disparam jobs assíncronos
+// para validar o alvo antes de enfileirar (o erro de um job async não
+// retornaria ao chamador).
+func (v *VM) functionExists(name string) bool {
+	if _, ok := v.bc.Functions[name]; ok {
+		return true
+	}
+	_, ok := v.natives[strings.ToUpper(name)]
+	return ok
+}
+
 func (v *VM) StartJob(funcName string, wait bool, args []advplrt.Value) error {
 	if wait {
 		// Synchronous execution: no goroutine spawning
@@ -1080,6 +1094,7 @@ func (v *VM) execute(instr compiler.Instruction) error {
 				IP:        info.Offset,
 				Locals:    locals,
 				StackBase: len(v.stack),
+				ArgCount:  argCount,
 			}
 			v.frames = append(v.frames, frame)
 			v.current = frame
@@ -1329,6 +1344,7 @@ func (v *VM) callFunc(name string, argCount int) error {
 		IP:        info.Offset,
 		Locals:    locals,
 		StackBase: len(v.stack),
+		ArgCount:  argCount,
 	}
 	v.frames = append(v.frames, frame)
 	v.current = frame
@@ -1446,6 +1462,7 @@ func (v *VM) callMethod(methodName string, argCount int) error {
 		Locals:    locals,
 		StackBase: len(v.stack),
 		Self:      o,
+		ArgCount:  argCount,
 	}
 	v.frames = append(v.frames, frame)
 	v.current = frame
