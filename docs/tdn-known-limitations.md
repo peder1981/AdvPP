@@ -299,3 +299,32 @@ As demais 18 funções de Controle de impressão (`__Eject`, `_PCol`, `_PRow`,
 genuínos do TDN (páginas com corpo vazio, sem spec) — ver
 `docs/tdn-gap-stubs.md`. Além disso, a maior parte delas exigiria um spooler
 de impressão/UI de relatório que não existe no runtime.
+
+## Conversão de tipos: convenções fixadas a partir da fonte
+
+Decisões de conformidade da Task 27 (`pkg/vm/conversaotipos_native.go`),
+validadas contra a fonte (colors.ch real da TOTVS) e contra os exemplos
+numéricos do TDN — registradas aqui para revisão:
+
+- **Endianness**: todas as conversões binárias (`Bin2I/L/W/F/D`, `I2Bin`,
+  `L2Bin`, `W2Bin`, `F2Bin`, `D2Bin`, `Bin2Str`) usam **little-endian**
+  (convenção Clipper/Harbour base do AdvPL). Os exemplos do TDN (`L2Bin
+  (1145258561)` = "ABCD", `Bin2L("ABCD")` = 1145258561, `Bin2I("AB")` =
+  16961) só batem com LE.
+- **Formato de cor**: `ColorToRGB` interpreta `nColor` como **0x00BBGGRR**
+  (BGR, COLORREF Windows). Confirmado com o `colors.ch` real
+  (`CLR_HBLUE=16711680=0xFF0000` → `{0,0,255,0}`; `CLR_HRED=255` →
+  `{255,0,0,0}`). Alpha no byte alto (bits 24-31).
+- **Serial de data OLE**: `Dbl2Dt`/`Dt2Dbl` usam epoch **1899-12-30** e
+  fração = milissegundos/86400000. Derivado dos exemplos do TDN:
+  `DBL2DT(40544.52426839)` → "20110101 12:34:56.789". A fração é
+  **arredondada** no `Dbl2Dt` (ms inteiro); `Dt2Dbl` devolve o double
+  natural de `days + ms/86400000` (a representação float64 pode divergir
+  na 8ª casa decimal — ex. `40544.5242683912` vs TDN `40544.52426839`).
+- **GetDtoDate**: usa formato **US `mm/dd/yy`** (com ou sem separadores),
+  conforme exemplo TDN `GetDtoDate("021605")`/"02/16/05" → 16/fev/2005.
+  Diverge do `CToD` pré-existente (formato brasileiro `dd/mm/yyyy`).
+- **BmpToJpg**: usa `gobmp` (decode) + `image/jpeg` (encode). Aceita BMP
+  de qualquer BPP que o gobmp decodifique (o TDN restringe a 8/16/24 BPP
+  com BITMAPV3INFOHEADER conforme a build do AppServer; aqui não há essa
+  restrição de build). Não há UI para exibir erro — apenas o retorno `-1`.
