@@ -7,7 +7,9 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 	"golang.org/x/text/encoding/charmap"
@@ -49,20 +51,29 @@ import (
 // TDN (que não inclui o conteúdo do arquivo de exemplo, apenas o chama).
 //
 // XmlFVldSch: AdvPP não tem, nem no stdlib nem em go.mod, um validador de
-// XML Schema (XSD) — go.mod não lista nenhuma dependência de
-// schema/xmlsec/c14n (conferido). Implementar um validador XSD real e
-// completo é um projeto por si só, fora do escopo desta task. O que É
-// implementado de verdade: leitura real dos dois arquivos (cXML, cXSD) do
-// disco e checagem de boa-formação XML de ambos. O que NÃO é feito (gap
-// documentado, não fingido): nenhuma checagem de conformidade com os
-// constraints do XSD (tipos como xs:integer, elementos obrigatórios,
-// enumerações, cardinalidade). Isso significa que, ao contrário do segundo
-// exemplo da própria TDN (invalid.xml com Quantidade='ABC' deveria retornar
-// .F.), esta implementação retornaria .T. para um XML bem-formado mesmo
-// violando o schema — a função só prova boa-formação + existência dos
-// arquivos, não conformidade de schema. Documentado explicitamente aqui e
-// em docs/tdn-known-limitations.md; não deve ser usada como XSD validator
-// real.
+// XML Schema (XSD) completo — go.mod não lista nenhuma dependência de
+// schema/xmlsec/c14n (conferido). Um validador XSD 1.1 completo (xs:choice,
+// xs:pattern, tipos simples derivados por restrição, etc.) é um projeto por
+// si só, fora do escopo desta task. Em vez de tratar a função inteira como
+// fora de escopo, foi implementado um verificador estrutural mínimo mas
+// real (xsdCheckSchema/xsdValidateInstance, mais abaixo neste arquivo) que
+// cobre exatamente o cenário do próprio exemplo da TDN: presença de
+// elementos obrigatórios segundo xs:sequence/minOccurs, e verificação de
+// tipo primitivo (xs:integer, xs:decimal, xs:boolean, xs:date, xs:dateTime,
+// xs:string) do conteúdo de cada elemento tipado. Isso já resolve
+// corretamente o caso descrito na própria página do TDN — um schema que
+// tipa <Quantidade> como xs:integer deve reprovar um XML com
+// <Quantidade>ABC</Quantidade> — que uma versão anterior desta função
+// (apenas checagem de boa-formação) respondia errado (retornava .T.). O que
+// continua fora de escopo, documentado (não fingido): xs:choice/xs:all,
+// xs:pattern/xs:enumeration, tipos simples nomeados derivados por
+// restrição, complexType referenciado com prefixo de namespace não-trivial,
+// e atributos XML (só elementos são checados). Quando o schema usa algum
+// desses recursos não suportados, ou quando a forma raiz do XML não bate
+// com nenhum <xs:element> de topo do schema, a checagem estrutural não
+// consegue se aplicar e a função cai de volta em "apenas bem-formado" (ver
+// xsdCheckSchema) — documentado em detalhe em
+// docs/tdn-known-limitations.md.
 //
 // XmlParser/XmlParserFile: função descontinuada segundo a própria TDN
 // ("recomenda-se tXmlManager"), mas com especificação real de estrutura de
@@ -139,11 +150,13 @@ func (v *VM) registerTratamentodeXMLNatives(natives map[string]func(args []advpl
 	}
 
 	// XmlFVldSch( cXML, cXSD, @cError, @cWarning ) -> lRetorno
-	// Valida um arquivo XML contra um XSD. AdvPP não tem validador de XML
-	// Schema real (ver nota de limitação acima) — checa apenas: os dois
-	// arquivos existem e são legíveis, e cXML é XML bem-formado (o próprio
-	// cXSD também precisa ser XML bem-formado, já que XSD é um dialeto XML).
-	// NÃO valida constraints de schema (tipos, obrigatoriedade, enumeração).
+	// Valida um arquivo XML contra um XSD. Checagens reais: os dois arquivos
+	// existem e são legíveis, ambos são XML bem-formado, e — quando a forma
+	// do schema é reconhecida (ver xsdCheckSchema) — presença de elementos
+	// obrigatórios + tipo primitivo do conteúdo de cada elemento tipado.
+	// Cobre o exemplo real da própria TDN (Quantidade tipado xs:integer
+	// reprovando conteúdo 'ABC'). Ver nota de limitação acima para o que
+	// permanece fora de escopo (xs:choice, xs:pattern, etc.).
 	natives["XMLFVLDSCH"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		cXML := strings.Trim(getArgString(args, 0, ""), " ")
 		cXSD := strings.Trim(getArgString(args, 1, ""), " ")
@@ -161,7 +174,7 @@ func (v *VM) registerTratamentodeXMLNatives(natives map[string]func(args []advpl
 		if !isWellFormedXML(xmlData) || !isWellFormedXML(xsdData) {
 			return advplrt.False, nil
 		}
-		return advplrt.True, nil
+		return advplrt.NewBool(xsdCheckSchema(xmlData, xsdData)), nil
 	}
 
 	// XmlParser( [cXml], [cReplace], @cError, @cWarning ) -> oXml
@@ -499,4 +512,311 @@ func parseXMLNode(dec *xml.Decoder, start xml.StartElement, cReplace string) (*a
 			return node, nil
 		}
 	}
+}
+
+// --- XmlFVldSch: verificador estrutural mínimo (não é um validador XSD completo) ---
+//
+// Cobre exatamente os dois mecanismos de falha que os próprios exemplos da
+// TDN exercitam: elemento obrigatório ausente (xs:sequence/minOccurs) e
+// conteúdo que não bate com o tipo primitivo XSD declarado (xs:integer,
+// xs:decimal, xs:boolean, xs:date, xs:dateTime; xs:string é sempre válido
+// por não ter formato restrito). Não implementa xs:choice/xs:all,
+// xs:pattern/xs:enumeration, tipos simples nomeados por restrição, nem
+// atributos XML — ver nota de limitação em registerTratamentodeXMLNatives e
+// em docs/tdn-known-limitations.md.
+
+// xsdRawNode é uma árvore XML genérica (nome local + atributos por nome
+// local, ignorando o namespace "xs:"/"xsd:" do próprio XSD) usada só para
+// interpretar a estrutura do arquivo .xsd.
+type xsdRawNode struct {
+	localName string
+	attrs     map[string]string
+	children  []*xsdRawNode
+}
+
+func parseXsdRaw(data []byte) (*xsdRawNode, error) {
+	dec := newXMLDecoder(strings.NewReader(string(data)))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		if start, ok := tok.(xml.StartElement); ok {
+			return parseXsdRawNode(dec, start)
+		}
+	}
+}
+
+func parseXsdRawNode(dec *xml.Decoder, start xml.StartElement) (*xsdRawNode, error) {
+	node := &xsdRawNode{localName: start.Name.Local, attrs: map[string]string{}}
+	for _, a := range start.Attr {
+		node.attrs[a.Name.Local] = a.Value
+	}
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			child, err := parseXsdRawNode(dec, t)
+			if err != nil {
+				return nil, err
+			}
+			node.children = append(node.children, child)
+		case xml.EndElement:
+			return node, nil
+		}
+	}
+}
+
+func (n *xsdRawNode) childrenNamed(localName string) []*xsdRawNode {
+	var out []*xsdRawNode
+	for _, c := range n.children {
+		if c.localName == localName {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// xsdNode é a forma "compilada" e resolvida de um <xs:element>: ou tem
+// primType preenchido (folha, checagem de valor) ou children preenchido
+// (elemento complexo, checagem de presença + recursão), nunca ambos com
+// sentido simultâneo (um elemento tipado com um complexType que por sua vez
+// deriva de um tipo simples não é suportado — cai em "sem checagem").
+type xsdNode struct {
+	primType string // nome local do tipo primitivo XSD (sem prefixo), "" = sem checagem de valor
+	children []*xsdChildRef
+}
+
+type xsdChildRef struct {
+	name      string
+	minOccurs int
+	node      *xsdNode
+}
+
+// xsdPrimitiveTypes são os tipos primitivos XSD com checagem de valor real
+// implementada. Qualquer outro nome de tipo (inclusive tipos simples
+// nomeados derivados por restrição) é tratado como "sem checagem de valor"
+// — documentado, não fingido.
+var xsdPrimitiveTypes = map[string]bool{
+	"string": true, "integer": true, "int": true, "long": true, "short": true,
+	"byte": true, "nonNegativeInteger": true, "positiveInteger": true,
+	"negativeInteger": true, "nonPositiveInteger": true, "unsignedInt": true,
+	"unsignedLong": true, "unsignedShort": true, "unsignedByte": true,
+	"decimal": true, "float": true, "double": true, "boolean": true,
+	"date": true, "dateTime": true,
+}
+
+// xsdCheckPrimitive valida text contra o tipo primitivo XSD primType. Tipos
+// sem formato restrito (string, ou desconhecido) sempre validam.
+func xsdCheckPrimitive(primType, text string) bool {
+	text = strings.TrimSpace(text)
+	switch primType {
+	case "integer", "int", "long", "short", "byte", "nonNegativeInteger",
+		"positiveInteger", "negativeInteger", "nonPositiveInteger",
+		"unsignedInt", "unsignedLong", "unsignedShort", "unsignedByte":
+		_, err := strconv.ParseInt(text, 10, 64)
+		return err == nil
+	case "decimal", "float", "double":
+		_, err := strconv.ParseFloat(text, 64)
+		return err == nil
+	case "boolean":
+		return text == "true" || text == "false" || text == "1" || text == "0"
+	case "date":
+		_, err := time.Parse("2006-01-02", text)
+		return err == nil
+	case "dateTime":
+		_, err := time.Parse(time.RFC3339, text)
+		return err == nil
+	default:
+		// "string" e qualquer tipo não reconhecido: sem checagem de formato.
+		return true
+	}
+}
+
+// localTypeName remove um eventual prefixo de namespace de um valor de
+// atributo type="xs:integer" / type="tns:PedidoType" -> "integer" /
+// "PedidoType".
+func localTypeName(typeAttr string) string {
+	if i := strings.LastIndex(typeAttr, ":"); i >= 0 {
+		return typeAttr[i+1:]
+	}
+	return typeAttr
+}
+
+// buildXsdNode resolve um <xs:element> (raw) para sua forma compilada,
+// resolvendo type="..." contra tipos primitivos conhecidos ou contra
+// complexTypeDefs (xs:complexType de topo, por nome). Elementos com type
+// desconhecido (não primitivo, não encontrado em complexTypeDefs) ou sem
+// type e sem complexType/simpleType inline ficam sem checagem (primType="",
+// children=nil) — documentado como gap, não é erro de parsing.
+func buildXsdNode(raw *xsdRawNode, complexTypeDefs map[string]*xsdRawNode) *xsdNode {
+	if typeAttr, ok := raw.attrs["type"]; ok {
+		local := localTypeName(typeAttr)
+		if xsdPrimitiveTypes[local] {
+			return &xsdNode{primType: local}
+		}
+		if ct, ok := complexTypeDefs[local]; ok {
+			return buildXsdComplexType(ct, complexTypeDefs)
+		}
+		// type referenciado não resolvido (ex.: tipo simples nomeado por
+		// restrição, ou complexType externo) — sem checagem, documentado.
+		return &xsdNode{}
+	}
+	// Sem atributo "type": procura complexType/simpleType inline.
+	if inline := raw.childrenNamed("complexType"); len(inline) > 0 {
+		return buildXsdComplexType(inline[0], complexTypeDefs)
+	}
+	if inline := raw.childrenNamed("simpleType"); len(inline) > 0 {
+		if restr := inline[0].childrenNamed("restriction"); len(restr) > 0 {
+			base := localTypeName(restr[0].attrs["base"])
+			if xsdPrimitiveTypes[base] {
+				return &xsdNode{primType: base}
+			}
+		}
+		return &xsdNode{}
+	}
+	// Nem type, nem complexType/simpleType inline: elemento vazio/xs:string
+	// implícito — sem checagem de valor específica.
+	return &xsdNode{}
+}
+
+// buildXsdComplexType resolve um <xs:complexType> (com <xs:sequence> de
+// <xs:element>) para a lista de filhos esperados. xs:choice/xs:all não são
+// suportados (documentado) — só xs:sequence é interpretado.
+func buildXsdComplexType(ct *xsdRawNode, complexTypeDefs map[string]*xsdRawNode) *xsdNode {
+	node := &xsdNode{}
+	seqs := ct.childrenNamed("sequence")
+	if len(seqs) == 0 {
+		return node
+	}
+	for _, elemRaw := range seqs[0].childrenNamed("element") {
+		name, ok := elemRaw.attrs["name"]
+		if !ok {
+			continue
+		}
+		minOccurs := 1
+		if mo, ok := elemRaw.attrs["minOccurs"]; ok {
+			if n, err := strconv.Atoi(strings.TrimSpace(mo)); err == nil {
+				minOccurs = n
+			}
+		}
+		node.children = append(node.children, &xsdChildRef{
+			name:      name,
+			minOccurs: minOccurs,
+			node:      buildXsdNode(elemRaw, complexTypeDefs),
+		})
+	}
+	return node
+}
+
+// xmlInstNode é a árvore genérica da instância XML sendo validada (cXML),
+// usada só pelo verificador de schema (independente da árvore de
+// advplrt.ObjectValue construída por XmlParser).
+type xmlInstNode struct {
+	name     string
+	text     string
+	children map[string][]*xmlInstNode
+}
+
+func parseXMLInstance(data []byte) (*xmlInstNode, error) {
+	dec := newXMLDecoder(strings.NewReader(string(data)))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		if start, ok := tok.(xml.StartElement); ok {
+			return parseXMLInstNode(dec, start)
+		}
+	}
+}
+
+func parseXMLInstNode(dec *xml.Decoder, start xml.StartElement) (*xmlInstNode, error) {
+	node := &xmlInstNode{name: start.Name.Local, children: map[string][]*xmlInstNode{}}
+	var textBuf strings.Builder
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			child, err := parseXMLInstNode(dec, t)
+			if err != nil {
+				return nil, err
+			}
+			node.children[child.name] = append(node.children[child.name], child)
+		case xml.CharData:
+			textBuf.Write(t)
+		case xml.EndElement:
+			node.text = strings.TrimSpace(textBuf.String())
+			return node, nil
+		}
+	}
+}
+
+// xsdValidateInstance checa recursivamente inst contra a forma esperada
+// node, devolvendo a lista de mensagens de erro encontradas (vazia = válido).
+// Mensagens seguem o formato usado pelo próprio exemplo da TDN
+// ("Element 'X': 'Y' is not a valid value of the atomic type 'xs:Z'.") —
+// úteis para depuração/log, ainda que não possam ser escritas em @cError
+// (ver limitação de parâmetros por referência).
+func xsdValidateInstance(node *xsdNode, inst *xmlInstNode) []string {
+	var errs []string
+	if node.primType != "" && !xsdCheckPrimitive(node.primType, inst.text) {
+		errs = append(errs, fmt.Sprintf(
+			"Element '%s': '%s' is not a valid value of the atomic type 'xs:%s'.",
+			inst.name, inst.text, node.primType))
+	}
+	for _, c := range node.children {
+		actual := inst.children[c.name]
+		if len(actual) < c.minOccurs {
+			errs = append(errs, fmt.Sprintf("Element '%s': missing required child '%s'.", inst.name, c.name))
+			continue
+		}
+		for _, actualChild := range actual {
+			errs = append(errs, xsdValidateInstance(c.node, actualChild)...)
+		}
+	}
+	return errs
+}
+
+// xsdCheckSchema é o entry point do verificador estrutural: interpreta xsdData
+// como um XSD (xsdRawNode -> mapa de xs:complexType de topo por nome ->
+// xs:element de topo cujo nome bate com a raiz de xmlData) e valida xmlData
+// contra ele. Quando o schema não usa a forma reconhecida (sem
+// xs:element de topo cujo nome bata com a raiz do XML, por exemplo), não há
+// como aplicar a checagem estrutural — devolve true (mesma postura de
+// "apenas bem-formado" da versão anterior desta função, documentada: um
+// schema fora do subconjunto reconhecido não reprova o XML só por isso).
+func xsdCheckSchema(xmlData, xsdData []byte) bool {
+	xsdRoot, err := parseXsdRaw(xsdData)
+	if err != nil || xsdRoot.localName != "schema" {
+		return true
+	}
+	inst, err := parseXMLInstance(xmlData)
+	if err != nil {
+		return true
+	}
+
+	complexTypeDefs := map[string]*xsdRawNode{}
+	for _, ct := range xsdRoot.childrenNamed("complexType") {
+		if name, ok := ct.attrs["name"]; ok {
+			complexTypeDefs[name] = ct
+		}
+	}
+
+	for _, elemRaw := range xsdRoot.childrenNamed("element") {
+		if elemRaw.attrs["name"] != inst.name {
+			continue
+		}
+		root := buildXsdNode(elemRaw, complexTypeDefs)
+		return len(xsdValidateInstance(root, inst)) == 0
+	}
+	// Nenhum <xs:element> de topo com o nome da raiz do XML: forma do
+	// schema não reconhecida por este verificador mínimo — sem checagem.
+	return true
 }
