@@ -150,9 +150,14 @@ func (v *VM) registerManipulacaodoblocodecodigoNatives(natives map[string]func(a
 			v.dbEngine.GoTop()
 		}
 
-		// Itera sobre os registros
+		// Itera sobre os registros (com limite de segurança para evitar loops infinitos)
 		processed := 0
-		for !v.dbEngine.EOF() {
+		maxSafeIterations := 100000 // proteção contra loops infinitos
+		safeIterations := 0
+
+		for !v.dbEngine.EOF() && safeIterations < maxSafeIterations {
+			safeIterations++
+
 			// Respeita nCount (limite máximo de registros)
 			if nCount > 0 && processed >= nCount {
 				break
