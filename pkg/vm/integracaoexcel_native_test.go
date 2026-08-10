@@ -8,25 +8,26 @@ import (
 )
 
 // createTestBytecodeWithFunction cria um bytecode com uma função simples para testes.
-// A função retorna o resultado da soma dos dois parâmetros (tipo de função simples).
-// Exemplo: u_ExcelSum(14, 6) retorna 20
+// A função implementa real addition: retorna valor1 + valor2.
+// Exemplo: u_ExcelSum(14, 6) retorna 20; u_ExcelSum(5, 3) retorna 8
 func createTestBytecodeWithFunction() *compiler.Bytecode {
 	bc := &compiler.Bytecode{
-		Constants: []compiler.Constant{
-			// Constante 0: número 20 (resultado da soma 14+6)
-			{Type: "number", Num: 20},
-		},
+		Constants: []compiler.Constant{}, // Nenhuma constante necessária para addition
 		Functions: make(map[string]*compiler.FunctionInfo),
 		Code:      []compiler.Instruction{},
 	}
 
-	// Cria uma função simples u_ExcelSum que retorna 20
-	// Bytecode: [OP_NUMBER(0), OP_RETURN_VALUE]
-	// OP_NUMBER 0 → coloca constante[0] (20) na stack
-	// OP_RETURN_VALUE → retorna o topo da stack
+	// Cria uma função que implementa real addition: resultado = valor1 + valor2
+	// Bytecode:
+	//   OP_LOAD_LOCAL 0  → push local[0] (valor1)
+	//   OP_LOAD_LOCAL 1  → push local[1] (valor2)
+	//   OP_ADD           → pop valor2, pop valor1, push (valor1 + valor2)
+	//   OP_RETURN_VALUE  → retorna o topo da stack
 	bc.Code = []compiler.Instruction{
-		{Op: compiler.OP_NUMBER, Arg: 0, Line: 1}, // push 20 (constante 0)
-		{Op: compiler.OP_RETURN_VALUE, Line: 2},   // retorna o valor na stack
+		{Op: compiler.OP_LOAD_LOCAL, Arg: 0, Line: 1}, // push valor1 (local[0])
+		{Op: compiler.OP_LOAD_LOCAL, Arg: 1, Line: 2}, // push valor2 (local[1])
+		{Op: compiler.OP_ADD, Line: 3},                 // pop valor2, pop valor1, push (valor1+valor2)
+		{Op: compiler.OP_RETURN_VALUE, Line: 4},       // retorna o resultado na stack
 	}
 
 	// Registra a função no map de funções
@@ -161,9 +162,10 @@ func TestSIGAUserFunction(t *testing.T) {
 			},
 			wantErr: false,
 			checkType: func(val advplrt.Value) bool {
-				// Deve encontrar mesmo sem o prefixo U_
+				// Deve encontrar mesmo com prefixo U_ e executar a adição corretamente
+				// 5 + 3 = 8
 				n, ok := val.(*advplrt.NumberValue)
-				return ok && n.Val == 20
+				return ok && n.Val == 8
 			},
 		},
 	}
@@ -174,7 +176,7 @@ func TestSIGAUserFunction(t *testing.T) {
 			t.Errorf("SIGA(%s) erro = %v, wantErr %v", c.name, err, c.wantErr)
 		}
 		if err == nil && !c.checkType(got) {
-			t.Errorf("SIGA(%s) retornou valor incorreto: %v (esperava 20)", c.name, got)
+			t.Errorf("SIGA(%s) retornou valor incorreto: %v", c.name, got)
 		}
 	}
 }
