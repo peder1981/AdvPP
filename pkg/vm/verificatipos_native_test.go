@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/advpl/compiler/pkg/compiler"
+	"github.com/advpl/compiler/pkg/db"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
@@ -118,5 +119,107 @@ func TestTypeEmptyString(t *testing.T) {
 	}
 	if result.(*advplrt.StringValue).Val != "U" {
 		t.Errorf("TYPE('') = %q, quer %q (Undefined)", result.(*advplrt.StringValue).Val, "U")
+	}
+}
+
+// TestTypePublicVariableWithAliasOpen tests TYPE() for PRIVATE/PUBLIC variables
+// when a database alias is open (regression test for field-priority lookup).
+// This ensures TYPE("myvar") returns the correct type even if an alias is open,
+// and doesn't silently fail by checking a non-existent field.
+func TestTypePublicVariableWithAliasOpen(t *testing.T) {
+	tmpDir := t.TempDir()
+	eng, err := db.NewSQLiteEngine(tmpDir + "/type_test.db")
+	if err != nil {
+		t.Fatalf("NewSQLiteEngine: %v", err)
+	}
+	defer eng.Close()
+
+	// Create a test table with specific columns
+	if err := eng.Exec(`CREATE TABLE UNI (
+		R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT,
+		D_E_L_E_T_ TEXT DEFAULT ' ',
+		UNI_CODIGO TEXT,
+		FILIAL TEXT
+	)`); err != nil {
+		t.Fatalf("create UNI: %v", err)
+	}
+
+	if err := eng.Exec("INSERT INTO UNI (UNI_CODIGO, FILIAL) VALUES ('101', '010101')"); err != nil {
+		t.Fatalf("insert row: %v", err)
+	}
+
+	v := NewVM(&compiler.Bytecode{}, false)
+	v.SetDBEngine(eng)
+
+	// Select the alias to open it
+	if err := eng.SelectArea("UNI"); err != nil {
+		t.Fatalf("SelectArea: %v", err)
+	}
+	v.currentAlias = "UNI"
+
+	// Set a PRIVATE/PUBLIC variable with a name that is NOT a column in UNI
+	// (existing columns are: R_E_C_N_O_, D_E_L_E_T_, UNI_CODIGO, FILIAL)
+	v.dynEnv["myPublicVar"] = advplrt.NewString("test_value")
+
+	// TYPE("myPublicVar") should return "C" (character), not "U" (undefined)
+	// This would fail with the old implementation which returned "U" because
+	// FieldGet always returns nil error even for non-existent fields.
+	result, err := v.natives["TYPE"].Fn([]advplrt.Value{advplrt.NewString("myPublicVar")})
+	if err != nil {
+		t.Fatalf("TYPE retornou erro: %v", err)
+	}
+	if result.(*advplrt.StringValue).Val != "C" {
+		t.Errorf("TYPE('myPublicVar') com alias aberto = %q, quer %q (Caractere)\n"+
+			"BUG: FieldPos/FieldGet não detectaram que 'myPublicVar' não é um campo,\n"+
+			"então caiu na verificação de dynEnv e retornou o tipo correto.",
+			result.(*advplrt.StringValue).Val, "C")
+	}
+}
+
+// TestTypeFieldShadowsVariable tests that TYPE() returns the field's type
+// when both a field and a variable have the same name (field takes priority).
+func TestTypeFieldShadowsVariable(t *testing.T) {
+	tmpDir := t.TempDir()
+	eng, err := db.NewSQLiteEngine(tmpDir + "/type_shadow_test.db")
+	if err != nil {
+		t.Fatalf("NewSQLiteEngine: %v", err)
+	}
+	defer eng.Close()
+
+	// Create a test table
+	if err := eng.Exec(`CREATE TABLE TEST (
+		R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT,
+		D_E_L_E_T_ TEXT DEFAULT ' ',
+		TEST_FIELD TEXT
+	)`); err != nil {
+		t.Fatalf("create TEST: %v", err)
+	}
+
+	if err := eng.Exec("INSERT INTO TEST (TEST_FIELD) VALUES ('field_value')"); err != nil {
+		t.Fatalf("insert row: %v", err)
+	}
+
+	v := NewVM(&compiler.Bytecode{}, false)
+	v.SetDBEngine(eng)
+
+	// Select the alias
+	if err := eng.SelectArea("TEST"); err != nil {
+		t.Fatalf("SelectArea: %v", err)
+	}
+	v.currentAlias = "TEST"
+
+	// Set a PRIVATE/PUBLIC variable with the SAME name as a field
+	// The field is TEST_FIELD (character), the variable is numeric
+	v.dynEnv["TEST_FIELD"] = advplrt.NewNumber(999)
+
+	// TYPE("TEST_FIELD") should return "C" (character from field),
+	// NOT "N" (numeric from variable), because fields shadow variables
+	result, err := v.natives["TYPE"].Fn([]advplrt.Value{advplrt.NewString("TEST_FIELD")})
+	if err != nil {
+		t.Fatalf("TYPE retornou erro: %v", err)
+	}
+	if result.(*advplrt.StringValue).Val != "C" {
+		t.Errorf("TYPE('TEST_FIELD') com field e variable de mesmo nome = %q, quer %q (Caractere do field, não N do variable)\n"+
+			"Field deve shadowing a variable.", result.(*advplrt.StringValue).Val, "C")
 	}
 }
