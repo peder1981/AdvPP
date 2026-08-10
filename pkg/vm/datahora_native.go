@@ -7,6 +7,29 @@ import (
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
+// localStdOffset retorna o offset solar (standard time) do fuso local, em
+// segundos, ignorando regras históricas de horário de verão. É a base que o
+// TDN espera para LocalToUTC/UTCToLocal: a zona do SO tratada como offset
+// fixo e o DST aplicado manualmente via parâmetro nDST.
+func localStdOffset() int {
+	_, oJan := time.Date(2000, 1, 1, 12, 0, 0, 0, time.Local).Zone()
+	_, oJul := time.Date(2000, 7, 1, 12, 0, 0, 0, time.Local).Zone()
+	if oJul < oJan {
+		return oJul
+	}
+	return oJan
+}
+
+// setArrIndex grava o valor na posição de array (0-based) informada,
+// crescendo o array com Nil se necessário — semântica do TDN de "posição 1
+// será data e posição 2 a hora" (o array é passado por referência).
+func setArrIndex(a *advplrt.ArrayValue, idx int, v advplrt.Value) {
+	for len(a.Elements) <= idx {
+		a.Elements = append(a.Elements, advplrt.Nil)
+	}
+	a.Elements[idx] = v
+}
+
 // registerManipulacaodeDataHoraNatives registra funções de manipulação de
 // data e hora: DateTimeUTC, GetTimeStamp, LocalToUTC, timecounter, TimeFull,
 // UnixMS2DT, UTCToLocal.
@@ -21,11 +44,9 @@ func (v *VM) registerManipulacaodeDataHoraNatives(natives map[string]func(args [
 		if len(args) > 0 {
 			if aDate, ok := getArg(args, 0).(*advplrt.ArrayValue); ok && aDate != nil {
 				// Posição 1: data em YYYYMMDD
-				dateStr := now.Format("20060102")
-				aDate.Elements = append(aDate.Elements, advplrt.NewString(dateStr))
+				setArrIndex(aDate, 0, advplrt.NewString(now.Format("20060102")))
 				// Posição 2: hora em HH:MM:SS
-				timeStr := now.Format("15:04:05")
-				aDate.Elements = append(aDate.Elements, advplrt.NewString(timeStr))
+				setArrIndex(aDate, 1, advplrt.NewString(now.Format("15:04:05")))
 			}
 		}
 
@@ -52,11 +73,9 @@ func (v *VM) registerManipulacaodeDataHoraNatives(natives map[string]func(args [
 		if len(args) > 1 {
 			if aDate, ok := getArg(args, 1).(*advplrt.ArrayValue); ok && aDate != nil {
 				// Posição 1: data em YYYYMMDD
-				dateStr := t.Format("20060102")
-				aDate.Elements = append(aDate.Elements, advplrt.NewString(dateStr))
+				setArrIndex(aDate, 0, advplrt.NewString(t.Format("20060102")))
 				// Posição 2: hora em HH:MM:SS.fff
-				timeStr := t.Format("15:04:05.000")
-				aDate.Elements = append(aDate.Elements, advplrt.NewString(timeStr))
+				setArrIndex(aDate, 1, advplrt.NewString(t.Format("15:04:05.000")))
 			}
 		}
 
@@ -69,8 +88,10 @@ func (v *VM) registerManipulacaodeDataHoraNatives(natives map[string]func(args [
 		cTime := advplrt.ToString(getArg(args, 1))
 		nDST := int(advplrt.ToFloat(getArg(args, 2)))
 
-		// Parser data: YYYYMMDD
-		t, err := time.ParseInLocation("20060102 15:04:05", cDate+" "+cTime, time.Local)
+		// Interpreta a data/hora no offset solar (standard time) fixo do fuso
+		// local — NÃO em time.Local com regras históricas de DST, pois o TDN
+		// define que o DST é aplicado exclusivamente via parâmetro nDST.
+		t, err := time.ParseInLocation("20060102 15:04:05", cDate+" "+cTime, time.FixedZone("Local", localStdOffset()))
 		if err != nil {
 			// Return array with empty/nil on parse error
 			return advplrt.NewArray([]advplrt.Value{
@@ -96,11 +117,14 @@ func (v *VM) registerManipulacaodeDataHoraNatives(natives map[string]func(args [
 	}
 
 	// timecounter() -> nRet — retorna contador de tempo em milissegundos (monotônico)
-	// Usar time.Now().UnixNano() / 1e6 para obter milissegundos desde epoch
+	// TDN: "O valor retornado não representa um horário absoluto, devendo ser
+	// utilizado apenas para comparação entre duas chamadas da função." Usa o
+	// relógio monotônico do Go a partir de uma referência capturada no registro.
+	timecounterBase := time.Now()
 	natives["TIMECOUNTER"] = func(args []advplrt.Value) (advplrt.Value, error) {
-		nanoTime := time.Now().UnixNano()
-		// Converter nanosegundos para milissegundos
-		milliseconds := float64(nanoTime) / 1e6
+		elapsed := time.Since(timecounterBase)
+		// Converter para milissegundos
+		milliseconds := float64(elapsed) / float64(time.Millisecond)
 		return advplrt.NewNumber(milliseconds), nil
 	}
 
@@ -144,8 +168,10 @@ func (v *VM) registerManipulacaodeDataHoraNatives(natives map[string]func(args [
 			}), nil
 		}
 
-		// Converter para local time
-		local := t.In(time.Local)
+		// Converter para o offset solar (standard time) fixo do fuso local —
+		// não para time.Local com DST histórico, pois o TDN aplica o DST
+		// exclusivamente via parâmetro nDST.
+		local := t.In(time.FixedZone("Local", localStdOffset()))
 
 		// Se nDST == 1, adicionar 1 hora para representar DST
 		if nDST == 1 {
