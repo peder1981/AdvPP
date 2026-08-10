@@ -14,7 +14,11 @@ mecanismo para uma native mutar diretamente uma variável do chamador
 passada com `@`. Descoberto na Task 5 (`IPCWaitEx`, que segundo o TDN
 recupera dados via parâmetros por referência).
 
-Funções afetadas até agora: `IPCWaitEx` (pkg/vm/execucaoprocessos_native.go).
+Funções afetadas até agora: `IPCWaitEx` (pkg/vm/execucaoprocessos_native.go);
+`SFTPDirLs`, `SFTPDwld1`, `SFTPDwld2`, `SFTPUpld1`, `SFTPUpld2`
+(pkg/vm/sftp_native.go) — o parâmetro final `@sError`/`@cError` de todas as cinco
+não é populado; o valor de retorno principal (array/código de status) permanece
+correto e é a forma suportada de checar sucesso/falha.
 
 Se uma task futura encontrar uma função cujo comportamento central depende
 de mutar `@var`, documente o gap da mesma forma (comentário explicando
