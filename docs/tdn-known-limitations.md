@@ -20,7 +20,11 @@ populados com os valores armazenados; o valor de retorno (.T./.F.) permanece cor
 e é a forma suportada de checar sucesso/falha; `SFTPDirLs`, `SFTPDwld1`, `SFTPDwld2`,
 `SFTPUpld1`, `SFTPUpld2` (pkg/vm/sftp_native.go) — o parâmetro final `@sError`/`@cError`
 de todas as cinco não é populado; o valor de retorno principal (array/código de status)
-permanece correto e é a forma suportada de checar sucesso/falha.
+permanece correto e é a forma suportada de checar sucesso/falha; `GetFuncArray`
+(pkg/vm/rpo_native.go, Task 17) — os parâmetros opcionais `@aTipo`/`@aArquivo`/
+`@aLinha`/`@aData`/`@aHora` não são populados; o retorno principal `aScr` (array
+de nomes de função que casam com a máscara, derivado de `v.bc.Functions` +
+`v.natives`) permanece correto e é a forma suportada de usar a função.
 
 `SFTPDirLs`/`SFTPDwld1`/`SFTPDwld2`/`SFTPUpld1`/`SFTPUpld2` também documentam, no
 código (`pkg/vm/sftp_native.go`), um trade-off de segurança deliberado: a
@@ -61,3 +65,54 @@ preciso: (1) adicionar dependência Go (ex: `github.com/go-ldap/ldap`),
 que testes automatizados não podem validar a autenticação real de forma
 portável. Portanto, a implementação atual (fail-closed, retorna .F.) é
 apropriada para um compilador standalone.
+
+## Ausência de índice físico de RPO (`ChkRpoChg`, `GetDependency`, `GetRpoLog`, `GetSrcArray`)
+
+O Protheus real compila fontes AdvPL para um RPO binário próprio (formato
+proprietário TOTVS, "Repositório de Programas Objeto"), que retém em disco
+um índice físico com: fonte de origem e linha de cada função, patches
+(.upd/.pak/.ptm) aplicados em sequência com data/build de cada um, e um
+`SourcePath` configurável em `totvsappserver.ini` que pode ser trocado em
+tempo de execução do TOTVS Application Server.
+
+AdvPP compila para o seu próprio bytecode Go (`pkg/compiler.Bytecode`), que
+não é um arquivo/container persistente análogo ao RPO: `FunctionInfo`
+(`pkg/compiler/opcodes.go`) não guarda o nome do arquivo-fonte de origem
+nem a lista de chamadas de primeiro nível de cada função, não existe
+estrutura de "patch aplicado" em lugar nenhum do compilador/VM, e o
+bytecode carregado no início do processo é o único que existe durante toda
+a vida do processo (não há recarga a partir de um `SourcePath`
+configurável).
+
+**Comportamento em AdvPP** (Task 17, `pkg/vm/rpo_native.go`):
+- `ChkRpoChg()` sempre retorna `.T.` — como não existe mecanismo de recarga
+  de config/SourcePath em tempo de execução, "nenhuma mudança detectada" é
+  a resposta real e honesta, não uma simulação.
+- `GetDependency(sFonte)` valida o argumento (`sFonte` não pode ser vazio)
+  e sempre devolve array vazio — não há grafo de chamadas por arquivo
+  retido no bytecode; reconstruí-lo exigiria reanalisar o AST do parser
+  por fonte, fora do escopo desta task.
+- `GetRpoLog([nRPO])` valida `nRPO` (aceita 1 = Padrão ou 3 = Custom,
+  conforme TDN) e sempre devolve `{{"", <data vazia>}, 0}` — versão/data de
+  RPO vazias e contagem de patches 0, que é verdadeiro dentro da
+  arquitetura AdvPP (não existe sistema de patches, logo a contagem real é
+  sempre zero).
+- `GetSrcArray(cNome, [nRPO])` valida os argumentos (`cNome` não pode ser
+  vazio; `nRPO` quando informado deve ser 1/2/3 conforme TDN) e sempre
+  devolve array vazio — não há índice de nomes de arquivo-fonte compilados
+  para consultar.
+
+Nenhuma das quatro tenta simular o formato binário do RPO real ou inventar
+dados de patch/dependência que não existem. `GetFuncArray`, em contraste,
+tem equivalente real em AdvPP porque não depende de um índice físico: o
+conjunto de funções conhecidas pelo VM em execução (`v.bc.Functions` +
+`v.natives`) é a fonte da verdade real do compilador para "funções
+compiladas no repositório em uso", então essa função foi implementada com
+lógica real (ver seção de parâmetros por referência acima para a
+limitação dos parâmetros `@`). `GetAPOInfo`, `GetApoRes` e `RetImgType`
+também não se enquadram aqui: operam sobre um único arquivo nomeado por
+parâmetro, e AdvPP lê esse arquivo real do disco quando ele existe —
+comportamento real, não simulado.
+
+**Afetadas:** `ChkRpoChg`, `GetDependency`, `GetRpoLog`, `GetSrcArray`
+(pkg/vm/rpo_native.go, Task 17).
