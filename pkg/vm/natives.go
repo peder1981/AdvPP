@@ -454,13 +454,6 @@ func (v *VM) registerNatives() {
 			}
 			return advplrt.NewBool(unicode.IsUpper(rune(s[0]))), nil
 		},
-		"EMPTY": func(args []advplrt.Value) (advplrt.Value, error) {
-			val := getArg(args, 0)
-			if advplrt.IsNil(val) {
-				return advplrt.True, nil
-			}
-			return advplrt.NewBool(!val.IsTruthy()), nil
-		},
 		"SPACE": func(args []advplrt.Value) (advplrt.Value, error) {
 			n := int(advplrt.ToFloat(getArg(args, 0)))
 			return advplrt.NewString(strings.Repeat(" ", n)), nil
@@ -661,15 +654,6 @@ func (v *VM) registerNatives() {
 				max = 100
 			}
 			return advplrt.NewNumber(float64(rand.Intn(max) + 1)), nil
-		},
-		"SIGN": func(args []advplrt.Value) (advplrt.Value, error) {
-			val := advplrt.ToFloat(getArg(args, 0))
-			if val > 0 {
-				return advplrt.NewNumber(1), nil
-			} else if val < 0 {
-				return advplrt.NewNumber(-1), nil
-			}
-			return advplrt.NewNumber(0), nil
 		},
 		"POWER": func(args []advplrt.Value) (advplrt.Value, error) {
 			base := advplrt.ToFloat(getArg(args, 0))
@@ -922,25 +906,7 @@ func (v *VM) registerNatives() {
 			return a, nil
 		},
 		// AEval(aArray, bBlock, [nStart], [nCount]): aplica bBlock(elem, i) a cada.
-		"AEVAL": func(args []advplrt.Value) (advplrt.Value, error) {
-			a, ok := getArg(args, 0).(*advplrt.ArrayValue)
-			if !ok {
-				return getArg(args, 0), nil
-			}
-			cb, ok := getArg(args, 1).(*advplrt.CodeBlockValue)
-			if !ok {
-				return a, nil
-			}
-			n := len(a.Elements)
-			start, count := subRange(args, 2, 3, n)
-			for i := start; i <= start+count-1; i++ {
-				if _, err := v.callBlockSync(cb, a.Elements[i-1], advplrt.NewNumber(float64(i))); err != nil {
-					return advplrt.Nil, err
-				}
-			}
-			return a, nil
-		},
-
+		// AEVAL registrado em blococodigo_native.go (registerManipulacaodoblocodecodigoNatives).
 		// --- Logic / Type ---
 		"IIF": func(args []advplrt.Value) (advplrt.Value, error) {
 			if len(args) < 3 {
