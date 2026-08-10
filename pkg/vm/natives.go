@@ -1938,6 +1938,7 @@ func (v *VM) registerNatives() {
 	v.registerManipulacaodememoriaNatives(natives)
 	v.registerManipulacaodevariaveisglobaisNatives(natives)
 	v.registerManipulacaodevariaveisnumericasNatives(natives)
+	v.registerManipulacaodeDataHoraNatives(natives)
 	v.registerManipulacaodeclasseNatives(natives)
 	v.registerManipulacaodematrizNatives(natives)
 	v.registerManipulacaodeRPONatives(natives)
