@@ -459,11 +459,64 @@ func (v *VM) registerAmbienteNatives(natives map[string]func(args []advplrt.Valu
 		}
 		return advplrt.Nil, nil
 	}
+
+	// =========================================================================
+	// CmpBuildStr(cLeft, cRight) -> nEq
+	//   Compara duas strings em formato nnn.nnn.nnn.nnn considerando os 4
+	//   primeiros blocos numéricos. Retorna 0 (iguais), 1 (cLeft maior) ou
+	//   -1 (cLeft menor). Blocos ausentes/não numéricos valem 0 (spec).
+	// =========================================================================
+	natives["CMPBUILDSTR"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		a := parseBuildBlocks(getArgString(args, 0, ""))
+		b := parseBuildBlocks(getArgString(args, 1, ""))
+		for i := 0; i < 4; i++ {
+			if a[i] < b[i] {
+				return advplrt.NewNumber(-1), nil
+			}
+			if a[i] > b[i] {
+				return advplrt.NewNumber(1), nil
+			}
+		}
+		return advplrt.NewNumber(0), nil
+	}
+
+	// =========================================================================
+	// GetBuild([lType]) -> cBuild
+	//   String com informações da build em uso. lType=.T. indica SmartClient
+	//   (.T.) ou Application Server (.F., padrão). O AdvPP não roda
+	//   SmartClient real; devolve a versão do runtime (placeholder
+	//   documentado, igual a GetRmtVersion).
+	// =========================================================================
+	natives["GETBUILD"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		return advplrt.NewString(advppVersion), nil
+	}
+
+	// =========================================================================
+	// GetEndPoint([@bBroker]) -> cEndPoint
+	//   Retorna o endpoint e porta conectada (IP ou hostname) usado pelo
+	//   SmartClient. O AdvPP não mantém conexão de SmartClient, portanto
+	//   devolve ""; @bBroker (por referência) não é gravável neste VM
+	//   (mesma regra documentada de DBRecordInfo/DBSqlPlan).
+	// =========================================================================
+	natives["GETENDPOINT"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		return advplrt.NewString(""), nil
+	}
 }
 
 // advppVersion é o placeholder devolvido por GetRmtVersion (a VM não roda um
 // SmartClient real; a versão informada é a do runtime AdvPP).
 const advppVersion = "17.2.0.1"
+
+// parseBuildBlocks converte uma string de build (nnn.nnn.nnn.nnn) nos 4
+// primeiros blocos numéricos; blocos ausentes ou não numéricos valem 0.
+func parseBuildBlocks(s string) [4]int {
+	var out [4]int
+	parts := strings.Split(s, ".")
+	for i := 0; i < 4 && i < len(parts); i++ {
+		out[i], _ = strconv.Atoi(strings.TrimSpace(parts[i]))
+	}
+	return out
+}
 
 // --- Helpers de host/SO ---
 

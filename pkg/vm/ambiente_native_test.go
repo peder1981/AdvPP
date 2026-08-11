@@ -345,3 +345,68 @@ func TestGetTempPathWithArgs(t *testing.T) {
 		t.Errorf("GETTEMPPATH(.T.,.T.) retornou vazio")
 	}
 }
+
+// TestCmpBuildStr testa a comparação de builds em nnn.nnn.nnn.nnn.
+func TestCmpBuildStr(t *testing.T) {
+	natives := newAmbienteTestVM(t)
+	cases := []struct {
+		left, right string
+		want        float64
+	}{
+		{"17.2.0.1", "17.2.0.1", 0},
+		{"17.2.0.1", "20.3.0.0", -1},
+		{"24.3.1.0", "17.2.0.1", 1},
+		{"17.2", "17.2.0.0", 0},    // blocos ausentes = 0
+		{"17.2.0", "17.2.0.1", -1}, // 4º bloco ausente = 0 < 1
+		{"25.0.0.0", "24.9.9.9", 1},
+		{"17.2.0.1", "17.3.0.0", -1}, // 2º bloco decide
+	}
+	for _, c := range cases {
+		got, err := natives["CMPBUILDSTR"]([]advplrt.Value{
+			advplrt.NewString(c.left), advplrt.NewString(c.right),
+		})
+		if err != nil {
+			t.Fatalf("CmpBuildStr(%s,%s) erro: %v", c.left, c.right, err)
+		}
+		if advplrt.ToFloat(got) != c.want {
+			t.Errorf("CmpBuildStr(%s,%s)=%v, esperado %v", c.left, c.right, advplrt.ToFloat(got), c.want)
+		}
+	}
+	// Bloco não numérico vale 0 (build "abc.1.2.3" == "0.1.2.3")
+	got, err := natives["CMPBUILDSTR"]([]advplrt.Value{
+		advplrt.NewString("abc.1.2.3"), advplrt.NewString("0.1.2.3"),
+	})
+	if err != nil || advplrt.ToFloat(got) != 0 {
+		t.Errorf("CmpBuildStr(abc.1.2.3, 0.1.2.3)=%v err=%v, esperado 0", got, err)
+	}
+}
+
+// TestGetBuildEGetEndPoint testa GetBuild (placeholder de versão) e
+// GetEndPoint ("" — sem conexão de SmartClient).
+func TestGetBuildEGetEndPoint(t *testing.T) {
+	natives := newAmbienteTestVM(t)
+
+	got, err := natives["GETBUILD"](nil)
+	if err != nil {
+		t.Fatalf("GETBUILD erro: %v", err)
+	}
+	if advplrt.ToString(got) == "" {
+		t.Errorf("GETBUILD retornou vazio")
+	}
+	// lType=.T. (SmartClient) também devolve a versão do runtime
+	got, err = natives["GETBUILD"]([]advplrt.Value{advplrt.True})
+	if err != nil {
+		t.Fatalf("GETBUILD(.T.) erro: %v", err)
+	}
+	if advplrt.ToString(got) == "" {
+		t.Errorf("GETBUILD(.T.) retornou vazio")
+	}
+
+	got, err = natives["GETENDPOINT"](nil)
+	if err != nil {
+		t.Fatalf("GETENDPOINT erro: %v", err)
+	}
+	if advplrt.ToString(got) != "" {
+		t.Errorf("GETENDPOINT()=%q, esperado \"\" (sem SmartClient)", advplrt.ToString(got))
+	}
+}
