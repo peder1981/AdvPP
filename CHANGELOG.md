@@ -2,6 +2,48 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [3.0.0] — 2026-08-11
+
+### Adicionado — 41 novas natives AdvPL da documentação TDN
+
+Cruzamento do mirror `~/tdn-advpl-mirror` (Functions) contra o runtime:
+a partir desta versão, 729 natives registradas, cobrindo Banco de Dados,
+Ambiente e Segurança/Criptografia. A lista completa de pendências restantes
+(168 funções TDN ainda sem native) está em `docs/tdn-pendencias.md`.
+
+**Banco de Dados — tabela (14):** `DBChangeAlias`, `DBClearAllFilter`,
+`DBClearIndex`, `DBCloseAll`, `DBCommitAll`, `DBCreate`, `DBFieldInfo`,
+`DBFilter`, `DBFilterCB`, `DBGetActFld`, `DBGoTo`, `DBInInsert`, `DBInfo`,
+`GetDBExtension`.
+
+**Banco de Dados — campo/estado (8):** `Field`, `FieldBlock`, `FieldWBlock`,
+`Found`, `Header`, `LastRec`, `NetErr`, `RecSize`.
+
+**Banco de Dados — índice/RDD/lock (15):** `IndexKey`, `IndexOrd`,
+`OrdBagName`, `OrdCreate`, `OrdDescend`, `OrdKey`, `OrdListAdd`, `OrdName`,
+`OrdNumber`, `OrdSetFocus`, `RDDName`, `RDDSetDefault`, `RealRDD`, `FLock`,
+`RLock`.
+
+**Ambiente — funções genéricas (3):** `CmpBuildStr`, `GetBuild`, `GetEndPoint`.
+
+**Segurança/Criptografia (1):** `SMIMESign`.
+
+### Notas de comportamento (validadas na revisão de código)
+
+- **`DBCreate`** valida nomes de tabela/campo contra o identificador AdvPL
+  antes de interpolar no `CREATE TABLE` (vetor de injeção DDL fechado).
+- **`OrdKey`** aceita argumento numérico como posição do índice (1-based),
+  conforme a especificação TDN.
+- **`RDDSetDefault`** retorna a RDD **anterior** quando a padrão é alterada
+  (contrato TDN); com alias vazio, o driver é só anunciado.
+- **`SMIMESign`** assina com certificado X.509 + chave RSA reais
+  (path/PEM) usando RSA/SHA-256 PKCS#1 v1.5 e devolve a assinatura em
+  Base64 no formato pseudo-PKCS7 — implementar o envelope CMS/PKCS#7 real
+  ficou fora do escopo desta versão (documentado no report da Task 34).
+- Motor SQLite: `DBFilter`/`DBClearAllFilter` mantêm o filtro como estado
+  do VM (não há filtro físico) e `DBFieldInfo` aproxima tipos/tamanhos
+  (TEXT/INTEGER); divergências documentadas nos reports das Tasks 33a–33c.
+
 ## [2.0.22] — 2026-08-09
 
 ### Adicionado
