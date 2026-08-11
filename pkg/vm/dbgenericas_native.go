@@ -30,7 +30,9 @@ package vm
 //   - Filtros (DBFilter/DBFilterCB/DBClearAllFilter): o SQLiteEngine NÃO tem
 //     filtro e os stubs DBSETFILTER/DBCLEARFILTER em natives.go são no-ops.
 //     O filtro é mantido como estado do VM (mapa alias -> expressão),
-//     populado por DBFilter (registro implícito) e consultado por DBFilter.
+//     populado/consultado apenas pelas natives deste arquivo (não há API
+//     AdvPL que grave no estado; DBFilter() devolve "" e DBFilterCB() NIL em
+//     uso real — limitação documentada no report da Task 33a).
 //     DBSETFILTER não grava neste estado (fica no natives.go, sem alteração).
 //   - DBGoTo usa GoTo(nRec) do engine (extensão opcional da DBEngine, type
 //     asserted); DBInInsert usa InInsert()/SetInserting() do engine (Append
@@ -844,6 +846,11 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 		s.physTable = make(map[string]string)
 		s.filters = make(map[string]string)
 		s.filterCBs = make(map[string]advplrt.Value)
+		s.fileLocks = make(map[string]bool)
+		s.lastFound = make(map[string]bool)
+		s.rdds = make(map[string]string)
+		s.keyExprs = make(map[string]map[string]string)
+		s.netErr = false
 		s.mu.Unlock()
 		v.currentAlias = ""
 		if v.dbEngine != nil {
@@ -901,7 +908,9 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 			fType := strings.ToUpper(strings.TrimSpace(advplrt.ToString(fieldArr.Elements[1])))
 			fLen := int(advplrt.ToFloat(fieldArr.Elements[2]))
 			fDec := int(advplrt.ToFloat(fieldArr.Elements[3]))
-			if fName == "" {
+			// Nome do campo validado como identificador (evita injeção no DDL);
+			// a tabela também passa por identRe.
+			if fName == "" || !identRe.MatchString(fName) {
 				valid = false
 				break
 			}
@@ -1391,15 +1400,25 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 
 	// =========================================================================
 	// OrdKey(cOrdem, [nPosicao], [cArqIndice]) -> cExpr
-	//   Retorna a expressão da chave da ordem nomeada. Grava por OrdCreate;
-	//   ordens sem expressão registrada => "" (spec).
+	//   Retorna a expressão da chave da ordem. A função verifica
+	//   automaticamente se o primeiro parâmetro é numérico (posição 1-based
+	//   na lista de ordens) ou carácter (nome da ordem) — spec. Grava por
+	//   OrdCreate; ordens sem expressão registrada => "" (spec).
 	// =========================================================================
 	natives["ORDKEY"] = func(args []advplrt.Value) (advplrt.Value, error) {
-		cOrdem := strings.ToUpper(getArgString(args, 0, ""))
 		s := v.dbGenStateFor()
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		alias := v.dbGenAlias()
+		a0 := getArg(args, 0)
+		if _, isNum := a0.(*advplrt.NumberValue); isNum {
+			name, ok := v.dbGenOrderNameAt(s, alias, int(advplrt.ToFloat(a0)))
+			if !ok {
+				return advplrt.NewString(""), nil
+			}
+			return advplrt.NewString(s.keyExprs[alias][name]), nil
+		}
+		cOrdem := strings.ToUpper(getArgString(args, 0, ""))
 		return advplrt.NewString(s.keyExprs[alias][cOrdem]), nil
 	}
 
@@ -1516,7 +1535,9 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 	// =========================================================================
 	// RDDSetDefault([cRDD]) -> cRet
 	//   Retorna a RDD padrão da sessão, podendo alterá-la (mesmo estado de
-	//   DBSetDriver). cRDD inválido não altera. Valor padrão: DBFCDX.
+	//   DBSetDriver). Quando alterada, retorna o valor da RDD padrão
+	//   ANTERIOR (spec); cRDD inválido/vazio/Nil não altera e retorna a
+	//   atual. Valor padrão: DBFCDX.
 	// =========================================================================
 	natives["RDDSETDEFAULT"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		s := v.dbGenStateFor()
@@ -1528,7 +1549,9 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		if cRDD != "" && validRDD(cRDD) {
+			prev := s.defaultRDD
 			s.defaultRDD = cRDD
+			return advplrt.NewString(prev), nil
 		}
 		return advplrt.NewString(s.defaultRDD), nil
 	}
