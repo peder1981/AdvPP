@@ -500,6 +500,46 @@ func (e *SQLiteEngine) Exec(query string, args ...any) error {
 	return err
 }
 
+// QueryRowsOrdered executa SQL direto e devolve as colunas NA ORDEM REAL
+// retornada pelo SGBD (rows.Columns()) junto com as linhas como mapas
+// coluna→string (chaves em maiúsculas) — extensão da vm.SQLEngine usada
+// pelas funções DB DBAccess (TCSqlToArr/TCGenQry/TCSqlPlan), que precisam
+// preservar a ordem das colunas do SELECT no array de retorno. O QueryRows
+// clássico devolve apenas mapas, perdendo a ordem das colunas.
+func (e *SQLiteEngine) QueryRowsOrdered(query string, args ...any) ([]string, []map[string]string, error) {
+	rows, err := e.db.Query(query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, nil, err
+	}
+	result := []map[string]string{}
+	for rows.Next() {
+		values := make([]interface{}, len(columns))
+		ptrs := make([]interface{}, len(columns))
+		for i := range columns {
+			ptrs[i] = &values[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return nil, nil, err
+		}
+		record := map[string]string{}
+		for i, col := range columns {
+			if values[i] == nil {
+				record[strings.ToUpper(col)] = ""
+			} else {
+				record[strings.ToUpper(col)] = fmt.Sprintf("%v", values[i])
+			}
+		}
+		result = append(result, record)
+	}
+	return columns, result, rows.Err()
+}
+
 func (e *SQLiteEngine) Close() error {
 	if e.db != nil {
 		return e.db.Close()

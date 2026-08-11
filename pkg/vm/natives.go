@@ -1917,6 +1917,13 @@ func (v *VM) registerNatives() {
 	v.registerManipulacaodematrizHashMapNatives(natives)
 	v.registerManipulacaodoarquivoININatives(natives)
 	v.registerDecimaisdePontoFixoNatives(natives)
+	v.registerAmbienteNatives(natives)
+	v.registerArquivosioNatives(natives)
+	v.registerDbaccessNatives(natives)
+	v.registerDbgenericasNatives(natives)
+	v.registerMiscNatives(natives)
+	v.registerSegurancaCriptografiaNatives(natives)
+	v.registerSegurancaGenericaNatives(natives)
 
 	for name, fn := range natives {
 		v.natives[name] = &advplrt.FunctionValue{Name: name, Fn: fn}
