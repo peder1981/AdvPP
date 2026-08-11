@@ -152,10 +152,10 @@ jobs:
         run: |
           gh release delete "$GITHUB_REF_NAME" --cleanup-tag --yes 2>/dev/null || true
           gh api "repos/${{ github.repository }}/git/refs/tags/$GITHUB_REF_NAME" -X DELETE 2>/dev/null || true
-       - name: Create GitHub Release
-         env:
-           GH_TOKEN: ${{ github.token }}
-         run: |
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
            # Recria a release com retry: a exclusão do release anterior pode não
            # propagar imediatamente na API do GitHub (eventual consistency).
            # Retry até 3x com sleep de 5s entre tentativas.
