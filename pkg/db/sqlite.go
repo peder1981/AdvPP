@@ -46,6 +46,7 @@ type SQLiteEngine struct {
 	records      []map[string]advplrt.Value
 	current      int
 	isLocked     bool        // whether RecLock was called (lock held)
+	inserting    bool        // whether Append() was called and not yet committed
 	recordsMutex sync.RWMutex // protect concurrent access to records slice
 }
 
@@ -425,6 +426,7 @@ func (e *SQLiteEngine) Append() error {
 
 	e.records = append(e.records, blank)
 	e.current = len(e.records) - 1
+	e.inserting = true
 	return nil
 }
 
@@ -456,6 +458,36 @@ func (e *SQLiteEngine) RecNo() int {
 	defer e.recordsMutex.RUnlock()
 
 	return e.current + 1
+}
+
+// GoTo posiciona o ponteiro de registro no recno físico informado (1-based).
+// Se o recno não existir, o ponteiro permanece e o retorno é nil (a native
+// DBGoTo do Protheus também não falha para recno inexistente; o posicionamento
+// simplesmente não ocorre). Extensão opcional da DBEngine usada por DBGoTo.
+func (e *SQLiteEngine) GoTo(nRec int) error {
+	e.recordsMutex.Lock()
+	defer e.recordsMutex.Unlock()
+
+	if nRec < 1 || nRec > len(e.records) {
+		return nil
+	}
+	e.current = nRec - 1
+	return nil
+}
+
+// InInsert devolve .T. se o registro corrente foi criado via Append() e ainda
+// não foi persistido (commit). Extensão opcional da DBEngine usada por DBInInsert.
+func (e *SQLiteEngine) InInsert() bool {
+	e.recordsMutex.RLock()
+	defer e.recordsMutex.RUnlock()
+	return e.inserting
+}
+
+// SetInserting ajusta o estado de inserção da área (Append marca, commit limpa).
+func (e *SQLiteEngine) SetInserting(b bool) {
+	e.recordsMutex.Lock()
+	defer e.recordsMutex.Unlock()
+	e.inserting = b
 }
 
 // QueryRows executa SQL direto e devolve as linhas como mapas coluna→string

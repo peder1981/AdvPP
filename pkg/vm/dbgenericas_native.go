@@ -24,12 +24,21 @@ package vm
 //   - DBStruct mapeia tipos SQLite para AdvPL (C/N/L/D/M) com tamanhos
 //     razoáveis documentados; usada também por DBRecordInfo(3) para calcular
 //     o tamanho do registro.
+//   - Filtros (DBFilter/DBFilterCB/DBClearAllFilter): o SQLiteEngine NÃO tem
+//     filtro e os stubs DBSETFILTER/DBCLEARFILTER em natives.go são no-ops.
+//     O filtro é mantido como estado do VM (mapa alias -> expressão),
+//     populado por DBFilter (registro implícito) e consultado por DBFilter.
+//     DBSETFILTER não grava neste estado (fica no natives.go, sem alteração).
+//   - DBGoTo usa GoTo(nRec) do engine (extensão opcional da DBEngine, type
+//     asserted); DBInInsert usa InInsert()/SetInserting() do engine (Append
+//     marca, DBCOMMIT limpa).
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
@@ -54,6 +63,17 @@ type dbGenState struct {
 	activeFlds map[string]map[string]bool
 	// physTable: alias lógico -> nome físico da tabela (DBUseArea/DBSqlExec).
 	physTable map[string]string
+	// filters: alias -> expressão do filtro ativo (DBFilter/DBClearAllFilter).
+	// O engine não tem filtro; DBSETFILTER em natives.go é no-op, então este
+	// estado é populado pelas natives deste arquivo.
+	filters map[string]string
+	// filterCBs: alias -> codeblock do filtro ativo (DBFilterCB). Mantido por
+	// coerência com filters; DBSETFILTER (natives.go) não o popula.
+	filterCBs map[string]advplrt.Value
+	// fileLocks: alias -> bloqueio de arquivo inteiro (FLock/DBInfo DBI_ISFLOCK).
+	fileLocks map[string]bool
+	// lastFound: alias -> resultado da última busca (DBSeek) — Found()/DBI_FOUND.
+	lastFound map[string]bool
 }
 
 var (
@@ -76,6 +96,10 @@ func (v *VM) dbGenStateFor() *dbGenState {
 		locked:       make(map[string][]int),
 		activeFlds:   make(map[string]map[string]bool),
 		physTable:    make(map[string]string),
+		filters:      make(map[string]string),
+		filterCBs:    make(map[string]advplrt.Value),
+		fileLocks:    make(map[string]bool),
+		lastFound:    make(map[string]bool),
 	}
 	dbGenStates[v] = s
 	return s
@@ -693,6 +717,442 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 		}
 		return advplrt.NewNumber(float64(n)), nil
 	}
+
+	// =========================================================================
+	// DBChangeAlias(cOldAlias, cNewAlias) -> NIL
+	//   Muda o alias lógico de uma área de trabalho aberta, movendo o estado
+	//   DB genérico (tabela física, ordens, nicknames, locks, campos ativos,
+	//   filtro) para o novo alias. Retorno sempre nulo (spec).
+	// =========================================================================
+	natives["DBCHANGEALIAS"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		cOld := strings.ToUpper(getArgString(args, 0, ""))
+		cNew := strings.ToUpper(getArgString(args, 1, ""))
+		if cOld == "" || cNew == "" || !identRe.MatchString(cNew) {
+			return advplrt.Nil, nil
+		}
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		// Se o alias corrente é o antigo, atualiza o ponteiro de área corrente.
+		if v.currentAlias == cOld {
+			v.currentAlias = cNew
+		}
+		if p, ok := s.physTable[cOld]; ok {
+			s.physTable[cNew] = p
+			delete(s.physTable, cOld)
+		}
+		if o, ok := s.orders[cOld]; ok {
+			s.orders[cNew] = o
+			delete(s.orders, cOld)
+		}
+		if a, ok := s.activeOrder[cOld]; ok {
+			s.activeOrder[cNew] = a
+			delete(s.activeOrder, cOld)
+		}
+		if n, ok := s.nicknames[cOld]; ok {
+			s.nicknames[cNew] = n
+			delete(s.nicknames, cOld)
+		}
+		if l, ok := s.locked[cOld]; ok {
+			s.locked[cNew] = l
+			delete(s.locked, cOld)
+		}
+		if a, ok := s.activeFlds[cOld]; ok {
+			s.activeFlds[cNew] = a
+			delete(s.activeFlds, cOld)
+		}
+		if f, ok := s.filters[cOld]; ok {
+			s.filters[cNew] = f
+			delete(s.filters, cOld)
+		}
+		if c, ok := s.filterCBs[cOld]; ok {
+			s.filterCBs[cNew] = c
+			delete(s.filterCBs, cOld)
+		}
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// DBClearAllFilter() -> NIL
+	//   Limpa as condições de filtro de todas as tabelas abertas. O filtro é
+	//   estado do VM (mapa alias -> expressão); o engine não tem filtro.
+	//   Retorno sempre nulo (spec).
+	// =========================================================================
+	natives["DBCLEARALLFILTER"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		s.filters = make(map[string]string)
+		s.filterCBs = make(map[string]advplrt.Value)
+		s.mu.Unlock()
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// DBClearIndex() -> NIL
+	//   Fecha todos os índices da área de trabalho corrente, equivalente a
+	//   SET INDEX sem índices. Efetiva pendências e limpa as ordens do estado.
+	//   Retorno sempre nulo (spec).
+	// =========================================================================
+	natives["DBCLEARINDEX"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		alias := v.dbGenAlias()
+		s.orders[alias] = nil
+		delete(s.activeOrder, alias)
+		s.mu.Unlock()
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// DBCloseAll() -> NIL
+	//   Fecha todas as áreas de trabalho em uso, efetivando pendências e
+	//   liberando bloqueios. Equivale a DBCloseArea para cada área aberta.
+	//   Limpa todo o estado DB genérico do VM. Retorno sempre nulo (spec).
+	// =========================================================================
+	natives["DBCLOSEALL"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		s.orders = make(map[string][]string)
+		s.activeOrder = make(map[string]int)
+		s.nicknames = make(map[string]map[string]string)
+		s.locked = make(map[string][]int)
+		s.activeFlds = make(map[string]map[string]bool)
+		s.physTable = make(map[string]string)
+		s.filters = make(map[string]string)
+		s.filterCBs = make(map[string]advplrt.Value)
+		s.mu.Unlock()
+		v.currentAlias = ""
+		if v.dbEngine != nil {
+			if eng, ok := v.dbEngine.(interface{ MsUnlock() error }); ok {
+				_ = eng.MsUnlock()
+			}
+		}
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// DBCommitAll() -> NIL
+	//   Salva em disco todas as atualizações pendentes na área de trabalho
+	//   corrente. O SQLiteEngine não mantém transação aberta (cada UPDATE é
+	//   imediato), então é no-op documentado; limpa o flag de inserção para
+	//   que DBInInsert() volte a .F. (spec do exemplo). Retorno sempre nulo.
+	// =========================================================================
+	natives["DBCOMMITALL"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		if e, ok := v.dbEngine.(interface{ SetInserting(bool) }); ok {
+			e.SetInserting(false)
+		}
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// DBCreate(cName, aStruct, [cDriver]) -> NIL
+	//   Define uma nova tabela e sua estrutura (campos) no SGBD corrente.
+	//   aStruct: { { nome(C), tipo(C), tamanho(N), decimais(N) }, ... } com
+	//   tipos AdvPL 'C','D','L','M','N'. Mapeia para SQLite: C->TEXT,
+	//   N->REAL/INTEGER, L->INTEGER, D->TEXT, M->TEXT. Cria as colunas de
+	//   sistema R_E_C_N_O_ (PK AUTOINCREMENT) e D_E_L_E_T_ (default ' ').
+	//   Validações da spec: nome vazio, campo DATA, nome > 10 chars (trunca),
+	//   tipo inválido, formato numérico inválido — em caso de erro a criação
+	//   é abortada e retorna NIL (o VM não levanta erro recuperável).
+	// =========================================================================
+	natives["DBCREATE"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		cName := strings.ToUpper(strings.TrimSpace(getArgString(args, 0, "")))
+		aStruct, _ := getArg(args, 1).(*advplrt.ArrayValue)
+		if cName == "" || aStruct == nil || !identRe.MatchString(cName) {
+			return advplrt.Nil, nil
+		}
+		if strings.ToUpper(cName) == "DATA" {
+			return advplrt.Nil, nil
+		}
+		cols := []string{}
+		defs := []string{}
+		valid := true
+		for _, f := range aStruct.Elements {
+			fieldArr, ok := f.(*advplrt.ArrayValue)
+			if !ok || len(fieldArr.Elements) < 4 {
+				valid = false
+				break
+			}
+			fName := strings.ToUpper(strings.TrimSpace(advplrt.ToString(fieldArr.Elements[0])))
+			fType := strings.ToUpper(strings.TrimSpace(advplrt.ToString(fieldArr.Elements[1])))
+			fLen := int(advplrt.ToFloat(fieldArr.Elements[2]))
+			fDec := int(advplrt.ToFloat(fieldArr.Elements[3]))
+			if fName == "" {
+				valid = false
+				break
+			}
+			if strings.ToUpper(fName) == "DATA" {
+				valid = false
+				break
+			}
+			if len(fName) > 10 {
+				fName = fName[:10] // truncar (warning da spec)
+			}
+			switch fType {
+			case "C":
+				if fLen <= 0 {
+					fLen = 20
+				}
+				defs = append(defs, fName+" TEXT")
+			case "N":
+				if fLen == 1 && fDec != 0 {
+					valid = false
+					break
+				}
+				if fLen > 1 && fLen < fDec+2 {
+					valid = false
+					break
+				}
+				if fDec > 0 {
+					defs = append(defs, fName+" REAL")
+				} else {
+					defs = append(defs, fName+" INTEGER")
+				}
+			case "L":
+				defs = append(defs, fName+" INTEGER")
+			case "D":
+				defs = append(defs, fName+" TEXT")
+			case "M":
+				defs = append(defs, fName+" TEXT")
+			default:
+				valid = false
+			}
+			cols = append(cols, fName)
+		}
+		if !valid {
+			return advplrt.Nil, nil
+		}
+		eng, ok := v.dbGenSQLEng()
+		if !ok {
+			return advplrt.Nil, nil
+		}
+		sql := "CREATE TABLE IF NOT EXISTS " + cName +
+			" (R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT, D_E_L_E_T_ TEXT DEFAULT ' '"
+		if len(defs) > 0 {
+			sql += ", " + strings.Join(defs, ", ")
+		}
+		sql += ")"
+		if err := eng.Exec(sql); err != nil {
+			return advplrt.Nil, nil
+		}
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		s.physTable[cName] = cName
+		s.mu.Unlock()
+		if v.dbEngine != nil {
+			if err := v.dbEngine.SelectArea(cName); err == nil {
+				v.currentAlias = cName
+			}
+		}
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// DBGetActFld() -> cCampos
+	//   Retorna string com a lista de campos habilitados do alias corrente,
+	//   separados por vírgula. Quando todos estão ativos (sem restrição via
+	//   DBSetActFld), devolve "*". Usa o estado activeFlds.
+	// =========================================================================
+	natives["DBGETACTFLD"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		alias := v.dbGenAlias()
+		active := s.activeFlds[alias]
+		s.mu.Unlock()
+		if active == nil {
+			return advplrt.NewString("*"), nil
+		}
+		cols := v.dbGenColumns(v.dbGenPhysTable())
+		var out []string
+		for _, c := range cols {
+			vis, ok := active[c]
+			if ok && !vis {
+				continue // campo explicitamente inativo (DBSetActFld)
+			}
+			out = append(out, c)
+		}
+		if len(out) == 0 {
+			return advplrt.NewString(""), nil
+		}
+		return advplrt.NewString(strings.Join(out, ",")), nil
+	}
+
+	// =========================================================================
+	// DBGoTo(nPos) -> NIL
+	//   Posiciona a tabela corrente no registro conforme a ordem física
+	//   (recno). Usa GoTo(nRec) do engine (extensão opcional da DBEngine —
+	//   type asserted; se o engine não implementar, no-op documentado).
+	//   Retorno sempre nulo (spec).
+	// =========================================================================
+	natives["DBGOTO"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		nPos := int(advplrt.ToFloat(getArg(args, 0)))
+		if g, ok := v.dbEngine.(interface{ GoTo(int) error }); ok {
+			_ = g.GoTo(nPos)
+		}
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// DBInInsert() -> lRet
+	//   Retorna .T. se a tabela está em modo de inserção de registros (criou
+	//   registro via DBAppend e ainda não deu commit). Usa InInsert() do
+	//   engine (Append marca, DBCOMMIT/DBCommitAll limpam). Sem área => .F.
+	// =========================================================================
+	natives["DBININSERT"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		if e, ok := v.dbEngine.(interface{ InInsert() bool }); ok {
+			return advplrt.NewBool(e.InInsert()), nil
+		}
+		return advplrt.False, nil
+	}
+
+	// =========================================================================
+	// DBFilter() -> cExp
+	//   Retorna a expressão do filtro ativo na área de trabalho corrente.
+	//   "" quando não há filtro ativo (spec). O filtro é estado do VM
+	//   (alias -> expressão); DBSETFILTER em natives.go não o popula.
+	// =========================================================================
+	natives["DBFILTER"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return advplrt.NewString(s.filters[v.dbGenAlias()]), nil
+	}
+
+	// =========================================================================
+	// DBFilterCB() -> bExp
+	//   Retorna o codeblock do filtro ativo na área corrente. Mantido no
+	//   estado do VM (alias -> codeblock). Sem filtro => NIL (o codeblock do
+	//   filtro padrão — "todos os registros" — não é armazenado).
+	// =========================================================================
+	natives["DBFILTERCB"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if cb, ok := s.filterCBs[v.dbGenAlias()]; ok && cb != nil {
+			return cb, nil
+		}
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// DBInfo(nInfo) -> xInfo
+	//   Obtém informações da tabela corrente. Constantes DBI_* do DBINFO.CH
+	//   (valores conferidos): 1 ISDBF, 2 CANPUTREC, 3 GETHEADERSIZE,
+	//   4 LASTUPDATE, 7 GETRECSIZE, 8 GETLOCKARRAY, 9 TABLEEXT, 10 FULLPATH,
+	//   20 ISFLOCK, 26 BOF, 27 EOF, 28 DBFILTER, 29 FOUND, 30 FCOUNT,
+	//   33 ALIAS, 36 SHARED. Sem área corrente => NIL (spec).
+	// =========================================================================
+	natives["DBINFO"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		nInfo := int(advplrt.ToFloat(getArg(args, 0)))
+		alias := v.dbGenAlias()
+		if v.dbEngine == nil {
+			return advplrt.Nil, nil
+		}
+		switch nInfo {
+		case 1: // DBI_ISDBF
+			return advplrt.True, nil
+		case 2: // DBI_CANPUTREC
+			return advplrt.True, nil
+		case 3: // DBI_GETHEADERSIZE
+			size, err := v.dbGenRecSize()
+			if err != nil {
+				return advplrt.Nil, nil
+			}
+			return advplrt.NewNumber(float64(size)), nil
+		case 4: // DBI_LASTUPDATE (data da última alteração — hoje)
+			return advplrt.NewString(time.Now().Format("20060102")), nil
+		case 7: // DBI_GETRECSIZE
+			size, err := v.dbGenRecSize()
+			if err != nil {
+				return advplrt.Nil, nil
+			}
+			return advplrt.NewNumber(float64(size)), nil
+		case 8: // DBI_GETLOCKARRAY
+			s := v.dbGenStateFor()
+			s.mu.Lock()
+			list := s.locked[alias]
+			s.mu.Unlock()
+			elems := make([]advplrt.Value, 0, len(list))
+			for _, r := range list {
+				elems = append(elems, advplrt.NewNumber(float64(r)))
+			}
+			return advplrt.NewArray(elems), nil
+		case 9: // DBI_TABLEEXT
+			return advplrt.NewString(".dbf"), nil
+		case 10: // DBI_FULLPATH
+			return advplrt.NewString(v.dbGenPhysTable()), nil
+		case 20: // DBI_ISFLOCK (arquivo bloqueado — rastreado em locked[alias])
+			s := v.dbGenStateFor()
+			s.mu.Lock()
+			_, fl := s.fileLocks[alias]
+			s.mu.Unlock()
+			return advplrt.NewBool(fl), nil
+		case 26: // DBI_BOF
+			return advplrt.NewBool(v.dbEngine.BOF()), nil
+		case 27: // DBI_EOF
+			return advplrt.NewBool(v.dbEngine.EOF()), nil
+		case 28: // DBI_DBFILTER
+			s := v.dbGenStateFor()
+			s.mu.Lock()
+			expr := s.filters[alias]
+			s.mu.Unlock()
+			return advplrt.NewString(expr), nil
+		case 29: // DBI_FOUND
+			return v.dbGenFound()
+		case 30: // DBI_FCOUNT
+			return advplrt.NewNumber(float64(len(v.dbGenColumns(v.dbGenPhysTable())))), nil
+		case 33: // DBI_ALIAS
+			return advplrt.NewString(alias), nil
+		case 36: // DBI_SHARED
+			return advplrt.True, nil
+		}
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// DBFieldInfo(nType, nField) -> xRet
+	//   Obtém informação de um campo da tabela corrente. Constantes DBS_* do
+	//   DBSTRUCT.CH: 1 NAME, 2 TYPE, 3 LEN, 4 DEC. nField é 1-based e NÃO
+	//   considera os campos internos (R_E_C_N_O_, D_E_L_E_T_) — por isso os
+	//   campos físicos são filtrados. Sem área/campo => NIL (spec).
+	// =========================================================================
+	natives["DBFIELDINFO"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		nType := int(advplrt.ToFloat(getArg(args, 0)))
+		nField := int(advplrt.ToFloat(getArg(args, 1)))
+		cols := v.dbGenUserColumns()
+		if nField < 1 || nField > len(cols) {
+			return advplrt.Nil, nil
+		}
+		col := cols[nField-1]
+		rows, err := v.dbGenColumnInfo(col)
+		if err != nil {
+			return advplrt.Nil, nil
+		}
+		switch nType {
+		case 1: // DBS_NAME
+			return advplrt.NewString(col), nil
+		case 2: // DBS_TYPE
+			typ, _, _ := dbGenSQLiteType(rows)
+			return advplrt.NewString(typ), nil
+		case 3: // DBS_LEN
+			_, size, _ := dbGenSQLiteType(rows)
+			return advplrt.NewNumber(float64(size)), nil
+		case 4: // DBS_DEC
+			_, _, dec := dbGenSQLiteType(rows)
+			return advplrt.NewNumber(float64(dec)), nil
+		}
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// GetDBExtension() -> cRet
+	//   Retorna a extensão em uso para tabelas acessadas via RDD DBFCDX.
+	//   Padrão ".dbf" (driver ADS/localFiles); a extensão efetiva depende do
+	//   ini do AppServer, indisponível neste VM. Documentado.
+	// =========================================================================
+	natives["GETDBEXTENSION"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		return advplrt.NewString(".dbf"), nil
+	}
 }
 
 // nativeDeleted implementa Deleted(): .T. se D_E_L_E_T_ == '*' no registro corrente.
@@ -804,4 +1264,57 @@ func removeRecno(list []int, recno int) []int {
 func strFloat(s string) float64 {
 	f, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	return f
+}
+
+// dbGenSetFound registra o resultado da última busca (DBSeek) para a área
+// corrente — alimenta Found() e DBInfo(DBI_FOUND).
+func (v *VM) dbGenSetFound(found bool) {
+	s := v.dbGenStateFor()
+	s.mu.Lock()
+	s.lastFound[v.dbGenAlias()] = found
+	s.mu.Unlock()
+}
+
+// dbGenFound devolve o resultado da última busca na área corrente. Sem busca
+// prévia => .F. (spec de Found()).
+func (v *VM) dbGenFound() (advplrt.Value, error) {
+	s := v.dbGenStateFor()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return advplrt.NewBool(s.lastFound[v.dbGenAlias()]), nil
+}
+
+// dbGenUserColumns devolve as colunas físicas da tabela corrente EXCLUINDO os
+// campos internos do sistema (R_E_C_N_O_, D_E_L_E_T_) — usada por DBFieldInfo
+// (nField não considera os campos internos, spec).
+func (v *VM) dbGenUserColumns() []string {
+	cols := v.dbGenColumns(v.dbGenPhysTable())
+	out := make([]string, 0, len(cols))
+	for _, c := range cols {
+		if c == "R_E_C_N_O_" || c == "D_E_L_E_T_" || c == "R_E_C_D_E_L_" {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// dbGenColumnInfo devolve o tipo declarado (string) de uma coluna da tabela
+// corrente via PRAGMA table_info.
+func (v *VM) dbGenColumnInfo(col string) (string, error) {
+	table := v.dbGenPhysTable()
+	eng, ok := v.dbGenSQLEng()
+	if !ok || !identRe.MatchString(table) || !identRe.MatchString(col) {
+		return "", fmt.Errorf("no engine/table/col")
+	}
+	rows, err := eng.QueryRows(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return "", err
+	}
+	for _, r := range rows {
+		if strings.ToUpper(strings.TrimSpace(r["NAME"])) == col {
+			return r["TYPE"], nil
+		}
+	}
+	return "", fmt.Errorf("column not found: %s", col)
 }

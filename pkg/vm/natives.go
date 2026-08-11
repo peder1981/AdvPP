@@ -1042,6 +1042,7 @@ func (v *VM) registerNatives() {
 				if err != nil {
 					return advplrt.False, err
 				}
+				v.dbGenSetFound(found)
 				return advplrt.NewBool(found), nil
 			}
 			return advplrt.False, nil
@@ -1126,6 +1127,9 @@ func (v *VM) registerNatives() {
 			return advplrt.Nil, nil
 		},
 		"DBCOMMIT": func(args []advplrt.Value) (advplrt.Value, error) {
+			if e, ok := v.dbEngine.(interface{ SetInserting(bool) }); ok {
+				e.SetInserting(false)
+			}
 			return advplrt.Nil, nil
 		},
 		"SELECT": func(args []advplrt.Value) (advplrt.Value, error) {
