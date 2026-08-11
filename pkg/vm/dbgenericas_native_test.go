@@ -858,3 +858,165 @@ func TestDBCommitAllAndDBFound(t *testing.T) {
 		t.Fatalf("DBINFO(29) após seek falho=%v, esperado .F.", got)
 	}
 }
+
+// TestField testa FIELD com nPos 1-based sobre campos do usuário.
+func TestField(t *testing.T) {
+	_, natives, eng := newDBGenVM(t, "field.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_FLD")
+
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_FLD"),
+		advplrt.NewString("T_FLD"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	// Campo 1 = CODNUM (não considera R_E_C_N_O_/D_E_L_E_T_)
+	got, err := natives["FIELD"]([]advplrt.Value{advplrt.NewNumber(1)})
+	if err != nil {
+		t.Fatalf("FIELD(1) erro: %v", err)
+	}
+	if advplrt.ToString(got) != "CODNUM" {
+		t.Fatalf("FIELD(1)=%q, esperado CODNUM", advplrt.ToString(got))
+	}
+	got, err = natives["FIELD"]([]advplrt.Value{advplrt.NewNumber(2)})
+	if err != nil {
+		t.Fatalf("FIELD(2) erro: %v", err)
+	}
+	if advplrt.ToString(got) != "NOME" {
+		t.Fatalf("FIELD(2)=%q, esperado NOME", advplrt.ToString(got))
+	}
+	// nPos fora de range => ""
+	got, err = natives["FIELD"]([]advplrt.Value{advplrt.NewNumber(99)})
+	if err != nil {
+		t.Fatalf("FIELD(99) erro: %v", err)
+	}
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("FIELD(99)=%q, esperado \"\"", advplrt.ToString(got))
+	}
+}
+
+// TestFoundEHeaderELastRec testa FOUND (após seek), HEADER e LASTREC.
+func TestFoundEHeaderELastRec(t *testing.T) {
+	v, natives, eng := newDBGenVM(t, "fh.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_FH")
+
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_FH"),
+		advplrt.NewString("T_FH"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	// LASTREC em tabela vazia => 0
+	got, err := natives["LASTREC"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("LASTREC erro: %v", err)
+	}
+	if advplrt.ToFloat(got) != 0 {
+		t.Fatalf("LASTREC()=%v, esperado 0", advplrt.ToFloat(got))
+	}
+	// FOUND sem busca => .F.
+	got, err = natives["FOUND"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("FOUND erro: %v", err)
+	}
+	if got != advplrt.False {
+		t.Fatalf("FOUND()=%v, esperado .F.", got)
+	}
+	// Simula busca falha via estado (DBSEEK vive no natives.go inline)
+	v.dbGenSetFound(false)
+	got, err = natives["FOUND"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("FOUND erro: %v", err)
+	}
+	if got != advplrt.False {
+		t.Fatalf("FOUND()=%v, esperado .F.", got)
+	}
+	// Simula busca com sucesso
+	v.dbGenSetFound(true)
+	got, err = natives["FOUND"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("FOUND erro: %v", err)
+	}
+	if got != advplrt.True {
+		t.Fatalf("FOUND()=%v, esperado .T.", got)
+	}
+	// HEADER = soma dos campos do usuário (CODNUM N 15 + NOME C 20 + VALOR N 15)
+	got, err = natives["HEADER"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("HEADER erro: %v", err)
+	}
+	if advplrt.ToFloat(got) != 50 {
+		t.Fatalf("HEADER()=%v, esperado 50 (15+20+15)", advplrt.ToFloat(got))
+	}
+}
+
+// TestNetErrERecSize testa NETERR (get/set) e RECSIZE (soma +1 flag).
+func TestNetErrERecSize(t *testing.T) {
+	_, natives, eng := newDBGenVM(t, "nr.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_NR")
+
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_NR"),
+		advplrt.NewString("T_NR"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	// NetErr() default .F.
+	got, err := natives["NETERR"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("NETERR erro: %v", err)
+	}
+	if got != advplrt.False {
+		t.Fatalf("NETERR()=%v, esperado .F.", got)
+	}
+	// NetErr(.T.) grava
+	if _, err := natives["NETERR"]([]advplrt.Value{advplrt.True}); err != nil {
+		t.Fatalf("NETERR(.T.) erro: %v", err)
+	}
+	got, err = natives["NETERR"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("NETERR erro: %v", err)
+	}
+	if got != advplrt.True {
+		t.Fatalf("NETERR() após .T.=%v, esperado .T.", got)
+	}
+	// RecSize = campos usuário (CODNUM N15 + NOME C20 + VALOR N15) + 1 flag = 51
+	got, err = natives["RECSIZE"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("RECSIZE erro: %v", err)
+	}
+	if advplrt.ToFloat(got) != 51 {
+		t.Fatalf("RECSIZE()=%v, esperado 51 (15+20+15+1)", advplrt.ToFloat(got))
+	}
+}
+
+// TestFieldBlockEWBlock testa FIELDBLOCK/FIELDWBLOCK (NIL documentado).
+func TestFieldBlockEWBlock(t *testing.T) {
+	_, natives, eng := newDBGenVM(t, "fb.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_FB")
+
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_FB"),
+		advplrt.NewString("T_FB"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	got, err := natives["FIELDBLOCK"]([]advplrt.Value{advplrt.NewString("NOME")})
+	if err != nil {
+		t.Fatalf("FIELDBLOCK erro: %v", err)
+	}
+	if !advplrt.IsNil(got) {
+		t.Fatalf("FIELDBLOCK()=%v, esperado NIL (infra de codeblock runtime inexistente)", got)
+	}
+	got, err = natives["FIELDWBLOCK"]([]advplrt.Value{advplrt.NewString("NOME"), advplrt.NewNumber(1)})
+	if err != nil {
+		t.Fatalf("FIELDWBLOCK erro: %v", err)
+	}
+	if !advplrt.IsNil(got) {
+		t.Fatalf("FIELDWBLOCK()=%v, esperado NIL (infra de codeblock runtime inexistente)", got)
+	}
+}
