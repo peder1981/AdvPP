@@ -320,13 +320,23 @@ func addDirToZip(zw *zip.Writer, dirPath, prefix string) error {
 
 // sanitizeZipName limpa nomes vindos de arquivos compactados, impedindo
 // escape de diretório (zip-slip).
+// sanitizeZipName normaliza o nome de uma entrada de archive (zip/tar):
+// converte barras, remove barra inicial e letra de unidade (ex.: "C:"),
+// evita path traversal (".", "..", "../"). Devolve (name, ok=false) quando o
+// nome deve ser descartado (ex.: "."). A remoção do volume é necessária tanto
+// para portabilidade (um tar/zip gerado no Windows contém "C:/..." absoluto)
+// quanto para segurança: sem ela, uma entrada "C:\evil.exe" escreveria fora
+// do diretório de extração.
 func sanitizeZipName(name string) (string, bool) {
 	name = filepath.ToSlash(name)
 	clean := filepath.Clean(name)
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
 		return "", false
 	}
-	return strings.TrimPrefix(clean, "/"), true
+	if vol := filepath.VolumeName(clean); vol != "" {
+		clean = clean[len(vol):]
+	}
+	return strings.TrimPrefix(filepath.ToSlash(clean), "/"), true
 }
 
 // extractZipTo extrai todos os arquivos do zip para folder.
