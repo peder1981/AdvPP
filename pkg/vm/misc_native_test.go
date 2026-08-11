@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/advpl/compiler/pkg/compiler"
@@ -146,17 +147,21 @@ func TestPing(t *testing.T) {
 	}
 }
 
-// TestWinExec verifica WINEXEC: 0 em sucesso (/bin/ls) e código != 0 quando
-// o executável não existe.
+// TestWinExec verifica WINEXEC: 0 em sucesso (comando que existe em qualquer
+// SO) e código != 0 quando o executável não existe.
 func TestWinExec(t *testing.T) {
 	_, natives := newMiscNatives()
 
-	got, err := natives["WINEXEC"]([]advplrt.Value{advplrt.NewString("/bin/ls")})
+	lsCmd := "/bin/ls"
+	if runtime.GOOS == "windows" {
+		lsCmd = "cmd.exe"
+	}
+	got, err := natives["WINEXEC"]([]advplrt.Value{advplrt.NewString(lsCmd)})
 	if err != nil {
-		t.Fatalf("WINEXEC(/bin/ls) retornou erro: %v", err)
+		t.Fatalf("WINEXEC(%s) retornou erro: %v", lsCmd, err)
 	}
 	if advplrt.ToFloat(got) != 0 {
-		t.Errorf("WINEXEC(/bin/ls) = %v, esperado 0 (sucesso)", advplrt.ToFloat(got))
+		t.Errorf("WINEXEC(%s) = %v, esperado 0 (sucesso)", lsCmd, advplrt.ToFloat(got))
 	}
 
 	got2, err := natives["WINEXEC"]([]advplrt.Value{advplrt.NewString("/bin/comando-inexistente-advpp")})
@@ -168,22 +173,27 @@ func TestWinExec(t *testing.T) {
 	}
 }
 
-// TestShell verifica SHELLEXECUTE: > 32 em sucesso (/bin/ls) e código de
-// erro ShellExecute (2..32) quando o arquivo não existe.
+// TestShell verifica SHELLEXECUTE: > 32 em sucesso (comando que existe em
+// qualquer SO) e código de erro ShellExecute (2..32) quando o arquivo não
+// existe.
 func TestShell(t *testing.T) {
 	_, natives := newMiscNatives()
 
+	lsCmd := "/bin/ls"
+	if runtime.GOOS == "windows" {
+		lsCmd = "cmd.exe"
+	}
 	got, err := natives["SHELLEXECUTE"]([]advplrt.Value{
 		advplrt.NewString("open"),
-		advplrt.NewString("/bin/ls"),
+		advplrt.NewString(lsCmd),
 		advplrt.NewString(""),
 		advplrt.NewString(""),
 	})
 	if err != nil {
-		t.Fatalf("SHELLEXECUTE(open,/bin/ls) retornou erro: %v", err)
+		t.Fatalf("SHELLEXECUTE(open,%s) retornou erro: %v", lsCmd, err)
 	}
 	if advplrt.ToFloat(got) <= 32 {
-		t.Errorf("SHELLEXECUTE(open,/bin/ls) = %v, esperado > 32 (sucesso)", advplrt.ToFloat(got))
+		t.Errorf("SHELLEXECUTE(open,%s) = %v, esperado > 32 (sucesso)", lsCmd, advplrt.ToFloat(got))
 	}
 
 	got2, err := natives["SHELLEXECUTE"]([]advplrt.Value{

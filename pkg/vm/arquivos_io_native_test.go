@@ -3,6 +3,7 @@ package vm
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -164,7 +165,14 @@ func TestChmod(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat após CHMOD: %v", err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS == "windows" {
+		// No Windows o chmod só alterna o bit read-only: qualquer permissão
+		// com bit de escrita (0200) deixa o arquivo gravável; a checagem de
+		// valor octal exato não se aplica.
+		if info.Mode().Perm()&0o200 == 0 {
+			t.Errorf("permissão esperada gravável, obteve %v", info.Mode().Perm())
+		}
+	} else if info.Mode().Perm() != 0o600 {
 		t.Errorf("permissão esperada 0600, obteve %v", info.Mode().Perm())
 	}
 	// Arquivo continua legível após a mudança de permissão.
@@ -626,10 +634,23 @@ func TestListDrives(t *testing.T) {
 	a := newArquivosIO(t)
 	arr := a.callArray("LISTDRIVES")
 	if len(arr.Elements) == 0 {
-		t.Error("LISTDRIVES não deveria retornar lista vazia no Linux")
+		t.Error("LISTDRIVES não deveria retornar lista vazia")
 	}
-	if !containsStr(elemStrings(arr.Elements), "/") {
-		t.Errorf("LISTDRIVES no Linux deveria conter '/', obteve %v", elemStrings(arr.Elements))
+	units := elemStrings(arr.Elements)
+	if runtime.GOOS == "windows" {
+		// No Windows as unidades têm a forma "C:", "D:", etc.
+		foundDrive := false
+		for _, u := range units {
+			if len(u) == 2 && u[1] == ':' {
+				foundDrive = true
+				break
+			}
+		}
+		if !foundDrive {
+			t.Errorf("LISTDRIVES no Windows deveria conter uma letra de unidade, obteve %v", units)
+		}
+	} else if !containsStr(units, "/") {
+		t.Errorf("LISTDRIVES no Linux deveria conter '/', obteve %v", units)
 	}
 }
 

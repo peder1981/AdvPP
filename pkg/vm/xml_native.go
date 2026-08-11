@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -129,13 +130,15 @@ func (v *VM) registerTratamentodeXMLNatives(natives map[string]func(args []advpl
 	// de achar arquivos com maiúsculas no nome; comportamento replicado como
 	// documentado, não é bug introduzido por este compilador). Caminhos no
 	// formato de SmartClient (ex.: "C:\...") interrompem a execução com erro,
-	// conforme TDN ("Only server path are allowed on XmlC14NFile").
+	// conforme TDN ("Only server path are allowed on XmlC14NFile"). Essa
+	// rejeição só se aplica fora do Windows: no Windows, "C:\..." é um caminho
+	// de servidor válido (é o próprio SO onde o appserver roda).
 	natives["XMLC14NFILE"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		cFile := strings.Trim(getArgString(args, 0, ""), " ")
 		if cFile == "" {
 			return advplrt.NewString(""), nil
 		}
-		if smartClientPathPattern.MatchString(cFile) {
+		if runtime.GOOS != "windows" && smartClientPathPattern.MatchString(cFile) {
 			return advplrt.Nil, fmt.Errorf("Only server path are allowed on XmlC14NFile")
 		}
 		data, err := os.ReadFile(strings.ToLower(cFile))

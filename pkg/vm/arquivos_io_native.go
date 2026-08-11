@@ -64,14 +64,16 @@ func optNum(args []advplrt.Value, idx int, def float64) float64 {
 	return def
 }
 
-// normPath converte barras invertidas (Windows) em barras normais e remove a
-// letra de unidade ("c:" / "l:"), como especificado pelas funções para Linux.
+// normPath converte barras invertidas em barras normais. Fora do Windows,
+// remove também a letra de unidade ("c:" / "l:"), como especificado pelas
+// funções para Linux. No Windows a letra de unidade é parte real do caminho
+// e deve ser preservada.
 func normPath(p string) string {
 	if p == "" {
 		return p
 	}
 	p = strings.ReplaceAll(p, "\\", "/")
-	if len(p) >= 2 && p[1] == ':' {
+	if runtime.GOOS != "windows" && len(p) >= 2 && p[1] == ':' {
 		p = p[2:]
 	}
 	return p
