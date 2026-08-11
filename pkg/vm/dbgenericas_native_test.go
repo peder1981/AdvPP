@@ -1092,6 +1092,16 @@ func TestIndexOrdEFamily(t *testing.T) {
 	if advplrt.ToString(got) != "CODNUM" {
 		t.Fatalf("OrdKey(TAGCOD)=%q, esperado CODNUM", advplrt.ToString(got))
 	}
+	// OrdKey por posição numérica 1-based (spec: detecta numérico)
+	got, _ = natives["ORDKEY"]([]advplrt.Value{advplrt.NewNumber(2)})
+	if advplrt.ToString(got) != "CODNUM" {
+		t.Fatalf("OrdKey(2)=%q, esperado CODNUM (posição 2 = TAGCOD)", advplrt.ToString(got))
+	}
+	// Posição fora do range -> ""
+	got, _ = natives["ORDKEY"]([]advplrt.Value{advplrt.NewNumber(99)})
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("OrdKey(99)=%q, esperado \"\"", advplrt.ToString(got))
+	}
 	// OrdName/OrdNumber
 	got, _ = natives["ORDNAME"]([]advplrt.Value{advplrt.NewNumber(1)})
 	if advplrt.ToString(got) != "T_IDX1" {
@@ -1193,10 +1203,10 @@ func TestRDDNameEDefault(t *testing.T) {
 	if advplrt.ToString(got) != "DBFCDX" {
 		t.Fatalf("RDDSetDefault()=%q, esperado DBFCDX", advplrt.ToString(got))
 	}
-	// RDDSetDefault(TOPCONN) altera e retorna o novo default
+	// RDDSetDefault(TOPCONN) altera e retorna o valor ANTERIOR (spec)
 	got, _ = natives["RDDSETDEFAULT"]([]advplrt.Value{advplrt.NewString("TOPCONN")})
-	if advplrt.ToString(got) != "TOPCONN" {
-		t.Fatalf("RDDSetDefault(TOPCONN)=%q, esperado TOPCONN", advplrt.ToString(got))
+	if advplrt.ToString(got) != "DBFCDX" {
+		t.Fatalf("RDDSetDefault(TOPCONN)=%q, esperado DBFCDX (anterior)", advplrt.ToString(got))
 	}
 	// RDD inválida não altera
 	got, _ = natives["RDDSETDEFAULT"]([]advplrt.Value{advplrt.NewString("NOTEXISTS")})
@@ -1205,7 +1215,40 @@ func TestRDDNameEDefault(t *testing.T) {
 	}
 }
 
-// TestFLockERLock testa FLock e RLock em área aberta e sem área.
+// TestDBCreateRejeitaNomeInvalido testa que DBCREATE rejeita nome de campo
+// com caracteres fora de identificador (prevenção de injeção no DDL).
+func TestDBCreateRejeitaNomeInvalido(t *testing.T) {
+	v, natives, eng := newDBGenVM(t, "create_bad.db")
+	defer eng.Close()
+
+	// Nome de campo com espaço/vírgula tentaria injetar coluna extra no DDL.
+	aStruct := advplrt.NewArray([]advplrt.Value{
+		advplrt.NewArray([]advplrt.Value{
+			advplrt.NewString("X TEXT, Y INTEGER"), advplrt.NewString("C"),
+			advplrt.NewNumber(10), advplrt.NewNumber(0),
+		}),
+	})
+	if _, err := natives["DBCREATE"]([]advplrt.Value{
+		advplrt.NewString("T_BAD"), aStruct, advplrt.NewString("SQLITE"),
+	}); err != nil {
+		t.Fatalf("DBCREATE erro: %v", err)
+	}
+	// A tabela NÃO deve ter sido criada.
+	if _, err := eng.QueryRows("PRAGMA table_info(T_BAD)"); err != nil {
+		t.Fatalf("PRAGMA T_BAD deveria falhar (tabela não criada), veio %v", err)
+	}
+	// Confirma que a coluna extra não existe e a tabela segue inexistente.
+	rows, err := eng.QueryRows("SELECT name FROM sqlite_master WHERE type='table' AND name='T_BAD'")
+	if err != nil {
+		t.Fatalf("query sqlite_master: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("tabela T_BAD deveria não existir, mas existe (%v)", rows)
+	}
+	_ = v
+}
+
+
 func TestFLockERLock(t *testing.T) {
 	_, natives, eng := newDBGenVM(t, "flock.db")
 	defer eng.Close()
