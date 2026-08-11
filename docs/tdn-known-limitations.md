@@ -131,7 +131,7 @@ configurável).
   retido no bytecode; reconstruí-lo exigiria reanalisar o AST do parser
   por fonte, fora do escopo desta task.
 - `GetRpoLog([nRPO])` valida `nRPO` (aceita 1 = Padrão ou 3 = Custom,
-  conforme TDN) e sempre devolve `{{"", <data vazia>}, 0}` — versão/data de
+  conforme TDN) e sempre devolve `{% raw %}{{"", <data vazia>}, 0}{% endraw %}` — versão/data de
   RPO vazias e contagem de patches 0, que é verdadeiro dentro da
   arquitetura AdvPP (não existe sistema de patches, logo a contagem real é
   sempre zero).

@@ -3,6 +3,7 @@ package vm
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/advpl/compiler/pkg/compiler"
@@ -148,6 +149,9 @@ func TestXmlC14NFileArquivoInexistente(t *testing.T) {
 }
 
 func TestXmlC14NFileSmartClientPathRejeitado(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no Windows 'C:\\...' é caminho de servidor válido (não é rejeitado)")
+	}
 	v := NewVM(&compiler.Bytecode{}, false)
 	_, err := v.natives["XMLC14NFILE"].Fn([]advplrt.Value{
 		advplrt.NewString(`C:\temp\example.xml`),
