@@ -2,11 +2,14 @@ package vm
 
 // Natives DB "Funcoes-genericas" — TDN: Functions/Banco-de-Dados/Funcoes-genericas.
 //
-// Implementa 22 funções DB* do Protheus sobre o SQLiteEngine/DBEngine:
+// Implementa 37 funções DB* do Protheus sobre o SQLiteEngine/DBEngine:
 // DBNickIndexKey, DBOrderInfo, DBOrderNickname, DBRecall, DBRecordInfo,
 // DBReindex, DBRLock, DBRLockList, DBRUnlock, DBSetActFld, DBSetDriver,
 // DBSetIndex, DBSetNickname, DBSqlExec, DBSqlPlan, DBStruct, DBTblCopy,
-// DBUnlock, DBUnlockAll, DBUseArea, Deleted, FCount.
+// DBUnlock, DBUnlockAll, DBUseArea, Deleted, FCount, Field, FieldBlock,
+// FieldWBlock, Found, Header, IndexKey, IndexOrd, LastRec, NetErr, OrdBagName,
+// OrdCreate, OrdDescend, OrdKey, OrdListAdd, OrdName, OrdNumber, OrdSetFocus,
+// RDDName, RDDSetDefault, RealRDD, FLock, RLock, RecSize.
 //
 // Decisões de mapeamento (documentadas por função):
 //   - O SQLiteEngine não tem conceito nativo de ordens de índice, apelidos
@@ -77,6 +80,10 @@ type dbGenState struct {
 	// netErr: estado de erro da última operação de rede/RDD (NetErr()).
 	// RDDs sem rede real nunca setam .T.; NetErr(lValor) grava explicitamente.
 	netErr bool
+	// rdds: alias lógico -> RDD usada na abertura (DBUseArea/RDDName).
+	rdds map[string]string
+	// keyExprs: alias -> ordem -> expressão da chave (OrdCreate/IndexKey/OrdKey).
+	keyExprs map[string]map[string]string
 }
 
 var (
@@ -103,6 +110,8 @@ func (v *VM) dbGenStateFor() *dbGenState {
 		filterCBs:    make(map[string]advplrt.Value),
 		fileLocks:    make(map[string]bool),
 		lastFound:    make(map[string]bool),
+		rdds:         make(map[string]string),
+		keyExprs:     make(map[string]map[string]string),
 	}
 	dbGenStates[v] = s
 	return s
@@ -674,6 +683,7 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 		if cAlias == "" {
 			cAlias = cFile
 		}
+		cRDD := strings.ToUpper(strings.TrimSpace(getArgString(args, 1, "")))
 		if v.dbEngine != nil {
 			if err := v.dbEngine.SelectArea(cFile); err != nil {
 				return advplrt.Nil, nil
@@ -682,6 +692,9 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 		s := v.dbGenStateFor()
 		s.mu.Lock()
 		s.physTable[cAlias] = cFile
+		if cRDD != "" {
+			s.rdds[cAlias] = cRDD
+		}
 		s.mu.Unlock()
 		v.currentAlias = cAlias
 		return advplrt.Nil, nil
@@ -771,6 +784,14 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 		if c, ok := s.filterCBs[cOld]; ok {
 			s.filterCBs[cNew] = c
 			delete(s.filterCBs, cOld)
+		}
+		if r, ok := s.rdds[cOld]; ok {
+			s.rdds[cNew] = r
+			delete(s.rdds, cOld)
+		}
+		if k, ok := s.keyExprs[cOld]; ok {
+			s.keyExprs[cNew] = k
+			delete(s.keyExprs, cOld)
 		}
 		return advplrt.Nil, nil
 	}
@@ -1259,6 +1280,308 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 		}
 		return advplrt.NewNumber(float64(v.dbGenUserRecSize()+1)), nil
 	}
+
+	// =========================================================================
+	// IndexKey([nOrdem]) -> cExpr
+	//   Retorna a expressão da chave da ordem de índice indicada. nOrdem 0
+	//   (padrão) = ordem corrente. Só OrdCreate grava a expressão; ordens
+	//   abertas por DBSetIndex/OrdListAdd não a têm => "" (spec).
+	// =========================================================================
+	natives["INDEXKEY"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		alias := v.dbGenAlias()
+		name, _ := v.dbGenOrderNameAt(s, alias, int(advplrt.ToFloat(getArg(args, 0))))
+		if name == "" {
+			return advplrt.NewString(""), nil
+		}
+		return advplrt.NewString(s.keyExprs[alias][name]), nil
+	}
+
+	// =========================================================================
+	// IndexOrd() -> nOrd
+	//   Retorna a posição da ordem corrente na lista de ordens da tabela
+	//   (1-based). 0 quando não há índice aberto na tabela corrente (spec).
+	// =========================================================================
+	natives["INDEXORD"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		alias := v.dbGenAlias()
+		if len(s.orders[alias]) == 0 {
+			return advplrt.NewNumber(0), nil
+		}
+		idx := s.activeOrder[alias]
+		if idx < 0 || idx >= len(s.orders[alias]) {
+			idx = 0
+		}
+		return advplrt.NewNumber(float64(idx + 1)), nil
+	}
+
+	// =========================================================================
+	// OrdBagName(xExp) -> cBag
+	//   Retorna o nome da ordem de índice (aproximação do arquivo/ordem, já
+	//   que o SQLite não tem bag físico .cdx/.ntx) cujo nome corresponde a
+	//   xExp. "" quando não encontrada (spec).
+	// =========================================================================
+	natives["ORDBAGNAME"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		xExp := strings.ToUpper(getArgString(args, 0, ""))
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		alias := v.dbGenAlias()
+		for _, name := range s.orders[alias] {
+			if strings.Contains(name, xExp) {
+				return advplrt.NewString(name), nil
+			}
+		}
+		return advplrt.NewString(""), nil
+	}
+
+	// =========================================================================
+	// OrdCreate(cIndexFile, [cIndexTag], cExprKey, [bExprKey], [lUnique])
+	//   Cria um novo índice para a área de trabalho ativa. Registra a ordem
+	//   (tag ou nome do arquivo) na lista do alias, grava a expressão da
+	//   chave e a torna a ordem corrente. Retorno NIL (spec).
+	// =========================================================================
+	natives["ORDCREATE"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		cFile := strings.ToUpper(getArgString(args, 0, ""))
+		if cFile == "" {
+			return advplrt.Nil, nil
+		}
+		cTag := strings.ToUpper(getArgString(args, 1, ""))
+		cExpr := getArgString(args, 2, "")
+		name := cTag
+		if name == "" {
+			name = cFile
+		}
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		alias := v.dbGenAlias()
+		idx := -1
+		for i, o := range s.orders[alias] {
+			if o == name {
+				idx = i
+				break
+			}
+		}
+		if idx < 0 {
+			s.orders[alias] = append(s.orders[alias], name)
+			idx = len(s.orders[alias]) - 1
+		}
+		if s.keyExprs[alias] == nil {
+			s.keyExprs[alias] = make(map[string]string)
+		}
+		s.keyExprs[alias][name] = cExpr
+		s.activeOrder[alias] = idx
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// OrdDescend(xExp, [cIndex], [lDesc]) -> NIL
+	//   Altera a flag crescente/decrescente da ordem. O SQLite não mantém
+	//   ordem física de registros; a operação é no-op documentado (spec:
+	//   "não altera fisicamente a ordem dos registros na tabela").
+	// =========================================================================
+	natives["ORDDESCEND"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// OrdKey(cOrdem, [nPosicao], [cArqIndice]) -> cExpr
+	//   Retorna a expressão da chave da ordem nomeada. Grava por OrdCreate;
+	//   ordens sem expressão registrada => "" (spec).
+	// =========================================================================
+	natives["ORDKEY"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		cOrdem := strings.ToUpper(getArgString(args, 0, ""))
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		alias := v.dbGenAlias()
+		return advplrt.NewString(s.keyExprs[alias][cOrdem]), nil
+	}
+
+	// =========================================================================
+	// OrdListAdd(cIndexFile, [cIndexTag]) -> NIL
+	//   Acrescenta uma ou mais ordens de um índice à área de trabalho ativa
+	//   (equivalente ao DBSetIndex). Tag vazio usa o nome do arquivo. Não
+	//   altera a ordem corrente. Retorno NIL (spec).
+	// =========================================================================
+	natives["ORDLISTADD"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		cFile := strings.ToUpper(getArgString(args, 0, ""))
+		if cFile == "" {
+			return advplrt.Nil, nil
+		}
+		cTag := strings.ToUpper(getArgString(args, 1, ""))
+		name := cTag
+		if name == "" {
+			name = cFile
+		}
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		alias := v.dbGenAlias()
+		for _, o := range s.orders[alias] {
+			if o == name {
+				return advplrt.Nil, nil
+			}
+		}
+		s.orders[alias] = append(s.orders[alias], name)
+		if len(s.orders[alias]) == 1 {
+			s.activeOrder[alias] = 0
+		}
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// OrdName(nOrd, [xParam]) -> cNome
+	//   Retorna o nome da ordem na posição indicada. nOrd 0 (padrão) = ordem
+	//   corrente; nOrd >= 1 = posição 1-based na lista. "" fora do range (spec).
+	// =========================================================================
+	natives["ORDNAME"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		alias := v.dbGenAlias()
+		name, _ := v.dbGenOrderNameAt(s, alias, int(advplrt.ToFloat(getArg(args, 0))))
+		return advplrt.NewString(name), nil
+	}
+
+	// =========================================================================
+	// OrdNumber(cOrdem, [cArqIndice]) -> nPos
+	//   Retorna a posição (1-based) da ordem pelo nome na lista do alias.
+	//   0 quando a ordem não é encontrada (spec).
+	// =========================================================================
+	natives["ORDNUMBER"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		cOrdem := strings.ToUpper(getArgString(args, 0, ""))
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		alias := v.dbGenAlias()
+		for i, o := range s.orders[alias] {
+			if o == cOrdem {
+				return advplrt.NewNumber(float64(i + 1)), nil
+			}
+		}
+		return advplrt.NewNumber(0), nil
+	}
+
+	// =========================================================================
+	// OrdSetFocus([xExp], [cOrdBagName]) -> cNome
+	//   Retorna a ordem corrente; se xExp for dado e encontrar uma ordem na
+	//   lista, define o foco para ela e retorna o novo nome. Ordem não
+	//   encontrada => "" e o foco não muda (spec).
+	// =========================================================================
+	natives["ORDSETFOCUS"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		xExp := strings.ToUpper(getArgString(args, 0, ""))
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		alias := v.dbGenAlias()
+		cur, _ := v.dbGenOrderNameAt(s, alias, 0)
+		if xExp == "" {
+			return advplrt.NewString(cur), nil
+		}
+		for i, o := range s.orders[alias] {
+			if o == xExp {
+				s.activeOrder[alias] = i
+				return advplrt.NewString(o), nil
+			}
+		}
+		return advplrt.NewString(""), nil
+	}
+
+	// =========================================================================
+	// RDDName() -> cRDD
+	//   Retorna o nome da RDD utilizada pela área de trabalho corrente
+	//   (a RDD passada em DBUseArea; sem registro, a RDD padrão da sessão).
+	//   Sem área aberta => "" (spec: erro "Work area not in use" vira "").
+	// =========================================================================
+	natives["RDDNAME"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		alias := v.dbGenAlias()
+		if alias == "" {
+			return advplrt.NewString(""), nil
+		}
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if r, ok := s.rdds[alias]; ok && r != "" {
+			return advplrt.NewString(r), nil
+		}
+		return advplrt.NewString(s.defaultRDD), nil
+	}
+
+	// =========================================================================
+	// RDDSetDefault([cRDD]) -> cRet
+	//   Retorna a RDD padrão da sessão, podendo alterá-la (mesmo estado de
+	//   DBSetDriver). cRDD inválido não altera. Valor padrão: DBFCDX.
+	// =========================================================================
+	natives["RDDSETDEFAULT"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		cRDD := getArgString(args, 0, "")
+		if advplrt.IsNil(getArg(args, 0)) {
+			cRDD = ""
+		}
+		cRDD = strings.ToUpper(strings.TrimSpace(cRDD))
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if cRDD != "" && validRDD(cRDD) {
+			s.defaultRDD = cRDD
+		}
+		return advplrt.NewString(s.defaultRDD), nil
+	}
+
+	// =========================================================================
+	// RealRDD() -> cRDD
+	//   Retorna o driver realmente utilizado para abrir tabelas locais.
+	//   Este VM sempre usa SQLite como driver físico => "SQLITE".
+	// =========================================================================
+	natives["REALRDD"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		return advplrt.NewString("SQLITE"), nil
+	}
+
+	// =========================================================================
+	// FLock() -> lRet
+	//   Bloqueia a tabela/arquivo corrente (obsoleta na doc). Marca o bloqueio
+	//   de arquivo no estado do VM (refletido em DBInfo DBI_ISFLOCK) e retorna
+	//   .T.. Sem área aberta => .F. (spec: erro "Work area not in use").
+	// =========================================================================
+	natives["FLOCK"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		alias := v.dbGenAlias()
+		if alias == "" {
+			return advplrt.False, nil
+		}
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		s.fileLocks[alias] = true
+		s.mu.Unlock()
+		return advplrt.True, nil
+	}
+
+	// =========================================================================
+	// RLock() -> lRet
+	//   Bloqueia o registro corrente (equivale a DBRLock sem parâmetros).
+	//   Usa o engine.RecLock e registra o recno no estado do VM. .T. em
+	//   sucesso; sem área aberta => .F. (spec: erro "Work area not in use").
+	// =========================================================================
+	natives["RLOCK"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		alias := v.dbGenAlias()
+		if alias == "" {
+			return advplrt.False, nil
+		}
+		recno := 1
+		if v.dbEngine != nil {
+			_ = v.dbEngine.RecLock()
+			recno = v.dbEngine.RecNo()
+		}
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		s.locked[alias] = appendUniqueRecno(s.locked[alias], recno)
+		s.mu.Unlock()
+		return advplrt.True, nil
+	}
 }
 
 // nativeDeleted implementa Deleted(): .T. se D_E_L_E_T_ == '*' no registro corrente.
@@ -1440,4 +1763,25 @@ func (v *VM) dbGenUserRecSize() int {
 		total += size
 	}
 	return total
+}
+
+// dbGenOrderNameAt devolve o nome da ordem na posição nOrdem (1-based) da lista
+// de ordens do alias; nOrdem 0 (ou omitido) = ordem corrente. Retorna ""
+// quando não há ordem na posição. Deve ser chamada com s.mu travado.
+func (v *VM) dbGenOrderNameAt(s *dbGenState, alias string, nOrdem int) (string, bool) {
+	orders := s.orders[alias]
+	if len(orders) == 0 {
+		return "", false
+	}
+	if nOrdem <= 0 {
+		idx := s.activeOrder[alias]
+		if idx < 0 || idx >= len(orders) {
+			idx = 0
+		}
+		return orders[idx], true
+	}
+	if nOrdem >= 1 && nOrdem <= len(orders) {
+		return orders[nOrdem-1], true
+	}
+	return "", false
 }

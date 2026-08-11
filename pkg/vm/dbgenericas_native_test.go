@@ -1020,3 +1020,228 @@ func TestFieldBlockEWBlock(t *testing.T) {
 		t.Fatalf("FIELDWBLOCK()=%v, esperado NIL (infra de codeblock runtime inexistente)", got)
 	}
 }
+
+// openAlias abre a tabela teste como alias AL.
+func openAlias(t *testing.T, natives map[string]func(args []advplrt.Value) (advplrt.Value, error), table, alias, rdd string) {
+	t.Helper()
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString(rdd), advplrt.NewString(table),
+		advplrt.NewString(alias), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA(%s): %v", table, err)
+	}
+}
+
+// TestIndexOrdEFamily testa IndexOrd, OrdName, OrdNumber e IndexKey com ordens
+// criadas via DBSetIndex (sem expressão) e OrdCreate (com expressão).
+func TestIndexOrdEFamily(t *testing.T) {
+	v, natives, eng := newDBGenVM(t, "idx.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_IDX")
+	openAlias(t, natives, "T_IDX", "IDX", "SQLITE")
+
+	// Sem índices: IndexOrd 0, OrdName "" , OrdNumber 0
+	got, _ := natives["INDEXORD"]([]advplrt.Value{})
+	if advplrt.ToFloat(got) != 0 {
+		t.Fatalf("IndexOrd()=%v, esperado 0 (sem índice)", got)
+	}
+	got, _ = natives["ORDNAME"]([]advplrt.Value{advplrt.NewNumber(0)})
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("OrdName(0) sem índice=%q, esperado \"\"", advplrt.ToString(got))
+	}
+	got, _ = natives["ORDNUMBER"]([]advplrt.Value{advplrt.NewString("X")})
+	if advplrt.ToFloat(got) != 0 {
+		t.Fatalf("OrdNumber(X)=%v, esperado 0", got)
+	}
+	got, _ = natives["INDEXKEY"]([]advplrt.Value{advplrt.NewNumber(0)})
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("IndexKey() sem índice=%q, esperado \"\"", advplrt.ToString(got))
+	}
+
+	// DBSetIndex cria ordem SEM expressão -> IndexKey ""
+	if _, err := natives["DBSETINDEX"]([]advplrt.Value{advplrt.NewString("T_IDX1")}); err != nil {
+		t.Fatalf("DBSETINDEX: %v", err)
+	}
+	got, _ = natives["INDEXORD"](nil)
+	if advplrt.ToFloat(got) != 1 {
+		t.Fatalf("IndexOrd()=%v, esperado 1", got)
+	}
+	got, _ = natives["INDEXKEY"](nil)
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("IndexKey() com ordem sem expressão=%q, esperado \"\"", advplrt.ToString(got))
+	}
+
+	// OrdCreate cria ordem COM expressão e a torna corrente
+	if _, err := natives["ORDCREATE"]([]advplrt.Value{
+		advplrt.NewString("T_IDX_ORD"), advplrt.NewString("TAGCOD"),
+		advplrt.NewString("CODNUM"),
+	}); err != nil {
+		t.Fatalf("ORDCREATE: %v", err)
+	}
+	// Agora há 2 ordens; corrente = TAGCOD (posição 2)
+	got, _ = natives["INDEXORD"](nil)
+	if advplrt.ToFloat(got) != 2 {
+		t.Fatalf("IndexOrd()=%v, esperado 2 (TAGCOD ativa)", got)
+	}
+	got, _ = natives["INDEXKEY"](nil)
+	if advplrt.ToString(got) != "CODNUM" {
+		t.Fatalf("IndexKey()=%q, esperado CODNUM", advplrt.ToString(got))
+	}
+	// OrdKey por nome
+	got, _ = natives["ORDKEY"]([]advplrt.Value{advplrt.NewString("TAGCOD")})
+	if advplrt.ToString(got) != "CODNUM" {
+		t.Fatalf("OrdKey(TAGCOD)=%q, esperado CODNUM", advplrt.ToString(got))
+	}
+	// OrdName/OrdNumber
+	got, _ = natives["ORDNAME"]([]advplrt.Value{advplrt.NewNumber(1)})
+	if advplrt.ToString(got) != "T_IDX1" {
+		t.Fatalf("OrdName(1)=%q, esperado T_IDX1", advplrt.ToString(got))
+	}
+	got, _ = natives["ORDNUMBER"]([]advplrt.Value{advplrt.NewString("TAGCOD")})
+	if advplrt.ToFloat(got) != 2 {
+		t.Fatalf("OrdNumber(TAGCOD)=%v, esperado 2", got)
+	}
+	// OrdName(0) = ordem corrente (TAGCOD)
+	got, _ = natives["ORDNAME"]([]advplrt.Value{advplrt.NewNumber(0)})
+	if advplrt.ToString(got) != "TAGCOD" {
+		t.Fatalf("OrdName(0)=%q, esperado TAGCOD", advplrt.ToString(got))
+	}
+	// IndexKey(1) = expressão da 1ª ordem (T_IDX1 sem expressão -> "")
+	got, _ = natives["INDEXKEY"]([]advplrt.Value{advplrt.NewNumber(1)})
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("IndexKey(1)=%q, esperado \"\"", advplrt.ToString(got))
+	}
+	// IndexKey(99) fora do range -> ""
+	got, _ = natives["INDEXKEY"]([]advplrt.Value{advplrt.NewNumber(99)})
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("IndexKey(99)=%q, esperado \"\"", advplrt.ToString(got))
+	}
+	_ = v
+}
+
+// TestOrdSetFocusEListAdd testa OrdSetFocus, OrdListAdd e OrdBagName.
+func TestOrdSetFocusEListAdd(t *testing.T) {
+	_, natives, eng := newDBGenVM(t, "focus.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_FCS")
+	openAlias(t, natives, "T_FCS", "FCS", "SQLITE")
+
+	// OrdSetFocus sem foco -> ""
+	got, _ := natives["ORDSETFOCUS"](nil)
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("OrdSetFocus()=%q, esperado \"\"", advplrt.ToString(got))
+	}
+	// OrdSetFocus(inexistente) -> "" e não muda
+	got, _ = natives["ORDSETFOCUS"]([]advplrt.Value{advplrt.NewString("ZZZ")})
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("OrdSetFocus(ZZZ)=%q, esperado \"\"", advplrt.ToString(got))
+	}
+	// OrdListAdd cria ordens
+	if _, err := natives["ORDLISTADD"]([]advplrt.Value{advplrt.NewString("A_ORD")}); err != nil {
+		t.Fatalf("ORDLISTADD(A_ORD): %v", err)
+	}
+	if _, err := natives["ORDLISTADD"]([]advplrt.Value{
+		advplrt.NewString("B_ORD"), advplrt.NewString("TAGB"),
+	}); err != nil {
+		t.Fatalf("ORDLISTADD(B_ORD,TAGB): %v", err)
+	}
+	// Ordem corrente = primeira adicionada (A_ORD)
+	got, _ = natives["ORDNAME"]([]advplrt.Value{advplrt.NewNumber(0)})
+	if advplrt.ToString(got) != "A_ORD" {
+		t.Fatalf("OrdName(0)=%q, esperado A_ORD", advplrt.ToString(got))
+	}
+	// OrdSetFocus(TAGB) seta foco e retorna TAGB
+	got, _ = natives["ORDSETFOCUS"]([]advplrt.Value{advplrt.NewString("TAGB")})
+	if advplrt.ToString(got) != "TAGB" {
+		t.Fatalf("OrdSetFocus(TAGB)=%q, esperado TAGB", advplrt.ToString(got))
+	}
+	got, _ = natives["ORDNAME"]([]advplrt.Value{advplrt.NewNumber(0)})
+	if advplrt.ToString(got) != "TAGB" {
+		t.Fatalf("OrdName(0) após foco=%q, esperado TAGB", advplrt.ToString(got))
+	}
+	// OrdBagName busca substring
+	got, _ = natives["ORDBAGNAME"]([]advplrt.Value{advplrt.NewString("TAGB")})
+	if advplrt.ToString(got) != "TAGB" {
+		t.Fatalf("OrdBagName(TAGB)=%q, esperado TAGB", advplrt.ToString(got))
+	}
+	// OrdBagName não encontrada -> ""
+	got, _ = natives["ORDBAGNAME"]([]advplrt.Value{advplrt.NewString("NAO_EXISTE")})
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("OrdBagName(NAO_EXISTE)=%q, esperado \"\"", advplrt.ToString(got))
+	}
+}
+
+// TestRDDNameEDefault testa RDDName, RDDSetDefault e RealRDD.
+func TestRDDNameEDefault(t *testing.T) {
+	_, natives, eng := newDBGenVM(t, "rdd.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_RDD")
+	openAlias(t, natives, "T_RDD", "RDD", "SQLITE")
+
+	// RDDName reflete a RDD de abertura (SQLITE)
+	got, _ := natives["RDDNAME"](nil)
+	if advplrt.ToString(got) != "SQLITE" {
+		t.Fatalf("RDDName()=%q, esperado SQLITE", advplrt.ToString(got))
+	}
+	// RealRDD é sempre SQLITE
+	got, _ = natives["REALRDD"](nil)
+	if advplrt.ToString(got) != "SQLITE" {
+		t.Fatalf("RealRDD()=%q, esperado SQLITE", advplrt.ToString(got))
+	}
+	// RDDSetDefault sem args -> default DBFCDX
+	got, _ = natives["RDDSETDEFAULT"](nil)
+	if advplrt.ToString(got) != "DBFCDX" {
+		t.Fatalf("RDDSetDefault()=%q, esperado DBFCDX", advplrt.ToString(got))
+	}
+	// RDDSetDefault(TOPCONN) altera e retorna o novo default
+	got, _ = natives["RDDSETDEFAULT"]([]advplrt.Value{advplrt.NewString("TOPCONN")})
+	if advplrt.ToString(got) != "TOPCONN" {
+		t.Fatalf("RDDSetDefault(TOPCONN)=%q, esperado TOPCONN", advplrt.ToString(got))
+	}
+	// RDD inválida não altera
+	got, _ = natives["RDDSETDEFAULT"]([]advplrt.Value{advplrt.NewString("NOTEXISTS")})
+	if advplrt.ToString(got) != "TOPCONN" {
+		t.Fatalf("RDDSetDefault(NOTEXISTS)=%q, esperado TOPCONN", advplrt.ToString(got))
+	}
+}
+
+// TestFLockERLock testa FLock e RLock em área aberta e sem área.
+func TestFLockERLock(t *testing.T) {
+	_, natives, eng := newDBGenVM(t, "flock.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_FL")
+	openAlias(t, natives, "T_FL", "FL", "SQLITE")
+
+	// Sem registro corrente, RLock ainda retorna .T. (engine tolera)
+	got, err := natives["RLOCK"]([]advplrt.Value{})
+	if err != nil || got != advplrt.True {
+		t.Fatalf("RLOCK() got=%v err=%v, esperado .T.", got, err)
+	}
+	// FLock marca o arquivo -> .T.
+	got, err = natives["FLOCK"]([]advplrt.Value{})
+	if err != nil || got != advplrt.True {
+		t.Fatalf("FLOCK() got=%v err=%v, esperado .T.", got, err)
+	}
+	// DBI_ISFLOCK (20) deve refletir o bloqueio de arquivo
+	got, err = natives["DBINFO"]([]advplrt.Value{advplrt.NewNumber(20)})
+	if err != nil || got != advplrt.True {
+		t.Fatalf("DBInfo(20) após FLOCK=%v err=%v, esperado .T.", got, err)
+	}
+}
+
+// TestFLockERLockNoArea testa FLock/RLock sem área aberta: retornam .F.
+// (spec: erro "Work area not in use" tratado pela regra Nil-friendly).
+func TestFLockERLockNoArea(t *testing.T) {
+	v := NewVM(&compiler.Bytecode{}, false)
+	natives := map[string]func(args []advplrt.Value) (advplrt.Value, error){}
+	v.registerDbgenericasNatives(natives)
+
+	got, err := natives["FLOCK"]([]advplrt.Value{})
+	if err != nil || got != advplrt.False {
+		t.Fatalf("FLOCK sem área got=%v err=%v, esperado .F.", got, err)
+	}
+	got, err = natives["RLOCK"]([]advplrt.Value{})
+	if err != nil || got != advplrt.False {
+		t.Fatalf("RLOCK sem área got=%v err=%v, esperado .F.", got, err)
+	}
+}
