@@ -1,15 +1,21 @@
 package vm
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
+	"math/big"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/advpl/compiler/pkg/compiler"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
@@ -492,4 +498,134 @@ func readTempFile(path string) ([]byte, error) {
 		return nil, errors.New("readTempFile: " + err.Error())
 	}
 	return data, nil
+}
+
+// genSelfSignedCert gera um par certificado/chave X.509 autoassinado PEM
+// (determinista e barato) para os testes de SMIMESign.
+func genSelfSignedCert(t *testing.T) (certPEM, keyPEM string) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "advpp-smime-test"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("CreateCertificate: %v", err)
+	}
+	certPEM = string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+	keyPEM = string(pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key),
+	}))
+	return certPEM, keyPEM
+}
+
+// TestSMIMESign testa o caminho feliz: assina dados e verifica a assinatura
+// com a chave pública do certificado.
+func TestSMIMESign(t *testing.T) {
+	_, natives := newCryptoVM()
+	certPEM, keyPEM := genSelfSignedCert(t)
+
+	cErr := advplrt.NewString("")
+	cData := "<?xml version='1.0'?><xml>9999999999</xml>"
+	got, err := cryptoCall(natives, "SMIMESIGN", []advplrt.Value{
+		advplrt.NewString(certPEM),
+		advplrt.NewString(keyPEM),
+		advplrt.NewString(cData),
+		advplrt.NewString("-nodetach"),
+		cErr,
+		advplrt.NewString(""),
+	})
+	if err != nil {
+		t.Fatalf("SMIMESign retornou erro: %v", err)
+	}
+	signed := advplrt.ToString(got)
+	if signed == "" {
+		t.Fatalf("SMIMESign retornou vazio; cError=%q", cErr.Val)
+	}
+	if cErr.Val != "" {
+		t.Fatalf("cError deveria estar vazio, veio %q", cErr.Val)
+	}
+	// Base64 válida e assinatura confere com a chave pública do certificado.
+	raw, err := base64.StdEncoding.DecodeString(signed)
+	if err != nil {
+		t.Fatalf("assinatura não é base64 válida: %v", err)
+	}
+	block, _ := pem.Decode([]byte(certPEM))
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("ParseCertificate: %v", err)
+	}
+	digest := sha256.Sum256([]byte(cData))
+	if err := rsa.VerifyPKCS1v15(cert.PublicKey.(*rsa.PublicKey), crypto.SHA256, digest[:], raw); err != nil {
+		t.Fatalf("verificação da assinatura falhou: %v", err)
+	}
+}
+
+// TestSMIMESignErros testa os caminhos de erro: certificado inexistente,
+// certificado inválido e chave inválida preenchem @cError e retornam "".
+func TestSMIMESignErros(t *testing.T) {
+	_, natives := newCryptoVM()
+	certPEM, keyPEM := genSelfSignedCert(t)
+
+	// 1. Certificado inexistente (path)
+	cErr := advplrt.NewString("")
+	got, err := cryptoCall(natives, "SMIMESIGN", []advplrt.Value{
+		advplrt.NewString("/nao/existe/cert.pem"),
+		advplrt.NewString(keyPEM),
+		advplrt.NewString("data"),
+		advplrt.NewString("-nodetach"),
+		cErr,
+		advplrt.NewString(""),
+	})
+	if err != nil {
+		t.Fatalf("SMIMESign (cert inexistente) erro: %v", err)
+	}
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("esperado \"\" com cert inexistente, veio %q", advplrt.ToString(got))
+	}
+	if cErr.Val == "" {
+		t.Fatalf("cError deveria conter mensagem (cert inexistente), veio vazio")
+	}
+
+	// 2. Certificado PEM inválido (não é X.509)
+	cErr2 := advplrt.NewString("")
+	got, err = cryptoCall(natives, "SMIMESIGN", []advplrt.Value{
+		advplrt.NewString("-----BEGIN CERTIFICATE-----\nZGF0YQ==\n-----END CERTIFICATE-----"),
+		advplrt.NewString(keyPEM),
+		advplrt.NewString("data"),
+		advplrt.NewString(""),
+		cErr2,
+		advplrt.NewString(""),
+	})
+	if err != nil {
+		t.Fatalf("SMIMESign (cert inválido) erro: %v", err)
+	}
+	if advplrt.ToString(got) != "" || cErr2.Val == "" {
+		t.Fatalf("cert inválido: esperado \"\" + cError, veio %q / %q", advplrt.ToString(got), cErr2.Val)
+	}
+
+	// 3. Chave privada inválida (cert ok, key lixo)
+	cErr3 := advplrt.NewString("")
+	got, err = cryptoCall(natives, "SMIMESIGN", []advplrt.Value{
+		advplrt.NewString(certPEM),
+		advplrt.NewString("-----BEGIN RSA PRIVATE KEY-----\nZGF0YQ==\n-----END RSA PRIVATE KEY-----"),
+		advplrt.NewString("data"),
+		advplrt.NewString(""),
+		cErr3,
+		advplrt.NewString(""),
+	})
+	if err != nil {
+		t.Fatalf("SMIMESign (key inválida) erro: %v", err)
+	}
+	if advplrt.ToString(got) != "" || cErr3.Val == "" {
+		t.Fatalf("key inválida: esperado \"\" + cError, veio %q / %q", advplrt.ToString(got), cErr3.Val)
+	}
 }
