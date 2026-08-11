@@ -491,7 +491,7 @@ func TestMsCompress(t *testing.T) {
 	mzpPath := filepath.Join(dir, "data.mzp")
 	outDir := filepath.Join(dir, "out")
 
-	if got := a.callStr("MSCOMPRESS", advplrt.NewString(src), advplrt.NewString(mzpPath)); got != mzpPath {
+	if got := a.callStr("MSCOMPRESS", advplrt.NewString(src), advplrt.NewString(mzpPath)); got != filepath.ToSlash(mzpPath) {
 		t.Fatalf("MSCOMPRESS deveria retornar o destino %q, obteve %q", mzpPath, got)
 	}
 	if !a.fileExists(mzpPath) {
