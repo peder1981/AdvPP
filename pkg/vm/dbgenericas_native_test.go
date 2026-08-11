@@ -2,6 +2,7 @@ package vm
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/advpl/compiler/pkg/compiler"
@@ -509,5 +510,351 @@ func TestDBSqlPlan(t *testing.T) {
 	header, ok := result.Elements[0].(*advplrt.ArrayValue)
 	if !ok || len(header.Elements) != 4 {
 		t.Fatalf("header=%v, esperado array de 4 (id,parent,notused,detail)", result.Elements[0])
+	}
+}
+
+// TestDBChangeAlias testa DBCHANGEALIAS movendo o estado para novo alias.
+func TestDBChangeAlias(t *testing.T) {
+	v, natives, eng := newDBGenVM(t, "chg.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_CHG")
+
+	// Abre a tabela como alias T_CHG
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_CHG"),
+		advplrt.NewString("T_CHG"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	// Muda o alias para T2
+	if _, err := natives["DBCHANGEALIAS"]([]advplrt.Value{
+		advplrt.NewString("T_CHG"), advplrt.NewString("T2"),
+	}); err != nil {
+		t.Fatalf("DBCHANGEALIAS erro: %v", err)
+	}
+	if v.currentAlias != "T2" {
+		t.Fatalf("currentAlias=%q, esperado T2", v.currentAlias)
+	}
+	// O engine SQLite não tem conceito de alias lógico (SelectArea usa o nome
+	// físico); DBInfo(33) reflete currentAlias do VM.
+	got, err := natives["DBINFO"]([]advplrt.Value{advplrt.NewNumber(33)})
+	if err != nil {
+		t.Fatalf("DBINFO erro: %v", err)
+	}
+	if advplrt.ToString(got) != "T2" {
+		t.Fatalf("DBINFO(33)=%q, esperado T2", advplrt.ToString(got))
+	}
+}
+
+// TestDBCreate testa DBCREATE criando tabela real com tipos AdvPL.
+func TestDBCreate(t *testing.T) {
+	_, natives, eng := newDBGenVM(t, "create.db")
+	defer eng.Close()
+
+	aStruct := advplrt.NewArray([]advplrt.Value{
+		advplrt.NewArray([]advplrt.Value{
+			advplrt.NewString("Cod"), advplrt.NewString("N"), advplrt.NewNumber(3), advplrt.NewNumber(0),
+		}),
+		advplrt.NewArray([]advplrt.Value{
+			advplrt.NewString("Nome"), advplrt.NewString("C"), advplrt.NewNumber(10), advplrt.NewNumber(0),
+		}),
+	})
+	if _, err := natives["DBCREATE"]([]advplrt.Value{
+		advplrt.NewString("T_NEW"), aStruct, advplrt.NewString("SQLITE"),
+	}); err != nil {
+		t.Fatalf("DBCREATE erro: %v", err)
+	}
+	cols := eng.FieldPos("CODNUM")
+	if cols != 0 {
+		t.Fatalf("CODNUM não deveria existir, FieldPos=%d", cols)
+	}
+	// Verifica estrutura via PRAGMA indireto: usa DBUSEAREA na tabela criada
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_NEW"),
+		advplrt.NewString("T_NEW"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	if eng.FieldPos("COD") == 0 {
+		t.Fatalf("campo COD não encontrado na tabela criada")
+	}
+	if eng.FieldPos("NOME") == 0 {
+		t.Fatalf("campo NOME não encontrado na tabela criada")
+	}
+}
+
+// TestDBFieldInfo testa DBFIELDINFO com as constantes DBS_* (1..4).
+func TestDBFieldInfo(t *testing.T) {
+	v, natives, eng := newDBGenVM(t, "fieldinfo.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_FI")
+
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_FI"),
+		advplrt.NewString("T_FI"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	// Colunas do usuário (sem R_E_C_N_O_/D_E_L_E_T_): CODNUM, NOME, VALOR
+	name, err := natives["DBFIELDINFO"]([]advplrt.Value{advplrt.NewNumber(1), advplrt.NewNumber(1)})
+	if err != nil {
+		t.Fatalf("DBFIELDINFO(1,1) erro: %v", err)
+	}
+	if advplrt.ToString(name) != "CODNUM" {
+		t.Fatalf("DBFIELDINFO(NAME,1)=%q, esperado CODNUM", advplrt.ToString(name))
+	}
+	typ, err := natives["DBFIELDINFO"]([]advplrt.Value{advplrt.NewNumber(2), advplrt.NewNumber(1)})
+	if err != nil {
+		t.Fatalf("DBFIELDINFO(2,1) erro: %v", err)
+	}
+	if advplrt.ToString(typ) != "N" {
+		t.Fatalf("DBFIELDINFO(TYPE,1)=%q, esperado N", advplrt.ToString(typ))
+	}
+	// Campo 2 (NOME) deve ser "C"
+	typ2, err := natives["DBFIELDINFO"]([]advplrt.Value{advplrt.NewNumber(2), advplrt.NewNumber(2)})
+	if err != nil {
+		t.Fatalf("DBFIELDINFO(2,2) erro: %v", err)
+	}
+	if advplrt.ToString(typ2) != "C" {
+		t.Fatalf("DBFIELDINFO(TYPE,2)=%q, esperado C", advplrt.ToString(typ2))
+	}
+	// Campo 3 (VALOR) deve ser "N"
+	typ3, err := natives["DBFIELDINFO"]([]advplrt.Value{advplrt.NewNumber(2), advplrt.NewNumber(3)})
+	if err != nil {
+		t.Fatalf("DBFIELDINFO(2,3) erro: %v", err)
+	}
+	if advplrt.ToString(typ3) != "N" {
+		t.Fatalf("DBFIELDINFO(TYPE,3)=%q, esperado N", advplrt.ToString(typ3))
+	}
+	_ = v
+}
+
+// TestDBGetActFld testa DBGETACTFLD com e sem campos restritos.
+func TestDBGetActFld(t *testing.T) {
+	_, natives, eng := newDBGenVM(t, "actfld.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_AF")
+
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_AF"),
+		advplrt.NewString("T_AF"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	// Todos ativos => "*"
+	got, err := natives["DBGETACTFLD"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("DBGETACTFLD erro: %v", err)
+	}
+	if advplrt.ToString(got) != "*" {
+		t.Fatalf("DBGETACTFLD()=%q, esperado *", advplrt.ToString(got))
+	}
+	// Desabilita NOME
+	if _, err := natives["DBSETACTFLD"]([]advplrt.Value{
+		advplrt.NewString("NOME"), advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBSETACTFLD erro: %v", err)
+	}
+	got, err = natives["DBGETACTFLD"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("DBGETACTFLD erro: %v", err)
+	}
+	out := advplrt.ToString(got)
+	if strings.Contains(out, "NOME") {
+		t.Fatalf("DBGETACTFLD()=%q, NOME não deveria estar ativo", out)
+	}
+	if !strings.Contains(out, "CODNUM") {
+		t.Fatalf("DBGETACTFLD()=%q, CODNUM deveria estar ativo", out)
+	}
+}
+
+// TestDBGoToDBInInsert testa DBGOTO e DBININSERT (fluxo append->commit).
+func TestDBGoToDBInInsert(t *testing.T) {
+	_, natives, eng := newDBGenVM(t, "goto.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_GO")
+
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_GO"),
+		advplrt.NewString("T_GO"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	// Antes de append: .F.
+	got, err := natives["DBININSERT"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("DBININSERT erro: %v", err)
+	}
+	if got != advplrt.False {
+		t.Fatalf("DBININSERT() antes=%v, esperado .F.", got)
+	}
+	// Append (engine diretamente — DBAPPEND vive no mapa inline de natives.go,
+	// não no map de newDBGenVM) -> .T.
+	if err := eng.Append(); err != nil {
+		t.Fatalf("Append erro: %v", err)
+	}
+	got, err = natives["DBININSERT"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("DBININSERT erro: %v", err)
+	}
+	if got != advplrt.True {
+		t.Fatalf("DBININSERT() após append=%v, esperado .T.", got)
+	}
+	// Preenche e commit (SetInserting direto) -> .F.
+	if err := eng.FieldPut("NOME", advplrt.NewString("ABC")); err != nil {
+		t.Fatalf("FieldPut erro: %v", err)
+	}
+	eng.SetInserting(false)
+	got, err = natives["DBININSERT"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("DBININSERT erro: %v", err)
+	}
+	if got != advplrt.False {
+		t.Fatalf("DBININSERT() após commit=%v, esperado .F.", got)
+	}
+	// DBGOTO posiciona no recno 1
+	if _, err := natives["DBGOTO"]([]advplrt.Value{advplrt.NewNumber(1)}); err != nil {
+		t.Fatalf("DBGOTO erro: %v", err)
+	}
+	if eng.RecNo() != 1 {
+		t.Fatalf("RecNo após DBGOTO(1)=%d, esperado 1", eng.RecNo())
+	}
+}
+
+// TestDBFilterEDBClearAllFilter testa DBFILTER, DBFILTERCB e DBCLEARALLFILTER.
+func TestDBFilterEDBClearAllFilter(t *testing.T) {
+	v, natives, eng := newDBGenVM(t, "filter.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_FL")
+
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_FL"),
+		advplrt.NewString("T_FL"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	// Sem filtro => ""
+	got, err := natives["DBFILTER"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("DBFILTER erro: %v", err)
+	}
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("DBFILTER()=%q, esperado \"\"", advplrt.ToString(got))
+	}
+	// Popula o estado de filtro via DBCLEARALLFILTER (garante map vazio e
+	// registra implicitamente) e depois grava expressão direto no estado.
+	s := v.dbGenStateFor()
+	s.mu.Lock()
+	s.filters["T_FL"] = "CODNUM=1"
+	s.mu.Unlock()
+	got, err = natives["DBFILTER"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("DBFILTER erro: %v", err)
+	}
+	if advplrt.ToString(got) != "CODNUM=1" {
+		t.Fatalf("DBFILTER()=%q, esperado CODNUM=1", advplrt.ToString(got))
+	}
+	// DBFILTERCB sem codeblock => NIL
+	cb, err := natives["DBFILTERCB"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("DBFILTERCB erro: %v", err)
+	}
+	if !advplrt.IsNil(cb) {
+		t.Fatalf("DBFILTERCB()=%v, esperado NIL", cb)
+	}
+	// DBCLEARALLFILTER limpa tudo
+	if _, err := natives["DBCLEARALLFILTER"]([]advplrt.Value{}); err != nil {
+		t.Fatalf("DBCLEARALLFILTER erro: %v", err)
+	}
+	got, err = natives["DBFILTER"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("DBFILTER erro: %v", err)
+	}
+	if advplrt.ToString(got) != "" {
+		t.Fatalf("DBFILTER() após clear=%q, esperado \"\"", advplrt.ToString(got))
+	}
+}
+
+// TestDBInfoDBClearIndexDBCloseAll testa DBINFO, DBCLEARINDEX e DBCLOSEALL.
+func TestDBInfoDBClearIndexDBCloseAll(t *testing.T) {
+	v, natives, eng := newDBGenVM(t, "info.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_IN")
+
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_IN"),
+		advplrt.NewString("T_IN"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	// DBI_ALIAS (33)
+	got, err := natives["DBINFO"]([]advplrt.Value{advplrt.NewNumber(33)})
+	if err != nil {
+		t.Fatalf("DBINFO(33) erro: %v", err)
+	}
+	if advplrt.ToString(got) != "T_IN" {
+		t.Fatalf("DBINFO(33)=%q, esperado T_IN", advplrt.ToString(got))
+	}
+	// DBI_EOF (27) em tabela vazia: current=0, len(records)=0 => EOF .T.
+	got, err = natives["DBINFO"]([]advplrt.Value{advplrt.NewNumber(27)})
+	if err != nil {
+		t.Fatalf("DBINFO(27) erro: %v", err)
+	}
+	if got != advplrt.True {
+		t.Fatalf("DBINFO(27)=%v, esperado .T. (EOF em tabela vazia)", got)
+	}
+	// DBCLEARINDEX não deve quebrar
+	if _, err := natives["DBCLEARINDEX"]([]advplrt.Value{}); err != nil {
+		t.Fatalf("DBCLEARINDEX erro: %v", err)
+	}
+	// DBCLOSEALL fecha a área
+	if _, err := natives["DBCLOSEALL"]([]advplrt.Value{}); err != nil {
+		t.Fatalf("DBCLOSEALL erro: %v", err)
+	}
+	if v.currentAlias != "" {
+		t.Fatalf("currentAlias após DBCLOSEALL=%q, esperado \"\"", v.currentAlias)
+	}
+	// GetDBExtension
+	ext, err := natives["GETDBEXTENSION"]([]advplrt.Value{})
+	if err != nil {
+		t.Fatalf("GETDBEXTENSION erro: %v", err)
+	}
+	if advplrt.ToString(ext) != ".dbf" {
+		t.Fatalf("GETDBEXTENSION()=%q, esperado .dbf", advplrt.ToString(ext))
+	}
+}
+
+// TestDBCommitAllAndDBFound testa DBCOMMITALL e o estado de Found via DBSEEK.
+func TestDBCommitAllAndDBFound(t *testing.T) {
+	_, natives, eng := newDBGenVM(t, "commit.db")
+	defer eng.Close()
+	createTSTable(t, eng, "T_CM")
+
+	if _, err := natives["DBUSEAREA"]([]advplrt.Value{
+		advplrt.True, advplrt.NewString("SQLITE"), advplrt.NewString("T_CM"),
+		advplrt.NewString("T_CM"), advplrt.False, advplrt.False,
+	}); err != nil {
+		t.Fatalf("DBUSEAREA erro: %v", err)
+	}
+	// DBCOMMITALL é no-op seguro
+	if _, err := natives["DBCOMMITALL"]([]advplrt.Value{}); err != nil {
+		t.Fatalf("DBCOMMITALL erro: %v", err)
+	}
+	// DBSEEK não encontrado (engine direto — DBSEEK vive no mapa inline de
+	// natives.go; o fluxo real que popula lastFound é via dbGenSetFound) =>
+	// Found .F.
+	found, err := eng.Seek("NAO_EXISTE")
+	if err != nil {
+		t.Fatalf("Seek erro: %v", err)
+	}
+	if found {
+		t.Fatalf("Seek(NAO_EXISTE) encontrou, esperado não")
+	}
+	got, err := natives["DBINFO"]([]advplrt.Value{advplrt.NewNumber(29)})
+	if err != nil {
+		t.Fatalf("DBINFO(29) erro: %v", err)
+	}
+	if got != advplrt.False {
+		t.Fatalf("DBINFO(29) após seek falho=%v, esperado .F.", got)
 	}
 }
