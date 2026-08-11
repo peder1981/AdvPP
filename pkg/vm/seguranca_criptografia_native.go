@@ -540,6 +540,48 @@ func (v *VM) registerSegurancaCriptografiaNatives(natives map[string]func(args [
 	natives["HTTPSSLCLIENT"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return advplrt.NewBool(false), nil
 	}
+
+	// =========================================================================
+	// SMIMESign(cSignCert, cPrivKey, cData, cOptions, [@cError], [cPass])
+	//   Assina mensagens S/MIME. Carrega o certificado (cSignCert) e a chave
+	//   privada (cPrivKey) — path ou conteúdo PEM — e assina cData com
+	//   RSA/SHA-256 (PKCS#1 v1.5), reutilizando o fluxo de PRIVSIGNRSA. O
+	//   resultado é a assinatura PKCS#1 em Base64 ("pseudo-PKCS7"): não é um
+	//   envelope CMS completo, e as opções de cOptions (OpenSSL `smime` CLI:
+	//   -nodetach, -binary, etc.) são aceitas mas não alteram o formato.
+	//   Em erro (certificado/chave inválidos), preenche @cError (por
+	//   referência, mutando o *StringValue do chamador) e retorna "".
+	// =========================================================================
+	natives["SMIMESIGN"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		setError := func(msg string) (advplrt.Value, error) {
+			if sv, ok := getArg(args, 4).(*advplrt.StringValue); ok {
+				sv.Val = msg
+			}
+			return advplrt.NewString(""), nil
+		}
+		certData, ok := readKeyMaterial(getArgString(args, 0, ""))
+		if !ok {
+			return setError("Certificado não encontrado ou PEM inválido")
+		}
+		// Valida que o PEM do certificado é um X.509 parseável.
+		if _, err := x509.ParseCertificate(pemBytesBlock(certData)); err != nil {
+			return setError("Certificado inválido: " + err.Error())
+		}
+		privData, ok := readKeyMaterial(getArgString(args, 1, ""))
+		if !ok {
+			return setError("Chave privada não encontrada ou PEM inválido")
+		}
+		priv, err := parseRSAPrivateKey(privData, getArgString(args, 5, ""))
+		if err != nil {
+			return setError("Chave privada inválida: " + err.Error())
+		}
+		digest := sha256.Sum256([]byte(getArgString(args, 2, "")))
+		sig, err := rsa.SignPKCS1v15(rand.Reader, priv, crypto.SHA256, digest[:])
+		if err != nil {
+			return setError("Falha ao assinar: " + err.Error())
+		}
+		return advplrt.NewString(base64.StdEncoding.EncodeToString(sig)), nil
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -810,6 +852,16 @@ func readKeyMaterial(cKey string) ([]byte, bool) {
 		return nil, false
 	}
 	return data, true
+}
+
+// pemBytesBlock decodifica o primeiro bloco PEM e devolve o DER. Nil se o
+// conteúdo não for PEM válido.
+func pemBytesBlock(pemBytes []byte) []byte {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil
+	}
+	return block.Bytes
 }
 
 // parseRSAPrivateKey analisa uma chave privada RSA em PEM (PKCS#1, PKCS#8 ou
