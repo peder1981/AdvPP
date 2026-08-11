@@ -74,6 +74,9 @@ type dbGenState struct {
 	fileLocks map[string]bool
 	// lastFound: alias -> resultado da última busca (DBSeek) — Found()/DBI_FOUND.
 	lastFound map[string]bool
+	// netErr: estado de erro da última operação de rede/RDD (NetErr()).
+	// RDDs sem rede real nunca setam .T.; NetErr(lValor) grava explicitamente.
+	netErr bool
 }
 
 var (
@@ -1153,6 +1156,109 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 	natives["GETDBEXTENSION"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		return advplrt.NewString(".dbf"), nil
 	}
+
+	// =========================================================================
+	// Field(nPos) -> cRet
+	//   Retorna o nome do campo na posição nPos (1-based) da tabela corrente.
+	//   Não considera os campos internos (R_E_C_N_O_, D_E_L_E_T_). Sem área ou
+	//   nPos inválido => "" (spec: erro recuperável "Work area not in use"
+	//   vira "" por regra Nil-friendly do VM).
+	// =========================================================================
+	natives["FIELD"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		nPos := int(advplrt.ToFloat(getArg(args, 0)))
+		cols := v.dbGenUserColumns()
+		if nPos < 1 || nPos > len(cols) {
+			return advplrt.NewString(""), nil
+		}
+		return advplrt.NewString(cols[nPos-1]), nil
+	}
+
+	// =========================================================================
+	// FieldBlock(cField) -> bRet
+	//   Retorna um codeblock get/set do campo no alias corrente. A infra de
+	//   codeblocks deste VM exige bytecode sintetizado (FuncName + bc.Functions),
+	//   inexistente em runtime — por isso retorna NIL, documentado (mesma
+	//   limitação de DBFilterCB).
+	// =========================================================================
+	natives["FIELDBLOCK"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// FieldWBlock(cField, nWorkArea) -> bRet
+	//   Idem FieldBlock, para a área de trabalho informada. Mesma limitação de
+	//   infra de codeblocks — retorna NIL documentado.
+	// =========================================================================
+	natives["FIELDWBLOCK"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
+	// Found() -> lRet
+	//   .T. se a última operação de busca (DBSeek) obteve sucesso. Estado
+	//   alimentado por DBSEEK (natives.go) via dbGenSetFound. Sem busca => .F.
+	// =========================================================================
+	natives["FOUND"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		return v.dbGenFound()
+	}
+
+	// =========================================================================
+	// Header() -> nBytes
+	//   Retorna a quantidade de bytes no cabeçalho do arquivo de banco de
+	//   dados corrente. O SQLite não tem header no formato DBF; retorna o
+	//   tamanho do registro do usuário (aproximação documentada, coerente
+	//   com RecSize/DBInfo DBI_GETHEADERSIZE).
+	// =========================================================================
+	natives["HEADER"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		return advplrt.NewNumber(float64(v.dbGenUserRecSize())), nil
+	}
+
+	// =========================================================================
+	// LastRec() -> nRet
+	//   Retorna o número do último registro inserido na tabela atual
+	//   (= RecCount/RecNo máximo). Sem área aberta => 0 (spec). Efetiva
+	//   pendências antes; o SQLite persiste imediatamente, então é só contagem.
+	// =========================================================================
+	natives["LASTREC"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		if v.dbEngine == nil {
+			return advplrt.NewNumber(0), nil
+		}
+		return advplrt.NewNumber(float64(v.dbEngine.RecCount())), nil
+	}
+
+	// =========================================================================
+	// NetErr([lValor]) -> lRet
+	//   Retorna .T. se a operação anterior de rede/RDD ocasionou erro. Sem
+	//   lValor, devolve o estado corrente (default .F.; RDDs locais sem rede
+	//   nunca setam). Com lValor, grava explicitamente o estado (spec).
+	// =========================================================================
+	natives["NETERR"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		s := v.dbGenStateFor()
+		if advplrt.IsNil(getArg(args, 0)) {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			return advplrt.NewBool(s.netErr), nil
+		}
+		s.mu.Lock()
+		s.netErr = advplrt.ToBool(getArg(args, 0))
+		s.mu.Unlock()
+		return advplrt.NewBool(s.netErr), nil
+	}
+
+	// =========================================================================
+	// RecSize() -> nSize
+	//   Retorna o tamanho de um registro: soma dos tamanhos dos campos do
+	//   usuário + 1 byte pelo flag de exclusão (Deleted). Desconsidera os
+	//   campos de controle (R_E_C_N_O_, D_E_L_E_T_, R_E_C_D_E_L_). Sem área
+	//   aberta => 0 (spec).
+	// =========================================================================
+	natives["RECSIZE"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		cols := v.dbGenUserColumns()
+		if len(cols) == 0 {
+			return advplrt.NewNumber(0), nil
+		}
+		return advplrt.NewNumber(float64(v.dbGenUserRecSize()+1)), nil
+	}
 }
 
 // nativeDeleted implementa Deleted(): .T. se D_E_L_E_T_ == '*' no registro corrente.
@@ -1317,4 +1423,21 @@ func (v *VM) dbGenColumnInfo(col string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("column not found: %s", col)
+}
+
+// dbGenUserRecSize soma os tamanhos dos campos do USUÁRIO da tabela corrente
+// (exclui R_E_C_N_O_, D_E_L_E_T_, R_E_C_D_E_L_), sem o byte do flag de
+// exclusão. Usada por RecSize() (que soma +1 pelo flag, spec).
+func (v *VM) dbGenUserRecSize() int {
+	cols := v.dbGenUserColumns()
+	total := 0
+	for _, c := range cols {
+		decl, err := v.dbGenColumnInfo(c)
+		if err != nil {
+			continue
+		}
+		_, size, _ := dbGenSQLiteType(decl)
+		total += size
+	}
+	return total
 }
