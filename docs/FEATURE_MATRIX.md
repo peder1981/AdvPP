@@ -152,8 +152,7 @@
 |---------|--------|-------------|--------|-------------|---------|------------|--------------|
 | **FWHttpGet/FWHttpPost** | 🟢 | ✅ | — | — | HTTP requests with certs | 30s timeout, max 5 redirects | ✅ Complete |
 | **PKCS#12 certificates** | 🟢 | ✅ | — | — | `.pfx`/`.p12` support | TLS client auth | ✅ Complete |
-| **WebSocket support** | 🟢 | ✅ | — | — | Real-time bidirectional | SSE server-to-client | ✅ Complete |
-| **SSE (Server-Sent Events)** | 🟢 | ✅ | — | — | ConOut via HTTP + SSE | Console streaming | ✅ Complete |
+| **SSE (Server-Sent Events)** | 🟢 | ✅ | — | — | ConOut via HTTP + SSE (unidirecional servidor→cliente, sem WebSocket) | Console streaming | ✅ Complete |
 
 ---
 

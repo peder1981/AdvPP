@@ -465,21 +465,23 @@ func TestTRunDllStrLenStrCpyMemCpyContratoLogico(t *testing.T) {
 		t.Errorf("StrLen sobre ponteiro válido deveria devolver .T.")
 	}
 
-	if err := v.callTRunDllMethod(obj, "STRCPY", []advplrt.Value{advplrt.Nil, oPtr, advplrt.NewNumber(12)}); err != nil {
+	// StrCpy/MemCpy agora RETORNAM a String lida (não mais lógico com
+	// out-param morto) — ver dyncall_native.go.
+	if err := v.callTRunDllMethod(obj, "STRCPY", []advplrt.Value{oPtr, advplrt.NewNumber(12)}); err != nil {
 		t.Fatalf("StrCpy: %v", err)
 	}
-	if !v.pop().(*advplrt.BoolValue).Val {
-		t.Errorf("StrCpy sobre ponteiro válido deveria devolver .T.")
+	if got := v.pop().(*advplrt.StringValue).Val; got != "Dyncall Test" {
+		t.Errorf("StrCpy sobre ponteiro válido deveria devolver \"Dyncall Test\", veio %q", got)
 	}
 
-	if err := v.callTRunDllMethod(obj, "MEMCPY", []advplrt.Value{advplrt.Nil, oPtr, advplrt.NewNumber(12)}); err != nil {
+	if err := v.callTRunDllMethod(obj, "MEMCPY", []advplrt.Value{oPtr, advplrt.NewNumber(12)}); err != nil {
 		t.Fatalf("MemCpy: %v", err)
 	}
-	if !v.pop().(*advplrt.BoolValue).Val {
-		t.Errorf("MemCpy sobre ponteiro válido deveria devolver .T.")
+	if got := v.pop().(*advplrt.StringValue).Val; got != "Dyncall Test" {
+		t.Errorf("MemCpy sobre ponteiro válido deveria devolver \"Dyncall Test\", veio %q", got)
 	}
 
-	// Ponteiro nulo (NewPointer ainda não amarrado) deve devolver .F. em
+	// Ponteiro nulo (NewPointer ainda não amarrado) deve devolver .F./"" em
 	// todas as três, sem panic.
 	if err := v.callTRunDllMethod(obj, "NEWPOINTER", nil); err != nil {
 		t.Fatalf("NewPointer: %v", err)
@@ -488,6 +490,14 @@ func TestTRunDllStrLenStrCpyMemCpyContratoLogico(t *testing.T) {
 	v.callTRunDllMethod(obj, "STRLEN", []advplrt.Value{advplrt.Nil, nullPtr})
 	if v.pop().(*advplrt.BoolValue).Val {
 		t.Errorf("StrLen sobre ponteiro nulo deveria devolver .F.")
+	}
+	v.callTRunDllMethod(obj, "STRCPY", []advplrt.Value{nullPtr, advplrt.NewNumber(12)})
+	if got := v.pop().(*advplrt.StringValue).Val; got != "" {
+		t.Errorf("StrCpy sobre ponteiro nulo deveria devolver \"\", veio %q", got)
+	}
+	v.callTRunDllMethod(obj, "MEMCPY", []advplrt.Value{nullPtr, advplrt.NewNumber(12)})
+	if got := v.pop().(*advplrt.StringValue).Val; got != "" {
+		t.Errorf("MemCpy sobre ponteiro nulo deveria devolver \"\", veio %q", got)
 	}
 }
 

@@ -457,7 +457,7 @@ construtor `tArith::tArith()` sobre memória alocada por `NewObj(64)`.
 
 **Todo método documenta na TDN "retorno: lógico"** (`CallFunction`,
 `CallMethod`, `GetVar`, `SetVar`, `Free`, `FreeObj`, `SetTimeout`,
-`StrLen`, `StrCpy`, `MemCpy`) — o valor de fato é sempre um parâmetro de
+`StrLen`) — o valor de fato é sempre um parâmetro de
 saída por referência (`xRet`/`nRet`/`cRet`), nunca o retorno do método.
 Esta VM preserva o retorno lógico documentado tal como é (nunca o
 substitui pelo valor computado) e simplesmente não popula o `xRet` — a
@@ -474,6 +474,16 @@ para `I`/`D`/outros escalares, o resultado é real internamente (a
 chamada FFI ocorre e o valor é computado corretamente, coberto pelos
 testes de `dynCallInvoke`) mas fica inacessível ao código AdvPL/TLPP
 chamador, exatamente como os demais casos de `@var` já documentados.
+- **Exceção deliberada: `StrCpy(oPointer, nMaxSize)` e
+  `MemCpy(oPointer, nBytes)` desviam do contrato "lógico com cRet mudo"
+  documentado pela TDN — retornam diretamente a `String` lida do buffer
+  C (até `\0`/`nMaxSize` no primeiro caso, `nBytes` brutos no segundo),
+  em vez de um `Logical` inútil. Sem essa exceção os dois métodos eram
+  funcionalmente inertes (não havia nenhuma forma de ler o conteúdo de
+  um buffer escrito por uma DLL de volta para AdvPL/TLPP). `StrLen`
+  permanece com o contrato antigo (só sinaliza ponteiro válido via
+  `.T./.F.`, o tamanho real não é observável) por ainda não ter sido
+  necessário para nenhum caso de uso real.
 - **`CallMethod` (DLL C++) só resolve mangling Itanium** (GCC/Clang —
   Linux, macOS, MinGW), verificado contra o símbolo real emitido por
   `g++` (`nm -D`) para os exemplos da própria TDN

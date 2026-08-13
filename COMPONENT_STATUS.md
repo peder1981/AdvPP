@@ -286,7 +286,7 @@ ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
 O compilador AdvPP e todos os componentes UI são totalmente compatíveis com a IDE AdvPP.
 
 ### Resultados de Testes
-- ✅ Todos os 8 arquivos de teste existentes passam
+- ✅ Todos os arquivos de teste em `tests/*.prw` passam (`make test`)
 - ✅ Componentes MVC funcionam no contexto da IDE
 - ✅ Integração de provider UI funciona
 - ✅ Saída do compilador com componentes UI funciona
