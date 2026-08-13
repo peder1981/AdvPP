@@ -1,8 +1,11 @@
 package vm
 
 import (
+	"fmt"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/advpl/compiler/pkg/compiler"
@@ -48,6 +51,34 @@ func buildDynCallFixture(t *testing.T, compilerBin, src, out string) string {
 		t.Fatalf("falha ao compilar fixture %s: %v\n%s", src, err, outBytes)
 	}
 	return outPath
+}
+
+// dumpTArithSymbols roda `nm` real sobre o .so/.dylib compilado e devolve
+// as linhas contendo "tArith" — ground truth do que o toolchain do
+// runner (gcc/clang/MinGW, seja lá qual for) realmente emitiu/exportou,
+// em vez de mais uma hipótese sobre o que "deveria" estar lá. Só chamado
+// dentro de uma falha de teste (diagnóstico, não faz o teste depender de
+// `nm` estar disponível — se não estiver, o erro do próprio nm já é
+// informação útil).
+func dumpTArithSymbols(so string) string {
+	args := []string{"-D", so} // -D: tabela de símbolos dinâmica (funciona em GNU nm / Linux)
+	if runtime.GOOS == "darwin" {
+		args = []string{so} // nm da Apple não aceita -D; saída plana já inclui os símbolos globais
+	}
+	out, err := exec.Command("nm", args...).CombinedOutput()
+	if err != nil && len(out) == 0 {
+		return fmt.Sprintf("(nm falhou: %v)", err)
+	}
+	var lines []string
+	for _, l := range strings.Split(string(out), "\n") {
+		if strings.Contains(l, "tArith") {
+			lines = append(lines, l)
+		}
+	}
+	if len(lines) == 0 {
+		return "(nenhum símbolo com \"tArith\" encontrado — saída completa:)\n" + string(out)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func newDllTestVM() *VM {
@@ -390,7 +421,7 @@ func TestTRunDllNewObjComTamanhoAlocaEChamaConstrutor(t *testing.T) {
 	if !v.pop().(*advplrt.BoolValue).Val {
 		v.callTRunDllMethod(obj, "GETERRORMSG", nil)
 		msg := v.pop().(*advplrt.StringValue).Val
-		t.Errorf("CallMethod(tArith::tArith()) deveria devolver .T. (construtor real chamado sobre memória alocada); mangled=%q lastErr=%q", mangled, msg)
+		t.Errorf("CallMethod(tArith::tArith()) deveria devolver .T. (construtor real chamado sobre memória alocada); mangled=%q lastErr=%q\nsímbolos tArith reais no binário:\n%s", mangled, msg, dumpTArithSymbols(so))
 	}
 
 	if err := v.callTRunDllMethod(obj, "FREEOBJ", []advplrt.Value{oObj}); err != nil {
