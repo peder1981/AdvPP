@@ -1,25 +1,27 @@
-// EXPORT espelha o "#define EXPORT __declspec(dllexport)" dos exemplos
-// reais da TDN (DynCall - CallMethod / NewObj): controla se um símbolo
-// JÁ EMITIDO fica visível na tabela de símbolos exportados do .dylib/.so
-// (achado real via CI macOS: sem visibility("default") na classe, a
-// Itanium C++ ABI da Apple pode deixar C1/C2 de fora mesmo emitidos).
+// EXPORT: no Unix, __attribute__((visibility("default"))) na classe
+// inteira garante que símbolos JÁ EMITIDOS (C1/C2 de construtor incluso)
+// fiquem na tabela de símbolos exportados do .so/.dylib — achado real via
+// CI macOS, onde a Itanium C++ ABI da Apple deixava o construtor de fora
+// mesmo emitido. No Windows/MinGW, EXPORT fica vazio de propósito: uma
+// vez que QUALQUER símbolo no módulo usa __declspec(dllexport), o linker
+// do MinGW muda de "exporta tudo por padrão" para "exporta só o marcado
+// explicitamente" — adicionar dllexport aqui quebrou até factory()
+// (achado real via CI Windows, regressão introduzida numa tentativa
+// anterior deste mesmo fix). Sem nenhuma anotação, o MinGW já exporta
+// tudo, que é exatamente o comportamento que já funcionava lá.
 //
-// KEEP (__attribute__((used))) resolve um problema DIFERENTE: força o
-// compilador a EMITIR CÓDIGO para um método sem uso aparente na própria
-// TU (o construtor só é chamado indiretamente, dentro de factory(), que
-// o compilador pode inlinar) — sem KEEP, nem chega a existir símbolo pra
-// visibility("default") tornar exportado. As duas anotações resolvem
-// problemas de estágios diferentes (emissão vs. exportação) e são
-// necessárias juntas — confirmado: EXPORT sozinho quebrou até no Linux
-// (constructor deixou de ser emitido), KEEP sozinho quebrou só no macOS
-// (emitido mas não exportado).
+// KEEP (__attribute__((used))) resolve um problema diferente do EXPORT:
+// força EMISSÃO de código para um método sem uso aparente na própria TU
+// (o construtor só é chamado indiretamente, dentro de factory(), que o
+// compilador pode inlinar) — sem isso, não existe symbol nenhum para
+// visibility("default") tornar exportado. Suportado por GCC/Clang em
+// Linux, macOS e MinGW por igual, sem necessidade de ifdef.
 #if defined(_WIN32)
-#define EXPORT __declspec(dllexport)
-#define KEEP
+#define EXPORT
 #else
 #define EXPORT __attribute__((visibility("default")))
-#define KEEP __attribute__((used))
 #endif
+#define KEEP __attribute__((used))
 
 class EXPORT tArith {
 public:
