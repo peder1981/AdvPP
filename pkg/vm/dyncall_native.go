@@ -213,6 +213,18 @@ func (v *VM) callTRunDllMethod(obj *advplrt.ObjectValue, method string, args []a
 		}
 		sym, err := dynCallDlsym(d.handle, mangled)
 		if err != nil {
+			// Fallback C1->C2 / D1->D2 (ver itaniumMangleCtorDtorFallback):
+			// clang (default no macOS) pode não emitir o construtor
+			// "complete object" (C1) como símbolo próprio quando idêntico
+			// ao "base object" (C2) para uma classe sem bases virtuais —
+			// achado real via CI macOS. gcc (Linux/MinGW) emite os dois.
+			if alt, ok := itaniumMangleCtorDtorFallback(mangled); ok {
+				if altSym, altErr := dynCallDlsym(d.handle, alt); altErr == nil {
+					sym, mangled, err = altSym, alt, nil
+				}
+			}
+		}
+		if err != nil {
 			d.lastErr = fmt.Sprintf("símbolo C++ %q (mangled %q) não encontrado: %s", spec, mangled, err.Error())
 			v.push(advplrt.NewBool(false))
 			return nil
@@ -664,6 +676,28 @@ func dynCallWriteVar(addr uintptr, letter byte, val advplrt.Value) error {
 		return fmt.Errorf("DynCall: letra de tipo desconhecida %q em SetVar", string(letter))
 	}
 	return nil
+}
+
+// itaniumMangleCtorDtorFallback devolve a variante alternativa de um
+// símbolo mangled de construtor/destrutor Itanium ("C1"<->"C2",
+// "D1"<->"D2") quando aplicável. Existe porque clang (compilador default
+// do macOS) pode, para uma classe sem bases virtuais, não emitir o
+// construtor/destrutor "complete object" (C1/D1) como símbolo próprio
+// quando seu código é idêntico ao "base object" (C2/D2) — gcc (Linux,
+// MinGW/Windows) emite os dois como símbolos distintos. Achado real via
+// CI: Dlsym("_ZN6tArithC1Ev") falhava só no macOS; "_ZN6tArithC2Ev"
+// (mesma classe, mesmo `nm -D` real) resolve. CallMethod tenta C1/D1
+// primeiro (a escolha ABI-correta para construir/destruir o objeto mais
+// derivado) e só cai para C2/D2 se o símbolo primário não existir.
+func itaniumMangleCtorDtorFallback(mangled string) (string, bool) {
+	switch {
+	case strings.Contains(mangled, "C1"):
+		return strings.Replace(mangled, "C1", "C2", 1), true
+	case strings.Contains(mangled, "D1"):
+		return strings.Replace(mangled, "D1", "D2", 1), true
+	default:
+		return "", false
+	}
 }
 
 // itaniumMangle resolve "Classe::metodo(tipos)" (opcionalmente com mais de
