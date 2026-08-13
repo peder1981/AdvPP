@@ -51,8 +51,8 @@ ADVPP_DB=/caminho/banco.db ./adveditor
 ## Funcionalidades do Menu
 
 **Menu Arquivo:**
-- **Abrir (Ctrl+B)** — abrir tabela (SQLite; DBF/TopConnect/Ctree/BTrieve
-  têm suporte parcial, ver "Drivers Suportados" abaixo)
+- **Abrir (Ctrl+B)** — abrir tabela (só SQLite lê/escreve dados reais hoje;
+  DBF/TopConnect/Ctree/BTrieve ver "Drivers Suportados" abaixo)
 - **Trocar Banco de Dados** — apontar para outro arquivo
 - **Fechar** — fechar tabela atual
 - **Sair**
@@ -86,9 +86,12 @@ ADVPP_DB=/caminho/banco.db ./adveditor
 ### Drivers Suportados
 
 - **SQLite** — **100% compatível**, todas as funcionalidades acima
-- **DBF**, **TopConnect**, **Ctree**, **BTrieve** — abertura e leitura de
-  dados; criação/exclusão de tabela e campo ainda são SQLite-only (ver
-  `pkg/tools/shared/database.go`, método `SQLiteDriver.CreateTable` etc.)
+- **DBF**, **TopConnect**, **Ctree**, **BTrieve** — presentes na interface
+  de seleção de driver por compatibilidade com o legado Protheus, mas
+  ainda **não fazem I/O real** (`pkg/tools/shared/database.go`: `Open()`
+  só copia strings para campos, `GetStructure()`/`GetData()`/`Seek()`/
+  `Count()` retornam vazio/zero sem ler nenhum arquivo/servidor). Não use
+  para dados reais ainda — só o driver SQLite está pronto para uso.
 
 **Detecção Automática:**
 - Arquivos `.db`, `.sqlite`, `.sqlite3` → SQLite

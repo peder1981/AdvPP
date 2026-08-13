@@ -175,13 +175,15 @@ type Dictionary struct {
 
 ### Banco de Dados
 
-Suporte a múltiplos drivers de banco de dados:
+Interface de driver preparada para múltiplos backends, mas só o SQLite
+tem implementação real de I/O hoje:
 
-- **SQLite**: Banco de dados embutido (padrão)
-- **DBF**: Arquivos DBF (compatibilidade Protheus)
-- **TopConnect**: Conexão via TopConnect
-- **Ctree**: Banco Ctree
-- **BTrieve**: Banco BTrieve
+- **SQLite**: Banco de dados embutido (padrão) — funcional, leitura e escrita
+- **DBF**: Arquivos DBF (compatibilidade Protheus) — driver placeholder,
+  ainda não lê/escreve arquivo `.dbf` real
+- **TopConnect**: Conexão via TopConnect — placeholder, sem I/O real
+- **Ctree**: Banco Ctree — placeholder, sem I/O real
+- **BTrieve**: Banco BTrieve — placeholder, sem I/O real
 
 ```go
 // Database representa uma conexão de banco

@@ -838,7 +838,9 @@ Options:
   --define <name=val>, -D       Define preprocessor symbol
   --ui                          Enable UI (Fyne)
   --headless                    Disable UI (default)
-  --db <backend>                Database backend: sqlite (default) or odbc
+  --db <backend>                Database backend (only "sqlite" is
+                                implemented; the flag is accepted but has
+                                no effect on the actual backend used)
   --db-path <path>              Path to SQLite database file
                                 (default: $ADVPP_DB, or the shared AdvPP
                                 database configured in ~/.advpp — the same

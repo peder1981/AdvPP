@@ -1,6 +1,6 @@
 # Guia do Desenvolvedor — AdvPP Compiler
 
-**Compilador AdvPL/TLPP em Go** · `github.com/advpl/compiler` · **105 arquivos .go** · ~32.866 linhas
+**Compilador AdvPL/TLPP em Go** · `github.com/advpl/compiler` · **137 arquivos .go** (não-teste) · ~48.490 linhas
 
 ---
 
@@ -134,7 +134,7 @@
 | `--define <nome=val>`, `-D` | Define símbolo no preprocessor |
 | `--ui` | Habilita interface gráfica (Fyne desktop) |
 | `--headless` | Desabilita interface (padrão) |
-| `--db <backend>` | Backend de banco: `sqlite` (padrão) ou `odbc` |
+| `--db <backend>` | Aceito mas sem efeito hoje — só `sqlite` está implementado |
 | `--db-path <caminho>` | Path do arquivo SQLite |
 | `--port <n>` | Porta do servidor web (modo serve) |
 | `--watch`, `-w` | Hot reload: recompila ao detectar mudança no fonte |

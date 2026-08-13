@@ -1,5 +1,16 @@
 # Security Vulnerabilities — Priority List (AdvPP v2.0.3)
 
+> **✅ RESOLVIDO.** Todos os 8 achados abaixo foram corrigidos na mesma
+> janela de auditoria (2026-07-29) — ver
+> [`CODE_REVIEW_SIGN_OFF.md`](CODE_REVIEW_SIGN_OFF.md) para o sign-off e
+> evidência de cada fix. Este arquivo é o registro histórico do scan
+> inicial (pré-fix); os campos "Status: Open/Pending" abaixo refletem o
+> estado NO MOMENTO DO SCAN, não o estado atual do código. Confirmado
+> nesta auditoria (v3.0.2): `pkg/vm/browse.go` usa `identRe.MatchString`
+> + queries parametrizadas em `browseSave`/`browseDelete`, e
+> `pkg/vm/natives.go` executa comandos via `exec.Command(parts[0],
+> parts[1:]...)` sem shell (sem RCE via `/bin/sh -c`).
+
 **Date:** 2026-07-29  
 **Total Findings:** 8  
 **Scan Date:** 2026-07-29 (Task 2: OWASP/CWE Manual Scan)

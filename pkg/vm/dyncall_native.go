@@ -358,29 +358,40 @@ func (v *VM) callTRunDllMethod(obj *advplrt.ObjectValue, method string, args []a
 		return nil
 
 	case "STRCPY":
-		// StrCpy(cRet, oPointer, nSize) -> lógico (TDN: DynCall - StrCpy).
-		// cRet é saída por referência (não escrita, mesma limitação).
-		ptr := dllPointerArg(getArg(args, 1))
-		n := int(advplrt.ToFloat(getArg(args, 2)))
+		// StrCpy(oPointer, nMaxSize) -> String (desvio deliberado do TDN, que
+		// documenta "lógico" com cRet de saída por referência — inaplicável
+		// aqui pois este VM não escreve @var. Lê até '\0' ou nMaxSize bytes,
+		// o que vier primeiro, e RETORNA o conteúdo lido. Sem o cRet mudo do
+		// TDN original: nenhum uso real deste método existia antes desta
+		// correção (ver docs/tdn-known-limitations.md), então não há
+		// contrato de posição a preservar.
+		ptr := dllPointerArg(getArg(args, 0))
+		n := int(advplrt.ToFloat(getArg(args, 1)))
 		if ptr == 0 || n < 0 {
-			v.push(advplrt.NewBool(false))
+			d.lastErr = "StrCpy: ponteiro inválido ou tamanho negativo"
+			v.push(advplrt.NewString(""))
 			return nil
 		}
-		_ = unsafe.Slice((*byte)(unsafe.Pointer(ptr)), n) // valida o acesso; conteúdo descartado (ver comentário acima)
-		v.push(advplrt.NewBool(true))
+		buf := unsafe.Slice((*byte)(unsafe.Pointer(ptr)), n)
+		end := 0
+		for end < n && buf[end] != 0 {
+			end++
+		}
+		v.push(advplrt.NewString(string(buf[:end])))
 		return nil
 
 	case "MEMCPY":
-		// MemCpy(cRet, oPointer, nBytes) -> lógico (TDN: DynCall - MemCpy).
-		// cRet é saída por referência (não escrita, mesma limitação).
-		ptr := dllPointerArg(getArg(args, 1))
-		n := int(advplrt.ToFloat(getArg(args, 2)))
+		// MemCpy(oPointer, nBytes) -> String (mesmo desvio do StrCpy: retorna
+		// os nBytes brutos lidos, sem parar em '\0').
+		ptr := dllPointerArg(getArg(args, 0))
+		n := int(advplrt.ToFloat(getArg(args, 1)))
 		if ptr == 0 || n < 0 {
-			v.push(advplrt.NewBool(false))
+			d.lastErr = "MemCpy: ponteiro inválido ou tamanho negativo"
+			v.push(advplrt.NewString(""))
 			return nil
 		}
-		_ = unsafe.Slice((*byte)(unsafe.Pointer(ptr)), n) // valida o acesso; conteúdo descartado (ver comentário acima)
-		v.push(advplrt.NewBool(true))
+		buf := unsafe.Slice((*byte)(unsafe.Pointer(ptr)), n)
+		v.push(advplrt.NewString(string(buf)))
 		return nil
 
 	case "GETTIMEOUT":

@@ -50,5 +50,12 @@ tests/llm/code_corpus.txt
 testdata/fuzz/
 corpus/
 *.fuzz
+cmd/advplc/fuzz*.log
 .worktrees/
 .superpowers/
+
+# Bancos SQLite locais de dev (o banco real de runtime vive em ~/.advpp/)
+*.db
+
+# Binários compilados pelos scripts de exemplo (BUILD.sh gera chat-peer-N)
+examples/chat/chat-peer-*

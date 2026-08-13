@@ -2,6 +2,44 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [3.0.2] — 2026-08-13
+
+### Corrigido — DynCall (`tRunDll`) inacessível a partir de AdvPL/TLPP compilado
+
+`TRunDll` (lançado em v3.0.1) nunca foi registrado em `builtinClasses`
+(`pkg/compiler/codegen.go`) — só existia no `switch` de instanciação do VM,
+alcançável apenas por chamada Go direta em teste, nunca por
+`TRunDll():New(...)` escrito em AdvPL/TLPP real de verdade. Corrigido:
+a classe agora compila e roda a partir de código-fonte AdvPL/TLPP.
+
+### Corrigido — `StrCpy`/`MemCpy` do DynCall eram funcionalmente inertes
+
+Os dois métodos documentavam (seguindo a TDN) retorno lógico com o
+conteúdo lido devolvido por referência num parâmetro de saída (`cRet`) —
+mas este VM não escreve `@var`, então `cRet` nunca era populado e não
+havia NENHUMA forma de ler de volta um buffer escrito por uma DLL.
+Mudança deliberada de contrato (`oDll:StrCpy(oPointer, nMaxSize)` /
+`oDll:MemCpy(oPointer, nBytes)` agora **retornam a `String` lida
+diretamente**, em vez do `Logical` inútil) — sem uso real anterior a
+quebrar, já que a feature era inacessível (ver item acima).
+
+### Adicionado — wrapper de compatibilidade `ExecInDLLOpen` (TDN legado)
+
+`examples/dyncall/execindll_compat.prw`: implementa a API clássica TDN de
+carga de DLL do SmartClient (`ExecInDLLOpen`/`ExecInDLLRun`/`ExeDLLRun2`/
+`ExeDLLRun3`/`ExecInDLLClose`) sobre `tRunDll`, permitindo rodar scripts
+legados que dependiam dessa API sem precisar de SmartClient (funciona em
+AppServer, job ou standalone). Testado ponta a ponta contra uma DLL C
+real (`cmd/advplc/execindll_compat_test.go`).
+
+### Sanitização do repositório
+
+Removidos do controle de versão artefatos que vazaram para o histórico:
+um PDF sem relação com o projeto (`freenet-whitepaper.pdf`), três
+binários de exemplo compilados de ~38 MB cada (`examples/chat/chat-peer-*`),
+um banco SQLite de desenvolvimento local e logs de fuzzing avulsos.
+`.gitignore` atualizado para não deixá-los voltar.
+
 ## [3.0.1] — 2026-08-12
 
 ### Adicionado — DynCall (`tRunDll`): chamada dinâmica de DLL/SO

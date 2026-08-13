@@ -35,7 +35,7 @@ documenta o padrão e os bugs reais já encontrados nessa categoria.
 - **Lexer**: Tokenizador completo para sintaxe AdvPL/TLPP incluindo palavras-chave, operadores, blocos de código e diretivas de pré-processador
 - **Pré-processador**: Trata `#include`, `#define` (inclusive multi-linha), `#ifdef`/`#ifndef`/`#else`/`#endif`, e `#xCommand`/`#command`/`#xTranslate`/`#translate` com pattern-matching real (marcadores `<nome>`, cláusulas opcionais `[...]`, flags `[<nome:LITERAL>]`, resultado com `<{nome}>`/`<.nome.>`)
 - **Parser**: Parser recursivo descendente completo gerando uma AST
-- **Compilador**: Gera bytecode otimizado com 88 opcodes
+- **Compilador**: Gera bytecode otimizado com 87 opcodes
 - **Serialização de Bytecode**: Salva bytecode compilado em disco para execução posterior
 - **Executáveis Standalone**: Constrói executáveis autossuficientes com bytecode embutido usando go:embed
 - **Máquina Virtual**: VM completa com todos os opcodes implementados
@@ -419,7 +419,8 @@ Return
 | `CallMethod(cMetodo, cSignature, xRet, ...)` | Chama método de DLL C++ (`"Classe::metodo(tipos)"`, resolvido via mangling Itanium — GCC/Clang) — lógico |
 | `GetVar(cNome, cSignature, xRet)` / `SetVar(cNome, cSignature, xValor)` | Lê/escreve variável global exportada pela DLL — lógico |
 | `NewPointer()` / `NewObj([nBytes])` / `FreeObj(oObj)` | Handles opacos de ponteiro/objeto C++; `NewObj(nBytes)` aloca memória real (fixada com `runtime.Pinner`) para servir de `this` a um construtor chamado via `CallMethod` |
-| `StrLen`/`StrCpy`/`MemCpy` | Operações sobre buffers C apontados por um `TRunDllPointer` — lógico |
+| `StrLen(nRet, oPointer)` | Varre até `\0`; lógico (`nRet` não é escrito, limitação de `@var`) |
+| `StrCpy(oPointer, nMaxSize)` / `MemCpy(oPointer, nBytes)` | Lê o buffer C e **retorna a String lida diretamente** (desvio deliberado do TDN, que documenta saída por referência inaplicável neste VM) |
 | `GetTimeout()` / `SetTimeout(nSeg)` | Timeout nominal (default 60s); aceito e armazenado, sem efeito real — a chamada é síncrona in-process |
 | `GetLastError()` / `GetErrorMsg()` | Código/mensagem do último erro |
 
@@ -559,10 +560,10 @@ ao kernel de Tensor.
 ```advpl
 Local oA := Tensor():New({2,2}, "float64")             // dtype float64
 Local oB := Tensor():FromArray({1,2,3,4}, {2,2}, "float64")
-? oB:DType()                                            // "float64"
+ConOut(oB:DType())                                      // "float64"
 Local oC := oA:ToFloat64()                              // converte f32 -> f64
-? oB:Dot(oB)                                            // produto interno
-? Tensor():FromArray({3,4},{2},"float64"):Norm()        // norma L2 = 5
+ConOut(oB:Dot(oB))                                      // produto interno
+ConOut(Tensor():FromArray({3,4},{2},"float64"):Norm())  // norma L2 = 5
 ```
 
 Métodos de dtype: `DType()` (`"float32"`/`"float64"`), `ToFloat32()`/`ToFloat64()`,
@@ -581,7 +582,7 @@ cálculo, não treino):
 
 ```advpl
 Local oA := Tensor():FromArray({4,7,2,6}, {2,2}, "float64")
-? oA:Det()                                  // determinante
+ConOut(oA:Det())                            // determinante
 Local oX := oA:Solve(oB)                     // resolve A·x = b (b vetor [n] ou [n,k])
 Local oInv := oA:Inv()                        // inversa (A·Inv ≈ I)
 Local aQR := oA:QR()                           // {Q, R} — Householder (Q·R ≈ A)
@@ -608,11 +609,11 @@ Erros (não-quadrada, singular, não-simétrica em `EigSym`, dims incompatíveis
 Funções nativas sobre vetores/pontos como arrays (`{x,y}`/`{x,y,z}`), em float64:
 
 ```advpl
-? VecCross({1,0,0}, {0,1,0})       // produto vetorial 3D -> {0,0,1}
-? VecDot({1,2,3}, {4,5,6})          // produto escalar
-? VecNorm({3,4})                     // magnitude -> 5
-? VecDist({0,0}, {3,4})              // distância euclidiana -> 5
-? VecAngle({1,0}, {0,1})            // ângulo (rad) -> π/2
+ConOut(VecCross({1,0,0}, {0,1,0}))  // produto vetorial 3D -> {0,0,1}
+ConOut(VecDot({1,2,3}, {4,5,6}))    // produto escalar
+ConOut(VecNorm({3,4}))               // magnitude -> 5
+ConOut(VecDist({0,0}, {3,4}))        // distância euclidiana -> 5
+ConOut(VecAngle({1,0}, {0,1}))      // ângulo (rad) -> π/2
 Local aU := VecNormalize({3,4})     // vetor unitário
 Local aR := RotateVec2({1,0}, nTheta)              // rotação 2D
 Local aP := RotateVec3({1,0,0}, "z", nTheta)       // rotação 3D em torno de x/y/z
@@ -657,11 +658,16 @@ Corretude validada por verificação numérica de gradiente (diferenças finitas
 
 ## Exemplos de IA em AdvPL puro
 
-**Planejado para v2.1.** Modelos escritos inteiramente em AdvPL (Markov chains, retrieval-based Q&A, ternary neural networks, gradient-trained LMs) com exemplos em `tests/llm/`. Este ciclo entrega o motor (LLM, Tensor, autodiff) e os frameworks de treino; exemplos de código AdvPL rodam prototipados em Go tests (`cmd/advplc/*_test.go`) e migrarão para AdvPL exemplos em v2.1.
+**Entregue** (`tests/llm/`). Modelos escritos inteiramente em AdvPL: Markov
+chains, retrieval-based Q&A, ternary neural networks e LM treinado por
+gradiente — todos rodando de verdade sobre o motor (LLM, Tensor, autodiff)
+e os frameworks de treino deste compilador, não prototipados em Go.
 
 ### LM Neural Treinado por Gradiente
 
-**Planejado para v2.1:** Exemplo AdvPL completo de um LM neural char-level treinado de verdade por descida de gradiente, montado 100% sobre o stack de ML do AdvPP (Tensor + autodiff/treino). Arquitetura NPLM (Bengio 2003):
+**Entregue** (`tests/llm/pt_neural.prw`). LM neural char-level treinado de
+verdade por descida de gradiente, montado 100% sobre o stack de ML do
+AdvPP (Tensor + autodiff/treino). Arquitetura NPLM (Bengio 2003):
 
 ```advpl
 oEmb := Embedding():New(V, D)            // tabela de embeddings [V, D]
@@ -677,7 +683,11 @@ Demonstra ponta a ponta: tokenizar → treinar → gerar, provando que o stack f
 
 ### LM de Código AdvPL Orientado a Desenvolvimento
 
-**Planejado para v2.1:** Exemplo AdvPL de um LM treinado em token-level (não char-level) sobre código AdvPL do repositório. Demonstra como o stack de ML AdvPP pode ser usado para gerar/completar código a partir de um prefixo, com REPL de autocomplete.
+**Entregue** (`tests/llm/dev_nn.prw`). LM treinado em token-level (não
+char-level) sobre código AdvPL do repositório (corpus gerado por
+`tests/llm/build_corpus.sh`). Demonstra como o stack de ML AdvPP pode ser
+usado para gerar/completar código a partir de um prefixo, com REPL de
+autocomplete.
 
 ## Limitações Conhecidas
 
@@ -810,15 +820,18 @@ Ressalva: Prova de conceito que treino real funciona; não é um LLM produção.
 
 ### Contagem de Funções Nativas
 
-**Claim:** README diz "~200+" funções nativas; **Real:** 266 funções implementadas — 256 em `pkg/vm/natives.go` + 7 em `pkg/vm/ui_render.go` (natives de TUI: UiBox, UiStreamBox, UiStreamReset, UiMarkdown, UiAltScreenEnter, UiAltScreenExit, UiTermWidth) + 3 em `pkg/vm/httpclient_native.go` (FWHTTPTIMEOUT, FWHTTPHEADER, FWHTTPCLEARHEADERS — v2.0.20).
-
-**Nota:** Muitas são stubs/no-ops (ex.: `FWCLEARHLP`, `HELP`, `MSDOCUMENT`). A contagem ~200+ é aproximada por design; detalhes em `GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md`.
+**Real:** centenas de funções nativas, registradas em dezenas de arquivos
+`pkg/vm/*_native.go` (729 registradas na contagem do `CHANGELOG.md
+[3.0.0]`, crescendo a cada release — não é um número fixo). Muitas são
+stubs/no-ops (ex.: `FWCLEARHLP`, `HELP`, `MSDOCUMENT`) por design, para
+compatibilidade sintática com corpora Protheus reais sem implementar
+comportamento que nenhum caso de uso exercitou.
 
 ### Tabela de Opcodes
 
-**Status:** 88 opcodes implementados na VM (0–87).
+**Status:** 87 opcodes implementados na VM (0–86).
 
-**Documentação:** `GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` seção 4.3 documenta opcodes com mapeamento 0–88 completo, nomes, descrições e efeito de stack.
+**Documentação:** `GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` seção 4.3 documenta todos os opcodes (0–86), nomes, descrições e efeito de stack.
 
 Consulte `./GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` para tabela detalhada e exemplos de cada opcode.
 
