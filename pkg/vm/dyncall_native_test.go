@@ -61,6 +61,11 @@ func openTestDll(t *testing.T, so string) (*VM, *advplrt.ObjectValue) {
 		t.Fatalf("New: %v", err)
 	}
 	v.pop()
+	// Fecha o handle do SO antes do t.TempDir() apagar o diretório do
+	// fixture: no Windows, LoadLibrary trava o arquivo em uso — sem este
+	// Free, a limpeza automática do TempDir falha com "Access is denied"
+	// (achado real via CI Windows, não hipotético).
+	t.Cleanup(func() { v.callTRunDllMethod(obj, "FREE", nil); v.pop() })
 	return v, obj
 }
 
@@ -70,6 +75,7 @@ func dlsymOf(t *testing.T, so, name string) uintptr {
 	if err != nil {
 		t.Fatalf("Dlopen(%s): %v", so, err)
 	}
+	t.Cleanup(func() { dynCallDlclose(h) }) // ver comentário em openTestDll
 	return dlsymOrFatal(t, h, name)
 }
 
@@ -126,6 +132,7 @@ func TestDynCallInvokeCppFactoryAndAdd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dlopen: %v", err)
 	}
+	t.Cleanup(func() { dynCallDlclose(h) }) // ver comentário em openTestDll
 
 	factoryMangled, err := itaniumMangle("tArith::factory()")
 	if err != nil {
