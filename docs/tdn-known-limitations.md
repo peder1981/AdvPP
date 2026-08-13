@@ -479,7 +479,15 @@ chamador, exatamente como os demais casos de `@var` já documentados.
   `g++` (`nm -D`) para os exemplos da própria TDN
   (`tArith::Add(double,double)` → `_ZN6tArith3AddEdd`;
   `tArith::tArith()` → `_ZN6tArithC1Ev`, marcador de construtor
-  Itanium, nunca o nome da classe repetido). Mangling MSVC (`cl.exe`, o
+  Itanium, nunca o nome da classe repetido). Construtor/destrutor têm
+  fallback automático C1→C2/D1→D2: clang (default no macOS) pode não
+  emitir o "complete object constructor" (C1) como símbolo próprio
+  quando idêntico ao "base object constructor" (C2) para uma classe sem
+  bases virtuais — achado real via CI macOS (gcc, em Linux/MinGW, emite
+  os dois). `CallMethod` tenta C1/D1 primeiro (escolha ABI-correta) e só
+  cai para C2/D2 se o Dlsym do símbolo primário falhar (ver
+  `itaniumMangleCtorDtorFallback` em `pkg/vm/dyncall_native.go`).
+  Mangling MSVC (`cl.exe`, o
   compilador nativo mais comum para DLLs de produção em Windows) é um
   esquema proprietário não documentado publicamente pela Microsoft em
   sua totalidade — não implementado; `CallMethod` contra uma DLL

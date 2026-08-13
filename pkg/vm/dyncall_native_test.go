@@ -524,3 +524,24 @@ func TestItaniumMangleRejeitaFuncaoLivre(t *testing.T) {
 		t.Errorf("itaniumMangle deveria rejeitar nome sem escopo de classe")
 	}
 }
+
+func TestItaniumMangleCtorDtorFallback(t *testing.T) {
+	// clang (macOS) pode não emitir o construtor "complete object" (C1)
+	// como símbolo próprio quando idêntico ao "base object" (C2) — ver
+	// comentário de itaniumMangleCtorDtorFallback em dyncall_native.go
+	// (achado real via CI macOS). CallMethod tenta essa alternativa antes
+	// de reportar símbolo não encontrado.
+	cases := []struct{ mangled, want string }{
+		{"_ZN6tArithC1Ev", "_ZN6tArithC2Ev"},
+		{"_ZN6tArithD1Ev", "_ZN6tArithD2Ev"},
+	}
+	for _, c := range cases {
+		got, ok := itaniumMangleCtorDtorFallback(c.mangled)
+		if !ok || got != c.want {
+			t.Errorf("itaniumMangleCtorDtorFallback(%q) = (%q, %v), quer (%q, true)", c.mangled, got, ok, c.want)
+		}
+	}
+	if _, ok := itaniumMangleCtorDtorFallback("_ZN6tArith3AddEdd"); ok {
+		t.Errorf("itaniumMangleCtorDtorFallback não deveria ter fallback para um método comum")
+	}
+}
