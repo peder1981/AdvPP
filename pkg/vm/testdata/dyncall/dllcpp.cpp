@@ -1,31 +1,24 @@
-// EXPORT: no Unix, __attribute__((visibility("default"))) na classe
-// inteira garante que símbolos JÁ EMITIDOS (C1/C2 de construtor incluso)
-// fiquem na tabela de símbolos exportados do .so/.dylib — achado real via
-// CI macOS, onde a Itanium C++ ABI da Apple deixava o construtor de fora
-// mesmo emitido. No Windows/MinGW, EXPORT fica vazio de propósito: uma
-// vez que QUALQUER símbolo no módulo usa __declspec(dllexport), o linker
-// do MinGW muda de "exporta tudo por padrão" para "exporta só o marcado
-// explicitamente" — adicionar dllexport aqui quebrou até factory()
-// (achado real via CI Windows, regressão introduzida numa tentativa
-// anterior deste mesmo fix). Sem nenhuma anotação, o MinGW já exporta
-// tudo, que é exatamente o comportamento que já funcionava lá.
-//
-// KEEP (__attribute__((used))) resolve um problema diferente do EXPORT:
-// força EMISSÃO de código para um método sem uso aparente na própria TU
-// (o construtor só é chamado indiretamente, dentro de factory(), que o
-// compilador pode inlinar) — sem isso, não existe symbol nenhum para
-// visibility("default") tornar exportado. Suportado por GCC/Clang em
-// Linux, macOS e MinGW por igual, sem necessidade de ifdef.
-#if defined(_WIN32)
-#define EXPORT
-#else
-#define EXPORT __attribute__((visibility("default")))
-#endif
-#define KEEP __attribute__((used))
-
-class EXPORT tArith {
+// Raiz real do problema (confirmado via `nm` rodado no próprio runner
+// macOS da CI, não hipótese): o construtor `tArith() {}` definido INLINE
+// dentro do corpo da classe é implicitamente `inline` pela regra do C++
+// (mergeable entre unidades de tradução / candidato a COMDAT) — mesmo com
+// visibility("default") na classe e __attribute__((used)) no método, o
+// `nm` mostrou o símbolo mangled presente no binário só como local
+// ("t __ZN6tArithC1Ev"/"t __ZN6tArithC2Ev", minúsculo — não externamente
+// visível a Dlsym), enquanto Add/factory (mesmas anotações) ficaram
+// globais ("T", maiúsculo). Definição FORA da classe (como já é o padrão
+// em dllcpp2.cpp, que nunca teve esse problema) tem linkage externa
+// comum, sem ambiguidade de merge entre TUs — resolve na raiz, sem
+// precisar de EXPORT/KEEP/-fvisibility.
+class tArith {
 public:
-    KEEP tArith() {}
-    KEEP double Add(double x, double y) { return x + y; }
-    KEEP static tArith *factory() { return new tArith(); }
+    tArith();
+    double Add(double x, double y);
+    static tArith *factory();
 };
+
+tArith::tArith() {}
+
+double tArith::Add(double x, double y) { return x + y; }
+
+tArith *tArith::factory() { return new tArith(); }
