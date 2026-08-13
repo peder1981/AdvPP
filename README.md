@@ -50,6 +50,7 @@ make build   # gera advplc, adveditor, advpp-ide na raiz do repo
 - **Núcleo de Tensor (float32)**: classe `Tensor` acelerada em Go (`pkg/tensor`) — `MatMul`, elementwise com broadcast, reduções, ativações, `Softmax`, `Argmax`, `IndexRows` — para construir e rodar modelos float com o AdvPL orquestrando; ver [Núcleo de Tensor](#núcleo-de-tensor)
 - **Autodiff + treino (float32)**: motor de diferenciação reversa (`pkg/autograd`) com a classe `Variable` (tape + `Backward`), ops diferenciáveis (MatMul, Add, Mul, Relu, Sum, Mean, MSE) e otimizador `SGD` — treina modelos float com o AdvPL orquestrando; ver [Autodiff e treino](#autodiff-e-treino)
 - **Cliente HTTP nativo**: `FWHttpGet`/`FWHttpPost`/`FWHttpPut`/`FWHttpPatch`/`FWHttpDelete` + `FWHttpBody`/`FWHttpStatus`/`FWHttpError` — requisições HTTP com suporte a certificados PKCS#12 (.pfx/.p12), timeout 30s e TLS com verificação; ver [Cliente HTTP Nativo](#cliente-http-nativo-fwhttp)
+- **DynCall** (classe `tRunDll`): chama funções/métodos de DLL/SO dinamicamente (C e C++, com mangling Itanium real), sem CGO, via [`purego`](https://github.com/ebitengine/purego); ver [DynCall](#dyncall--chamada-dinâmica-de-dllso-trundll)
 
 ## Servidor MCP (`MCPServer`)
 
@@ -377,6 +378,58 @@ autenticação TLS mútua (ex.: Emissor Nacional NFS-e, bancos, SEFAZ).
 
 Timeout de 30s por requisição. TLS com verificação de certificado habilitada.
 Teste de integração: `cmd/advplc/http_native_test.go` (validado com requisições HTTP reais).
+
+## DynCall — chamada dinâmica de DLL/SO (`tRunDll`)
+
+Implementação real do recurso TLPP **DynCall**: carrega uma biblioteca
+dinâmica (`.dll`/`.so`/`.dylib`) em runtime e chama funções C ou métodos
+C++ dela, com marshaling real de tipos (inclusive `double`/`float` no
+registrador correto da ABI) — via [`purego`](https://github.com/ebitengine/purego),
+**sem CGO**, nas 3 plataformas.
+
+```advpl
+#include "tlpp-core.th"
+
+Function U_DynCall()
+  Local oDll as Object
+  Local lOk  as Logical
+
+  If (IsSrvUnix())
+    oDll := tRunDll():New("./dllc.so")
+  Else
+    oDll := tRunDll():New("dllc.dll")
+  EndIf
+
+  lOk := oDll:callFunction("add", "III", nValue, 4, 8) // retorno lógico — ver nota abaixo
+  oDll:Free()
+Return
+```
+
+| Método | Descrição |
+|--------|-----------|
+| `New(cDllName)` | Carrega a DLL/SO; retorna o objeto `tRunDll` |
+| `Free()` | Descarrega a DLL — lógico |
+| `CallFunction(cFunc, cSignature, xRet, ...)` | Chama função C (`extern "C"`, sem name mangling) — lógico |
+| `CallMethod(cMetodo, cSignature, xRet, ...)` | Chama método de DLL C++ (`"Classe::metodo(tipos)"`, resolvido via mangling Itanium — GCC/Clang) — lógico |
+| `GetVar(cNome, cSignature, xRet)` / `SetVar(cNome, cSignature, xValor)` | Lê/escreve variável global exportada pela DLL — lógico |
+| `NewPointer()` / `NewObj([nBytes])` / `FreeObj(oObj)` | Handles opacos de ponteiro/objeto C++; `NewObj(nBytes)` aloca memória real (fixada com `runtime.Pinner`) para servir de `this` a um construtor chamado via `CallMethod` |
+| `StrLen`/`StrCpy`/`MemCpy` | Operações sobre buffers C apontados por um `TRunDllPointer` — lógico |
+| `GetTimeout()` / `SetTimeout(nSeg)` | Timeout nominal (default 60s); aceito e armazenado, sem efeito real — a chamada é síncrona in-process |
+| `GetLastError()` / `GetErrorMsg()` | Código/mensagem do último erro |
+
+**Limitações importantes** (documentadas em detalhe em `docs/tdn-known-limitations.md`):
+todo método acima documenta retorno lógico na TDN — o valor de fato é
+sempre saída por referência (`xRet`), que este VM não escreve de volta
+(mesma limitação arquitetural de `@var` que afeta várias outras categorias
+deste compilador), exceto quando `xRet` é um objeto `TRunDllPointer`
+(mutado in-place de verdade). Passagem de parâmetro por referência via
+`@` (`int*`/`int&` do lado C/C++) não é suportada — o compilador AdvPP
+descarta o `@` em qualquer posição de chamada, então use a letra `'P'`
+explícita + um `TRunDllPointer` real nesses casos. `CallMethod` só resolve
+mangling Itanium (GCC/Clang/MinGW) — DLLs compiladas com MSVC não são
+suportadas. Testado ponta a ponta contra bibliotecas C e C++ reais
+compiladas por `gcc`/`g++` em tempo de teste
+(`pkg/vm/dyncall_native_test.go`).
 
 ## Funções de I/O, arquivo e sistema
 

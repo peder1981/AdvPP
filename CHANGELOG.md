@@ -2,6 +2,41 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [3.0.1] — 2026-08-12
+
+### Adicionado — DynCall (`tRunDll`): chamada dinâmica de DLL/SO
+
+Implementação real do recurso TLPP DynCall: `New`/`Free` (dlopen/dlclose
+real), `CallFunction`/`CallMethod` (ABI real via `reflect.FuncOf` +
+`purego.RegisterFunc`, cobrindo toda a legenda de tipos da TDN —
+`V,B,C,c,S,s,I,i,L,l,G,g,F,D,P,A,T` —, `CallMethod` com resolução de
+símbolo mangled Itanium C++ real, incluindo construtores), `GetVar`/
+`SetVar` (leitura/escrita real de variável global exportada pela DLL),
+`NewPointer`/`NewObj`/`FreeObj`/`StrLen`/`StrCpy`/`MemCpy` (handles
+opacos, incluindo alocação Go real fixada com `runtime.Pinner` para
+`NewObj(nBytes)`), `GetTimeout`/`SetTimeout`/`GetLastError`/
+`GetErrorMsg`. Implementado sem CGO via
+[`github.com/ebitengine/purego`](https://github.com/ebitengine/purego),
+com resolução de símbolo por SO (`purego.Dlopen`/`Dlsym`/`Dlclose` em
+Unix, `golang.org/x/sys/windows.LoadLibrary`/`GetProcAddress`/
+`FreeLibrary` em Windows, já que purego não implementa aquelas três em
+Windows). Testado ponta a ponta contra bibliotecas C e C++ reais
+compiladas por `gcc`/`g++` em tempo de teste, não simulado. Limitações
+documentadas em `docs/tdn-known-limitations.md`: retorno lógico (não o
+valor computado, seguindo o mesmo padrão já usado em outras categorias
+deste compilador para `@var`), mangling só Itanium (sem MSVC), e
+passagem de parâmetro por referência via `@` não suportada (o compilador
+AdvPP descarta `@` em qualquer posição de chamada — limitação
+pré-existente, não nova).
+
+### Corrigido — CI
+
+- `go vet` passa a rodar com `-unsafeptr=false` (`Makefile`,
+  `.github/workflows/test.yml`): o único uso de `unsafe.Pointer` do
+  projeto (FFI real do DynCall, endereços vindos de fora do heap Go)
+  aciona o analisador `unsafeptr` por design — os demais analisadores do
+  vet continuam ativos.
+
 ## [3.0.0] — 2026-08-11
 
 ### Adicionado — 41 novas natives AdvPL da documentação TDN

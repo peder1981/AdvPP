@@ -2,7 +2,7 @@
 	"name": "advpl-tlpp-advpp",
 	"displayName": "AdvPL/TLPP Compiler (AdvPP)",
 	"description": "Syntax highlighting, compiler commands, keybindings and a real debugger (breakpoints/step/variables, launch and web/PO-UI attach modes) for AdvPL and TLPP (TOTVS Protheus). Bundles the advplc compiler (linux-x64, linux-arm64, win32-x64, darwin-arm64) — works out of the box, nothing else to install.",
-	"version": "3.0.0",
+	"version": "3.0.1",
 	"publisher": "PederMunksgaard",
 	"pricing": "Free",
 	"license": "MIT",

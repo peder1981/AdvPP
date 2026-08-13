@@ -32,7 +32,7 @@ build:
 	done
 
 test: build
-	@go vet ./...
+	@go vet -unsafeptr=false ./...
 	@pass=0; fail=0; \
 	for f in tests/*.prw tests/*.tlpp; do \
 		if ./advplc check $$f >/dev/null 2>&1; then pass=$$((pass+1)); \

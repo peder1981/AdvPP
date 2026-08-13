@@ -1592,6 +1592,8 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callLinearMethod(obj, upperMethod, args)
 	case "Embedding":
 		return v.callEmbeddingMethod(obj, upperMethod, args)
+	case "TRunDll":
+		return v.callTRunDllMethod(obj, upperMethod, args)
 	default:
 		return fmt.Errorf("unknown method %s on object %s", method, obj.ClassName)
 	}
@@ -1802,6 +1804,9 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "EMBEDDING":
 			v.push(newEmbeddingObject())
+			return nil
+		case "TRUNDLL":
+			v.push(newDllObject())
 			return nil
 		case "ERRORCLASS":
 			obj := advplrt.NewObject("ErrorClass", cls)
