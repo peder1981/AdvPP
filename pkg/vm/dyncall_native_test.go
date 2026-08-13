@@ -39,7 +39,11 @@ func buildDynCallFixture(t *testing.T, compilerBin, src, out string) string {
 	}
 	dir := t.TempDir()
 	outPath := filepath.Join(dir, out)
-	cmd := exec.Command(compilerBin, "-shared", "-fPIC", "-o", outPath, filepath.Join("testdata", "dyncall", src))
+	// -fvisibility=default: defesa em profundidade além da anotação EXPORT
+	// nas fontes .cpp — garante símbolos exportados independente do
+	// default de visibilidade do compilador/SO (achado real via CI macOS,
+	// ver comentário em testdata/dyncall/dllcpp.cpp).
+	cmd := exec.Command(compilerBin, "-shared", "-fPIC", "-fvisibility=default", "-o", outPath, filepath.Join("testdata", "dyncall", src))
 	if outBytes, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("falha ao compilar fixture %s: %v\n%s", src, err, outBytes)
 	}
