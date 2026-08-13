@@ -371,6 +371,10 @@ func TestTRunDllNewObjComTamanhoAlocaEChamaConstrutor(t *testing.T) {
 		t.Fatalf("NewObj(64) deveria alocar memória Go real e apontar para ela")
 	}
 
+	mangled, mErr := itaniumMangle("tArith::tArith()")
+	if mErr != nil {
+		t.Fatalf("itaniumMangle: %v", mErr)
+	}
 	if err := v.callTRunDllMethod(obj, "CALLMETHOD", []advplrt.Value{
 		advplrt.NewString("tArith::tArith()"),
 		advplrt.NewString("VP"),
@@ -380,7 +384,9 @@ func TestTRunDllNewObjComTamanhoAlocaEChamaConstrutor(t *testing.T) {
 		t.Fatalf("CallMethod(construtor): %v", err)
 	}
 	if !v.pop().(*advplrt.BoolValue).Val {
-		t.Errorf("CallMethod(tArith::tArith()) deveria devolver .T. (construtor real chamado sobre memória alocada)")
+		v.callTRunDllMethod(obj, "GETERRORMSG", nil)
+		msg := v.pop().(*advplrt.StringValue).Val
+		t.Errorf("CallMethod(tArith::tArith()) deveria devolver .T. (construtor real chamado sobre memória alocada); mangled=%q lastErr=%q", mangled, msg)
 	}
 
 	if err := v.callTRunDllMethod(obj, "FREEOBJ", []advplrt.Value{oObj}); err != nil {
