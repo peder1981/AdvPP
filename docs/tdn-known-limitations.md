@@ -436,3 +436,108 @@ documentado no TDN com as seguintes divergências conhecidas:
 - **`Descend`** ordena bytes em ordem decrescente (ordem reversa dos bytes,
   ex.: "AAAA" → "aaaa"; igual ao exemplo do TDN) — documentado pois
   funciona por reordenação de bytes, não por collation.
+
+## DynCall (`tRunDll`): chamada dinâmica de DLL/SO
+
+Implementado em `pkg/vm/dyncall_native.go` com
+`github.com/ebitengine/purego` (sem cgo): `New`/`Free` fazem
+dlopen/dlclose real; `CallFunction`/`CallMethod` montam a ABI real
+(inclusive double/float no registrador correto) via `reflect.FuncOf` +
+`purego.RegisterFunc`, cobrindo toda a legenda de tipos da TDN
+(`V,B,C,c,S,s,I,i,L,l,G,g,F,D,P,A,T`); `GetVar`/`SetVar` leem/escrevem
+memória bruta de uma variável global exportada pela DLL via `Dlsym` +
+`unsafe.Pointer`; `NewPointer`/`NewObj`/`FreeObj`/`StrLen`/`StrCpy`/
+`MemCpy` operam sobre handles opacos (endereços C reais, incluindo
+alocação Go real e fixada com `runtime.Pinner` para o caso 2 de
+`NewObj(nBytes)` — "TLPP aloca e chama o construtor"). Testado
+end-to-end contra bibliotecas C e C++ reais compiladas por `gcc`/`g++`
+em tempo de teste (`pkg/vm/dyncall_native_test.go` +
+`pkg/vm/testdata/dyncall/`), não simulado — inclusive a chamada real ao
+construtor `tArith::tArith()` sobre memória alocada por `NewObj(64)`.
+
+**Todo método documenta na TDN "retorno: lógico"** (`CallFunction`,
+`CallMethod`, `GetVar`, `SetVar`, `Free`, `FreeObj`, `SetTimeout`,
+`StrLen`, `StrCpy`, `MemCpy`) — o valor de fato é sempre um parâmetro de
+saída por referência (`xRet`/`nRet`/`cRet`), nunca o retorno do método.
+Esta VM preserva o retorno lógico documentado tal como é (nunca o
+substitui pelo valor computado) e simplesmente não popula o `xRet` — a
+mesma limitação de `@var` documentada no topo deste arquivo, aplicada
+aqui com o mesmo critério de honestidade já usado em `GetGlbVars`/
+`IPCWaitEx`/`SFTP*`/`XmlC14N`. Exceção real (não um substituto): quando
+o `xRet` passado é um objeto `TRunDllPointer` (de `NewPointer`/`NewObj`/
+`CallMethod` anterior), seu ponteiro interno É atualizado in-place —
+objetos são tipo referência neste VM, mesmo mecanismo já usado por
+`HMGet`/`VarGet` para parâmetros de array. Na prática, isso significa
+que o valor numérico/string retornado por uma função/método C só é
+observável através deste VM quando o tipo de retorno é `P` (ponteiro) —
+para `I`/`D`/outros escalares, o resultado é real internamente (a
+chamada FFI ocorre e o valor é computado corretamente, coberto pelos
+testes de `dynCallInvoke`) mas fica inacessível ao código AdvPL/TLPP
+chamador, exatamente como os demais casos de `@var` já documentados.
+- **`CallMethod` (DLL C++) só resolve mangling Itanium** (GCC/Clang —
+  Linux, macOS, MinGW), verificado contra o símbolo real emitido por
+  `g++` (`nm -D`) para os exemplos da própria TDN
+  (`tArith::Add(double,double)` → `_ZN6tArith3AddEdd`;
+  `tArith::tArith()` → `_ZN6tArithC1Ev`, marcador de construtor
+  Itanium, nunca o nome da classe repetido). Mangling MSVC (`cl.exe`, o
+  compilador nativo mais comum para DLLs de produção em Windows) é um
+  esquema proprietário não documentado publicamente pela Microsoft em
+  sua totalidade — não implementado; `CallMethod` contra uma DLL
+  compilada com MSVC devolve `.F.` + `GetErrorMsg()` explicando o
+  símbolo não encontrado, em vez de arriscar um mangling incorreto (que
+  causaria crash/corrupção silenciosa em vez de um erro honesto).
+- **Tipos de parâmetro em `CallMethod` limitados a primitivos C
+  (+ 1 nível de ponteiro/`const`)**: referências, classes por valor,
+  templates e sobrecarga de operadores não são suportados no mangling —
+  erro explícito em vez de símbolo errado.
+- **`long`/`unsigned long` (`L`/`l`)** seguem o tamanho real da ABI da
+  plataforma de execução (`runtime.GOOS`): 8 bytes em Linux/macOS
+  (LP64), 4 bytes em Windows (LLP64) — mesma convenção do compilador C
+  nativo de cada SO. `long long`/`unsigned long long` (`G`/`g`) são
+  sempre 8 bytes, em qualquer SO.
+- **`FreeObj` só libera memória alocada por este VM** (caso 2 de
+  `NewObj(nBytes)`, via `runtime.Pinner`). Um objeto obtido de dentro da
+  DLL (caso 1, `NewObj()` + factory/`malloc`) não é liberado por
+  `FreeObj` — este VM não é o dono dessa memória e chamar `free()` sobre
+  um ponteiro alocado por um alocador C desconhecido seria arriscado;
+  documentado em vez de simulado.
+- **`GetTimeout`/`SetTimeout`** são aceitos e armazenados (default 60s,
+  igual ao documentado em "DynCall - Configuração de timeout"), sem
+  efeito real — a chamada FFI é síncrona in-process (mesma goroutine),
+  sem mecanismo seguro para abortar uma chamada C travada a meio
+  caminho (o exemplo da TDN espera a thread terminar "de forma
+  graciosa" após o timeout, o que exigiria abandonar/matar uma thread
+  do SO no meio de código C arbitrário — inseguro de fazer de forma
+  genérica). A terceira forma de configuração documentada pela TDN —
+  seção `[dyncall]` / `timeout = N` num `.ini` do AppServer — não é
+  suportada: este VM não tem (em lugar nenhum, não só para DynCall) um
+  mecanismo real de carregar configuração de um `appserver.ini`/
+  `totvsappserver.ini` externo no start (ver `GetAdvplIni`/`GetMV` em
+  `pkg/vm/ambiente_native.go`, que devolvem apenas o NOME do arquivo
+  convencional, nunca leem/aplicam seu conteúdo). `SetTimeout` é a
+  única forma real de configurar o valor neste VM.
+- **Passagem de parâmetro por referência via `@` (TDN: DynCall -
+  Passagem de parâmetros) não é suportada e pode causar chamada
+  ABI-incorreta.** A TDN reusa a MESMA letra de assinatura escalar
+  (ex. `'I'`) tanto para `int x` (por valor) quanto para `int* x`/
+  `int& x` (por referência) — a diferença é sinalizada só pelo `@` no
+  lado TLPP (`callFunction("sucessor", "II", nRet, @nValue)`), nunca na
+  `cSignature`. Confirmado em `pkg/lexer/lexer.go` (`TOKEN_AT`) e
+  `pkg/parser/expressions.go` (`case lexer.TOKEN_AT: p.advance(); return
+  p.parsePrimary()`): o compilador AdvPP **descarta** o `@` ao compilar
+  um argumento de chamada — `@nValue` compila exatamente igual a
+  `nValue`, em qualquer posição de chamada, não só DynCall. Não há
+  nenhum lugar no VM/compilador onde essa informação sobreviva até
+  `pkg/vm/dyncall_native.go`. Por isso, uma chamada real a uma
+  função/método C/C++ que espere um ponteiro numa posição de letra
+  escalar (`int*`, `int&`) recebe o valor por cópia em vez do endereço —
+  ABI incorreta, que pode ler/escrever memória arbitrária ou crashar o
+  processo, não apenas "perder o dado" como as demais limitações de
+  `@var` deste arquivo. Não há correção possível sem adicionar rastreio
+  de `@` ao compilador inteiro (fora do escopo desta classe). Único
+  caminho seguro hoje: usar a letra `'P'` explicitamente na assinatura e
+  passar um `TRunDllPointer` real (`NewPointer`/`NewObj`) como
+  argumento, que já é inequivocamente um ponteiro e não depende do `@`.
+- `go vet` sinaliza "possible misuse of unsafe.Pointer" em várias linhas
+  de `dyncall_native.go` — esperado e documentado no próprio arquivo:
+  é a natureza inevitável de uma FFI acessando memória fora do heap Go.
