@@ -24,6 +24,12 @@ git clone https://github.com/peder1981/AdvPP && cd AdvPP
 make build   # gera advplc, adveditor, advpp-ide na raiz do repo
 ```
 
+CI roda a suite completa em Linux, Windows e macOS a cada push
+(`.github/workflows/test.yml`). Ao escrever código ou testes
+platform-specific (FFI, `unsafe`, arquivos temporários, etc.), leia
+[`docs/testing-cross-platform.md`](docs/testing-cross-platform.md) antes —
+documenta o padrão e os bugs reais já encontrados nessa categoria.
+
 ## Recursos
 
 - **Lexer**: Tokenizador completo para sintaxe AdvPL/TLPP incluindo palavras-chave, operadores, blocos de código e diretivas de pré-processador
