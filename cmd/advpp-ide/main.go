@@ -86,7 +86,7 @@ func (ide *IDE) makeMainMenu() *fyne.MainMenu {
 			ide.saveFileAs()
 		}),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Exit", func() {
+		fyne.NewMenuItem("Quit", func() {
 			ide.window.Close()
 		}),
 	)

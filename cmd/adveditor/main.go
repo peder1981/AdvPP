@@ -137,9 +137,13 @@ func (ae *AdvEditorWindow) setupMenu() {
 		fyne.NewMenuItem("Abrir (Ctrl+B)", ae.onOpenTable),
 		fyne.NewMenuItem("Trocar Banco de Dados", ae.onChangeDatabase),
 		fyne.NewMenuItem("Fechar", ae.onCloseTable),
-		fyne.NewMenuItem("Sair", func() {
-			ae.window.Close()
-		}),
+		&fyne.MenuItem{
+			Label:  "Sair",
+			IsQuit: true, // evita duplicata: driver desktop do Fyne injeta seu próprio "Quit" quando o último item do 1º menu não é marcado IsQuit
+			Action: func() {
+				ae.window.Close()
+			},
+		},
 	)
 
 	tableMenu := fyne.NewMenu("Tabela",

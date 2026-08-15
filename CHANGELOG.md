@@ -2,6 +2,41 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [3.0.3] — 2026-08-15
+
+### Corrigido — botão "Fechar" duplicado no modal de menu (`FWMenuSelect`) da WebUI
+
+O modal do menu (`web/src/app/app.ts`) definia apenas `p-secondary-action`,
+deixando `p-primary-action` vazio. O `po-modal` (PO-UI) sempre renderiza um
+botão de ação primária no rodapé — e, quando nenhuma é informada, gera um
+próprio com o label padrão "Fechar" — então o resultado eram dois botões
+"Fechar" lado a lado. Corrigido movendo `menuCloseAction` de
+`p-secondary-action` para `p-primary-action`, único slot de ação
+efetivamente usado nesse modal.
+
+Reportado por **Wilson Kraft**, que reproduziu o bug tanto num app de
+exemplo próprio quanto rodando o GesCon localmente, e apontou a pista certa
+(`p-primary-action` vazio) direto no `main-*.js` compilado. Valeu, Wilson!
+
+### Corrigido — "Sair"/"Exit" duplicado com "Quit" no menu das GUIs desktop (advpp-ide, adveditor)
+
+Mesma família de bug do item acima, só que no lado desktop: quando o
+`fyne.NewMainMenu` do IDE (`cmd/advpp-ide/main.go`) e do AdvEditor
+(`cmd/adveditor/main.go`) é montado, o driver desktop do Fyne
+(`internal/driver/glfw/menu.go`) sempre garante uma opção de saída no
+primeiro menu — se o último item do menu não tiver o label exato `"Quit"`,
+o próprio Fyne injeta um item `"Quit"` extra ao lado do que já existia.
+
+- `advpp-ide`: o último item do menu "File" era `"Exit"` → aparecia
+  `"Exit"` e `"Quit"` juntos. Renomeado para `"Quit"`.
+- `adveditor`: o último item do menu "Arquivo" era `"Sair"` → aparecia
+  `"Sair"` e um `"Quit"` em inglês, misturando idioma. Mantido `"Sair"`
+  (consistente com o resto da UI em português) e marcado `IsQuit: true`
+  explicitamente no item, em vez de depender do casamento por string.
+
+Achado ao investigar o mesmo padrão do fix anterior — Peder lembrava de
+ter visto essa duplicação visualmente numa das GUIs desktop antes.
+
 ## [3.0.2] — 2026-08-13
 
 ### Corrigido — DynCall (`tRunDll`) inacessível a partir de AdvPL/TLPP compilado
