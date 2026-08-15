@@ -87,7 +87,7 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
          Botão "Fechar" fecha sem escolher opção — mesmo contrato do
          FWMenuSelect real: devolve 0 pro código (ver menuClose()) em vez
          de travar a VM esperando uma resposta que nunca chega. -->
-    <po-modal #menuModal [p-title]="menu()?.title || 'Menu'" [p-secondary-action]="menuCloseAction" [p-hide-close]="true" p-size="sm">
+    <po-modal #menuModal [p-title]="menu()?.title || 'Menu'" [p-primary-action]="menuCloseAction" [p-hide-close]="true" p-size="sm">
       @if (menu(); as m) {
         <div class="advpp-menu">
           @for (item of m.items; track $index) {
