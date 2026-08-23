@@ -20,11 +20,14 @@ a7d9ebf, a8bf70b; fixes de review em 45375e3). Runtime atual: 729 natives.
 
 TOTAL: 41 ✅ implementadas
 
-## Backlog natural (fora do escopo das tasks do lote): 168 funções TDN ainda sem native
+## Backlog natural (fora do escopo das tasks do lote): 167 funções TDN ainda sem native
 
 Cruzamento completo (2026-08-11): 710 folhas Functions/ vs 729 natives
-(535 cobertas; 7 páginas não-função excluídas; 168 reais sem native).
-Implementar sob demanda / conforme brief das próximas tasks:
+(535 cobertas; 7 páginas não-função excluídas; 168 reais sem native
+naquela data). `Resource2File` foi implementada em 2026-08-23
+(`pkg/vm/rpo_native.go`, ver `docs/tdn-known-limitations.md`) — contagem
+ajustada para 167. Implementar sob demanda / conforme brief das
+próximas tasks:
 
 - **Ambiente/Funcoes-genericas (15)**: GetEnvHost, GetRemoteType, GetSrvVersion,
   GetWebJob, IsPlugin, IsPrinter2, IsSecure, IsSrv64, IsSrvBigE, SrvDisplay,
@@ -59,9 +62,9 @@ Implementar sob demanda / conforme brief das próximas tasks:
 - **Manipulacao-de-memoria (4)**: __ClearRmt, __ListRmt, __LoadRmt, __SaveRmt
 - **Seguranca/Criptografia (6)**: EVPPrivSign, EVPPrivVery, MsCRC32, MsCRC32Str,
   GetSslObj, SetSslObj
-- **Outros (24)**: TCConType(removido p/ stub — contagem já ajustada), Dbf,
+- **Outros (23)**: TCConType(removido p/ stub — contagem já ajustada), Dbf,
   OrdBagExt, CTUpdateIntName, ctreeDelIdxs, ctreeDelInt, SocketConn,
   GetCredential, GetUserFromSID, JobInfo, KillApp, KillUser, SysRefresh,
-  setFinishAppHandler, __HEXTODEC, Resource2File, AttlsMemberOf, DelClassIntf,
+  setFinishAppHandler, __HEXTODEC, AttlsMemberOf, DelClassIntf,
   GetParentTree, HMDel, ClearGlbValue, MemGlbSize, TimeGlbValue, GlbLock,
   GlbUnlock, MailVersion

@@ -530,7 +530,7 @@ Após a instalação:
 
 ## Recursos Adicionais
 
-- **Documentação Técnica**: docs/TECNICO.md
+- **Guia do Desenvolvedor** (arquitetura, VM, opcodes): docs/GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md
 - **Manual do AdvPP IDE**: docs/MANUAL_IDE.md
 - **Manual do AdvEditor**: docs/MANUAL_ADVEDITOR.md
 - **Manual do AdvPlc**: docs/MANUAL_ADVPLC.md

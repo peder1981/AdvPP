@@ -144,7 +144,7 @@ implementação do método é ligada a uma instância de classe (não a uma
 função top-level, que é o que o dispatch HTTP sabe chamar). Para expor
 esse serviço via HTTP hoje, reescreva no estilo anotações acima ou
 registre a rota manualmente com `AddRoute`. Detalhes em
-`COMPONENT_STATUS.md`.
+`docs/COMPONENT_STATUS.md`.
 
 Testado de ponta a ponta com requisições HTTP reais em
 `cmd/advplc/rest_integration_test.go`.
@@ -1011,9 +1011,9 @@ comportamento que nenhum caso de uso exercitou.
 
 **Status:** 87 opcodes implementados na VM (0–86).
 
-**Documentação:** `GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` seção 4.3 documenta todos os opcodes (0–86), nomes, descrições e efeito de stack.
+**Documentação:** `docs/GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` seção 4.3 documenta todos os opcodes (0–86), nomes, descrições e efeito de stack.
 
-Consulte `./GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` para tabela detalhada e exemplos de cada opcode.
+Consulte `./docs/GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` para tabela detalhada e exemplos de cada opcode.
 
 ### Resource Limits (Proteção contra DoS)
 
