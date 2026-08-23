@@ -133,6 +133,23 @@ func compileMarker(inner string) patToken {
 		return patToken{kind: patMarker, name: strings.TrimSpace(inner[:ci]), flagLits: lits}
 	}
 	name := inner
+	// Wild match marker "<*nome*>" e Extended expression match marker
+	// "<(nome)>": a TDN documenta como formas de casamento distintas do
+	// marcador regular (consumo até fim de statement / expressões
+	// estendidas incluindo path), mas este preprocessador já captura
+	// gulosamente até o próximo literal de parada para QUALQUER marcador
+	// sem literais restritos — o comportamento efetivo de captura já
+	// coincide com o do marcador regular. O que faltava era só remover a
+	// decoração (*...*/(...)) do nome antes de usá-lo como chave de
+	// captura; sem isso o nome ficava literalmente "*nome*"/"(nome)" e
+	// NUNCA era encontrado por um marcador de resultado correspondente
+	// (bug real: <*x*> e <(x)> no padrão de casamento nunca produziam
+	// captura utilizável).
+	if strings.HasPrefix(name, "*") && strings.HasSuffix(name, "*") && len(name) >= 2 {
+		name = strings.TrimSuffix(strings.TrimPrefix(name, "*"), "*")
+	} else if strings.HasPrefix(name, "(") && strings.HasSuffix(name, ")") && len(name) >= 2 {
+		name = strings.TrimSuffix(strings.TrimPrefix(name, "("), ")")
+	}
 	isList := false
 	if strings.HasSuffix(name, ",...") {
 		name = strings.TrimSuffix(name, ",...")
@@ -470,6 +487,28 @@ func expandResultSeg(result string, m matchResult) (string, bool, bool) {
 		case strings.HasPrefix(result[i:], `\]`):
 			out.WriteByte(']')
 			i += 2
+		case result[i] == '#' && i+1 < len(result) && result[i+1] == '<':
+			// Dumb stringify result marker "#<nome>" (TDN: forma com o "#"
+			// FORA dos "<>", distinta de "<\"nome\">" que é o stringify
+			// normal). Antes deste caso o '#' caía no `default` como
+			// literal e o "<nome>" seguinte era tratado como marcador
+			// regular — bug real: #<nome> nunca stringificava, só
+			// reescrevia o texto cru prefixado por um '#' literal indevido.
+			j := strings.IndexByte(result[i+1:], '>')
+			if j < 0 {
+				out.WriteByte(result[i])
+				i++
+				continue
+			}
+			inner := result[i+2 : i+1+j]
+			i += j + 2
+			name := markerBaseName(inner)
+			hasMarker = true
+			val := m.vars[name]
+			if val != "" {
+				anyCaptured = true
+			}
+			out.WriteString(`"` + val + `"`)
 		case result[i] == '[':
 			// grupo opcional no resultado: emite o conteúdo expandido só se
 			// algum marcador do grupo capturou algo; senão o grupo some.
@@ -523,10 +562,10 @@ func expandResultSeg(result string, m matchResult) (string, bool, bool) {
 }
 
 // markerBaseName extrai o nome da variável de um marcador de resultado em
-// qualquer das formas: nome, {nome}, .nome., "nome".
+// qualquer das formas: nome, {nome}, .nome., "nome", (nome).
 func markerBaseName(inner string) string {
 	inner = strings.TrimSpace(inner)
-	inner = strings.Trim(inner, `.{}"`)
+	inner = strings.Trim(inner, `.{}"()`)
 	return strings.TrimSpace(inner)
 }
 
@@ -548,11 +587,36 @@ func expandMarkerResult(inner string, m matchResult) string {
 		}
 		return "NIL"
 	case strings.HasPrefix(inner, `"`) && strings.HasSuffix(inner, `"`):
-		// "dumb stringify": <"var"> vira o texto capturado entre aspas
-		// (idioma clássico para passar o NOME da variável a um runtime,
-		// ex.: VTSetGet(@<var>, <"var">, ...)).
+		// Normal stringify result marker: <"nome"> stringifica o texto
+		// capturado. Diferente do dumb stringify ("#<nome>", tratado no
+		// scan de expandResultSeg): se nada foi capturado, não escreve
+		// nada (TDN: "If no input text is matched, it writes nothing to
+		// the result text" — dumb escreve "" mesmo vazio). Este `case`
+		// escrevia sempre `""` mesmo sem captura antes desta correção,
+		// confundindo as duas semânticas.
 		name := strings.Trim(inner, `"`)
-		return `"` + m.vars[name] + `"`
+		val := m.vars[name]
+		if val == "" {
+			return ""
+		}
+		return `"` + val + `"`
+	case strings.HasPrefix(inner, "(") && strings.HasSuffix(inner, ")"):
+		// Smart stringify result marker: <(nome)> só estringifica se o
+		// texto capturado NÃO já estiver entre parênteses (TDN: "ensure
+		// that extended expressions will not get stringified, while
+		// normal, unquoted string file specifications will"). Não
+		// implementado antes desta correção: caía no `default` e buscava
+		// a chave errada ("(nome)" em vez de "nome"), sempre retornando "".
+		name := strings.TrimSuffix(strings.TrimPrefix(inner, "("), ")")
+		val := m.vars[name]
+		if val == "" {
+			return ""
+		}
+		trimmed := strings.TrimSpace(val)
+		if strings.HasPrefix(trimmed, "(") && strings.HasSuffix(trimmed, ")") {
+			return val
+		}
+		return `"` + val + `"`
 	default:
 		return m.vars[inner]
 	}

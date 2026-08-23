@@ -559,3 +559,292 @@ chamador, exatamente como os demais casos de `@var` já documentados.
 - `go vet` sinaliza "possible misuse of unsafe.Pointer" em várias linhas
   de `dyncall_native.go` — esperado e documentado no próprio arquivo:
   é a natureza inevitável de uma FFI acessando memória fora do heap Go.
+
+## Protocolo gRPC Smartlink proprietário sem spec pública (`tGrpc`)
+
+A classe `tGrpc` (`pkg/vm/tgrpc_native.go`) fala, segundo a TDN, "um
+conjunto de mensagens preestabelecidas" sobre gRPC no "modelo Smartlink,
+predeterminado pela TOTVS" — mas a especificação do arquivo `.proto`
+correspondente (nomes reais de serviço/método/campo) não é pública.
+
+**Implementação real (não stub) desde 2026-08-23:** `tGrpc` usa a
+biblioteca gRPC oficial (`google.golang.org/grpc` v1.71.0 +
+`google.golang.org/protobuf` v1.36.4, adicionadas ao `go.mod`) para:
+
+1. Abrir uma conexão HTTP/2 real (`grpc.NewClient` + `insecure` creds —
+   a TDN não documenta configuração de TLS para esta classe).
+   `isRunning()` reflete o `connectivity.State` real da conexão (dispara
+   `Connect()` e espera até `Ready` ou timeout de 5s), não um valor fixo.
+2. Descobrir em tempo de execução, via **gRPC Server Reflection**
+   (protocolo padrão do próprio gRPC — não específico do Smartlink,
+   qualquer servidor gRPC que o exponha funciona), quais
+   serviços/métodos o servidor alvo realmente expõe
+   (`discoverServices`, monta `protoreflect.FileDescriptor` completo via
+   `protodesc.NewFiles` a partir dos `FileDescriptorProto` retornados).
+3. Invocar dinamicamente (via `google.golang.org/protobuf/types/dynamicpb`,
+   sem stub gerado em tempo de compilação) o método cujo nome mais se
+   aproxima do documentado pela TDN (`ClientSetup`, `TenantSetup`,
+   `TenantUndo`, `SendMessage`/`SendMessages`, `WaitForMessages`,
+   `AckMessage`), populando os campos da mensagem por casamento de nome
+   normalizado (`grpcFieldAliases`) contra as propriedades TDN
+   (`ClientInfoProp`, `MsgId`, `MsgType`, `MsgContent`, `MsgAud`,
+   `MsgDeliveryTag`, `MsgAckDeliveryTag`, `MsgAck`).
+
+Isto é uma chamada gRPC real (handshake HTTP/2 real, payload protobuf
+real, wire format real) contra **qualquer** servidor gRPC compatível com
+Server Reflection — testado de ponta a ponta contra um servidor de teste
+real (não simulado, um `grpc.Server` de verdade com um `FileDescriptor`
+`smartlink.proto` construído programaticamente, reflection habilitada):
+`isRunning`, `clientSetup`, `tenantSetup`, `tenantUndo`, `sendMessage`,
+`waitForMessages` (round-trip de `:MsgContent` verificado) e
+`ackMessage` — todos completando com sucesso e a mensagem correta
+chegando ao servidor.
+
+**Limitação genuína que permanece (documentada, não escondida):** sem o
+`.proto` real do Smartlink não há garantia de que os nomes de
+método/campo do servidor TOTVS real batam com os candidatos usados aqui
+(`grpcMethodNameMatches`/`grpcFieldAliases`) — contra um servidor
+Smartlink real isso precisa ser validado e, se necessário, os candidatos
+ajustados. `ErrorCode()`/`ErrorDesc()` reportam a causa real da falha
+(erro de rede, método não encontrado via reflection, erro RPC) em vez de
+um código fixo — ajuda a diagnosticar exatamente esse tipo de divergência
+de nome. Se o servidor alvo não expõe Server Reflection, nenhuma das
+chamadas de mensagem funciona (erro explícito, não silencioso) — isso é
+uma limitação do protocolo gRPC em si, não uma simulação deste VM.
+
+**Afetada:** `tGrpc` (pkg/vm/tgrpc_native.go).
+
+## Smart Link real (`FwTotvsLinkClient`) — HTTP configurável, sem registry/OAuth path públicos
+
+Descoberto ao auditar código-fonte real do Protheus 12.1.2510 (TechFin
+`backoffice.techfin.util.smartlink.tlpp` e RH Insights
+`rh.sigagpe.insights.sendendcalc.tlpp`, cedido só para validação, não
+redistribuído neste repositório): aplicações reais **não chamam `tGrpc`
+diretamente** para falar com o Smart Link —
+usam `FwTotvsLinkClient():New()` com `:SendAudience(cType, cAudience,
+cMessage)` e `:GetTenantClient()`. A página TDN oficial
+("FwTotvsLinkClient - Frameworksp") confirma a classe e revela que o
+transporte real é **HTTP** (não gRPC): "Smart Link... utiliza um
+serviço de fila (rabbit) recebendo requisições através do protocolo
+HTTP", autenticado via credenciais OAuth2 (ClientId/Secret) de um
+produto TotvsApps, resolvidas por um `FwTotvsAppsRegistry` cuja URL não
+é pública.
+
+**Implementação em AdvPP** (`pkg/vm/totvslinkclient_native.go`, real via
+`net/http`, não simulada): endpoint base, endpoint de token OAuth2 e
+tenant são lidos de variáveis de ambiente (mesmo padrão de
+`ADVPP_SFTP_KNOWN_HOSTS`/`ADVPP_HTTP_INSECURE`) — sem elas configuradas,
+qualquer chamada de rede falha honestamente (erro real de conexão, nunca
+sucesso simulado):
+
+- `ADVPP_SMARTLINK_BASEURL` — obrigatória para Send/SendAudience/
+  Receive/Success/Fail.
+- `ADVPP_SMARTLINK_TOKENURL` + `ADVPP_SMARTLINK_CLIENTID` +
+  `ADVPP_SMARTLINK_CLIENTSECRET` — habilitam o fetch de token OAuth2
+  `client_credentials` (RFC 6749 §4.4 — grant **padrão público**, não
+  específico do Smart Link; a implementação faz o POST real e parseia a
+  resposta `{access_token, expires_in}` real). Sem elas, as chamadas
+  seguem sem header `Authorization`.
+- `ADVPP_SMARTLINK_TENANTID` — valor devolvido por `GetTenantClient()`
+  (🟡 INFERIDO: método usado no código real mas ausente da página TDN
+  oficial da classe; sem saber como a implementação real deriva o
+  tenant — provável claim do JWT do access_token, não documentado —
+  este VM devolve o valor configurado explicitamente).
+
+**Paths REST e o objeto de `GetMessage()` são 🟡 INFERIDO** (a TDN
+documenta os métodos mas não publica os paths HTTP nem o formato exato
+de `self:oMessage`): `POST/GET {baseURL}/message`,
+`POST {baseURL}/message/ack` (Success), `POST {baseURL}/message/nack`
+(Fail — "envia a mensagem posicionada para a fila DLQ", conforme
+documentado), `cType`/`cAudience` em headers `X-Message-Type`/
+`X-Audience` (preserva o corpo `cMessage` intacto, já que a TDN diz que
+o formato do corpo é livre/definido pelo produto receptor — envelopar
+corromperia isso), `aHeader` de `SendAudience` reaproveita
+`parseLegacyHeaders` (mesma função de `HTTPQuote`/`HTTPPost` em
+`interfacehttp_native.go`, formato `"Nome| Valor"` ou `"Nome: Valor"`).
+`GetMessage()` devolve um objeto JSON real (`jsonToAdvplValue`, mesma
+máquina de `oJson:fromJson`) do corpo decodificado quando é JSON válido,
+ou `{"body": <corpo bruto>}` caso contrário — nunca um formato inventado
+sem base no dado real recebido.
+
+Testado de ponta a ponta (não apenas compila) contra um servidor HTTP de
+teste real: `New(.T.)` → fetch de token real, `Send`/`SendAudience` →
+POST real com headers corretos, `Receive` → GET real drenando uma fila
+FIFO até vazio (`204` → `.F.`, sem inventar mensagem), `GetMessage()`
+com campos acessíveis (`oMsg["type"]`/`oMsg["body"]`), `Success`/`Fail`
+→ POST real em `/ack`/`/nack`.
+
+**Afetada:** `FwTotvsLinkClient` (pkg/vm/totvslinkclient_native.go).
+
+## Classes TLPP/AdvPL novas (auditoria de cobertura TDN, 2026-08-23)
+
+Cruzamento de 27 documentos de referência TDN (diretivas de
+preprocessador, criptografia, classes "Não Visual"/"TLPP - Classes
+úteis", família RPO) contra o runtime. Implementadas nesta rodada:
+
+- **Argon2id** (`pkg/vm/argon2_native.go`): função pura via
+  `golang.org/x/crypto/argon2.IDKey`. Mapeamento de parâmetros: `nLanes`
+  (não `nThreads`) é passado como o `threads uint8` da API Go, porque é
+  o parâmetro de paralelismo "p" do RFC9106 que afeta o digest — `nLanes`
+  da TDN corresponde a esse "p"; `nThreads` (concorrência de execução,
+  não afeta o hash) é aceito/validado mas sem efeito funcional (a
+  implementação Go gerencia sua própria concorrência interna).
+- **tPBKDF2** (`pkg/vm/pbkdf2_native.go`): classe OOP completa via
+  `golang.org/x/crypto/pbkdf2` + `sha3`. `release()` não pode reportar
+  uma versão OpenSSL real (esta implementação é Go puro, sem OpenSSL) —
+  devolve uma string identificando isso explicitamente em vez de simular
+  uma versão inexistente.
+- **THashMap classe OOP** (`pkg/vm/matrizhashmap_native.go`,
+  `callTHashMapMethod`): `tHashMap():New()` + `:Set`/`:Get`/`:Del`/
+  `:List`/`:Clean`/`:nStatus`, reaproveitando o mesmo `hashMapState` e
+  `ClassName` "THASHMAP" já usados pela API funcional histórica (HMNew/
+  HMSet/...) — as duas formas de uso são interoperáveis. `:Get`/`:List`
+  têm a mesma limitação de `@var` documentada acima (só populam quando o
+  argumento é um array de verdade). `:Del` é a primeira exclusão real de
+  hashmap no projeto — `HMDel` (API funcional) continua sem implementar,
+  por decisão explícita de escopo já registrada em `docs/tdn-gap-stubs.md`.
+- **TJsonParser** (`pkg/vm/jsonparser_native.go`): `tJsonParser():New()`
+  + `:Json_Hash`/`:Json_Parser`/`:json_ok`. Parsing JSON real via
+  `encoding/json`. `Json_Hash` popula um `tHashMap` real quando o
+  chamador pré-cria `oJHM := tHashMap():New()` antes de chamar — o
+  exemplo literal da própria TDN inicializa `oJHM := .F.` esperando que a
+  função aloque e devolva o hashmap por uma variável escalar `@oJHM`, o
+  que é impossível nesta VM (mesma limitação de `@var`; objetos SÃO tipo
+  referência aqui, mas só quando já existem antes da chamada). `@aJsonfields`
+  populado quando é um array de verdade; `@nRetParser` nunca populado
+  (escalar). `Json_Parser` é 🟡 INFERIDO: a página TDN disponível só lista
+  o nome do método no índice da classe, sem subpágina de sintaxe própria.
+- **tUnicode** (`pkg/vm/tunicode_native.go`): `Normalize` via
+  `golang.org/x/text/unicode/norm` (mapeamento de `CONVMODE_FLAG` para
+  `norm.Form` é direto: os valores 0/1/2/3 da TDN já coincidem com a
+  ordem `NFC/NFD/NFKC/NFKD` do pacote Go). `@sConvStr` nunca é populado —
+  é uma string escalar, e diferente de array/objeto não existe NENHUM
+  escape hatch possível para escalares neste VM; `nRet` (0/-1) é real e é
+  a única forma suportada de checar o resultado, mas o texto normalizado
+  computado de verdade fica inacessível ao chamador. `ConvertEncoding` é
+  🟡 INFERIDO (mesma situação de `Json_Parser`: só a TDN resumo, sem
+  subpágina própria) — implementado por analogia direta a `STRICONV`
+  (`pkg/vm/string_native.go`).
+- **TFtpClient** (`pkg/vm/ftpclient_native.go`): cliente FTP real (RFC
+  959) via `net` + `net/textproto`, modo passivo (PASV) para
+  Directory/SendFile/ReceiveFile. Testado end-to-end contra um servidor
+  FTP mínimo real (não simulado): connect, USER/PASS, PWD, MKD/RMD, CWD/
+  CDUP, LIST via PASV, STOR/RETR com round-trip de conteúdo verificado
+  byte a byte, RNFR/RNTO, DELE, TYPE, NOOP, comando arbitrário via QUOTE,
+  QUIT. `FTPConnect`/demais métodos são 🟡 INFERIDO quanto à assinatura
+  exata (a página TDN disponível mostra só um exemplo com `FTPConnect(cHost)`
+  de um argumento, sem subpágina de sintaxe detalhada) — parâmetros
+  `nPort`/`cUser`/`cPassword` opcionais foram inferidos por convenção
+  comum de clientes FTP (default port 21, usuário "anonymous"). `GetCurDir`
+  tem a mesma limitação de `@var` (parâmetro escalar) das demais funções
+  desta categoria.
+- **Resource2File/GetPatchFile/SRCheckSourceSignature**
+  (`pkg/vm/rpo_native.go`): mesma categoria arquitetural das demais
+  funções de RPO já documentadas acima (container de resources/patches/
+  assinaturas que não existe no bytecode Go do AdvPP). `Resource2File`
+  segue exatamente o precedente já estabelecido por `GetApoRes` (não
+  reinterpreta o identificador de resource como caminho de disco
+  arbitrário — mesma lição do code review documentada acima) e sempre
+  devolve `.F.`. `GetPatchFile` valida argumentos e sempre devolve `""`
+  (nenhum parser do formato binário proprietário `.ptm`/`.upd`/`.pak` foi
+  implementado — mesmo critério de escopo já usado para o validador XSD
+  em `xml_native.go`). `SRCheckSourceSignature` sempre devolve `0` (Sem
+  Assinatura) — resposta real, não simulada: nenhum fonte compilado por
+  este VM jamais foi assinado digitalmente, não há mecanismo de
+  certificação neste compilador.
+
+## Bugs reais no motor `#command`/`#xcommand`/`#translate`/`#xtranslate`
+(auditoria TDN 2026-08-23)
+
+A suíte de 500 testes que levou o motor de comandos a "100%" (v1.8.7,
+ver CHANGELOG) não exercitava 4 formas de marcador documentadas pela
+TDN — os 2 bugs abaixo passaram despercebidos até o cruzamento linha a
+linha contra as páginas oficiais `#command`/`#xcommand`/`#translate`/
+`#xtranslate`. Corrigidos em `pkg/preprocessor/commands.go`:
+
+1. **Wild match marker `<*nome*>` e Extended expression match marker
+   `<(nome)>`** (`compileMarker`): o parser não removia a decoração
+   (`*...*`/`(...)`) do nome do marcador antes de usá-lo como chave de
+   captura — o nome ficava literalmente `"*nome*"`/`"(nome)"` e um
+   marcador de resultado correspondente nunca encontrava a captura
+   (sempre vazio). Corrigido: a decoração é removida e o comportamento de
+   captura permanece o mesmo do marcador regular (este preprocessador já
+   captura gulosamente até o próximo literal de parada para qualquer
+   marcador sem literais restritos, então a distinção documentada pela
+   TDN entre "próxima expressão legal" (regular) e "qualquer texto até o
+   fim do statement" (wild) já coincidia na prática — só faltava o nome
+   correto).
+2. **Dumb stringify result marker `#<nome>`** (`expandResultSeg`): o
+   `#` fora dos `<>` não era reconhecido; caía como literal `#` seguido
+   de um marcador regular. Corrigido com um `case` dedicado no scanner:
+   grava `""` quando nada foi capturado (diferente do stringify normal,
+   que não escreve nada) e o texto entre aspas quando há captura.
+3. **Smart stringify result marker `<(nome)>`** (`expandMarkerResult`):
+   não tinha `case` próprio, caía no `default` e buscava a chave errada
+   (`"(nome)"` em vez de `"nome"`), sempre resultando em string vazia.
+   Corrigido: só estringifica quando o texto capturado NÃO já está entre
+   parênteses (semântica documentada pela TDN — evita estringificar
+   expressões estendidas enquanto ainda estringifica especificações de
+   arquivo sem aspas).
+4. **Normal stringify result marker `<"nome">`**: tinha semântica trocada
+   com a dumb (sempre escrevia `""` mesmo sem captura); corrigido para
+   não escrever nada quando não há captura, conforme a TDN.
+
+Todos os 4 corrigidos sem regressão na suíte existente
+(`go test ./pkg/preprocessor/...`, `go test ./...` completo).
+
+## gRPC embarcado como servidor (`GRPCServer`)
+
+Complemento de `tGrpc` (cliente gRPC real, seção acima): `GRPCServer`
+(`pkg/vm/grpcserver_native.go`) expõe o AdvPP como **servidor** gRPC real
+— `google.golang.org/grpc` de verdade, HTTP/2 real, servido diretamente
+pelo runtime — simétrico ao `WSRestServer` já existente
+(`pkg/vm/rest_native.go`) que expõe User Functions como rotas HTTP REST.
+
+AdvPL/TLPP não tem um DSL para declarar tipos `.proto` estaticamente
+(diferente de C#/Java/Go com `protoc`), então — mesmo espírito de
+`WSRestServer`/`MCPServer`, que serializam parâmetros/retorno como JSON —
+`GRPCServer` define em runtime um único tipo de mensagem genérico
+reaproveitado por toda RPC registrada:
+
+```proto
+message JsonEnvelope { string json = 1; }
+```
+
+`AddMethod(cServiceName, cMethodName, cFuncName)` registra uma função já
+compilada no bytecode como handler unário; `Serve([nPort])` monta um
+`FileDescriptorProto` real (um `ServiceDescriptorProto` por
+`cServiceName` distinto, `protodesc.NewFile` + `protoregistry.GlobalFiles`),
+sobe um `grpc.NewServer()` com **Server Reflection habilitada**
+(`reflection.Register`) e bloqueia servindo (mesmo padrão bloqueante de
+`WSRestServer:Serve`, encerra via `Shutdown()` chamado de outro job/
+goroutine). Cada RPC despacha para a User Function alvo numa VM isolada
+(mesmo motivo de `restHandlerFor`/`v.grpcServerHandlerFor`: a VM que está
+bloqueada dentro de `Serve()` não pode ser reentrada).
+
+Isso é HTTP/2 e protobuf reais de ponta a ponta: testado com um cliente
+gRPC Go genuíno que **descobre o serviço só via Server Reflection** (sem
+nenhum stub gerado em tempo de compilação, sem conhecer o schema de
+antemão) e invoca a RPC dinamicamente — o mesmo `tGrpc` deste compilador
+também conseguiria chamar um `GRPCServer` do AdvPP, e vice-versa, ambos
+usando reflection. Round-trip verificado: parâmetros JSON chegam
+corretos na função AdvPL (`oParams["campo"]`, acesso por colchete —
+**não** `oParams:CAMPO`, ver nota abaixo) e o retorno chega correto de
+volta no cliente.
+
+**Nota de consistência corrigida nesta mesma rodada:** o handler usa
+`jsonToAdvplValue` (preserva o case original das chaves — mesma função
+usada por `TJsonParser`/`JsonObject:fromJson` em todo o resto do VM,
+compatível com acesso por colchete `["campo"]`, que é `case-sensitive`
+por design — ver `OP_ARRAY_GET` em `vm.go`), e não `jsonMapToAdvplObject`
+(`pkg/vm/mcp_native.go`, que maiusculiza chaves para suportar
+`oArgs:CAMPO` — convenção documentada e correta para `MCPServer`, cujos
+nomes de argumento vêm de um schema de tool conhecido, mas errada aqui:
+um payload JSON externo genérico deve preservar case e ser lido por
+colchete, como qualquer outro JSON decodificado no resto do compilador).
+Achado real durante o teste ponta a ponta desta feature (o handler
+inicialmente usava `jsonMapToAdvplObject` por reaproveitar o padrão de
+`restHandlerFor`, e `oParams["name"]` retornava sempre `Nil`) —
+`jsonMapToAdvplObject` continua correta e intocada para `MCPServer`.
+
+**Afetada:** `GRPCServer` (pkg/vm/grpcserver_native.go).

@@ -129,11 +129,17 @@ All standard patterns work in AdvPP
 | Servidor MCP | ✅ Funcional | Classe `MCPServer`: JSON-RPC 2.0 real sobre stdio, expõe funções AdvPL como tools (execução real) |
 | Servidor REST (anotações @Get/@Post) | ✅ Funcional | Classe `WSRestServer`: HTTP real sobre `net/http`, auto-discovery de rotas por anotação, path params, dispatch para a função AdvPL |
 | Servidor REST (DSL WSRESTFUL/WSMETHOD) | ⚠️ Apenas Parsing | Sintaxe reconhecida; execução requer reescrever no estilo anotações — ver COMPONENT_STATUS.md |
+| Servidor gRPC (`GRPCServer`) | ✅ Funcional | HTTP/2 + protobuf reais (`google.golang.org/grpc`), Server Reflection habilitada, `User Function` como RPC unária |
+| Cliente gRPC (`tGrpc`) | ✅ Funcional | Conexão real, descoberta de serviço/método via Server Reflection em runtime, invocação dinâmica |
+| Cliente Smart Link TOTVS (`FwTotvsLinkClient`) | ✅ Funcional | HTTP real + OAuth2 `client_credentials`; endpoint/credenciais via `ADVPP_SMARTLINK_*` |
+| Cliente FTP (`TFtpClient`) | ✅ Funcional | RFC 959, modo passivo — upload/download/listagem testados contra servidor real |
+| Criptografia (`Argon2id`, `tPBKDF2`) | ✅ Funcional | RFC9106 e SHA1–SHA3-512 via `golang.org/x/crypto` |
+| Classes utilitárias TLPP (`tHashMap`, `tJsonParser`, `tUnicode`) | ✅ Funcional | Formas OOP documentadas pela TDN |
 
 ## Limitações
 
 1. **Dependências de Framework**: Funções complexas do framework Protheus (MSExecAuto, DbSelectArea, etc.) requerem integração de banco de dados
-2. **Pré-processador**: Diretivas avançadas de pré-processador (#xCommand, #xTranslate) podem precisar de adaptação
+2. **Pré-processador**: `#command`/`#xcommand`/`#translate`/`#xtranslate` implementam o motor real de pattern-matching da TDN (marcadores regular/lista/restrito/wild/extended-expression, cláusulas opcionais em qualquer ordem, result markers regular/logify/blockify/dumb-stringify/normal-stringify/smart-stringify) — ver `docs/tdn-known-limitations.md` para os 2 bugs de marcador já corrigidos e cobertura de teste
 3. **Headers de Framework**: totvs.ch e outros headers de framework podem precisar ser fornecidos separadamente
 
 ## Conclusão

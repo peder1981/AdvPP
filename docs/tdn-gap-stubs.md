@@ -194,7 +194,6 @@ Páginas do TDN sem corpo real (stub) — não implementar sem spec.
 - __LoadRmt (Functions/Manipulacao-de-memoria) — https://tdn.totvs.com/display/tec/__LoadRmt
 - HMDel (Functions/Manipulacao-de-matriz-HashMap) — https://tdn.totvs.com/display/tec/HMDel
 - __HEXTODEC (Functions/Conversao-entre-tipos-e-dados) — https://tdn.totvs.com/display/tec/__HEXTODEC
-- Resource2File (Functions/Manipulacao-de-RPO) — https://tdn.totvs.com/display/tec/Resource2File
 - Ctree-Error-485-IO-Error-14-Error-creating... (Mensagens-de-erro) — https://tdn.totvs.com/pages/viewpage.action?pageId=6063125
 - Protheus-Work-area-table-full-Max=-512 (Mensagens-de-erro) — https://tdn.totvs.com/display/tec/Protheus+Work+area+table+full+Max%3D+512
 - Number-of-locks-exceeded-Total-10000-... (Mensagens-de-erro) — https://tdn.totvs.com/pages/viewpage.action?pageId=6063143

@@ -2,6 +2,68 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [3.0.4] — 2026-08-23
+
+### Adicionado — auditoria de 27 documentos TDN + gRPC embarcado + Smart Link real
+
+Auditoria linha-a-linha de 27 PDFs de referência TDN (diretivas de
+preprocessador, criptografia, classes "Não Visual"/"TLPP - Classes
+úteis", família RPO) contra o runtime, seguida de implementação de
+todos os gaps reais encontrados e de dois pedidos de acompanhamento
+(gRPC de verdade, e o Smart Link real descoberto ao auditar código-fonte
+Protheus 12.1.2510 real):
+
+- **`Argon2id`** (`pkg/vm/argon2_native.go`): RFC9106 via
+  `golang.org/x/crypto/argon2`.
+- **`tPBKDF2`** (`pkg/vm/pbkdf2_native.go`): classe OOP completa
+  (SHA1–SHA3-512) via `golang.org/x/crypto/pbkdf2`.
+- **`tHashMap` classe OOP** (`pkg/vm/matrizhashmap_native.go`):
+  `New/Set/Get/Del/List/Clean/nStatus`, interopera com a API funcional
+  histórica (`HMNew`/`HMSet`/...).
+- **`tJsonParser`** (`pkg/vm/jsonparser_native.go`):
+  `New/Json_Hash/Json_Parser/json_ok`, parsing JSON real.
+- **`tUnicode`** (`pkg/vm/tunicode_native.go`): `Normalize`
+  (NFC/NFD/NFKC/NFKD via `golang.org/x/text/unicode/norm`) e
+  `ConvertEncoding`.
+- **`TFtpClient`** (`pkg/vm/ftpclient_native.go`): cliente FTP real
+  (RFC 959, modo passivo) — testado ponta a ponta contra um servidor
+  FTP real (upload/download com round-trip verificado).
+- **`Resource2File`/`GetPatchFile`/`SRCheckSourceSignature`**
+  (`pkg/vm/rpo_native.go`): completam a família de funções de
+  manipulação de RPO.
+- **2 bugs reais corrigidos no motor `#command`/`#xcommand`/
+  `#translate`/`#xtranslate`** (`pkg/preprocessor/commands.go`): wild
+  match marker `<*x*>` e extended-expression match marker `<(x)>`
+  quebrados (nome do marcador nunca era casado); dumb stringify `#<x>` e
+  smart stringify `<(x)>` no resultado nunca eram reconhecidos. Sem
+  regressão na suíte existente.
+- **`tGrpc`** (`pkg/vm/tgrpc_native.go`): cliente [gRPC](https://grpc.io/)
+  real via `google.golang.org/grpc` — conexão HTTP/2 real, descoberta de
+  serviço/método via **gRPC Server Reflection** em runtime (sem `.proto`
+  local) e invocação dinâmica (`dynamicpb`).
+- **`GRPCServer`** (`pkg/vm/grpcserver_native.go`): o AdvPP agora também
+  é **servidor** gRPC real — `AddMethod`/`Serve` expõem `User Function`
+  como RPCs unárias com Server Reflection habilitada, simétrico ao
+  `WSRestServer` já existente. Testado ponta a ponta com um cliente Go
+  genuíno que descobre e invoca via reflection, sem stub gerado em tempo
+  de compilação.
+- **`FwTotvsLinkClient`** (`pkg/vm/totvslinkclient_native.go`): cliente
+  HTTP real (`net/http`) para o Smart Link — descoberto ao auditar
+  código-fonte real do Protheus 12.1.2510 (TechFin, RH Insights), que
+  usa esta classe em vez de `tGrpc` diretamente (Smart Link é HTTP+fila,
+  não gRPC). OAuth2 `client_credentials` real; endpoint/credenciais/
+  tenant configuráveis via `ADVPP_SMARTLINK_*`.
+
+Todas as novas dependências (`google.golang.org/grpc` v1.71.0,
+`google.golang.org/protobuf` v1.36.4, `golang.org/x/crypto`,
+`golang.org/x/text` — as duas últimas já presentes no `go.mod`)
+compilam e passam nos testes em Linux, Windows e macOS
+(`go build`/`go vet` cross-compile limpos; `go test ./...` 20/20
+pacotes verdes). Detalhe técnico completo de cada item, incluindo
+limitações reais que permanecem (nomes de método/campo do Smart Link
+real não confirmados sem o `.proto`/registry proprietário da TOTVS), em
+`docs/tdn-known-limitations.md`.
+
 ## [3.0.3] — 2026-08-15
 
 ### Corrigido — botão "Fechar" duplicado no modal de menu (`FWMenuSelect`) da WebUI

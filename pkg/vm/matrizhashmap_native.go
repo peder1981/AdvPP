@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -156,6 +157,25 @@ func (h *hashMapState) get(key advplrt.Value) (advplrt.Value, bool) {
 		return nil, false
 	}
 	return h.entries[pos].val, true
+}
+
+// del remove uma entrada por chave, reconstruindo o índice (posições
+// mudam após a remoção). Usado apenas pela classe OOP tHashMap (:Del) —
+// a API funcional histórica (HM*) não implementa exclusão (ver
+// docs/tdn-gap-stubs.md, HMDel confirmado como stub sem spec real na
+// época em que essa família foi implementada).
+func (h *hashMapState) del(key advplrt.Value) bool {
+	ck := hmCanonicalKey(key)
+	pos, exists := h.index[ck]
+	if !exists {
+		return false
+	}
+	h.entries = append(h.entries[:pos], h.entries[pos+1:]...)
+	delete(h.index, ck)
+	for i := pos; i < len(h.entries); i++ {
+		h.index[hmCanonicalKey(h.entries[i].key)] = i
+	}
+	return true
 }
 
 // registerManipulacaodematrizHashMapNatives registra as funções de
@@ -314,5 +334,97 @@ func (v *VM) registerManipulacaodematrizHashMapNatives(natives map[string]func(a
 			state.set(advplrt.NewString(key), row)
 		}
 		return obj, nil
+	}
+}
+
+// newTHashMapObject constrói o objeto para a sintaxe OOP documentada em
+// "Classe THashMap" (tHashMap():New()) — reaproveita o mesmo hashMapState
+// e a mesma ClassName "THASHMAP" já usados por HMNew/AToHM (API funcional
+// histórica), tornando as duas formas de uso interoperáveis.
+func newTHashMapObject() *advplrt.ObjectValue {
+	obj := advplrt.NewObject("THASHMAP", nil)
+	obj.Native = newHashMapState()
+	obj.Props["NSTATUS"] = advplrt.NewNumber(0)
+	return obj
+}
+
+// callTHashMapMethod despacha os métodos da "Classe THashMap" (TDN: Não
+// Visual / THashMap): New, Set, Get, Del, List, Clean. A propriedade
+// nStatus é lida/gravada como property comum do objeto (obj.Props), sem
+// necessidade de case dedicado aqui.
+func (v *VM) callTHashMapMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
+	state := hmGetHash(obj)
+	if state == nil {
+		return fmt.Errorf("tHashMap: objeto sem estado interno")
+	}
+
+	switch method {
+	case "NEW":
+		v.push(obj)
+		return nil
+
+	case "SET":
+		// Set( < yKey >, < xVal > ) -> lRet
+		state.set(getArg(args, 0), getArg(args, 1))
+		obj.Props["NSTATUS"] = advplrt.NewNumber(0)
+		v.push(advplrt.True)
+		return nil
+
+	case "GET":
+		// Get( < yKey >, < @xVal > ) -> lRet
+		// LIMITAÇÃO CONHECIDA (docs/tdn-known-limitations.md): @xVal só é
+		// populado quando o chamador passa um *advplrt.ArrayValue (arrays
+		// são tipo referência neste VM); o exemplo literal da TDN
+		// (variável escalar) não recebe o valor de volta — lRet é a forma
+		// suportada de checar o resultado.
+		val, found := state.get(getArg(args, 0))
+		if !found {
+			obj.Props["NSTATUS"] = advplrt.NewNumber(-1)
+			v.push(advplrt.False)
+			return nil
+		}
+		if arr, ok := getArg(args, 1).(*advplrt.ArrayValue); ok {
+			arr.Elements = []advplrt.Value{val}
+		}
+		obj.Props["NSTATUS"] = advplrt.NewNumber(0)
+		v.push(advplrt.True)
+		return nil
+
+	case "DEL":
+		// Del( < yKey > ) -> lRet
+		ok := state.del(getArg(args, 0))
+		if ok {
+			obj.Props["NSTATUS"] = advplrt.NewNumber(0)
+		} else {
+			obj.Props["NSTATUS"] = advplrt.NewNumber(-1)
+		}
+		v.push(advplrt.NewBool(ok))
+		return nil
+
+	case "LIST":
+		// List( < @aElem > ) -> lRet
+		// Mesma limitação de @var das demais: só popula quando o
+		// argumento é um array de verdade.
+		if arr, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
+			elems := make([]advplrt.Value, len(state.entries))
+			for i, e := range state.entries {
+				elems[i] = e.val
+			}
+			arr.Elements = elems
+		}
+		obj.Props["NSTATUS"] = advplrt.NewNumber(0)
+		v.push(advplrt.True)
+		return nil
+
+	case "CLEAN":
+		// Clean() -> lRet
+		state.entries = nil
+		state.index = map[string]int{}
+		obj.Props["NSTATUS"] = advplrt.NewNumber(0)
+		v.push(advplrt.True)
+		return nil
+
+	default:
+		return fmt.Errorf("unknown method %s on tHashMap", method)
 	}
 }

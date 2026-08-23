@@ -725,6 +725,62 @@ Testado com o **SDK oficial em Python do MCP** (`stdio_client` +
 `ClientSession`), não só com mensagens JSON-RPC feitas à mão — ver
 `cmd/advplc/mcp_integration_test.go`.
 
+## gRPC embarcado (classes `GRPCServer` e `tGrpc`)
+
+O AdvPP embarca o framework [gRPC](https://grpc.io/) real
+(`google.golang.org/grpc`) — tanto para **expor** quanto para
+**consumir** serviços gRPC, com HTTP/2 e protobuf reais na wire.
+
+### Servidor — `GRPCServer`
+
+```advpl
+User Function Ping(oParams)
+    Local oResp := JsonObject():New()
+    oResp["pong"] := "hello " + oParams["name"]
+Return oResp
+
+User Function GrpcDemo()
+    Local oServer := GRPCServer():New()
+    oServer:AddMethod("Echo", "Ping", "Ping") // serviço, método, função
+    oServer:Serve(50051) // bloqueia
+Return
+```
+
+AdvPL/TLPP não tem como declarar tipos `.proto` estaticamente — por
+isso `GRPCServer` define em runtime um único tipo de mensagem genérico
+(`message JsonEnvelope { string json = 1; }`) reaproveitado por toda
+RPC, com **Server Reflection habilitada**: qualquer cliente gRPC real
+(`grpcurl`, um cliente `protoc`, ou o `tGrpc` deste mesmo compilador)
+descobre e chama o serviço sem precisar de nenhum `.proto` gerado em
+tempo de compilação. Os parâmetros chegam como `JsonObject`
+(`oParams["campo"]`, acesso por colchete — case-sensitive, semântica
+JSON) e o retorno da função vira o corpo JSON da resposta.
+
+| Método | Descrição |
+|--------|-----------|
+| `New()` | Cria o servidor |
+| `AddMethod(cServico, cMetodo, cFuncao)` | Registra a RPC (antes de `Serve()`) |
+| `Serve([nPorta])` | Sobe o servidor (default `:50051`), bloqueia |
+| `Shutdown()` | Encerra graciosamente |
+
+### Cliente — `tGrpc`
+
+```advpl
+User Function GrpcClientDemo()
+    Local oClient := tGrpc():New("smartlink.proto", "localhost", 50051)
+    If oClient:isRunning()
+        oClient:MsgContent := '{"name":"AdvPP"}'
+        oClient:sendMessage()
+    EndIf
+Return
+```
+
+Abre uma conexão HTTP/2 real e descobre em runtime, via gRPC Server
+Reflection, quais serviços/métodos o servidor alvo expõe — sem
+precisar de `.proto` local. Testado ponta a ponta contra servidores
+gRPC reais (inclusive `tGrpc` ↔ `GRPCServer` entre si). Detalhe
+completo em `docs/tdn-known-limitations.md`.
+
 ## Integração com IDE
 
 ### Compilação via IDE

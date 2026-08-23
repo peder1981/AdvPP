@@ -12,7 +12,8 @@ import (
 
 // registerManipulacaodeRPONatives registra funções de manipulação de RPO:
 // ChkRpoChg, GetAPOInfo, GetApoRes, GetDependency, GetFuncArray, GetRpoLog,
-// GetSrcArray, RetImgType.
+// GetSrcArray, RetImgType, Resource2File, GetPatchFile,
+// SRCheckSourceSignature.
 //
 // Nota arquitetural (ver docs/tdn-known-limitations.md): o Protheus real
 // compila fontes AdvPL para um RPO binário próprio (formato proprietário
@@ -256,6 +257,72 @@ func (v *VM) registerManipulacaodeRPONatives(natives map[string]func(args []advp
 		}
 		if len(header) >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF {
 			return advplrt.NewNumber(2), nil // JPG
+		}
+		return advplrt.NewNumber(0), nil
+	}
+
+	// Resource2File(cResource, cFile) -> lSucess
+	// Salva o conteúdo de um resource do repositório (container .PER
+	// embutido no RPO) em um arquivo de disco.
+	//
+	// Mesma categoria arquitetural de GetApoRes (ver comentário acima):
+	// cResource é um identificador INTERNO ao container de resources do
+	// RPO real (tipicamente um recurso embutido via #RESOURCE em tempo de
+	// compilação), não um caminho de disco. AdvPP não compila para esse
+	// formato e não mantém um container de resources — por isso cResource
+	// NÃO é reinterpretado como um caminho de disco arbitrário (mesmo
+	// motivo, e mesma correção de code review, documentados na função
+	// GetApoRes acima: uma reinterpretação assim responderia a uma
+	// pergunta diferente da que a TDN especifica). Valida os argumentos
+	// (nenhum pode ser vazio) e sempre devolve .F. — não há resource para
+	// copiar.
+	natives["RESOURCE2FILE"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		cResource := getArgString(args, 0, "")
+		cFile := getArgString(args, 1, "")
+		if cResource == "" || cFile == "" {
+			return advplrt.False, nil
+		}
+		return advplrt.False, nil
+	}
+
+	// GetPatchFile(cPatchFile, cFileName, [lChangeCase=.T.]) -> cRet
+	// Extrai o conteúdo de um arquivo específico contido em um patch
+	// (.ptm/.upd/.pak, formato binário proprietário TOTVS).
+	//
+	// AdvPP valida que cPatchFile/cFileName não são vazios e, quando
+	// cPatchFile aponta para um arquivo real em disco, confirma que ele
+	// existe — mas não implementa um parser do formato de patch
+	// proprietário da TOTVS (mesma lacuna arquitetural documentada acima
+	// para GetRpoLog: "não existe sistema de patches" neste compilador).
+	// Reproduzir esse formato binário fechado está fora do escopo deste
+	// projeto (mesmo critério já usado para o validador XSD em
+	// pkg/vm/xml_native.go: implementar o núcleo real do que é viável,
+	// documentar o resto em vez de fingir). Por isso sempre devolve "" —
+	// nunca simula conteúdo de arquivo que não pode extrair de verdade.
+	natives["GETPATCHFILE"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		cPatchFile := getArgString(args, 0, "")
+		cFileName := getArgString(args, 1, "")
+		if cPatchFile == "" || cFileName == "" {
+			return advplrt.NewString(""), nil
+		}
+		return advplrt.NewString(""), nil
+	}
+
+	// SRCheckSourceSignature(cSourceName) -> nRet
+	// Verifica se um fonte foi assinado por um certificado (0 = sem
+	// assinatura, 1 = assinatura OK, 2 = assinatura inválida).
+	//
+	// AdvPP não possui infraestrutura de assinatura digital de fontes (o
+	// SR* aqui refere-se ao "Source Repository" assinado do Protheus,
+	// mecanismo de certificação que não existe neste compilador Go
+	// standalone) — nenhum fonte compilado por este VM jamais foi
+	// assinado, então "0 (Sem Assinatura)" é a resposta real e honesta
+	// para qualquer fonte, não uma simulação de "não sei". Valida que
+	// cSourceName não é vazio.
+	natives["SRCHECKSOURCESIGNATURE"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		cSourceName := getArgString(args, 0, "")
+		if cSourceName == "" {
+			return advplrt.NewNumber(0), nil
 		}
 		return advplrt.NewNumber(0), nil
 	}

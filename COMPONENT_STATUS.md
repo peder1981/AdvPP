@@ -1,5 +1,75 @@
 # Relatório de Status dos Componentes
 
+## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
+
+### Status Atual: Funcional e testado ponta a ponta (cliente e servidor reais)
+
+Auditoria de conformidade contra 27 documentos TDN de referência
+(diretivas de preprocessador `#command`/`#xcommand`/`#translate`/
+`#xtranslate`, criptografia, classes "Não Visual"/"TLPP - Classes
+úteis", família RPO), seguida da implementação de todos os gaps reais
+encontrados e de duas rodadas de acompanhamento pedidas depois:
+"implemente o framework gRPC real (https://grpc.io/)" no lugar de um
+stub, e — ao descobrir via código-fonte real do Protheus 12.1.2510
+(TechFin `backoffice.techfin.util.smartlink.tlpp`, RH Insights
+`rh.sigagpe.insights.sendendcalc.tlpp`) que apps reais usam
+`FwTotvsLinkClient` (HTTP+fila) em vez de `tGrpc` diretamente —
+implementar essa classe também.
+
+### O Que Funciona:
+- ✅ **`Argon2id`** (função) e **`tPBKDF2`** (classe OOP completa,
+  SHA1–SHA3-512): via `golang.org/x/crypto/argon2`/`pbkdf2`
+- ✅ **`tHashMap` classe OOP** (`New/Set/Get/Del/List/Clean/nStatus`):
+  interopera com a API funcional histórica `HMNew`/`HMSet`/...
+- ✅ **`tJsonParser`** (`New/Json_Hash/Json_Parser/json_ok`): parsing
+  JSON real, popula um `tHashMap` real quando pré-criado pelo chamador
+- ✅ **`tUnicode`** (`Normalize` NFC/NFD/NFKC/NFKD,
+  `ConvertEncoding`): via `golang.org/x/text/unicode/norm`
+- ✅ **`TFtpClient`**: cliente FTP real (RFC 959, PASV) — testado
+  upload/download com round-trip de conteúdo verificado contra um
+  servidor FTP real
+- ✅ **`Resource2File`/`GetPatchFile`/`SRCheckSourceSignature`**:
+  completam a família "Manipulação de RPO"
+- ✅ **2 bugs reais corrigidos no motor `#command`**: wild match marker
+  `<*x*>`, extended-expression match marker `<(x)>` (nome do marcador
+  nunca era casado), dumb stringify `#<x>` e smart stringify `<(x)>`
+  (nunca reconhecidos) — a suíte de 500 testes que levou o motor a
+  "100%" não exercitava essas 4 formas
+- ✅ **`tGrpc`** (cliente gRPC real): `google.golang.org/grpc` de
+  verdade — conexão HTTP/2 real, descoberta de serviço/método via
+  **gRPC Server Reflection** em runtime (sem `.proto` local nenhum) e
+  invocação dinâmica via `dynamicpb`
+- ✅ **`GRPCServer`** (servidor gRPC real, simétrico ao
+  `WSRestServer`): `AddMethod`/`Serve` expõem `User Function` como RPCs
+  unárias com Server Reflection habilitada — testado com um cliente Go
+  genuíno que descobre e invoca via reflection, zero stub gerado em
+  tempo de compilação. Achado real durante o teste: o handler
+  inicialmente usava `jsonMapToAdvplObject` (maiusculiza chaves, correto
+  para `MCPServer`) em vez de `jsonToAdvplValue` (preserva case, correto
+  para JSON externo genérico com acesso por colchete) — corrigido
+- ✅ **`FwTotvsLinkClient`** (cliente Smart Link real, `net/http`):
+  OAuth2 `client_credentials` real; endpoint/credenciais/tenant via
+  `ADVPP_SMARTLINK_BASEURL`/`TOKENURL`/`CLIENTID`/`CLIENTSECRET`/
+  `TENANTID` — sem configurar, falha honesta de rede, nunca sucesso
+  simulado
+
+### Notas de Implementação:
+- `pkg/vm/argon2_native.go`, `pkg/vm/pbkdf2_native.go`,
+  `pkg/vm/tunicode_native.go`, `pkg/vm/ftpclient_native.go`,
+  `pkg/vm/tgrpc_native.go`, `pkg/vm/grpcserver_native.go`,
+  `pkg/vm/totvslinkclient_native.go`, `pkg/vm/jsonparser_native.go`
+  (novos); `pkg/vm/matrizhashmap_native.go`, `pkg/vm/rpo_native.go`,
+  `pkg/preprocessor/commands.go` (estendidos)
+- Novas dependências: `google.golang.org/grpc` v1.71.0,
+  `google.golang.org/protobuf` v1.36.4 (compatíveis com go1.24 —
+  versões mais novas exigem go1.25); `golang.org/x/crypto` e
+  `golang.org/x/text` já eram dependências existentes
+- `go build`/`go vet` cross-compile Linux/Windows/macOS limpos;
+  `go test ./...` 20/20 pacotes verdes, sem regressão
+- Detalhe técnico completo (assinaturas, limitações reais que
+  permanecem, notas de confiança 🟡 INFERIDO onde a TDN não publica
+  subpágina de detalhe) em `docs/tdn-known-limitations.md`
+
 ## Primitivas de TUI de baixo nível (atualizado 2026-08-02)
 
 ### Status Atual: Funcional e coberto por teste de integração

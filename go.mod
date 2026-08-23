@@ -20,6 +20,8 @@ require (
 	golang.org/x/sys v0.37.0
 	golang.org/x/term v0.36.0
 	golang.org/x/text v0.30.0
+	google.golang.org/grpc v1.71.0
+	google.golang.org/protobuf v1.36.4
 	modernc.org/sqlite v1.38.2
 )
 
@@ -81,6 +83,7 @@ require (
 	golang.org/x/mobile v0.0.0-20230531173138-3c911d8e3eda // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/js/dom v0.0.0-20210725211120-f030747120f2 // indirect
 	modernc.org/libc v1.66.3 // indirect

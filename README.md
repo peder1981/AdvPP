@@ -57,6 +57,11 @@ documenta o padrão e os bugs reais já encontrados nessa categoria.
 - **Autodiff + treino (float32)**: motor de diferenciação reversa (`pkg/autograd`) com a classe `Variable` (tape + `Backward`), ops diferenciáveis (MatMul, Add, Mul, Relu, Sum, Mean, MSE) e otimizador `SGD` — treina modelos float com o AdvPL orquestrando; ver [Autodiff e treino](#autodiff-e-treino)
 - **Cliente HTTP nativo**: `FWHttpGet`/`FWHttpPost`/`FWHttpPut`/`FWHttpPatch`/`FWHttpDelete` + `FWHttpBody`/`FWHttpStatus`/`FWHttpError` — requisições HTTP com suporte a certificados PKCS#12 (.pfx/.p12), timeout 30s e TLS com verificação; ver [Cliente HTTP Nativo](#cliente-http-nativo-fwhttp)
 - **DynCall** (classe `tRunDll`): chama funções/métodos de DLL/SO dinamicamente (C e C++, com mangling Itanium real), sem CGO, via [`purego`](https://github.com/ebitengine/purego); ver [DynCall](#dyncall--chamada-dinâmica-de-dllso-trundll)
+- **gRPC embarcado** (classes `GRPCServer`/`tGrpc`): framework [gRPC](https://grpc.io/) real (`google.golang.org/grpc`) — sobe um servidor gRPC real com Server Reflection a partir de `User Function`, e/ou consome qualquer servidor gRPC como cliente descobrindo o schema em runtime (sem `.proto` gerado em tempo de compilação); ver [Servidor/Cliente gRPC](#servidor-grpc-grpcserver-e-cliente-grpc-tgrpc)
+- **Smart Link TOTVS** (classe `FwTotvsLinkClient`): cliente HTTP real com OAuth2 `client_credentials` para o mecanismo de mensageria do Smart Link (TechFin, RH Insights); ver [Cliente TOTVS Smart Link](#cliente-totvs-smart-link-fwtotvslinkclient)
+- **Cliente FTP** (classe `TFtpClient`): cliente FTP real (RFC 959, modo passivo) — upload/download/listagem/renomear/apagar; ver [Cliente FTP](#cliente-ftp-tftpclient)
+- **Criptografia** (`Argon2id`, classe `tPBKDF2`): Argon2id (RFC9106) e PBKDF2 (SHA1–SHA3-512) via `golang.org/x/crypto`; ver [Criptografia](#criptografia--argon2id-e-pbkdf2-tpbkdf2)
+- **Classes utilitárias TLPP** (`tHashMap`, `tJsonParser`, `tUnicode`): formas OOP documentadas pela TDN, interoperando com a API funcional já existente; ver [Classes utilitárias TLPP](#classes-utilitárias-tlpp-thashmap-tjsonparser-tunicode)
 
 ## Servidor MCP (`MCPServer`)
 
@@ -437,6 +442,181 @@ mangling Itanium (GCC/Clang/MinGW) — DLLs compiladas com MSVC não são
 suportadas. Testado ponta a ponta contra bibliotecas C e C++ reais
 compiladas por `gcc`/`g++` em tempo de teste
 (`pkg/vm/dyncall_native_test.go`).
+
+## Servidor gRPC (`GRPCServer`) e Cliente gRPC (`tGrpc`)
+
+Implementação real do framework [gRPC](https://grpc.io/) (`google.golang.org/grpc`
++ `google.golang.org/protobuf`, as libs oficiais) embarcada no compilador —
+tanto para consumir quanto para expor serviços gRPC, com HTTP/2 e protobuf
+reais na wire (não simulados).
+
+```advpl
+User Function Ping(oParams)
+    Local oResp := JsonObject():New()
+    oResp["pong"] := "hello " + oParams["name"]
+Return oResp
+
+User Function StartGrpcServer()
+    Local oServer := GRPCServer():New()
+    oServer:AddMethod("Echo", "Ping", "Ping") // serviço, método, função AdvPL
+    oServer:Serve(50051) // bloqueia servindo gRPC na porta 50051
+Return
+```
+
+AdvPL/TLPP não tem um DSL para declarar tipos `.proto` estaticamente —
+por isso, mesmo espírito de `WSRestServer`/`MCPServer` (que serializam
+parâmetros/retorno como JSON), `GRPCServer` define em runtime um único
+tipo de mensagem genérico (`message JsonEnvelope { string json = 1; }`)
+reaproveitado por toda RPC registrada, com **Server Reflection
+habilitada** — qualquer cliente gRPC real (`grpcurl`, um cliente gerado
+por `protoc`, ou o próprio `tGrpc` deste compilador) descobre o serviço
+em runtime e chama sem precisar de arquivo `.proto` nenhum. Os
+parâmetros chegam na função AdvPL como um `JsonObject` real (acesso por
+colchete, `oParams["campo"]`, case-sensitive — semântica JSON), e o
+retorno da função vira o corpo JSON da resposta.
+
+| Método (`GRPCServer`) | Descrição |
+|--------|-----------|
+| `New()` | Cria o servidor |
+| `AddMethod(cServico, cMetodo, cFuncao)` | Registra uma User Function como handler unário — deve ser chamado antes de `Serve()` |
+| `Serve([nPorta])` | Sobe o servidor gRPC (default `:50051`), bloqueia até `Shutdown()` |
+| `Shutdown()` | Encerra graciosamente (`GracefulStop`), chamada de outra goroutine/job |
+
+```advpl
+User Function GrpcClientDemo()
+    Local oClient := tGrpc():New("smartlink.proto", "localhost", 50051)
+    If oClient:isRunning() // conexão HTTP/2 real, connectivity.State real
+        oClient:MsgContent := '{"name":"AdvPP"}'
+        If oClient:sendMessage() // descobre o método via Server Reflection e invoca
+            ConOut(oClient:waitForMessages())
+        EndIf
+    EndIf
+Return
+```
+
+`tGrpc` é o cliente correspondente: abre uma conexão HTTP/2 real
+(`grpc.NewClient`), descobre em runtime — via gRPC Server Reflection,
+sem precisar de nenhum `.proto` local — quais serviços/métodos o
+servidor alvo expõe, e invoca dinamicamente (`dynamicpb`) o método cujo
+nome mais se aproxima do documentado pela TDN (`ClientSetup`,
+`TenantSetup`, `TenantUndo`, `SendMessage`, `WaitForMessages`,
+`AckMessage`), populando os campos por casamento de nome contra as
+propriedades (`ClientInfoProp`, `MsgId`, `MsgType`, `MsgContent`,
+`MsgAud`, `MsgDeliveryTag`, `MsgAckDeliveryTag`, `MsgAck`). Testado
+ponta a ponta (cliente ↔ servidor reais, inclusive `tGrpc` ↔
+`GRPCServer` entre si) — ver `docs/tdn-known-limitations.md` para o
+detalhe completo de cada método e a limitação real que resta (sem o
+`.proto` proprietário do Smart Link/TOTVS, os nomes usados são os mais
+prováveis, não confirmados contra o serviço TOTVS real).
+
+## Cliente TOTVS Smart Link (`FwTotvsLinkClient`)
+
+Implementação real (HTTP, `net/http`) da classe TDN `FwTotvsLinkClient`
+— o mecanismo de troca de mensagens do Smart Link (fila via HTTP,
+autenticação OAuth2 `client_credentials`) usado por aplicações TOTVS
+reais (TechFin, RH Insights) para se comunicar com produtos TotvsApps.
+
+```advpl
+User Function SmartLinkDemo()
+    Local oClient := FwTotvsLinkClient():New(.T.) // .T. = refresh do token
+    Local lOk      := oClient:SendAudience("PedidoCriado", "Antecipa", '{"valor":100}')
+    If lOk .and. oClient:Receive()
+        ConOut(oClient:GetMessage():toJson())
+        oClient:Success()
+    Else
+        ConOut(oClient:GetError())
+    EndIf
+    oClient:Destroy()
+Return
+```
+
+| Método | Descrição |
+|--------|-----------|
+| `New([lRefreshToken])` | Cria o cliente; se `.T.`, já busca um token OAuth2 |
+| `Send(cType, cMessage)` / `SendAudience(cType, cAudience, cMessage, [aHeader])` | Envia mensagem (POST real) |
+| `Receive()` | Consulta a fila (GET real); `.F.` quando vazia |
+| `GetMessage()` | Objeto JSON real da última mensagem recebida |
+| `Success()` / `Fail()` | Confirma processamento / envia para a fila DLQ |
+| `GetTenantClient()` | Tenant configurado |
+| `GetError()` | Última mensagem de erro |
+| `Set/GetRefreshToken()`, `Destroy()` | Configuração e limpeza |
+
+Endpoint, credenciais OAuth2 e tenant são lidos de variáveis de
+ambiente (`ADVPP_SMARTLINK_BASEURL`, `ADVPP_SMARTLINK_TOKENURL`,
+`ADVPP_SMARTLINK_CLIENTID`, `ADVPP_SMARTLINK_CLIENTSECRET`,
+`ADVPP_SMARTLINK_TENANTID`) — sem configurar, as chamadas falham
+honestamente (erro real de conexão, nunca um sucesso simulado). Detalhe
+completo (paths REST, formato de `GetMessage()`, limitações) em
+`docs/tdn-known-limitations.md`.
+
+## Cliente FTP (`TFtpClient`)
+
+Cliente FTP real (RFC 959) via `net`/`net/textproto`, com modo passivo
+(PASV) para listagem e transferência de arquivos.
+
+```advpl
+User Function FtpDemo()
+    Local oFtp := tFtpClient():New()
+    Local nRet := oFtp:FTPConnect("ftp.exemplo.com", 21, "usuario", "senha")
+    If nRet == 0
+        oFtp:SendFile("local.txt", "remoto.txt")
+        oFtp:ReceiveFile("remoto.txt", "baixado.txt")
+        oFtp:Close()
+    EndIf
+Return
+```
+
+`New`, `FTPConnect`, `Directory`, `ChDir`/`CdUp`/`MkDir`/`RmDir`,
+`SendFile`/`ReceiveFile`, `RenameFile`/`DeleteFile`, `GetType`/`SetType`,
+`NoOp`, `Quote`, `GetHelp`, `GetMLCount`/`GetMLLine`,
+`GetLastResponse`/`GetCurDir`, `Close` — testado ponta a ponta (upload/
+download com round-trip de conteúdo verificado) contra um servidor FTP
+real.
+
+## Criptografia — Argon2id e PBKDF2 (`tPBKDF2`)
+
+```advpl
+User Function CryptoDemo()
+    Local cHash := Argon2id("minhaSenha", "meuSalt") // RFC9106, defaults TDN
+    Local oPBKDF2 := tPBKDF2():New()
+    oPBKDF2:setPassword("minhaSenha")
+    oPBKDF2:setSalt("meuSalt")
+    oPBKDF2:setDigest("SHA256")
+    oPBKDF2:encrypt()
+    ConOut(oPBKDF2:getKeyHex())
+Return
+```
+
+`Argon2id(cText, cSalt, [nMemoryCost], [nIterations], [nThreads],
+[nHashLen], [nLanes])` via `golang.org/x/crypto/argon2`. `tPBKDF2`
+(`New`, `setPassword`/`setSalt`/`setIteration`/`setKeylength`/
+`setDigest`, `encrypt`, `getKeyHex`/`getKeyRaw`/`getKeyBase64`/
+`getKeyUrl_Base64`, `release`, `getLastError`) via
+`golang.org/x/crypto/pbkdf2` — SHA1 a SHA3-512.
+
+## Classes utilitárias TLPP (`tHashMap`, `tJsonParser`, `tUnicode`)
+
+```advpl
+User Function UtilDemo()
+    Local oHash := tHashMap():New()
+    oHash:Set("chave", 42)
+
+    Local oJson := tJsonParser():New()
+    Local aCampos := {}, nLido := 0, oMapa := tHashMap():New()
+    oJson:Json_Hash('{"a":1}', 6, aCampos, nLido, oMapa)
+
+    Local oUni := tUnicode():New()
+    ConOut(oUni:ConvertEncoding("teste", "cp1252", "UTF-8"))
+Return
+```
+
+`tHashMap` (`New`/`Set`/`Get`/`Del`/`List`/`Clean`/`nStatus`) é a forma
+OOP da classe documentada pela TDN — interopera com a API funcional
+histórica (`HMNew`/`HMSet`/`HMGet`/...). `tJsonParser`
+(`New`/`Json_Hash`/`Json_Parser`/`json_ok`) e `tUnicode`
+(`New`/`Normalize`/`ConvertEncoding`, formas normais NFC/NFD/NFKC/NFKD
+via `golang.org/x/text/unicode/norm`) completam a família de classes
+"TLPP - Classes úteis" da TDN.
 
 ## Funções de I/O, arquivo e sistema
 

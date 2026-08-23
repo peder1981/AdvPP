@@ -1543,6 +1543,41 @@ Arquivo: `pkg/db/sqlite.go`
 
 **Routing:** `{param}` placeholders, query string + JSON body merge, GET `/_routes` introspection.
 
+### gRPC — cliente e servidor (`pkg/vm/tgrpc_native.go`, `pkg/vm/grpcserver_native.go`)
+
+Framework [gRPC](https://grpc.io/) real (`google.golang.org/grpc` +
+`google.golang.org/protobuf`), embarcado tanto do lado cliente quanto
+servidor:
+
+| Classe/Método | Descrição |
+|--------|-----------|
+| `GRPCServer():New()` | Cria o servidor |
+| `:AddMethod(cServico, cMetodo, cFuncao)` | Registra uma User Function como RPC unária (antes de `Serve()`) |
+| `:Serve([nPorta])` | Sobe `grpc.NewServer()` + Server Reflection, bloqueia |
+| `:Shutdown()` | `GracefulStop()` |
+| `tGrpc():New(cProtoFile, cHost, nPort)` | Abre conexão (`grpc.NewClient`) |
+| `:isRunning()` | `connectivity.State` real |
+| `:clientSetup/tenantSetup/tenantUndo/sendMessage/sendMessages/waitForMessages/ackMessage()` | Descoberta via Server Reflection + invocação dinâmica (`dynamicpb`) |
+| `:ErrorCode()/ErrorDesc()` | Diagnóstico da última falha |
+
+Como AdvPL/TLPP não tem DSL para declarar `.proto` estaticamente,
+`GRPCServer` define em runtime um único tipo de mensagem genérico
+(`message JsonEnvelope { string json = 1; }`) reaproveitado por toda
+RPC registrada — o campo `json` carrega os parâmetros/retorno
+serializados (mesma convenção de `WSRestServer`/`MCPServer`). Como isso
+é HTTP/2 + protobuf reais com Server Reflection habilitada, qualquer
+cliente gRPC real (inclusive o próprio `tGrpc` deste compilador)
+descobre e chama sem precisar de nenhum `.proto` compilado. Handlers
+rodam numa VM isolada por chamada (mesmo motivo de `restHandlerFor`).
+
+Testado ponta a ponta: cliente Go genuíno (via Server Reflection, sem
+stub gerado em tempo de compilação) ↔ `GRPCServer`, e `tGrpc` ↔ um
+servidor gRPC real com reflection. Detalhe completo (incluindo a
+limitação real que resta — sem o `.proto` proprietário do Smart Link
+TOTVS, os nomes de método usados por `tGrpc` para esse serviço
+específico não são garantidamente os certos) em
+`docs/tdn-known-limitations.md`.
+
 ---
 
 ## 10. Build Standalone
@@ -1702,6 +1737,11 @@ batch/CI que não podem depender de um display disponível.
 | **Native Fns (TMailMessage)** | ✅ Full | Setup SMTP + send |
 | **Native Fns (MCPServer)** | ✅ Full | AddTool + Serve sobre stdio |
 | **Native Fns (WSRestServer)** | ✅ Full | Routes + Serve com annotation scanning |
+| **Native Fns (GRPCServer / tGrpc)** | ✅ Full | Servidor+cliente gRPC reais, Server Reflection, invocação dinâmica via `dynamicpb` |
+| **Native Fns (FwTotvsLinkClient)** | ✅ Full | Cliente HTTP real + OAuth2 client_credentials para o Smart Link TOTVS |
+| **Native Fns (TFtpClient)** | ✅ Full | Cliente FTP real (RFC 959, PASV) |
+| **Native Fns (Argon2id / tPBKDF2)** | ✅ Full | RFC9106 e SHA1–SHA3-512 |
+| **Native Fns (tHashMap OOP / tJsonParser / tUnicode)** | ✅ Full | Formas OOP das classes TDN "Não Visual"/"TLPP - Classes úteis" |
 | **SQLite Engine** | ✅ Full | Workarea emulation, field get/put, append, unlock (msunlock commit) |
 | **MsDialog renderer** | ✅ Full (web + desktop) | SAY/GET/BUTTON/BOX layout grid heuristic |
 | **FWMBrowse renderer** | ✅ Full (web + desktop) | Auto-CRUD from SX3 + PRAGMA |

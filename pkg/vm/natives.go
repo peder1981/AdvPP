@@ -1902,6 +1902,7 @@ func (v *VM) registerNatives() {
 	v.registerVerificacaodostiposdevariaveisNatives(natives)
 	v.registerSincronismoNatives(natives)
 	v.registerControledeacessoNatives(natives)
+	registerArgon2Natives(natives)
 	v.registerControledeprocessamentoNatives(natives)
 	v.registerControleimpressaoNatives(natives)
 	v.registerConversaotiposNatives(natives)

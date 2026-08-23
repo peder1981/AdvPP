@@ -1594,6 +1594,22 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callEmbeddingMethod(obj, upperMethod, args)
 	case "TRunDll":
 		return v.callTRunDllMethod(obj, upperMethod, args)
+	case "TPBKDF2":
+		return v.callTPBKDF2Method(obj, upperMethod, args)
+	case "THASHMAP":
+		return v.callTHashMapMethod(obj, upperMethod, args)
+	case "TJSONPARSER":
+		return v.callTJsonParserMethod(obj, upperMethod, args)
+	case "TUNICODE":
+		return v.callTUnicodeMethod(obj, upperMethod, args)
+	case "TFTPCLIENT":
+		return v.callTFtpClientMethod(obj, upperMethod, args)
+	case "TGRPC":
+		return v.callTGrpcMethod(obj, upperMethod, args)
+	case "FWTOTVSLINKCLIENT":
+		return v.callFwTotvsLinkClientMethod(obj, upperMethod, args)
+	case "GRPCSERVER":
+		return v.callGRPCServerMethod(obj, upperMethod, args)
 	default:
 		return fmt.Errorf("unknown method %s on object %s", method, obj.ClassName)
 	}
@@ -1807,6 +1823,30 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "TRUNDLL":
 			v.push(newDllObject())
+			return nil
+		case "TPBKDF2":
+			v.push(newPBKDF2Object())
+			return nil
+		case "THASHMAP":
+			v.push(newTHashMapObject())
+			return nil
+		case "TJSONPARSER":
+			v.push(newTJsonParserObject())
+			return nil
+		case "TUNICODE":
+			v.push(newTUnicodeObject())
+			return nil
+		case "TFTPCLIENT":
+			v.push(newFTPClientObject())
+			return nil
+		case "TGRPC":
+			v.push(newTGrpcObject())
+			return nil
+		case "FWTOTVSLINKCLIENT":
+			v.push(newSmartlinkObject())
+			return nil
+		case "GRPCSERVER":
+			v.push(newGRPCServerObject())
 			return nil
 		case "ERRORCLASS":
 			obj := advplrt.NewObject("ErrorClass", cls)
