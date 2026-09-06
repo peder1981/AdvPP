@@ -2,6 +2,32 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [3.0.5] — 2026-09-05
+
+### Alterado
+
+- **Toolchain Go 1.24.2 → 1.27.1** (`go.mod`: `go 1.27.0` / `toolchain
+  go1.27.1`; workflows do GitHub Actions atualizados). Sem mudança de
+  comportamento AdvPL/TLPP — validado com `go build`/`go vet
+  -unsafeptr=false`/`go test ./...` limpos e cross-compile
+  linux/windows/darwin do `advplc`.
+- **Reorganização de documentação**: arquivos da raiz movidos pra
+  `docs/` (exceto `README.md`/`.pdf` e `CHANGELOG.md`/`.pdf`),
+  removidos 4 docs redundantes/desatualizados (`TDN_FUNCTIONS.md`,
+  `TDN_FRAMEWORK_FUNCTIONS.md`, `TECNICO.md`, `FEATURE_MATRIX.md`),
+  `LIMITS.md` traduzido integralmente pra pt_BR.
+- **Template de PDF trocado de `clean` pra `jmpm`** (identidade JMPM
+  Tecnologia) nos 6 PDFs de documentação versionados.
+
+### Adicionado
+
+- `ROADMAP.md`: dívidas técnicas levantadas (gap `FWMBrowse` sem
+  `SetReadOnly()`, falta de função nativa UTF-8-aware, bug conhecido
+  de `JsonObject:ToJson()` com objeto aninhado, suporte a Windows
+  Service) e levantamento Node.js/Bun/Deno pro toolchain do `web/`.
+- Skills `docs-pdf-regen` (global) e `advpp-release` (deste repo) —
+  formalizam os processos de regeneração de PDF e de release.
+
 ## [3.0.4] — 2026-08-23
 
 ### Adicionado — auditoria de 27 documentos TDN + gRPC embarcado + Smart Link real
