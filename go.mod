@@ -1,8 +1,8 @@
 module github.com/advpl/compiler
 
-go 1.24.0
+go 1.27.0
 
-toolchain go1.24.2
+toolchain go1.27.1
 
 require (
 	fyne.io/fyne/v2 v2.4.4
