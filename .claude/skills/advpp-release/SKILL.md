@@ -89,10 +89,35 @@ poll em background — nunca ficar checando a cada 15s). Se algo
 quebrar: investigar log, corrigir, re-tag se precisar. Nunca anunciar
 release pronta com CI vermelho.
 
+**Preferir `gh run watch`** — já bloqueia até o run terminar e imprime
+progresso, sem loop escrito à mão:
+
 ```bash
-gh run list --limit 5
-gh run watch <run-id>   # ou poll em background
+run_id=$(gh run list --branch vX.Y.Z --limit 1 --json databaseId -q '.[0].databaseId')
+gh run watch "$run_id" --exit-status
 ```
+
+Se precisar de um loop manual (ex.: esperar vários workflows
+disparados pelo mesmo push), usar o **nome do arquivo em minúsculo**
+em `--workflow` (`release.yml`/`test.yml`/`ci.yml` — o nome de
+exibição capitalizado, tipo `Release.yml`, dá `HTTP 404` silencioso se
+tiver `2>/dev/null` no comando, e o loop nunca sai). **Nunca** silenciar
+stderr num loop de polling — é assim que um 404 vira loop infinito sem
+ninguém perceber. Sempre com timeout/nº máximo de iterações:
+
+```bash
+i=0
+while [ "$(gh run list --branch vX.Y.Z --workflow release.yml --limit 1 --json status -q '.[0].status')" != "completed" ]; do
+    i=$((i + 1))
+    [ "$i" -gt 60 ] && { echo "timeout esperando o workflow"; exit 1; }  # ~30min a 30s/iteração
+    sleep 30
+done
+```
+
+Ao terminar (por `gh run watch` ou pelo loop), **conferir o `ps aux`**
+por processo de polling esquecido antes de seguir pro próximo passo —
+já aconteceu de o loop nunca sair e ficar rodando em segundo plano
+sem ninguém notar.
 
 ## 8. Conferir os artefatos publicados
 
