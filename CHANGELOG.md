@@ -2,6 +2,17 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [3.0.6] — 2026-09-06
+
+Cópia da 3.0.5 (compilador e runtime idênticos) para manter a numeração de
+release alinhada com o marketplace do VS Code.
+
+### Alterado
+
+- **Extensão VS Code**: ícone do marketplace (logo JMPM Tecnologia,
+  `tools/vscode-advpl/images/icon.png`, 128×128) e bump de `package.json`
+  para 3.0.6.
+
 ## [3.0.5] — 2026-09-05
 
 ### Alterado
