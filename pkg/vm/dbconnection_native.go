@@ -75,6 +75,13 @@ func (v *VM) callDbConnectionMethod(obj *advplrt.ObjectValue, method string, arg
 
 		st.connID = id
 		st.lastError = ""
+		// Achado #6 da revisão final da branch multidb: sem isto,
+		// v.dbEngine continuava apontando pro engine anterior (local ou de
+		// uma conexão remota já fechada) até a próxima chamada explícita
+		// de DBSetDriver — mesmo padrão que DBSETDRIVER já usa (ver
+		// dbgenericas_native.go) pra manter v.dbEngine sincronizado com
+		// dbstate.active/RDD corrente.
+		v.applyRDDEngine(v.dbGenStateFor().defaultRDD)
 		v.push(advplrt.True)
 	case "CLOSE":
 		dbstate.mu.Lock()
@@ -86,6 +93,11 @@ func (v *VM) callDbConnectionMethod(obj *advplrt.ObjectValue, method string, arg
 			}
 		}
 		dbstate.mu.Unlock()
+		// Mesmo motivo do CONNECT acima: Close() só apagava dbstate.active,
+		// deixando v.dbEngine "pendurado" no RemoteSQLEngine agora fechado
+		// enquanto TOPCONN continuasse ativo — próxima leitura via
+		// TCSQLEXEC/DBUseArea bateria num *sql.DB já fechado.
+		v.applyRDDEngine(v.dbGenStateFor().defaultRDD)
 		v.push(advplrt.Nil)
 	case "GETERROR":
 		v.push(advplrt.NewString(st.lastError))
