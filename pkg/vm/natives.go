@@ -1188,6 +1188,15 @@ func (v *VM) registerNatives() {
 		// lote (ex.: fechamento mensal) usa este caminho, mais direto.
 		// Reaproveita a mesma interface SQLEngine (Exec/QueryRows) que o
 		// FWMBrowse já usa internamente, só que exposta ao AdvPL.
+		//
+		// IMPORTANTE (achado #8 da revisão final da branch multidb): estas
+		// duas natives leem `v.dbEngine` DIRETO — não `dbstateConn.sqlEng`
+		// como a família TC* elaborada de dbaccess_native.go (TCLINK/
+		// TCGENQRY/TCSQLTOARR/...), que passa por dbaccessActiveConn(). Um
+		// DbConnection:Connect() bem-sucedido, por si só, NÃO faz
+		// TCSQLEXEC/TCSQLQUERY baterem no banco externo — só depois que
+		// DBSetDriver("TOPCONN") troca v.dbEngine (Task 9 do plano multidb)
+		// é que estas duas passam a ler a conexão real.
 		"TCSQLEXEC": func(args []advplrt.Value) (advplrt.Value, error) {
 			query := advplrt.ToString(getArg(args, 0))
 			sqlEng, ok := v.dbEngine.(SQLEngine)

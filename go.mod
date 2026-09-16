@@ -6,6 +6,7 @@ toolchain go1.27.1
 
 require (
 	fyne.io/fyne/v2 v2.4.4
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/UserExistsError/conpty v0.1.4
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7
 	github.com/charmbracelet/glamour v1.0.0
@@ -16,7 +17,9 @@ require (
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e
 	github.com/mattn/go-colorable v0.1.15
+	github.com/microsoft/go-mssqldb v1.7.2
 	github.com/pkg/sftp v1.13.9
+	github.com/sijms/go-ora/v2 v2.8.22
 	golang.org/x/crypto v0.36.0
 	golang.org/x/sys v0.37.0
 	golang.org/x/term v0.36.0
@@ -28,7 +31,6 @@ require (
 
 require (
 	fyne.io/systray v1.10.1-0.20231115130155-104f5ef7839e // indirect
-	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/alecthomas/chroma/v2 v2.20.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -69,7 +71,6 @@ require (
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.17 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
-	github.com/microsoft/go-mssqldb v1.7.2 // indirect
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
@@ -80,7 +81,6 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
-	github.com/sijms/go-ora/v2 v2.8.22 // indirect
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c // indirect
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
