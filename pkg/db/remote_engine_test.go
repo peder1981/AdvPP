@@ -3,6 +3,7 @@ package db
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 
@@ -157,6 +158,61 @@ func TestRemoteSQLEngineAppendConcurrent(t *testing.T) {
 		}
 	}
 
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}
+
+// TestRemoteSQLEngineAppendAfterRecLockNoDeadlock regression test: RecLock()
+// holds getTableLock(alias) until MsUnlock() is called. If Append() reused
+// that same mutex (as an earlier version of the TOCTOU fix did), calling
+// RecLock() then Append() on the same alias from the same goroutine without
+// an intervening MsUnlock() would self-deadlock forever (Go mutexes aren't
+// reentrant) — a plausible "clone this record while it's locked" AdvPL
+// idiom, and also the shape of a forgotten-MsUnlock bug. Append() must use
+// its own lock (getAppendLock) so this sequence completes promptly instead
+// of hanging. Guarded with a timeout so a real regression fails the test
+// instead of hanging the whole test run.
+func TestRemoteSQLEngineAppendAfterRecLockNoDeadlock(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer mockDB.Close()
+
+	cols := []string{"R_E_C_N_O_", "D_E_L_E_T_", "NOME"}
+	mock.ExpectQuery(`SELECT \* FROM CLIENTES3 WHERE 1=0`).WillReturnRows(sqlmock.NewRows(cols))
+	mock.ExpectQuery(`SELECT \* FROM CLIENTES3$`).
+		WillReturnRows(sqlmock.NewRows(cols).AddRow(int64(1), " ", "ACME"))
+	mock.ExpectExec(`INSERT INTO CLIENTES3`).WillReturnResult(sqlmock.NewResult(2, 1))
+
+	e := NewRemoteSQLEngine(mockDB, postgresDialect{})
+	if err := e.SelectArea("CLIENTES3"); err != nil {
+		t.Fatalf("SelectArea: %v", err)
+	}
+	if err := e.RecLock(); err != nil {
+		t.Fatalf("RecLock: %v", err)
+	}
+	// Deliberately no MsUnlock() here — getTableLock(CLIENTES3) stays held
+	// by this same goroutine, exactly the sequence that used to deadlock.
+
+	done := make(chan error, 1)
+	go func() {
+		done <- e.Append()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Append() after RecLock (no MsUnlock) returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Append() deadlocked while RecLock was held on the same alias without MsUnlock")
+	}
+
+	if e.RecCount() != 2 {
+		t.Fatalf("RecCount() = %d, want 2", e.RecCount())
+	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unmet expectations: %v", err)
 	}

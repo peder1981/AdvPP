@@ -9,13 +9,43 @@ import (
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
+// appendLocksMu/appendLocks: mutex por tabela DEDICADO à seção crítica de
+// Append() (scan de max(R_E_C_N_O_) -> INSERT -> append em e.records).
+//
+// Não reutiliza getTableLock (pkg/db/sqlite.go), que RecLock() já usa e
+// mantém preso por tempo arbitrário até MsUnlock(). getTableLock é um
+// *sync.Mutex simples, não reentrante: se Append() também tentasse
+// getTableLock(e.alias) e o script AdvPL chamasse RecLock() numa área e,
+// sem dar MsUnlock(), DbAppend()-asse a mesma área na mesma goroutine (ex.:
+// "duplicar registro" mantendo o original travado) — padrão plausível e
+// também um bug comum de MsUnlock esquecido em AdvPL real — a segunda
+// tentativa de Lock() bloquearia pra sempre na mesma goroutine (mutex Go
+// não é reentrante), travando o interpretador sem timeout nem erro. Um
+// mutex por tabela separado, exclusivo de Append(), serializa
+// Append()↔Append() (fecha a race TOCTOU original) sem jamais contender
+// com RecLock()↔MsUnlock() na mesma goroutine.
+var (
+	appendLocksMu sync.Mutex
+	appendLocks   = make(map[string]*sync.Mutex)
+)
+
+func getAppendLock(table string) *sync.Mutex {
+	appendLocksMu.Lock()
+	defer appendLocksMu.Unlock()
+	if _, exists := appendLocks[table]; !exists {
+		appendLocks[table] = &sync.Mutex{}
+	}
+	return appendLocks[table]
+}
+
 // RemoteSQLEngine implementa DBEngine + SQLEngine (por duck typing, igual
 // SQLiteEngine) sobre um *sql.DB real (Postgres/Oracle/MSSQL). Mesmo
 // modelo do SQLiteEngine: SelectArea carrega TODAS as linhas em memória e
 // a navegação (Skip/GoTop/...) opera sobre esse slice, não sobre um cursor
 // de banco — RecLock/MsUnlock usam o mesmo mutex por tabela do pacote
 // (getTableLock), sem lock real do banco (mesma limitação honesta do
-// SQLiteEngine).
+// SQLiteEngine); Append() usa seu PRÓPRIO mutex por tabela (getAppendLock,
+// acima) — deliberadamente distinto de getTableLock, ver comentário ali.
 type RemoteSQLEngine struct {
 	db           *sql.DB
 	dialect      Dialect
@@ -218,19 +248,20 @@ func (e *RemoteSQLEngine) MsUnlock() error {
 // cálculo client-side do recno é vulnerável a TOCTOU entre duas chamadas
 // concorrentes de Append() na mesma tabela: ambas podem ler o mesmo
 // max(R_E_C_N_O_) antes que a primeira termine o INSERT, gerando recno
-// duplicado no banco remoto. getTableLock(e.alias) — o mesmo mutex por
-// tabela usado por RecLock/MsUnlock — serializa TODA a seção crítica
-// (scan → INSERT → append em e.records), não só o acesso ao slice em
-// memória, para que só uma chamada de Append() por tabela esteja em
-// voo por vez.
+// duplicado no banco remoto. getAppendLock(e.alias) — mutex por tabela
+// DEDICADO a Append, distinto de getTableLock (usado por RecLock/MsUnlock)
+// — serializa TODA a seção crítica (scan → INSERT → append em
+// e.records), não só o acesso ao slice em memória, para que só uma
+// chamada de Append() por tabela esteja em voo por vez. Ver comentário
+// junto a getAppendLock sobre por que não é o mesmo mutex de RecLock.
 func (e *RemoteSQLEngine) Append() error {
 	if e.alias == "" || len(e.columns) == 0 {
 		return fmt.Errorf("DbAppend: nenhuma área selecionada")
 	}
 
-	tableLock := getTableLock(e.alias)
-	tableLock.Lock()
-	defer tableLock.Unlock()
+	appendLock := getAppendLock(e.alias)
+	appendLock.Lock()
+	defer appendLock.Unlock()
 
 	e.recordsMutex.RLock()
 	var maxRecno float64
