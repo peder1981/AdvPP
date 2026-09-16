@@ -29,6 +29,10 @@ package vm
 //     (linha = array de valores) — desvio da spec (retorno ""), seguindo a
 //     instrução de mapeamento do agente (a abertura via DBUseArea não é
 //     exercitada nesta VM).
+//   - TCLink/DbConnection: TCLink continua abrindo um SQLiteEngine local
+//     (comportamento inalterado). DbConnection():New()/Connect() abre uma
+//     conexão real (PostgreSQL/Oracle/MSSQL) via pkg/db.OpenRemote — ver
+//     docs/superpowers/specs/2026-09-16-advpp-multidb-design.md.
 
 import (
 	"fmt"

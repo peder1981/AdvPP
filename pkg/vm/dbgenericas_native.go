@@ -37,6 +37,12 @@ package vm
 //   - DBGoTo usa GoTo(nRec) do engine (extensão opcional da DBEngine, type
 //     asserted); DBInInsert usa InInsert()/SetInserting() do engine (Append
 //     marca, DBCOMMIT limpa).
+//   - DBSetDriver("TOPCONN") com uma DbConnection real ativa (Connect()
+//     bem-sucedido) troca v.dbEngine para RemoteSQLEngine (pkg/db) — leitura
+//     e escrita de tabela via SQL real, exigindo que a tabela física remota
+//     já tenha as colunas R_E_C_N_O_/D_E_L_E_T_ (convenção AdvPP, mesma do
+//     SQLiteEngine local). Não há roteamento por alias: um único RDD remoto
+//     "ativo" por vez na sessão (ver nota de design no plano multidb).
 
 import (
 	"fmt"
