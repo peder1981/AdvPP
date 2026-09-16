@@ -400,6 +400,7 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 		if cRDD != "" && validRDD(cRDD) {
 			prev := s.defaultRDD
 			s.defaultRDD = cRDD
+			v.applyRDDEngine(cRDD)
 			return advplrt.NewString(prev), nil
 		}
 		return advplrt.NewString(s.defaultRDD), nil

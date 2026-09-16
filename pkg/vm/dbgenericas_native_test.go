@@ -1288,3 +1288,77 @@ func TestFLockERLockNoArea(t *testing.T) {
 		t.Fatalf("RLOCK sem área got=%v err=%v, esperado .F.", got, err)
 	}
 }
+
+// TestDBSetDriverTopconnSwapsEngine verifica que DBSetDriver("TOPCONN")
+// troca v.dbEngine para o engine da conexão remota ativa (dbstate.active),
+// e que voltar para uma RDD local (DBFCDX) restaura o engine local salvo.
+func TestDBSetDriverTopconnSwapsEngine(t *testing.T) {
+	resetDbaccessState()
+	v := NewVM(&compiler.Bytecode{}, false)
+	localEngine, _, _, err := dbaccessOpenEngine(1)
+	if err != nil {
+		t.Fatalf("dbaccessOpenEngine: %v", err)
+	}
+	v.SetDBEngine(localEngine)
+
+	remoteEngine, remoteSQL, _, err := dbaccessOpenEngine(2) // stand-in: mesmo tipo concreto, ver nota da Task 8
+	if err != nil {
+		t.Fatalf("dbaccessOpenEngine: %v", err)
+	}
+	dbstate.mu.Lock()
+	dbstate.conns[2] = &dbstateConn{id: 2, driver: "POSTGRES", engine: remoteEngine, sqlEng: remoteSQL, remote: true}
+	dbstate.active = 2
+	dbstate.mu.Unlock()
+
+	natives := map[string]func(args []advplrt.Value) (advplrt.Value, error){}
+	v.registerDbgenericasNatives(natives)
+	fn := natives["DBSETDRIVER"]
+
+	if _, err := fn([]advplrt.Value{advplrt.NewString("TOPCONN")}); err != nil {
+		t.Fatalf("DBSETDRIVER(TOPCONN): %v", err)
+	}
+	if v.dbEngine != remoteEngine {
+		t.Fatal("v.dbEngine should point to the remote connection's engine after DBSetDriver(\"TOPCONN\")")
+	}
+
+	if _, err := fn([]advplrt.Value{advplrt.NewString("DBFCDX")}); err != nil {
+		t.Fatalf("DBSETDRIVER(DBFCDX): %v", err)
+	}
+	if v.dbEngine != localEngine {
+		t.Fatal("v.dbEngine should be restored to the local engine after DBSetDriver(\"DBFCDX\")")
+	}
+}
+
+// TestDBUseAreaUnderTopconnUsesRemoteEngine verifica o caminho end-to-end:
+// com a RDD TOPCONN ativa (roteada para a conexão remota ativa), DBUseArea
+// deve operar sobre o engine remoto, não o local.
+func TestDBUseAreaUnderTopconnUsesRemoteEngine(t *testing.T) {
+	resetDbaccessState()
+	v := NewVM(&compiler.Bytecode{}, false)
+	localEngine, _, _, _ := dbaccessOpenEngine(1)
+	v.SetDBEngine(localEngine)
+
+	// Tabela remota "de mentira": SQLiteEngine próprio, mas registrado como
+	// conexão remota — o ponto testado é o roteamento de v.dbEngine, não o
+	// driver de rede (já coberto por sqlmock na Task 6).
+	remoteEngine, remoteSQL, _, _ := dbaccessOpenEngine(2)
+	remoteSQL.Exec("CREATE TABLE CLIENTES (R_E_C_N_O_ INTEGER, D_E_L_E_T_ TEXT, NOME TEXT)")
+	remoteSQL.Exec("INSERT INTO CLIENTES VALUES (1, ' ', 'REMOTO')")
+	dbstate.mu.Lock()
+	dbstate.conns[2] = &dbstateConn{id: 2, driver: "POSTGRES", engine: remoteEngine, sqlEng: remoteSQL, remote: true}
+	dbstate.active = 2
+	dbstate.mu.Unlock()
+
+	genNatives := map[string]func(args []advplrt.Value) (advplrt.Value, error){}
+	v.registerDbgenericasNatives(genNatives)
+	genNatives["DBSETDRIVER"]([]advplrt.Value{advplrt.NewString("TOPCONN")})
+	genNatives["DBUSEAREA"]([]advplrt.Value{advplrt.Nil, advplrt.NewString("TOPCONN"), advplrt.NewString("CLIENTES"), advplrt.NewString("CLIENTES")})
+
+	val, err := v.dbEngine.FieldGet("NOME")
+	if err != nil {
+		t.Fatalf("FieldGet: %v", err)
+	}
+	if val.String() != "REMOTO" {
+		t.Fatalf("FieldGet(NOME) = %q, want REMOTO — DBUseArea did not route to the remote engine", val.String())
+	}
+}

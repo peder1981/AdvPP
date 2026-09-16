@@ -92,6 +92,7 @@ type VM struct {
 	methodBodies       map[string]interface{}
 	uiEnabled          bool
 	dbEngine           DBEngine
+	localDBEngine      DBEngine // engine local (SQLite) guardado antes de trocar por DBSetDriver("TOPCONN")
 	currentAlias       string // último alias passado para DbSelectArea, para GetArea()/RestArea()
 	uiProvider         UIProvider
 	output             strings.Builder
@@ -256,6 +257,27 @@ func NewVM(bc *compiler.Bytecode, uiEnabled bool) *VM {
 // SetDBEngine registers the database engine implementation to use for workarea/field operations.
 func (v *VM) SetDBEngine(engine DBEngine) {
 	v.dbEngine = engine
+}
+
+// applyRDDEngine troca v.dbEngine para o engine da conexão remota ativa
+// (DbConnection:Connect) quando cRDD é "TOPCONN", e devolve o engine local
+// quando a RDD volta a ser local. Ver nota de design da Task 9 do plano
+// multidb: troca o campo único da VM inteira, não faz roteamento por
+// alias.
+func (v *VM) applyRDDEngine(cRDD string) {
+	if v.localDBEngine == nil {
+		v.localDBEngine = v.dbEngine
+	}
+	if cRDD == "TOPCONN" {
+		dbstate.mu.Lock()
+		c, ok := dbstate.conns[dbstate.active]
+		dbstate.mu.Unlock()
+		if ok && c != nil && c.remote && c.engine != nil {
+			v.dbEngine = c.engine
+			return
+		}
+	}
+	v.dbEngine = v.localDBEngine
 }
 
 // SetDBFactory registra como abrir uma nova conexão de banco. Cada job
