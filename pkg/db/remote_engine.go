@@ -46,6 +46,20 @@ func getAppendLock(table string) *sync.Mutex {
 // (getTableLock), sem lock real do banco (mesma limitação honesta do
 // SQLiteEngine); Append() usa seu PRÓPRIO mutex por tabela (getAppendLock,
 // acima) — deliberadamente distinto de getTableLock, ver comentário ali.
+//
+// Cobertura real de -race (achado #7 da revisão final da branch multidb,
+// pra não ficar implícito nem sobre-reivindicado pelos comentários acima,
+// que descrevem só a race do Append fechada de propósito): recordsMutex
+// protege o slice `records`/`current` nos métodos que já o usam
+// explicitamente (Skip/GoTop/GoBottom/EOF/BOF/FieldGet/FieldPut/RecCount/
+// RecNo). SelectArea (que reatribui alias/columns/records/current por
+// completo) e Seek (que itera e lê `current`) NÃO tomam recordsMutex, e o
+// campo isLocked é lido/escrito em RecLock/MsUnlock fora de qualquer
+// mutex — exatamente a mesma lacuna que já existe no SQLiteEngine
+// (pkg/db/sqlite.go), não uma regressão nova desta engine. Continua
+// seguro no uso real (uma AdvPL workarea por goroutine, SelectArea chamado
+// antes de qualquer navegação concorrente), mas não é uma garantia
+// "-race safe" para o tipo inteiro.
 type RemoteSQLEngine struct {
 	db           *sql.DB
 	dialect      Dialect
@@ -72,14 +86,28 @@ func (e *RemoteSQLEngine) SelectArea(alias string) error {
 		return fmt.Errorf("table %s not found: %v", e.alias, err)
 	}
 	cols, err := rows.Columns()
-	rows.Close()
 	if err != nil {
+		rows.Close()
 		return err
 	}
+	// ColumnTypes() na mesma *sql.Rows: dá o nome do tipo físico
+	// (DatabaseTypeName) que cada driver de rede devolve — varia por
+	// SGBD (Postgres costuma devolver INT4/NUMERIC/TIMESTAMP, MSSQL
+	// INT/DECIMAL/DATETIME, Oracle NUMBER/DATE) — usado por Append() pra
+	// escolher um valor em branco tipo-apropriado (0 pra numérico, ""
+	// pra texto), igual o SQLiteEngine já faz com PRAGMA table_info.
+	// Best-effort: se o driver não suportar bem, columnInfo.sqlType fica
+	// vazio e Append() cai no branch de texto (comportamento anterior).
+	colTypes, ctErr := rows.ColumnTypes()
+	rows.Close()
 
 	e.columns = nil
-	for _, c := range cols {
-		e.columns = append(e.columns, columnInfo{name: strings.ToUpper(c)})
+	for i, c := range cols {
+		sqlType := ""
+		if ctErr == nil && i < len(colTypes) {
+			sqlType = strings.ToUpper(colTypes[i].DatabaseTypeName())
+		}
+		e.columns = append(e.columns, columnInfo{name: strings.ToUpper(c), sqlType: sqlType})
 	}
 
 	rows, err = e.db.Query(fmt.Sprintf("SELECT * FROM %s", e.alias))
@@ -291,8 +319,27 @@ func (e *RemoteSQLEngine) Append() error {
 			blank[c.name] = advplrt.NewString(" ")
 			vals = append(vals, " ")
 		default:
-			blank[c.name] = advplrt.NewString("")
-			vals = append(vals, "")
+			switch {
+			case isRemoteNumericSQLType(c.sqlType):
+				// Achado #3 da revisão final: sem isso, todo Append()
+				// mandava "" (string vazia) pra colunas numéricas — real
+				// Postgres/Oracle/MSSQL rejeitam ''  num INT/NUMERIC/etc.
+				// Mesmo tratamento do SQLiteEngine.Append (pkg/db/sqlite.go),
+				// adaptado pros nomes de tipo que sql.ColumnType.
+				// DatabaseTypeName() devolve por driver (ver comentário em
+				// SelectArea sobre a variação Postgres/MSSQL/Oracle).
+				blank[c.name] = advplrt.NewNumber(0)
+				vals = append(vals, 0)
+			case isRemoteDateSQLType(c.sqlType):
+				// NULL em vez de "" — "" não é um DATE/TIMESTAMP válido em
+				// nenhum dos 3 dialetos remotos (ao contrário do SQLite,
+				// que aceita qualquer texto numa coluna DATE declarada).
+				blank[c.name] = advplrt.Nil
+				vals = append(vals, nil)
+			default:
+				blank[c.name] = advplrt.NewString("")
+				vals = append(vals, "")
+			}
 		}
 		cols = append(cols, c.name)
 		placeholders = append(placeholders, e.dialect.Placeholder(pos))
@@ -371,4 +418,47 @@ func (e *RemoteSQLEngine) QueryRows(query string, args ...any) ([]map[string]str
 func (e *RemoteSQLEngine) Exec(query string, args ...any) error {
 	_, err := e.db.Exec(query, args...)
 	return err
+}
+
+// Close fecha a conexão real (*sql.DB) subjacente. Achado #5 da revisão
+// final da branch multidb: dbaccessCloseConnLocked (pkg/vm/dbaccess_native.go)
+// já tentava fechar via um type assertion `interface{ Close() error }` — sem
+// este método, RemoteSQLEngine nunca satisfazia essa interface e a conexão
+// vazava (nunca era devolvida ao pool/fechada no SGBD remoto).
+func (e *RemoteSQLEngine) Close() error {
+	if e.db != nil {
+		return e.db.Close()
+	}
+	return nil
+}
+
+// isRemoteNumericSQLType/isRemoteDateSQLType: casamento permissivo por
+// substring sobre o nome de tipo devolvido por sql.ColumnType.
+// DatabaseTypeName(), que varia por driver — não há um enum estável entre
+// Postgres (INT4/INT8/NUMERIC/FLOAT8/...), MSSQL (INT/DECIMAL/FLOAT/...) e
+// Oracle (NUMBER/...) para tipos numéricos, e DATE/TIMESTAMP/DATETIME/TIME
+// pros de data — deliberadamente permissivo (substring) em vez de
+// enumerar exaustivamente cada nome exato de cada driver.
+func isRemoteNumericSQLType(sqlType string) bool {
+	if sqlType == "" {
+		return false
+	}
+	for _, substr := range []string{"INT", "REAL", "NUM", "DEC", "FLOAT", "DOUBLE", "MONEY"} {
+		if strings.Contains(sqlType, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func isRemoteDateSQLType(sqlType string) bool {
+	if sqlType == "" {
+		return false
+	}
+	for _, substr := range []string{"DATE", "TIME"} {
+		if strings.Contains(sqlType, substr) {
+			return true
+		}
+	}
+	return false
 }

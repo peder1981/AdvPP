@@ -247,3 +247,104 @@ func TestRemoteSQLEngineAppend(t *testing.T) {
 		t.Errorf("unmet expectations: %v", err)
 	}
 }
+
+// TestRemoteSQLEngineSelectAreaCapturesSQLType prova o achado #3 da revisão
+// final da branch multidb: SelectArea agora chama rows.ColumnTypes() além
+// de rows.Columns(), populando columnInfo.sqlType — sem isso, e.columns
+// tinha só o nome, e Append() não tinha como saber que "SALDO" é numérico
+// (caía sempre no branch de string vazia).
+func TestRemoteSQLEngineSelectAreaCapturesSQLType(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer mockDB.Close()
+
+	colsDef := []*sqlmock.Column{
+		sqlmock.NewColumn("R_E_C_N_O_").OfType("NUMERIC", 0),
+		sqlmock.NewColumn("D_E_L_E_T_").OfType("TEXT", ""),
+		sqlmock.NewColumn("SALDO").OfType("NUMERIC", 0.0),
+	}
+	mock.ExpectQuery(`SELECT \* FROM CLIENTES4 WHERE 1=0`).
+		WillReturnRows(sqlmock.NewRowsWithColumnDefinition(colsDef...))
+	mock.ExpectQuery(`SELECT \* FROM CLIENTES4$`).
+		WillReturnRows(sqlmock.NewRowsWithColumnDefinition(colsDef...))
+
+	e := NewRemoteSQLEngine(mockDB, postgresDialect{})
+	if err := e.SelectArea("CLIENTES4"); err != nil {
+		t.Fatalf("SelectArea: %v", err)
+	}
+
+	var got string
+	for _, c := range e.columns {
+		if c.name == "SALDO" {
+			got = c.sqlType
+		}
+	}
+	if got != "NUMERIC" {
+		t.Fatalf("columns[SALDO].sqlType = %q, want %q", got, "NUMERIC")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}
+
+// TestRemoteSQLEngineAppendSendsTypedNumericValue prova o achado #3 da
+// revisão final da branch multidb: Append() enviava "" (string vazia) pra
+// TODA coluna, incluindo numéricas — Postgres/Oracle/MSSQL reais rejeitam
+// '' num INT/NUMERIC/etc. Com columnInfo.sqlType capturado em SelectArea
+// (ver teste acima), Append() agora manda um 0 numérico pra "SALDO".
+func TestRemoteSQLEngineAppendSendsTypedNumericValue(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer mockDB.Close()
+
+	colsDef := []*sqlmock.Column{
+		sqlmock.NewColumn("R_E_C_N_O_").OfType("NUMERIC", 0),
+		sqlmock.NewColumn("D_E_L_E_T_").OfType("TEXT", ""),
+		sqlmock.NewColumn("SALDO").OfType("NUMERIC", 0.0),
+	}
+	mock.ExpectQuery(`SELECT \* FROM CLIENTES5 WHERE 1=0`).
+		WillReturnRows(sqlmock.NewRowsWithColumnDefinition(colsDef...))
+	mock.ExpectQuery(`SELECT \* FROM CLIENTES5$`).
+		WillReturnRows(sqlmock.NewRowsWithColumnDefinition(colsDef...))
+	// WithArgs: R_E_C_N_O_ calculado (AnyArg), D_E_L_E_T_ = " ", SALDO = 0
+	// (int) — NÃO "" (string). Se Append() regredir pro branch de texto,
+	// este WithArgs deixa de casar e o teste falha.
+	mock.ExpectExec(`INSERT INTO CLIENTES5`).
+		WithArgs(sqlmock.AnyArg(), " ", 0).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	e := NewRemoteSQLEngine(mockDB, postgresDialect{})
+	if err := e.SelectArea("CLIENTES5"); err != nil {
+		t.Fatalf("SelectArea: %v", err)
+	}
+	if err := e.Append(); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations (Append não mandou o valor numérico tipado esperado): %v", err)
+	}
+}
+
+// TestRemoteSQLEngineCloseClosesUnderlyingDB prova o achado #5 da revisão
+// final da branch multidb: RemoteSQLEngine não tinha Close(), então o type
+// assertion `interface{ Close() error }` em dbaccessCloseConnLocked
+// (pkg/vm/dbaccess_native.go) nunca casava e a conexão real vazava.
+func TestRemoteSQLEngineCloseClosesUnderlyingDB(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	mock.ExpectClose()
+
+	e := NewRemoteSQLEngine(mockDB, postgresDialect{})
+	if err := e.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 	"github.com/advpl/compiler/pkg/tools/shared"
@@ -368,6 +369,23 @@ func valueToSQL(v advplrt.Value) any {
 			return 1
 		}
 		return 0
+	case "D":
+		// Passa o time.Time nativo pro driver em vez de v.String() (que
+		// formata DD/MM/YYYY, sem sentido pra um DATE/TIMESTAMP remoto) —
+		// completa o round-trip de convertDBValue's case time.Time (achado
+		// #4 da revisão final da branch multidb): sem isso, um valor lido
+		// de uma coluna DATE remota e regravado via MsUnlock (FieldPut +
+		// MsUnlock) enviaria uma string no formato AdvPL, que Postgres/
+		// MSSQL/Oracle podem rejeitar ou interpretar errado.
+		return v.(*advplrt.DateValue).Val
+	case "U":
+		// NilValue -> SQL NULL de verdade, não a string "Nil" que
+		// v.String() devolveria. Relevante pro blank de data que
+		// RemoteSQLEngine.Append() grava em coluna DATE/TIMESTAMP
+		// (advplrt.Nil, ver pkg/db/remote_engine.go) quando ainda não
+		// regravado via FieldPut — sem este case, um MsUnlock sem
+		// FieldPut prévio no campo mandaria a string "Nil" pro banco.
+		return nil
 	default:
 		return v.String()
 	}
@@ -597,6 +615,13 @@ func convertDBValue(value interface{}) advplrt.Value {
 		return advplrt.NewBool(v)
 	case []byte:
 		return advplrt.NewString(string(v))
+	case time.Time:
+		// Drivers de rede (pgx, go-mssqldb, go-ora) escaneiam colunas
+		// DATE/TIMESTAMP como time.Time — sem este caso, caía no branch
+		// default (fmt.Sprintf("%v", v)), produzindo uma string tipo
+		// "2026-09-16 00:00:00 +0000 UTC" que corrompe/erra no write-back
+		// via MsUnlock (achado #4 da revisão final da branch multidb).
+		return advplrt.NewDate(v)
 	default:
 		return advplrt.NewString(fmt.Sprintf("%v", v))
 	}

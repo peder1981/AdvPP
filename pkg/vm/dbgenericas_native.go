@@ -43,6 +43,23 @@ package vm
 //     já tenha as colunas R_E_C_N_O_/D_E_L_E_T_ (convenção AdvPP, mesma do
 //     SQLiteEngine local). Não há roteamento por alias: um único RDD remoto
 //     "ativo" por vez na sessão (ver nota de design no plano multidb).
+//   - LIMITAÇÃO CONHECIDA — introspecção de schema sob TOPCONN (achado #2
+//     da revisão final da branch multidb): dbGenColumns, DBSTRUCT,
+//     dbGenRecSize e dbGenColumnInfo (abaixo) montam a query via
+//     `PRAGMA table_info(...)` — SQLite-específico, sem equivalente
+//     direto em Postgres/Oracle/MSSQL. Sob uma conexão remota real
+//     (v.dbEngine == RemoteSQLEngine), essas natives recebem de volta
+//     zero linhas do PRAGMA (a query simplesmente não significa nada pro
+//     SGBD remoto) e devolvem estrutura vazia, não um erro — silenciosa,
+//     mas documentada aqui de propósito. Introspecção full-dialeto
+//     (information_schema pra Postgres/MSSQL, ALL_TAB_COLUMNS pra Oracle)
+//     ficou fora do escopo desta wave. RemoteSQLEngine (pkg/db/
+//     remote_engine.go) captura os nomes/tipos reais de coluna que o
+//     próprio driver de rede devolveu em SelectArea (via
+//     rows.ColumnTypes()) — usados honestamente pelo Append() da própria
+//     engine (valor em branco tipo-apropriado), mas isso não alimenta de
+//     volta PRAGMA/sqlite_master, que continuam sendo o único caminho das
+//     natives deste arquivo.
 
 import (
 	"fmt"
