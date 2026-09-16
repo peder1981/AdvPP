@@ -83,68 +83,69 @@ type TryCatch struct {
 // VM is the AdvPL/TLPP virtual machine executing bytecode.
 // It maintains execution stack, call frames, native functions, and state for UI, database, and file I/O.
 type VM struct {
-	bc                 *compiler.Bytecode
-	stack              []advplrt.Value
-	frames             []*CallFrame
-	current            *CallFrame
-	natives            map[string]*advplrt.FunctionValue
-	classes            map[string]*advplrt.ClassDef
-	methodBodies       map[string]interface{}
-	uiEnabled          bool
-	dbEngine           DBEngine
-	localDBEngine      DBEngine // engine local (SQLite) guardado antes de trocar por DBSetDriver("TOPCONN")
-	currentAlias       string // último alias passado para DbSelectArea, para GetArea()/RestArea()
-	uiProvider         UIProvider
-	output             strings.Builder
-	namedArgs          []namedArgInfo // tracks named parameter info for current call
-	argCounter         int            // counts args pushed for current call
-	mvcModels          map[int]*mvc.FWFormModel
-	mvcViews           map[int]*mvc.FWFormView
-	mvcBrowses         map[int]*mvc.FWFormBrowse
-	mvcNextID          int
-	dbFactory          func() DBEngine               // cria um engine próprio por job (StartJob)
-	jobs               sync.WaitGroup                // jobs em background pendentes
-	outWriter          io.Writer                     // espelho opcional da saída de console (modo web)
-	curDialog          *webDialog                    // MSDIALOG em construção (fase 4 do renderer web)
-	debugger           *Debugger                     // hook opcional (advplc debug); nil em execução normal
-	fileHandles        map[int]*os.File              // handles abertos por FOpen/FCreate
-	nextFH             int                           // próximo handle a distribuir
-	lastFError         int                           // último erro de IO (FError())
-	httpLastBody       string                        // último corpo de resposta HTTP (FWHttpBody)
-	httpLastStatus     int                           // último status HTTP (FWHttpStatus)
-	httpLastError      string                        // último erro HTTP (FWHttpError)
-	httpTimeoutSec     int                           // timeout em segundos p/ próxima requisição HTTP (FWHTTPTIMEOUT), 0 = default (30s)
-	httpHeaders        map[string]string             // headers custom aplicados às próximas requisições HTTP (FWHTTPHEADER), até FWHTTPCLEARHEADERS
-	legacyHTTPStatus   int                           // último status HTTP da família HTTP*/HTTPS* (HTTPGetStatus)
-	legacyHTTPHeader   string                        // último header de resposta da família HTTP*/HTTPS* (cHeaderGet/cHeaderRet)
-	legacyHTTPError    string                        // último erro HTTP da família HTTP*/HTTPS* (HTTPGetStatus @cError)
-	legacyHTTPUser     string                        // usuário de autenticação HTTP (HTTPSetPass)
-	legacyHTTPPass     string                        // senha de autenticação HTTP (HTTPSetPass)
-	legacyProxyServer  string                        // servidor de proxy HTTP (SetProxy)
-	legacyProxyPort    int                           // porta do proxy HTTP (SetProxy)
-	legacyProxyUser    string                        // usuário do proxy HTTP (SetProxy)
-	legacyProxyPass    string                        // senha do proxy HTTP (SetProxy)
-	legacyNoProxyFor   []string                      // domínios que não usam proxy (SetNoProxyFor), com curingas *
-	filialAtiva        string                        // filial ativa da sessão (RpcSetEnv/FWxFilial), 6 chars GG+UU+FF; "" = nenhuma definida ainda
-	stdinReader        *bufio.Reader                 // leitor de linha do stdin (ConIn), lazy
-	inputHistory       []string                      // histórico de linhas do ConIn (setas up/down), últimas inputHistoryLimit
-	dynEnv             map[string]advplrt.Value      // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
-	lastBoxLines       int                           // altura (linhas) do último UiStreamBox renderizado, p/ apagar e redesenhar no próximo delta
-	jobResults         sync.Map                      // map[string]*asyncJobResult — resultados de FWJOBSTART pendentes/prontos, indexados por job id (FWJOBPOLL)
-	jobIDSeq           int64                         // contador atômico p/ gerar job ids únicos (FWJOBSTART)
-	namedLocks         map[string]bool               // locks nomeados (GlbNmLock/GlbNmUnlock): nome -> bloqueado
-	namedLocksMu       sync.Mutex                    // proteção das operações sobre namedLocks
-	ipcSemaphores      map[string]*ipcSemaphoreState // semaphores for IPC (IPCGo/IPCWaitEx/IPCCount)
-	ipcSemaphoresMu    sync.Mutex                    // proteção das operações sobre ipcSemaphores
-	mailObjects        map[string]advplrt.Value      // objetos tMailManager armazenados (GetMailObj/SetMailObj)
-	mailObjectsMu      sync.Mutex                    // proteção das operações sobre mailObjects
-	remoteMemory       map[string][]advplrt.Value    // armazenamento remoto: identificador -> array de valores (__SaveRmt/__DeleteRmt/__LoadRmt)
-	globalVarsSingle   map[string]string             // variáveis globais string (PutGlbValue/GetGlbValue)
-	globalVarsSingleMu sync.Mutex                    // proteção das operações sobre globalVarsSingle
-	globalVarsMulti    map[string][]advplrt.Value    // variáveis globais múltiplas (PutGlbVars/GetGlbVars)
-	globalVarsMultiMu  sync.Mutex                    // proteção das operações sobre globalVarsMulti
-	varSessions        map[string]*varSession        // sessões nomeadas de Variáveis Globais HashMap (VarSetUID/VarIsUID/...)
-	varSessionsMu      sync.Mutex                    // proteção das operações sobre varSessions
+	bc                    *compiler.Bytecode
+	stack                 []advplrt.Value
+	frames                []*CallFrame
+	current               *CallFrame
+	natives               map[string]*advplrt.FunctionValue
+	classes               map[string]*advplrt.ClassDef
+	methodBodies          map[string]interface{}
+	uiEnabled             bool
+	dbEngine              DBEngine
+	localDBEngine         DBEngine // engine local (SQLite) guardado antes de trocar por DBSetDriver("TOPCONN")
+	localDBEngineCaptured bool     // true depois da primeira captura de localDBEngine (evita confundir "não capturado" com "capturado como nil")
+	currentAlias          string   // último alias passado para DbSelectArea, para GetArea()/RestArea()
+	uiProvider            UIProvider
+	output                strings.Builder
+	namedArgs             []namedArgInfo // tracks named parameter info for current call
+	argCounter            int            // counts args pushed for current call
+	mvcModels             map[int]*mvc.FWFormModel
+	mvcViews              map[int]*mvc.FWFormView
+	mvcBrowses            map[int]*mvc.FWFormBrowse
+	mvcNextID             int
+	dbFactory             func() DBEngine               // cria um engine próprio por job (StartJob)
+	jobs                  sync.WaitGroup                // jobs em background pendentes
+	outWriter             io.Writer                     // espelho opcional da saída de console (modo web)
+	curDialog             *webDialog                    // MSDIALOG em construção (fase 4 do renderer web)
+	debugger              *Debugger                     // hook opcional (advplc debug); nil em execução normal
+	fileHandles           map[int]*os.File              // handles abertos por FOpen/FCreate
+	nextFH                int                           // próximo handle a distribuir
+	lastFError            int                           // último erro de IO (FError())
+	httpLastBody          string                        // último corpo de resposta HTTP (FWHttpBody)
+	httpLastStatus        int                           // último status HTTP (FWHttpStatus)
+	httpLastError         string                        // último erro HTTP (FWHttpError)
+	httpTimeoutSec        int                           // timeout em segundos p/ próxima requisição HTTP (FWHTTPTIMEOUT), 0 = default (30s)
+	httpHeaders           map[string]string             // headers custom aplicados às próximas requisições HTTP (FWHTTPHEADER), até FWHTTPCLEARHEADERS
+	legacyHTTPStatus      int                           // último status HTTP da família HTTP*/HTTPS* (HTTPGetStatus)
+	legacyHTTPHeader      string                        // último header de resposta da família HTTP*/HTTPS* (cHeaderGet/cHeaderRet)
+	legacyHTTPError       string                        // último erro HTTP da família HTTP*/HTTPS* (HTTPGetStatus @cError)
+	legacyHTTPUser        string                        // usuário de autenticação HTTP (HTTPSetPass)
+	legacyHTTPPass        string                        // senha de autenticação HTTP (HTTPSetPass)
+	legacyProxyServer     string                        // servidor de proxy HTTP (SetProxy)
+	legacyProxyPort       int                           // porta do proxy HTTP (SetProxy)
+	legacyProxyUser       string                        // usuário do proxy HTTP (SetProxy)
+	legacyProxyPass       string                        // senha do proxy HTTP (SetProxy)
+	legacyNoProxyFor      []string                      // domínios que não usam proxy (SetNoProxyFor), com curingas *
+	filialAtiva           string                        // filial ativa da sessão (RpcSetEnv/FWxFilial), 6 chars GG+UU+FF; "" = nenhuma definida ainda
+	stdinReader           *bufio.Reader                 // leitor de linha do stdin (ConIn), lazy
+	inputHistory          []string                      // histórico de linhas do ConIn (setas up/down), últimas inputHistoryLimit
+	dynEnv                map[string]advplrt.Value      // variáveis dinâmicas (Private/Public), escopo por pilha de chamadas
+	lastBoxLines          int                           // altura (linhas) do último UiStreamBox renderizado, p/ apagar e redesenhar no próximo delta
+	jobResults            sync.Map                      // map[string]*asyncJobResult — resultados de FWJOBSTART pendentes/prontos, indexados por job id (FWJOBPOLL)
+	jobIDSeq              int64                         // contador atômico p/ gerar job ids únicos (FWJOBSTART)
+	namedLocks            map[string]bool               // locks nomeados (GlbNmLock/GlbNmUnlock): nome -> bloqueado
+	namedLocksMu          sync.Mutex                    // proteção das operações sobre namedLocks
+	ipcSemaphores         map[string]*ipcSemaphoreState // semaphores for IPC (IPCGo/IPCWaitEx/IPCCount)
+	ipcSemaphoresMu       sync.Mutex                    // proteção das operações sobre ipcSemaphores
+	mailObjects           map[string]advplrt.Value      // objetos tMailManager armazenados (GetMailObj/SetMailObj)
+	mailObjectsMu         sync.Mutex                    // proteção das operações sobre mailObjects
+	remoteMemory          map[string][]advplrt.Value    // armazenamento remoto: identificador -> array de valores (__SaveRmt/__DeleteRmt/__LoadRmt)
+	globalVarsSingle      map[string]string             // variáveis globais string (PutGlbValue/GetGlbValue)
+	globalVarsSingleMu    sync.Mutex                    // proteção das operações sobre globalVarsSingle
+	globalVarsMulti       map[string][]advplrt.Value    // variáveis globais múltiplas (PutGlbVars/GetGlbVars)
+	globalVarsMultiMu     sync.Mutex                    // proteção das operações sobre globalVarsMulti
+	varSessions           map[string]*varSession        // sessões nomeadas de Variáveis Globais HashMap (VarSetUID/VarIsUID/...)
+	varSessionsMu         sync.Mutex                    // proteção das operações sobre varSessions
 }
 
 type ipcSemaphoreState struct {
@@ -265,8 +266,9 @@ func (v *VM) SetDBEngine(engine DBEngine) {
 // multidb: troca o campo único da VM inteira, não faz roteamento por
 // alias.
 func (v *VM) applyRDDEngine(cRDD string) {
-	if v.localDBEngine == nil {
+	if !v.localDBEngineCaptured {
 		v.localDBEngine = v.dbEngine
+		v.localDBEngineCaptured = true
 	}
 	if cRDD == "TOPCONN" {
 		dbstate.mu.Lock()

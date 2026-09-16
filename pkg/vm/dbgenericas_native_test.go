@@ -1248,7 +1248,6 @@ func TestDBCreateRejeitaNomeInvalido(t *testing.T) {
 	_ = v
 }
 
-
 func TestFLockERLock(t *testing.T) {
 	_, natives, eng := newDBGenVM(t, "flock.db")
 	defer eng.Close()
@@ -1360,5 +1359,46 @@ func TestDBUseAreaUnderTopconnUsesRemoteEngine(t *testing.T) {
 	}
 	if val.String() != "REMOTO" {
 		t.Fatalf("FieldGet(NOME) = %q, want REMOTO — DBUseArea did not route to the remote engine", val.String())
+	}
+}
+
+// TestDBSetDriverTopconnNilLocalEngineRestoresNil cobre o caso em que a VM
+// nunca teve um engine local configurado (v.dbEngine == nil, ex.: falha de
+// abertura de conexão deixou a factory retornando nil). Antes da correção,
+// applyRDDEngine usava "v.localDBEngine == nil" como sentinela de "ainda não
+// capturei o engine local", o que é indistinguível de "capturei e o engine
+// local legítimo é nil" — resultando em recapturar o engine remoto como se
+// fosse o local ao voltar para DBFCDX. Este teste garante que voltar para a
+// RDD local restaura v.dbEngine para nil, não para o engine remoto.
+func TestDBSetDriverTopconnNilLocalEngineRestoresNil(t *testing.T) {
+	resetDbaccessState()
+	v := NewVM(&compiler.Bytecode{}, false)
+	// Propositalmente NÃO chama v.SetDBEngine — v.dbEngine começa nil.
+
+	remoteEngine, remoteSQL, _, err := dbaccessOpenEngine(2)
+	if err != nil {
+		t.Fatalf("dbaccessOpenEngine: %v", err)
+	}
+	dbstate.mu.Lock()
+	dbstate.conns[2] = &dbstateConn{id: 2, driver: "POSTGRES", engine: remoteEngine, sqlEng: remoteSQL, remote: true}
+	dbstate.active = 2
+	dbstate.mu.Unlock()
+
+	natives := map[string]func(args []advplrt.Value) (advplrt.Value, error){}
+	v.registerDbgenericasNatives(natives)
+	fn := natives["DBSETDRIVER"]
+
+	if _, err := fn([]advplrt.Value{advplrt.NewString("TOPCONN")}); err != nil {
+		t.Fatalf("DBSETDRIVER(TOPCONN): %v", err)
+	}
+	if v.dbEngine != remoteEngine {
+		t.Fatal("v.dbEngine should point to the remote connection's engine after DBSetDriver(\"TOPCONN\")")
+	}
+
+	if _, err := fn([]advplrt.Value{advplrt.NewString("DBFCDX")}); err != nil {
+		t.Fatalf("DBSETDRIVER(DBFCDX): %v", err)
+	}
+	if v.dbEngine != nil {
+		t.Fatalf("v.dbEngine should be restored to nil (the original local engine) after DBSetDriver(\"DBFCDX\"), got %v", v.dbEngine)
 	}
 }
