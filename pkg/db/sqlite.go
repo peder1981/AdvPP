@@ -595,6 +595,8 @@ func convertDBValue(value interface{}) advplrt.Value {
 		return advplrt.NewString(v)
 	case bool:
 		return advplrt.NewBool(v)
+	case []byte:
+		return advplrt.NewString(string(v))
 	default:
 		return advplrt.NewString(fmt.Sprintf("%v", v))
 	}

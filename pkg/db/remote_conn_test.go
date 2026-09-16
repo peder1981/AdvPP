@@ -29,3 +29,10 @@ func TestDialectForUnknown(t *testing.T) {
 		t.Error("dialectFor(\"DB2\") should not be found")
 	}
 }
+
+func TestOpenRemoteUnknownDriver(t *testing.T) {
+	_, _, err := OpenRemote("DB2", ConnConfig{})
+	if err == nil {
+		t.Error("OpenRemote(\"DB2\", ...) should return an error")
+	}
+}

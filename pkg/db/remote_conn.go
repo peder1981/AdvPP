@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 )
@@ -50,4 +51,18 @@ func dialectFor(driver string) (Dialect, bool) {
 		return mssqlDialect{}, true
 	}
 	return nil, false
+}
+
+// OpenRemote abre uma conexão real de banco externo pelo nome do driver
+// declarado em DbConnection:New()/TCLINK ("POSTGRES", "ORACLE", "MSSQL").
+func OpenRemote(driver string, cfg ConnConfig) (*sql.DB, Dialect, error) {
+	switch strings.ToUpper(strings.TrimSpace(driver)) {
+	case "POSTGRES", "POSTGRESQL":
+		return openPostgres(cfg)
+	case "ORACLE":
+		return openOracle(cfg)
+	case "MSSQL", "SQLSERVER":
+		return openMSSQL(cfg)
+	}
+	return nil, nil, fmt.Errorf("OpenRemote: driver desconhecido %q (use POSTGRES, ORACLE ou MSSQL)", driver)
 }

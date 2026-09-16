@@ -57,3 +57,10 @@ func TestSkipReachesEOF(t *testing.T) {
 		t.Fatalf("expected EOF() == true after skipping past the last of 3 records, got false (RecNo=%d)", eng.RecNo())
 	}
 }
+
+func TestConvertDBValueBytes(t *testing.T) {
+	got := convertDBValue([]byte("hello"))
+	if got.String() != "hello" {
+		t.Errorf("convertDBValue([]byte(\"hello\")) = %q, want \"hello\"", got.String())
+	}
+}
