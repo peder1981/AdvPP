@@ -213,12 +213,26 @@ func (e *RemoteSQLEngine) MsUnlock() error {
 
 // Append calcula R_E_C_N_O_ no cliente (max atual + 1) em vez de depender
 // de LastInsertId()/RETURNING — ver nota de design da Task 6 do plano.
+//
+// Sem lock de banco real (mesma limitação honesta do resto do arquivo), o
+// cálculo client-side do recno é vulnerável a TOCTOU entre duas chamadas
+// concorrentes de Append() na mesma tabela: ambas podem ler o mesmo
+// max(R_E_C_N_O_) antes que a primeira termine o INSERT, gerando recno
+// duplicado no banco remoto. getTableLock(e.alias) — o mesmo mutex por
+// tabela usado por RecLock/MsUnlock — serializa TODA a seção crítica
+// (scan → INSERT → append em e.records), não só o acesso ao slice em
+// memória, para que só uma chamada de Append() por tabela esteja em
+// voo por vez.
 func (e *RemoteSQLEngine) Append() error {
 	if e.alias == "" || len(e.columns) == 0 {
 		return fmt.Errorf("DbAppend: nenhuma área selecionada")
 	}
 
-	e.recordsMutex.Lock()
+	tableLock := getTableLock(e.alias)
+	tableLock.Lock()
+	defer tableLock.Unlock()
+
+	e.recordsMutex.RLock()
 	var maxRecno float64
 	for _, r := range e.records {
 		if n, ok := r["R_E_C_N_O_"].(*advplrt.NumberValue); ok && n.Val > maxRecno {
@@ -226,7 +240,7 @@ func (e *RemoteSQLEngine) Append() error {
 		}
 	}
 	newRecno := maxRecno + 1
-	e.recordsMutex.Unlock()
+	e.recordsMutex.RUnlock()
 
 	var cols []string
 	var placeholders []string

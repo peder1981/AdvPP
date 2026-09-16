@@ -1,6 +1,7 @@
 package db
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -81,6 +82,81 @@ func TestRemoteSQLEngineFieldPutAndMsUnlock(t *testing.T) {
 	if err := e.MsUnlock(); err != nil {
 		t.Fatalf("MsUnlock: %v", err)
 	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}
+
+// TestRemoteSQLEngineAppendConcurrent regression test for the TOCTOU race
+// in Append(): with getTableLock scoped only around the in-memory scan
+// (not around the full scan -> INSERT -> append-to-slice sequence), two
+// concurrent Append() calls on the same alias could read the same
+// max(R_E_C_N_O_) and write duplicate synthetic recnos to the remote
+// table. Fix: getTableLock(e.alias) now spans the whole critical section.
+func TestRemoteSQLEngineAppendConcurrent(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer mockDB.Close()
+	mock.MatchExpectationsInOrder(false)
+
+	const n = 8
+	cols := []string{"R_E_C_N_O_", "D_E_L_E_T_", "NOME"}
+	mock.ExpectQuery(`SELECT \* FROM CLIENTES2 WHERE 1=0`).WillReturnRows(sqlmock.NewRows(cols))
+	mock.ExpectQuery(`SELECT \* FROM CLIENTES2$`).WillReturnRows(sqlmock.NewRows(cols))
+	for i := 0; i < n; i++ {
+		mock.ExpectExec(`INSERT INTO CLIENTES2`).WillReturnResult(sqlmock.NewResult(int64(i+1), 1))
+	}
+
+	e := NewRemoteSQLEngine(mockDB, postgresDialect{})
+	if err := e.SelectArea("CLIENTES2"); err != nil {
+		t.Fatalf("SelectArea: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	errs := make([]error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			errs[idx] = e.Append()
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("Append() goroutine %d: %v", i, err)
+		}
+	}
+
+	if e.RecCount() != n {
+		t.Fatalf("RecCount() = %d, want %d", e.RecCount(), n)
+	}
+
+	seen := make(map[float64]bool)
+	if err := e.GoTop(); err != nil {
+		t.Fatalf("GoTop: %v", err)
+	}
+	for i := 0; i < n; i++ {
+		val, err := e.FieldGet("R_E_C_N_O_")
+		if err != nil {
+			t.Fatalf("FieldGet: %v", err)
+		}
+		nv, ok := val.(*advplrt.NumberValue)
+		if !ok {
+			t.Fatalf("R_E_C_N_O_ is not numeric: %v", val)
+		}
+		if seen[nv.Val] {
+			t.Fatalf("duplicate R_E_C_N_O_ = %v across concurrent Append() calls", nv.Val)
+		}
+		seen[nv.Val] = true
+		if err := e.Skip(1); err != nil {
+			t.Fatalf("Skip: %v", err)
+		}
+	}
+
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unmet expectations: %v", err)
 	}
