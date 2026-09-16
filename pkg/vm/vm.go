@@ -1580,6 +1580,8 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callWSRestServerMethod(obj, upperMethod, args)
 	case "TMailMessage":
 		return v.callTMailMessageMethod(obj, upperMethod, args)
+	case "DbConnection":
+		return v.callDbConnectionMethod(obj, upperMethod, args)
 	case "Tensor":
 		return v.callTensorMethod(obj, upperMethod, args)
 	case "Variable":
@@ -1802,6 +1804,9 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "TMAILMESSAGE":
 			v.push(newTMailMessageObject())
+			return nil
+		case "DBCONNECTION":
+			v.push(newDbConnectionObject())
 			return nil
 		case "TENSOR":
 			v.push(newTensorObject())

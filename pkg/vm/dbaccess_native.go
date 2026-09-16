@@ -86,6 +86,7 @@ type dbstateConn struct {
 	poolName string
 	poolTime time.Time
 	closed   bool
+	remote   bool // true quando aberta por DbConnection (driver real), não TCLINK/SQLite
 }
 
 // dbaccessFieldType registra o tratamento de tipo pedido via TCSetField
