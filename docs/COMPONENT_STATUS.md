@@ -322,7 +322,19 @@ ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
 - ✅ **Motor de inferência LLM (classe `LLM`)**: modelos GGUF I2_S
   (BitNet/Falcon3-1.58bit) via `pkg/llm`, 100% Go sem CGO, com kernel
   SIMD AVX2 em amd64 (fallback escalar em qualquer outra arquitetura),
-  validado token a token contra o `llama.cpp` de referência
+  validado token a token contra o `llama.cpp` de referência. Desde
+  v4.0.0, também decodifica pesos Q4_K/Q6_K e reconhece
+  `general.architecture = "minicpm"` — validado executando o modelo
+  real MiniCPM5-2B-Q4_K_M via `advplc run`, com saída batendo com o
+  `llama.cpp` de referência
+- ✅ **Conectividade real multi-provider (classe `DbConnection`, desde
+  v4.0.0)**: `PostgreSQL`/`Oracle`/`SQL Server` via drivers 100% Go sem
+  CGO (`pgx`, `go-ora`, `go-mssqldb`). `DBSetDriver("TOPCONN")` roteia
+  `DBUseArea`/RDD pra conexão remota ativa (`RemoteSQLEngine`); SQL
+  direto (`TCGenQry`/`TCSqlToArr`) já funciona assim que
+  `DbConnection:Connect()` tem sucesso. `TCLINK`/SQLite local
+  inalterados. Validado com round-trip real de CRUD contra um
+  PostgreSQL real
 - ✅ **Servidor MCP nativo (classe `MCPServer`)**: JSON-RPC 2.0 real
   sobre stdio via `pkg/mcp` (initialize/tools.list/tools.call), expõe
   funções AdvPL como tools — execução real; validado com o SDK oficial

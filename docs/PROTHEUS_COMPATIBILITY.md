@@ -123,9 +123,10 @@ All standard patterns work in AdvPP
 | Padrões Padrão | ✅ 100% | Model 1, Model 3, etc. |
 | Codificação de Arquivo | ✅ 100% | Conversão automática CP1252 -> UTF-8 (100% Go, sem iconv) |
 | Banco de Dados | ✅ Funcional | DBSelectArea/DBSeek/RecCount etc. sobre SQLite compartilhado (~/.advpp/ADVPP.db) |
+| Conectividade multi-provider (v4.0.0+) | ✅ Funcional | Classe `DbConnection` + DBSetDriver("TOPCONN"): PostgreSQL/Oracle/SQL Server reais, 100% Go, sem CGO |
 | Multi-thread | ✅ Funcional | StartJob (VM isolado por job) e FWGridProcess (pool de threads) |
 | Renderer web (PO-UI) | ✅ Funcional | advplc serve: console/diálogos, FWMBrowse→po-table (SX3), MSDIALOG legado→modal, hot reload --watch |
-| Motor de inferência LLM | ✅ Funcional | Classe `LLM`: modelos GGUF I2_S (BitNet/Falcon3-1.58bit), 100% Go, SIMD AVX2 em amd64 |
+| Motor de inferência LLM | ✅ Funcional | Classe `LLM`: modelos GGUF I2_S (BitNet/Falcon3-1.58bit) e, desde v4.0.0, Q4_K/Q6_K (MiniCPM), 100% Go, SIMD AVX2 em amd64 |
 | Servidor MCP | ✅ Funcional | Classe `MCPServer`: JSON-RPC 2.0 real sobre stdio, expõe funções AdvPL como tools (execução real) |
 | Servidor REST (anotações @Get/@Post) | ✅ Funcional | Classe `WSRestServer`: HTTP real sobre `net/http`, auto-discovery de rotas por anotação, path params, dispatch para a função AdvPL |
 | Servidor REST (DSL WSRESTFUL/WSMETHOD) | ⚠️ Apenas Parsing | Sintaxe reconhecida; execução requer reescrever no estilo anotações — ver COMPONENT_STATUS.md |

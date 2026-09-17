@@ -97,14 +97,14 @@
 | `pkg/mvc` | 4 arquivos | FWFormModel, FWFormView, FWFormBrowse |
 | `pkg/ui` | 11 arquivos | Widgets Fyne: editor, console, file tree, renderer MVC |
 | `pkg/webui` | 1 arquivo | Servidor HTTP com SSE para modo web PO-UI |
-| `pkg/db` | 1 arquivo | Motor SQLite com workarea Protheus |
+| `pkg/db` | 6 arquivos | Motor SQLite (workarea Protheus) + drivers reais Postgres/Oracle/SQL Server (`RemoteSQLEngine`, desde v4.0.0) |
 | `pkg/dap` | 3 arquivos | Debug Adapter Protocol |
 | `pkg/mcp` | 2 arquivos | Model Context Protocol JSON-RPC |
 | `pkg/rest` | 1 arquivo | Servidor REST HTTP |
 | `pkg/tensor` | 4 arquivos | Tensor N-dimensional, linear algebra |
 | `pkg/autograd` | 5 arquivos | Reverse-mode autodiff |
 | `pkg/nn` | 2 arquivos | Camadas neurais (Linear, Embedding) |
-| `pkg/llm` | 11 arquivos | Inferência GGUF I2_S (BitNet), tokenizers |
+| `pkg/llm` | 12 arquivos | Inferência GGUF I2_S (BitNet) + Q4_K/Q6_K (MiniCPM, desde v4.0.0), tokenizers |
 | `pkg/tools/shared` | 5 arquivos | Configuração compartilhada, database, treeview |
 
 ---
@@ -1059,7 +1059,8 @@ Arquivo: `pkg/autograd/variable.go` + `sgd.go` + `adam.go` + `ops.go`
 
 ### 4.12 LLM (Inferência GGUF)
 
-Arquivo: `pkg/llm/model.go` + `tokenizer.go` + `gguf.go` + `i2s.go` + `sampling.go` + `simd_amd64.go`
+Arquivo: `pkg/llm/model.go` + `tokenizer.go` + `gguf.go` + `i2s.go` + `q4k.go` +
+`q6k.go` + `weights.go` + `sampling.go` + `simd_amd64.go`
 
 #### GGUF File Operations
 
@@ -1076,8 +1077,19 @@ Arquivo: `pkg/llm/model.go` + `tokenizer.go` + `gguf.go` + `i2s.go` + `sampling.
 
 | Função | Parâmetros | Retorno | Descrição |
 |--------|-----------|---------|-----------|
-| `LoadModel(path)` | GGUF path | `(*Model, error)` | Loads arch=llama only; ~file-size RAM |
+| `LoadModel(path)` | GGUF path | `(*Model, error)` | Loads arch=llama ou minicpm; pesos por camada em I2_S, F16 ou Q4_K/Q6_K (decidido pelo tipo real do tensor, ver `LoadWeight`); ~file-size RAM |
 | `Close()` | — | error | Closes underlying GGUF file |
+
+#### Weight Dispatch (multi-formato, desde v4.0.0)
+
+| Função/Tipo | Descrição |
+|-------------|-----------|
+| `LayerWeights` | interface (`MatMul(x []float32) []float32`) — abstrai I2S/F16/Q4_K/Q6_K |
+| `LoadWeight(g, name)` | dispatch por tipo GGML real do tensor → `I2SWeight`\|`F16Weight`\|`Q4KWeight`\|`Q6KWeight` |
+| `F16Weight.MatMul` | generaliza `MatMulF16` (antes só usado pela saída) pra qualquer camada |
+| `Q4KWeight.MatMul` / `dequantQ4KBlock` | dequant Q4_K (super-blocos de 256, escala+mín de 6 bits), verificado contra `ggml-quants.c` |
+| `Q6KWeight.MatMul` / `dequantQ6KBlock` | dequant Q6_K (super-blocos de 256, escala int8 de 8 bits), verificado contra `ggml-quants.c` |
+| `EmbedRowGeneric(g, name, row, dim)` | `EmbedRow` generalizado — lê 1 linha de token_embd/output em F16 ou Q4_K sem materializar a tabela inteira |
 
 #### Context / Inference
 
@@ -1495,6 +1507,31 @@ Arquivo: `pkg/db/sqlite.go`
 |--------|-----------|
 | `convertDBValue(interface{}) Value` | SQL row → AdvPL value |
 | `valueToSQL(Value) any` | AdvPL value → SQL parameter |
+
+### 8.1 Conectividade real multi-provider (desde v4.0.0)
+
+Arquivos: `pkg/db/remote_conn.go` + `postgres.go` + `oracle.go` + `mssql.go` +
+`remote_engine.go`; classe AdvPL em `pkg/vm/dbconnection_native.go`.
+
+Drivers 100% Go, sem CGO: `github.com/jackc/pgx/v5` (stdlib),
+`github.com/sijms/go-ora/v2`, `github.com/microsoft/go-mssqldb`.
+`RemoteSQLEngine` implementa as mesmas interfaces `DBEngine`/`SQLEngine` do
+`SQLiteEngine` acima, então `DBUseArea`/`DBSkip`/`RecLock`/`MsUnlock` etc.
+funcionam sem qualquer mudança nos pontos de chamada existentes.
+
+| Função/Método | Args | Retorno | Descrição |
+|---------------|------|---------|-----------|
+| `OpenRemote(driver, cfg)` | string, ConnConfig | (*sql.DB, Dialect, error) | Dispatcher: POSTGRES/ORACLE/MSSQL |
+| `NewRemoteSQLEngine(db, dialect)` | *sql.DB, Dialect | *RemoteSQLEngine | Engine sobre conexão já aberta |
+| `RemoteSQLEngine.SelectArea/Skip/RecLock/MsUnlock/Append/...` | — | — | Mesmo contrato do `SQLiteEngine`; `Append()` calcula `R_E_C_N_O_` no cliente (sem depender de `LastInsertId`/`RETURNING`) |
+| `DbConnection():New(cDriver, cHost, nPort, cService, cUser, cPassword)` | AdvPL | self | Credenciais explícitas, nunca hardcoded |
+| `:Connect()` | — | lógico | Abre a conexão real; `.F.` + `GetError()` em falha |
+| `DBSetDriver("TOPCONN")` | — | — | Troca `v.dbEngine` pra conexão remota ativa (swap único por VM, não por alias) |
+
+**Limitação conhecida**: introspecção de schema (`DBSTRUCT`/`TCSTRUCT`,
+`FWMBrowse` sobre uma tabela remota) ainda assume SQLite
+(`PRAGMA table_info`/`sqlite_master`) e não funciona sob `TOPCONN` — ver
+comentário de topo em `pkg/vm/dbaccess_native.go` e `dbgenericas_native.go`.
 
 ---
 

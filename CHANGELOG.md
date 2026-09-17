@@ -2,6 +2,43 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [4.0.0] — 2026-09-16
+
+### Adicionado
+
+- **Conectividade real multi-provider (PostgreSQL/Oracle/SQL Server)**:
+  programas AdvPL compilados pelo AdvPP agora conseguem se conectar de
+  verdade a bancos externos via drivers 100% Go, sem CGO
+  (`github.com/jackc/pgx/v5` stdlib, `github.com/sijms/go-ora/v2`,
+  `github.com/microsoft/go-mssqldb`). Nova classe `DbConnection`
+  (`New/Connect/Close/GetError`) para abrir conexões reais com
+  credenciais explícitas; `DBSetDriver("TOPCONN")` roteia
+  `DBUseArea`/`DBSkip`/`RecLock`/`FieldPut`/`MsUnlock`/`DbAppend` para a
+  conexão remota ativa via `RemoteSQLEngine` (implementa as mesmas
+  interfaces `DBEngine`/`SQLEngine` do motor SQLite local, sem tocar
+  nenhum dos ~50 pontos de código existentes que já as consomem).
+  `TCLINK`/SQLite local continuam com o comportamento de sempre.
+  Validado com round-trip real de CRUD (conectar → inserir → travar →
+  gravar → ler de volta) contra um PostgreSQL real, persistência
+  confirmada fora da VM via `psql`.
+- **Suporte real a Q4_K/Q6_K e arquitetura "minicpm" no motor GGUF
+  nativo** (`pkg/llm`): o motor de inferência (Go puro, sem CGO) que já
+  lia modelos I2_S (BitNet/Falcon3) agora também decodifica pesos Q4_K e
+  Q6_K (algoritmo verificado byte a byte contra o `ggml-quants.c` real
+  do llama.cpp) e reconhece `general.architecture = "minicpm"` com as
+  três escalas muP do MiniCPM (inertes quando ausentes, preservando o
+  caminho Falcon3 inalterado). Validado executando o modelo real
+  MiniCPM5-2B-Q4_K_M via `advplc run`, com geração greedy batendo com a
+  referência `llama.cpp` (`llama-simple`) na resposta correta.
+
+### Corrigido
+
+- **Campo de senha do modo web (`advplc serve`) não mascarava os
+  caracteres digitados**: `PoDynamicFieldType` (PO-UI) não tem variante
+  `password`, então o campo caía silenciosamente em texto puro. Trocado
+  por um `<input type="password">` cru, mesmo padrão já usado no grid
+  do MSDIALOG legado — validado visualmente via browser real.
+
 ## [3.0.6] — 2026-09-06
 
 Cópia da 3.0.5 (compilador e runtime idênticos) para manter a numeração de

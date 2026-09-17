@@ -600,7 +600,8 @@ A interface gráfica de configuração do Protheus não é reproduzida
 ## Motor de inferência LLM (classe `LLM`)
 
 O AdvPP embute um motor de inferência para modelos de linguagem
-quantizados em **I2_S** (pesos ternários -1/0/+1, formato BitNet),
+quantizados em **I2_S** (pesos ternários -1/0/+1, formato BitNet) ou,
+desde v4.0.0, em **Q4_K/Q6_K** (ex.: conversões `Q4_K_M` como MiniCPM),
 escrito inteiramente em Go — sem CGO, sem `llama.cpp`, sem
 dependências de terceiros. Compila e roda de forma idêntica em Linux,
 Windows e macOS (amd64/arm64).
@@ -630,11 +631,17 @@ Return
 
 ### Arquitetura suportada
 
-Só arquitetura GGUF `general.architecture = "llama"` com tensores de
-peso em **I2_S** — é o caso do BitNet original convertido para essa
-arquitetura e de conversões como o `Falcon3-3B-Instruct-1.58bit`. Não
-suporta (ainda) a arquitetura customizada `bitnet-b1.58` (que tem
-normas extras "SubLN" no grafo) nem outras quantizações (Q4_K, Q6_K,
+Arquitetura GGUF `general.architecture = "llama"` (é o caso do BitNet
+original convertido para essa arquitetura, de conversões como o
+`Falcon3-3B-Instruct-1.58bit`, e de conversões `Q4_K_M`/`Q6_K` como o
+MiniCPM5-2B) ou `"minicpm"` (com as escalas muP próprias, quando
+presentes no GGUF). Pesos de camada em **I2_S**, **F16**, **Q4_K** ou
+**Q6_K** — decidido pelo tipo real de cada tensor, não precisa ser
+uniforme no arquivo (ex.: camadas em Q4_K com `token_embd`/`output` em
+Q6_K, como o MiniCPM5-2B-Q4_K_M). Não suporta (ainda) a arquitetura
+customizada `bitnet-b1.58` (que tem normas extras "SubLN" no grafo),
+outras arquiteturas (Qwen, Mistral, modelos com sliding-window
+attention, etc.), F32, nem os demais k-quants (Q2_K/Q3_K/Q5_K/Q8_K
 etc.) — ver `pkg/llm/model.go`.
 
 ### Desempenho e SIMD

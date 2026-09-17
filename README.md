@@ -44,7 +44,7 @@ documenta o padrão e os bugs reais já encontrados nessa categoria.
 - **BLAS ternária + IA em AdvPL puro**: kernel *multiply-free* `MatVecTern` (produto matriz-vetor ternário estilo BitNet) e três modelos escritos inteiramente em AdvPL — Markov (`pt_llm`), respondedor por recuperação (`pt_chat`) e híbrido Markov+rede neural ternária (`pt_nn`); ver [Exemplos de IA em AdvPL puro](#exemplos-de-ia-em-advpl-puro)
 - **IDE Gráfica**: Ambiente de Desenvolvimento Gráfico usando Fyne com editor de código, navegador de arquivos e compilador integrado
 - **Framework UI**: Aplicações gráficas usando Fyne (diálogos, formulários, grids, botões, menus)
-- **Banco de Dados**: Operações de banco de dados baseadas em Workarea (DbSelectArea, DbSeek, DbSkip, RecLock, etc.)
+- **Banco de Dados**: Operações de banco de dados baseadas em Workarea (DbSelectArea, DbSeek, DbSkip, RecLock, etc.) sobre SQLite local; desde v4.0.0, também conectividade real a **PostgreSQL/Oracle/SQL Server** via classe `DbConnection` e `DBSetDriver("TOPCONN")` — 100% Go, sem CGO (ver [Conectividade multi-provider](#conectividade-real-multi-provider))
 - **Classes**: Sistema de classes completo com Data/Method/Constructor, herança via `from`
 - **Blocos de Código**: Blocos de código executáveis `{|| ... }`
 - **MVC**: Suporte FWFormModel, FWFormView, FWFormBrowse com validação de campos e tratamento de eventos
@@ -161,12 +161,13 @@ Return
 
 Motor de inferência para modelos **GGUF quantizados em I2_S** (pesos
 ternários -1/0/+1, formato usado pelo BitNet e por conversões como o
-Falcon3-3B-Instruct-1.58bit) — escrito inteiramente em Go
-(`pkg/llm`), sem `llama.cpp`, sem CGO e sem dependências externas.
-Compila e roda de forma idêntica em Linux, Windows e macOS
-(amd64/arm64); em amd64 usa um kernel SIMD (AVX2) com detecção de CPU
-em runtime, caindo automaticamente para um caminho escalar puro em
-qualquer CPU/arquitetura sem esse suporte.
+Falcon3-3B-Instruct-1.58bit) **ou em Q4_K/Q6_K** (formato usado por
+conversões comuns como MiniCPM-Q4_K_M, desde v4.0.0) — escrito
+inteiramente em Go (`pkg/llm`), sem `llama.cpp`, sem CGO e sem
+dependências externas. Compila e roda de forma idêntica em Linux,
+Windows e macOS (amd64/arm64); em amd64 usa um kernel SIMD (AVX2) com
+detecção de CPU em runtime, caindo automaticamente para um caminho
+escalar puro em qualquer CPU/arquitetura sem esse suporte.
 
 Métodos da classe `LLM`:
 
@@ -178,9 +179,62 @@ Métodos da classe `LLM`:
 | `Decode(aTokens)` | Converte token ids de volta em texto |
 | `Close()` | Libera o modelo |
 
-Validado **token a token** contra o `llama.cpp` de referência (ver
-`pkg/llm/validate_test.go`). Limitações: só arquitetura GGUF `"llama"`
-com pesos I2_S; sem streaming (ver CHANGELOG para a lista completa).
+Validado **token a token** contra o `llama.cpp` de referência para o
+caminho I2_S (ver `pkg/llm/validate_test.go`), e validado end-to-end
+(geração real via `advplc run`, resposta batendo com o `llama.cpp` de
+referência) contra um MiniCPM5-2B-Q4_K_M real para o caminho Q4_K/Q6_K.
+Limitações: arquitetura GGUF `"llama"` ou `"minicpm"` apenas; sem
+streaming (ver CHANGELOG para a lista completa).
+
+## Conectividade real multi-provider
+
+```advpl
+User Function DbConnDemo()
+    Local oConn := DbConnection():New("POSTGRES", GetEnv("PG_HOST"), 5432, GetEnv("PG_DB"), GetEnv("PG_USER"), GetEnv("PG_PASSWORD"))
+    Local aRows
+
+    If !oConn:Connect()
+        ConOut("Falha: " + oConn:GetError())
+        Return
+    EndIf
+
+    aRows := TCGenQry("SELECT * FROM clientes")   // SQL direto real
+
+    DBSetDriver("TOPCONN")                          // RDD real via RemoteSQLEngine
+    DbUseArea(.T., "TOPCONN", "clientes", "CLI")
+    DbAppend()
+    RecLock()
+    CLI->nome := "Novo Cliente"
+    MsUnlock()
+    DbCloseArea()
+
+    oConn:Close()
+Return
+```
+
+Desde v4.0.0, `DbConnection` abre conexões reais a **PostgreSQL**
+(`pgx`), **Oracle** (`go-ora`) e **SQL Server** (`go-mssqldb`) — drivers
+100% Go, sem CGO, sem Oracle Instant Client. Credenciais nunca são
+hardcoded pelo AdvPP: quem chama `New()` decide de onde vêm (`GetEnv()`,
+cofre, etc.). `TCGenQry`/`TCSqlToArr` funcionam contra o banco real assim
+que `Connect()` tem sucesso; `DBSetDriver("TOPCONN")` roteia toda a API
+de work-area (`DBUseArea`/`DBSkip`/`RecLock`/`MsUnlock`/`DbAppend`) para a
+conexão remota ativa via `RemoteSQLEngine`, sem precisar trocar nenhuma
+outra linha do programa. `TCLINK` e o SQLite local continuam com o
+comportamento de sempre.
+
+**Limitações:**
+- Tabela física remota precisa ter as colunas `R_E_C_N_O_`/`D_E_L_E_T_`
+  (mesma convenção do SQLite local) — não é para conectar a schemas
+  legados sem essas colunas
+- `DBSTRUCT`/`TCSTRUCT`/`FWMBrowse` sobre uma tabela remota ainda não
+  funcionam (introspecção de schema assume SQLite)
+- Um único RDD remoto "ativo" por vez na sessão — não há roteamento por
+  alias entre múltiplas conexões simultâneas
+
+Validado com round-trip real de CRUD contra um PostgreSQL real
+(conectar → inserir → travar → gravar → ler de volta), persistência
+confirmada fora da VM via `psql`.
 
 ## Renderer web (`advplc serve`)
 
@@ -927,15 +981,15 @@ advplc build meu_app.prw -o meu_app --gui   # GUI fixa no binário (build-time);
 
 ### Motor LLM: Limitações de Modelo
 
-**Status:** Classe `LLM` carrega modelos GGUF quantizados **apenas em I2_S** (ternário: -1/0/+1, estilo BitNet/Falcon3-1.58bit).
+**Status:** Classe `LLM` carrega modelos GGUF quantizados em **I2_S** (ternário: -1/0/+1, estilo BitNet/Falcon3-1.58bit), **F16** ou, desde v4.0.0, **Q4_K/Q6_K** (ex.: conversões `Q4_K_M` como MiniCPM).
 
 **Limitações:**
-- Quantização: Só **I2_S** suportado; F16/F32 não funcionam
+- Quantização: I2_S, F16, Q4_K e Q6_K suportados; F32 e outros k-quants (Q2_K/Q3_K/Q5_K/Q8_K etc.) ainda não
 - Streaming: Não há suporte a streaming de token; `Generate()` **bloqueia** até terminar
 - Tokenizer: Pré-built na .gguf; não há suporte a tokenizers dinâmicos
-- Modelos: Arquitetura deve ser `llama` com pesos I2_S — outras arquiteturas (Qwen, Mistral, etc.) e quantizações (Q4_K, Q6_K) causam erro
+- Modelos: Arquitetura deve ser `llama` ou `minicpm` — outras arquiteturas (Qwen, Mistral, modelos com sliding-window attention, etc.) causam erro
 
-**Alternativa:** Para F16/F32 ou streaming, use uma API externa (ex.: Ollama local com `FWHttpPost`).
+**Alternativa:** Para F32 ou streaming, use uma API externa (ex.: Ollama local com `FWHttpPost`).
 
 ### Tensor: Precisão Float32 vs Float64
 
