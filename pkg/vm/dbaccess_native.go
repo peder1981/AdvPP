@@ -29,6 +29,25 @@ package vm
 //     (linha = array de valores) — desvio da spec (retorno ""), seguindo a
 //     instrução de mapeamento do agente (a abertura via DBUseArea não é
 //     exercitada nesta VM).
+//   - TCLink/DbConnection: TCLink continua abrindo um SQLiteEngine local
+//     (comportamento inalterado). DbConnection():New()/Connect() abre uma
+//     conexão real (PostgreSQL/Oracle/MSSQL) via pkg/db.OpenRemote — ver
+//     docs/superpowers/specs/2026-09-16-advpp-multidb-design.md.
+//   - LIMITAÇÃO CONHECIDA — introspecção de schema sob TOPCONN (achado #2
+//     da revisão final da branch multidb): TCSTRUCT, dbaccessObjectType e
+//     dbaccessObjectExists (abaixo) consultam `sqlite_master`/
+//     `PRAGMA table_info` diretamente contra c.sqlEng — consulta SQLite-
+//     específica que NÃO existe em Postgres/Oracle/MSSQL. Sob uma conexão
+//     real (dbstateConn.remote == true), essas natives silenciosamente
+//     não encontram nada (devolvem "tipo desconhecido"/false) em vez de
+//     consultar information_schema (Postgres/MSSQL) ou ALL_TAB_COLUMNS
+//     (Oracle). Introspecção de schema com dialeto real não entrou nesta
+//     wave de correção — é gap documentado, não bug silencioso. O que
+//     RemoteSQLEngine PODE fazer sobre a própria estrutura que já
+//     carregou de SelectArea (nomes e tipos reais de coluna, via
+//     rows.ColumnTypes()) fica em pkg/db/remote_engine.go: FieldPos()
+//     lá é honesto porque reflete o que o driver de rede devolveu, não
+//     PRAGMA/sqlite_master.
 
 import (
 	"fmt"
@@ -86,6 +105,7 @@ type dbstateConn struct {
 	poolName string
 	poolTime time.Time
 	closed   bool
+	remote   bool // true quando aberta por DbConnection (driver real), não TCLINK/SQLite
 }
 
 // dbaccessFieldType registra o tratamento de tipo pedido via TCSetField

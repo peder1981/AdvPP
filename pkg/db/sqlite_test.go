@@ -1,6 +1,11 @@
 package db
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	advplrt "github.com/advpl/compiler/pkg/runtime"
+)
 
 // TestSkipReachesEOF is a regression test for a bug found while writing an
 // invocation-proof test for DBEval (pkg/vm/blococodigo_native_test.go,
@@ -55,5 +60,46 @@ func TestSkipReachesEOF(t *testing.T) {
 	}
 	if !eng.EOF() {
 		t.Fatalf("expected EOF() == true after skipping past the last of 3 records, got false (RecNo=%d)", eng.RecNo())
+	}
+}
+
+func TestConvertDBValueBytes(t *testing.T) {
+	got := convertDBValue([]byte("hello"))
+	if got.String() != "hello" {
+		t.Errorf("convertDBValue([]byte(\"hello\")) = %q, want \"hello\"", got.String())
+	}
+}
+
+// TestConvertDBValueTimeRoundTrip prova o achado #4 da revisão final da
+// branch multidb: drivers de rede (pgx/go-mssqldb/go-ora) devolvem
+// time.Time para colunas DATE/TIMESTAMP; sem um case dedicado,
+// convertDBValue caía no default (fmt.Sprintf("%v", v)) e produzia uma
+// string tipo "2026-09-16 00:00:00 +0000 UTC" em vez de um valor D
+// (DateValue) real — e valueToSQL, ao regravar via MsUnlock, devia enviar
+// o time.Time nativo pro driver, não a formatação AdvPL (DD/MM/YYYY).
+func TestConvertDBValueTimeRoundTrip(t *testing.T) {
+	when := time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC)
+
+	got := convertDBValue(when)
+	dv, ok := got.(*advplrt.DateValue)
+	if !ok {
+		t.Fatalf("convertDBValue(time.Time) = %T, want *advplrt.DateValue", got)
+	}
+	if !dv.Val.Equal(when) {
+		t.Errorf("convertDBValue(time.Time).Val = %v, want %v", dv.Val, when)
+	}
+	if got.Type() != "D" {
+		t.Errorf("convertDBValue(time.Time).Type() = %q, want \"D\"", got.Type())
+	}
+
+	// Round-trip: valueToSQL deve devolver o time.Time nativo (bindável
+	// direto pelo driver), não a string DD/MM/YYYY do String() do DateValue.
+	back := valueToSQL(dv)
+	tv, ok := back.(time.Time)
+	if !ok {
+		t.Fatalf("valueToSQL(DateValue) = %T, want time.Time", back)
+	}
+	if !tv.Equal(when) {
+		t.Errorf("valueToSQL(DateValue) = %v, want %v", tv, when)
 	}
 }

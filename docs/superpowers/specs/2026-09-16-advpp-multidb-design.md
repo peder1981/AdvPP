@@ -94,9 +94,22 @@ qualquer outro secret hoje no projeto.
 
 ### SQL direto (TCSQLEXEC/TCGENQRY/TCQuery)
 
-Sem mudança de assinatura. Essas natives já leem `dbstateConn.sqlEng`; uma
-vez que `sqlEng` seja a implementação real (Postgres/Oracle/MSSQL) em vez
-do `SQLiteEngine`, os resultados passam a vir do banco externo de verdade.
+Sem mudança de assinatura, mas **dois caminhos de leitura distintos** —
+correção feita na revisão final da branch (achado #8), o texto anterior
+aqui estava impreciso:
+
+- A família TC* elaborada em `dbaccess_native.go` (`TCLINK`, `TCGENQRY`,
+  `TCSQLTOARR`, `TCSQLERROR`, ...) já lê `dbstateConn.sqlEng` através de
+  `dbaccessActiveConn()` — uma vez que `sqlEng` seja o `RemoteSQLEngine`
+  real (Postgres/Oracle/MSSQL) em vez do `SQLiteEngine`, os resultados
+  passam a vir do banco externo de verdade, sem qualquer mudança de
+  código nesta família.
+- `TCSQLEXEC`/`TCSQLQUERY` (`pkg/vm/natives.go`, mais simples, expostos
+  direto a User Function) leem **`v.dbEngine`**, não `dbstateConn.sqlEng`
+  — só passam a bater no banco externo depois que
+  `DBSetDriver("TOPCONN")` (Task 9) troca esse campo da VM inteira; o
+  sucesso isolado de `DbConnection:Connect()` não é suficiente pra essas
+  duas.
 
 ### RDD / acesso por tabela (DBUseArea, TOPCONN-style)
 

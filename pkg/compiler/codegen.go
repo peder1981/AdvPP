@@ -1129,6 +1129,7 @@ var builtinClasses = map[string]bool{
 	"TGRPC":             true,
 	"FWTOTVSLINKCLIENT": true,
 	"GRPCSERVER":        true,
+	"DBCONNECTION":      true,
 }
 
 func isBuiltinClass(name string) bool {
