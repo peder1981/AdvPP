@@ -7,19 +7,26 @@ import (
 )
 
 // Layer contém os pesos de uma camada do transformer llama-padrão (sem as
-// normas extras "SubLN" do bitnet-b1.58 — este modelo não as tem).
+// normas extras "SubLN" do bitnet-b1.58 — este modelo não as tem). O
+// formato de cada peso (I2_S ternário ou F16 denso) é decidido por
+// LoadWeight a partir do tipo GGML real do tensor, não fixado aqui.
 type Layer struct {
 	AttnNorm          []float32
-	Wq, Wk, Wv, Wo    *I2SWeight
+	Wq, Wk, Wv, Wo    LayerWeights
 	FFNNorm           []float32
-	Wgate, Wup, Wdown *I2SWeight
+	Wgate, Wup, Wdown LayerWeights
 }
 
-// Model contém os hiperparâmetros e pesos carregados de um GGUF
-// arquitetura "llama" com tensores de peso em I2_S (Falcon3-3B-1.58bit).
+// Model contém os hiperparâmetros e pesos carregados de um GGUF de
+// arquitetura "llama" (Falcon3-3B-1.58bit, pesos I2_S) ou "minicpm"
+// (MiniCPM-2B, pesos F16 — ver LoadWeight). ScaleEmbed/ScaleResidual/
+// ScaleLogit são os três multiplicadores muP específicos do MiniCPM;
+// ficam em 1.0 (no-op) para "llama", preservando o forward pass do
+// Falcon3 byte-a-byte.
 type Model struct {
 	g *File
 
+	Arch      string
 	NLayer    int
 	NEmbd     int
 	NHead     int
@@ -31,9 +38,21 @@ type Model struct {
 	RMSEps    float32
 	VocabSize int
 
+	// ScaleEmbed escala o embedding do token logo após a leitura da
+	// tabela; ScaleResidual escala a contribuição de cada camada (atenção
+	// e FFN) antes de somar ao residual; ScaleLogit escala o estado
+	// oculto final antes da projeção de logits. Nomes de chave GGUF e
+	// direção exata (multiplicar vs. dividir) marcados como PENDENTE DE
+	// VERIFICAÇÃO abaixo, em LoadModel — não confirmados contra um
+	// arquivo MiniCPM real nem contra o código-fonte do llama.cpp nesta
+	// sessão.
+	ScaleEmbed    float32
+	ScaleResidual float32
+	ScaleLogit    float32
+
 	Layers     []Layer
 	OutputNorm []float32
-	OutputF16  []byte // output.weight completo, usado por MatMulF16
+	Output     LayerWeights // output.weight — F16 (Falcon3) ou Q6_K (MiniCPM Q4_K_M)
 
 	tokEmbdName string
 }
@@ -48,21 +67,45 @@ func LoadModel(path string) (*Model, error) {
 	}
 
 	arch, _ := g.String("general.architecture")
-	if arch != "llama" {
+	if arch != "llama" && arch != "minicpm" {
 		g.Close()
-		return nil, fmt.Errorf("llm: arquitetura %q não suportada (só \"llama\" por enquanto)", arch)
+		return nil, fmt.Errorf("llm: arquitetura %q não suportada (só \"llama\" ou \"minicpm\" por enquanto)", arch)
 	}
 
-	m := &Model{g: g, tokEmbdName: "token_embd.weight"}
-	nLayer, _ := g.Uint32("llama.block_count")
-	nEmbd, _ := g.Uint32("llama.embedding_length")
-	nHead, _ := g.Uint32("llama.attention.head_count")
-	nHeadKV, _ := g.Uint32("llama.attention.head_count_kv")
-	nFF, _ := g.Uint32("llama.feed_forward_length")
-	ropeDims, _ := g.Uint32("llama.rope.dimension_count")
-	freqBase, _ := g.Float32("llama.rope.freq_base")
-	rmsEps, _ := g.Float32("llama.attention.layer_norm_rms_epsilon")
-	vocabSize, _ := g.Uint32("llama.vocab_size")
+	m := &Model{g: g, Arch: arch, tokEmbdName: "token_embd.weight"}
+	// Chaves GGUF são prefixadas pelo nome da arquitetura por convenção do
+	// próprio formato (ex.: "llama.block_count", "minicpm.block_count") —
+	// generalizado aqui em vez de fixo em "llama." para servir os dois.
+	prefix := arch + "."
+	nLayer, _ := g.Uint32(prefix + "block_count")
+	nEmbd, _ := g.Uint32(prefix + "embedding_length")
+	nHead, _ := g.Uint32(prefix + "attention.head_count")
+	nHeadKV, _ := g.Uint32(prefix + "attention.head_count_kv")
+	nFF, _ := g.Uint32(prefix + "feed_forward_length")
+	ropeDims, _ := g.Uint32(prefix + "rope.dimension_count")
+	freqBase, _ := g.Float32(prefix + "rope.freq_base")
+	rmsEps, _ := g.Float32(prefix + "attention.layer_norm_rms_epsilon")
+	vocabSize, _ := g.Uint32(prefix + "vocab_size")
+
+	// Escalas muP do MiniCPM — PENDENTE DE VERIFICAÇÃO: nomes de chave e
+	// direção (multiplicar/dividir) não confirmados contra um arquivo
+	// MiniCPM real nem contra o código-fonte do llama.cpp nesta sessão.
+	// Ausentes (ok==false) => 1.0 (no-op), preservando o forward pass do
+	// "llama"/Falcon3 exatamente como era antes desta mudança.
+	m.ScaleEmbed = 1.0
+	m.ScaleResidual = 1.0
+	m.ScaleLogit = 1.0
+	if arch == "minicpm" {
+		if v, ok := g.Float32(prefix + "embedding_scale"); ok {
+			m.ScaleEmbed = v
+		}
+		if v, ok := g.Float32(prefix + "residual_scale"); ok {
+			m.ScaleResidual = v
+		}
+		if v, ok := g.Float32(prefix + "logit_scale"); ok {
+			m.ScaleLogit = v
+		}
+	}
 
 	m.NLayer = int(nLayer)
 	m.NEmbd = int(nEmbd)
@@ -103,31 +146,31 @@ func LoadModel(path string) (*Model, error) {
 			g.Close()
 			return nil, err
 		}
-		if l.Wq, err = LoadI2SWeight(g, fmt.Sprintf("blk.%d.attn_q.weight", il)); err != nil {
+		if l.Wq, err = LoadWeight(g, fmt.Sprintf("blk.%d.attn_q.weight", il)); err != nil {
 			g.Close()
 			return nil, err
 		}
-		if l.Wk, err = LoadI2SWeight(g, fmt.Sprintf("blk.%d.attn_k.weight", il)); err != nil {
+		if l.Wk, err = LoadWeight(g, fmt.Sprintf("blk.%d.attn_k.weight", il)); err != nil {
 			g.Close()
 			return nil, err
 		}
-		if l.Wv, err = LoadI2SWeight(g, fmt.Sprintf("blk.%d.attn_v.weight", il)); err != nil {
+		if l.Wv, err = LoadWeight(g, fmt.Sprintf("blk.%d.attn_v.weight", il)); err != nil {
 			g.Close()
 			return nil, err
 		}
-		if l.Wo, err = LoadI2SWeight(g, fmt.Sprintf("blk.%d.attn_output.weight", il)); err != nil {
+		if l.Wo, err = LoadWeight(g, fmt.Sprintf("blk.%d.attn_output.weight", il)); err != nil {
 			g.Close()
 			return nil, err
 		}
-		if l.Wgate, err = LoadI2SWeight(g, fmt.Sprintf("blk.%d.ffn_gate.weight", il)); err != nil {
+		if l.Wgate, err = LoadWeight(g, fmt.Sprintf("blk.%d.ffn_gate.weight", il)); err != nil {
 			g.Close()
 			return nil, err
 		}
-		if l.Wup, err = LoadI2SWeight(g, fmt.Sprintf("blk.%d.ffn_up.weight", il)); err != nil {
+		if l.Wup, err = LoadWeight(g, fmt.Sprintf("blk.%d.ffn_up.weight", il)); err != nil {
 			g.Close()
 			return nil, err
 		}
-		if l.Wdown, err = LoadI2SWeight(g, fmt.Sprintf("blk.%d.ffn_down.weight", il)); err != nil {
+		if l.Wdown, err = LoadWeight(g, fmt.Sprintf("blk.%d.ffn_down.weight", il)); err != nil {
 			g.Close()
 			return nil, err
 		}
@@ -138,7 +181,7 @@ func LoadModel(path string) (*Model, error) {
 		g.Close()
 		return nil, err
 	}
-	if m.OutputF16, err = g.TensorData("output.weight"); err != nil {
+	if m.Output, err = LoadWeight(g, "output.weight"); err != nil {
 		g.Close()
 		return nil, err
 	}
@@ -170,10 +213,11 @@ func NewContext(m *Model) *Context {
 // atualizando o KV cache e retornando os logits (tamanho VocabSize).
 func (c *Context) Forward(token int32) ([]float32, error) {
 	m := c.m
-	x, err := EmbedRow(m.g, m.tokEmbdName, int(token), m.NEmbd)
+	x, err := EmbedRowGeneric(m.g, m.tokEmbdName, int(token), m.NEmbd)
 	if err != nil {
 		return nil, err
 	}
+	scaleInPlace(x, m.ScaleEmbed)
 
 	groupSize := m.NHead / m.NHeadKV
 
@@ -181,9 +225,9 @@ func (c *Context) Forward(token int32) ([]float32, error) {
 		inpSA := append([]float32(nil), x...)
 
 		cur := RMSNorm(x, layer.AttnNorm, m.RMSEps)
-		q := MatMulI2S(layer.Wq, cur)
-		k := MatMulI2S(layer.Wk, cur)
-		v := MatMulI2S(layer.Wv, cur)
+		q := layer.Wq.MatMul(cur)
+		k := layer.Wk.MatMul(cur)
+		v := layer.Wv.MatMul(cur)
 
 		for h := 0; h < m.NHead; h++ {
 			RoPE(q[h*m.HeadDim:(h+1)*m.HeadDim], m.HeadDim, c.pos, m.RopeDims, m.FreqBase)
@@ -196,25 +240,42 @@ func (c *Context) Forward(token int32) ([]float32, error) {
 		c.vCache[il] = append(c.vCache[il], v)
 
 		attnOut := attention(m, il, c, q, groupSize)
-		o := MatMulI2S(layer.Wo, attnOut)
+		o := layer.Wo.MatMul(attnOut)
+		scaleInPlace(o, m.ScaleResidual)
 		AddInPlace(o, inpSA)
 		x = o
 
 		inpFF := append([]float32(nil), x...)
 		cur = RMSNorm(x, layer.FFNNorm, m.RMSEps)
-		gate := MatMulI2S(layer.Wgate, cur)
-		up := MatMulI2S(layer.Wup, cur)
+		gate := layer.Wgate.MatMul(cur)
+		up := layer.Wup.MatMul(cur)
 		SwiGLU(gate, up)
-		down := MatMulI2S(layer.Wdown, gate)
+		down := layer.Wdown.MatMul(gate)
+		scaleInPlace(down, m.ScaleResidual)
 		AddInPlace(down, inpFF)
 		x = down
 	}
 
 	xNorm := RMSNorm(x, m.OutputNorm, m.RMSEps)
-	logits := MatMulF16(m.OutputF16, m.VocabSize, m.NEmbd, xNorm)
+	scaleInPlace(xNorm, m.ScaleLogit)
+	logits := m.Output.MatMul(xNorm)
 
 	c.pos++
 	return logits, nil
+}
+
+// scaleInPlace multiplica x por s. Usado pelos três multiplicadores muP do
+// MiniCPM (ScaleEmbed/ScaleResidual/ScaleLogit); s==1.0 é um no-op exato em
+// ponto flutuante (sem perda de precisão), então o forward pass de um
+// modelo "llama" (Falcon3) sai byte-a-byte idêntico ao de antes desta
+// mudança.
+func scaleInPlace(x []float32, s float32) {
+	if s == 1.0 {
+		return
+	}
+	for i := range x {
+		x[i] *= s
+	}
 }
 
 // attention calcula a atenção causal GQA para todas as posições já

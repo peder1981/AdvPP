@@ -57,5 +57,9 @@ cmd/advplc/fuzz*.log
 # Bancos SQLite locais de dev (o banco real de runtime vive em ~/.advpp/)
 *.db
 
+# Modelos GGUF de teste local (arquivos de GBs, nunca versionados)
+*.gguf
+/gguf/
+
 # Binários compilados pelos scripts de exemplo (BUILD.sh gera chat-peer-N)
 examples/chat/chat-peer-*

@@ -2,6 +2,7 @@ package llm
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 )
 
@@ -86,6 +87,43 @@ func EmbedRow(g *File, tensorName string, row, rowDim int) ([]float32, error) {
 		return nil, err
 	}
 	return DecodeF16Row(raw, rowDim), nil
+}
+
+// EmbedRowGeneric é EmbedRow generalizado para qualquer formato de
+// armazenamento suportado (decidido pelo tipo GGML real do tensor, como
+// LoadWeight) — necessário porque quantizações Q4_K_M costumam guardar
+// token_embd.weight em Q4_K, não F16. Continua lendo só a linha pedida via
+// TensorRange, sem materializar a tabela inteira (vocab_size linhas).
+func EmbedRowGeneric(g *File, tensorName string, row, rowDim int) ([]float32, error) {
+	t, ok := g.Tensor(tensorName)
+	if !ok {
+		return nil, fmt.Errorf("llm: tensor %q não encontrado", tensorName)
+	}
+	switch t.Type {
+	case GGMLTypeF16:
+		return EmbedRow(g, tensorName, row, rowDim)
+	case GGMLTypeQ4_K:
+		return embedRowQ4K(g, tensorName, row, rowDim)
+	default:
+		return nil, fmt.Errorf("llm: tensor %q em formato %v não suportado para leitura de linha (só F16 e Q4_K)", tensorName, t.Type)
+	}
+}
+
+func embedRowQ4K(g *File, tensorName string, row, rowDim int) ([]float32, error) {
+	if rowDim%q4kSuperBlock != 0 {
+		return nil, fmt.Errorf("llm: tensor %q: rowDim=%d não é múltiplo de %d", tensorName, rowDim, q4kSuperBlock)
+	}
+	blocksPerRow := rowDim / q4kSuperBlock
+	rowBytes := uint64(blocksPerRow * q4kBlockBytes)
+	raw, err := g.TensorRange(tensorName, uint64(row)*rowBytes, rowBytes)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]float32, rowDim)
+	for b := 0; b < blocksPerRow; b++ {
+		dequantQ4KBlock(raw[b*q4kBlockBytes:(b+1)*q4kBlockBytes], out[b*q4kSuperBlock:(b+1)*q4kSuperBlock])
+	}
+	return out, nil
 }
 
 // MatMulF16 calcula logits[v] = dot(x, row_v) para cada uma das nRows linhas
