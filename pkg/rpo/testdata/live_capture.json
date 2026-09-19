@@ -1,0 +1,242 @@
+[
+  {
+    "type": "encrypt",
+    "n": 1,
+    "this": 976248488,
+    "len": 158,
+    "plaintext": "789c2b6560707373630001262093818191e13023432843084844158a9b40926d4c403915f950e7088690ac4a0608703bc1cc10920012730b02726d1940063030cc6462702e4b2dca4cab54284a3655c8cc2dc849cd4dcd2b492cc9cccf53284a4dcc5148492c495428492d2e51282e29cacc4b57c8482d4a65700b8d0f0af00f72360d019bc302b10522141f12e4e9eeee1aa41710140e16060078022729"
+  },
+  {
+    "type": "evpinit",
+    "n": 1,
+    "cipher": "des_ede_ecb_cipher",
+    "key_len": 16,
+    "iv_len": 0,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": null
+  },
+  {
+    "type": "encrypt",
+    "n": 2,
+    "this": 976248488,
+    "len": 4,
+    "plaintext": "00000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 2,
+    "cipher": "cast5_cfb64_cipher",
+    "key_len": 16,
+    "iv_len": 8,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": "6937f3d3ccd5c174"
+  },
+  {
+    "type": "encrypt",
+    "n": 3,
+    "this": 976248488,
+    "len": 4,
+    "plaintext": "00000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 3,
+    "cipher": "bf_ecb_cipher",
+    "key_len": 16,
+    "iv_len": 0,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": null
+  },
+  {
+    "type": "encrypt",
+    "n": 4,
+    "this": 976248488,
+    "len": 41,
+    "plaintext": "01000000555f52504f524335540052504f5243355f545249474745522e505257000100000001000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 4,
+    "cipher": "cast5_ofb_cipher",
+    "key_len": 16,
+    "iv_len": 8,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": "6937f3d3ccd5c174"
+  },
+  {
+    "type": "encrypt",
+    "n": 5,
+    "this": 976248488,
+    "len": 4,
+    "plaintext": "00000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 5,
+    "cipher": "idea_cfb64_cipher",
+    "key_len": 16,
+    "iv_len": 8,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": "6937f3d3ccd5c174"
+  },
+  {
+    "type": "encrypt",
+    "n": 6,
+    "this": 976248488,
+    "len": 4,
+    "plaintext": "00000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 6,
+    "cipher": "idea_cbc_cipher",
+    "key_len": 16,
+    "iv_len": 8,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": "6937f3d3ccd5c174"
+  },
+  {
+    "type": "encrypt",
+    "n": 7,
+    "this": 976248488,
+    "len": 27,
+    "plaintext": "0100000052504f5243355f545249474745522e5052570000000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 7,
+    "cipher": "cast5_cfb64_cipher",
+    "key_len": 16,
+    "iv_len": 8,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": "6937f3d3ccd5c174"
+  },
+  {
+    "type": "encrypt",
+    "n": 8,
+    "this": 976248488,
+    "len": 4,
+    "plaintext": "00000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 8,
+    "cipher": "rc4_cipher",
+    "key_len": 16,
+    "iv_len": 0,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": null
+  },
+  {
+    "type": "encrypt",
+    "n": 9,
+    "this": 976248488,
+    "len": 4,
+    "plaintext": "00000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 9,
+    "cipher": "idea_cbc_cipher",
+    "key_len": 16,
+    "iv_len": 8,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": "6937f3d3ccd5c174"
+  },
+  {
+    "type": "encrypt",
+    "n": 10,
+    "this": 976248488,
+    "len": 4,
+    "plaintext": "00000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 10,
+    "cipher": "idea_ecb_cipher",
+    "key_len": 16,
+    "iv_len": 0,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": null
+  },
+  {
+    "type": "encrypt",
+    "n": 11,
+    "this": 976248488,
+    "len": 4,
+    "plaintext": "00000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 11,
+    "cipher": "cast5_cfb64_cipher",
+    "key_len": 16,
+    "iv_len": 8,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": "6937f3d3ccd5c174"
+  },
+  {
+    "type": "encrypt",
+    "n": 12,
+    "this": 976248488,
+    "len": 10,
+    "plaintext": "01000000000000000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 12,
+    "cipher": "idea_cbc_cipher",
+    "key_len": 16,
+    "iv_len": 8,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": "6937f3d3ccd5c174"
+  },
+  {
+    "type": "encrypt",
+    "n": 13,
+    "this": 976248488,
+    "len": 4,
+    "plaintext": "00000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 13,
+    "cipher": "bf_ofb_cipher",
+    "key_len": 16,
+    "iv_len": 8,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": "6937f3d3ccd5c174"
+  },
+  {
+    "type": "encrypt",
+    "n": 14,
+    "this": 976248488,
+    "len": 32,
+    "plaintext": "0100000052504f5243355f545249474745522e50525700000000000000000000"
+  },
+  {
+    "type": "evpinit",
+    "n": 14,
+    "cipher": "cast5_ecb_cipher",
+    "key_len": 16,
+    "iv_len": 0,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": null
+  },
+  {
+    "type": "encrypt",
+    "n": 15,
+    "this": 976248488,
+    "len": 262,
+    "plaintext": "789ce3636060080af00f72368d0f09f27477770dd20b080a67b055884c9f3bf399c335a0f41e209e07c4464fd90557253330303220c0021011ece9eea8e7eb1800175d0bc49a48aab66731a0004d982e473f3fff1014ad4b81980549a9573eaa560e9856274717148d73d13426e5e1d0e8ec138ca271269ac60bd9a81a59601a5d233c51dd3a114da76a260e2bdd9c51f49501b134b2ba5c547dd2307d9e7e683616a1d9d89a81c3ad01e8becc42d3599e83c3ad01deae91283ad3d0742a14e0b033c815d5ca24348db372716804623f149d71683a758b70e90c72f6f473f347d16c0672239262f36254cd1a30cd21fedeaea8f6aa01311792d2c84254ad0220020010414a26"
+  },
+  {
+    "type": "evpinit",
+    "n": 15,
+    "cipher": "cast5_cbc_cipher",
+    "key_len": 16,
+    "iv_len": 8,
+    "key": "2c92e5a7d1b59f4fad2060247631e220",
+    "iv": "6937f3d3ccd5c174"
+  }
+]

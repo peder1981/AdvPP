@@ -19,6 +19,7 @@ require (
 	github.com/mattn/go-colorable v0.1.15
 	github.com/microsoft/go-mssqldb v1.7.2
 	github.com/pkg/sftp v1.13.9
+	github.com/rabbitmq/amqp091-go v1.15.0
 	github.com/sijms/go-ora/v2 v2.8.22
 	golang.org/x/crypto v0.36.0
 	golang.org/x/sys v0.37.0

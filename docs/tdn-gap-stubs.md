@@ -257,3 +257,17 @@ Páginas do TDN sem corpo real (stub) — não implementar sem spec.
 - DBRUnlock-cannot-be-called-in-a-transaction (Mensagens-de-erro) — https://tdn.totvs.com/display/tec/DBRUnlock+cannot+be+called+in+a+transaction
 - DBCreate-Invalid-numeric-field-format (Mensagens-de-erro) — https://tdn.totvs.com/display/tec/DBCreate+-+Invalid+numeric+field+format
 - There-is-no-current-index (Mensagens-de-erro) — https://tdn.totvs.com/display/tec/There+is+no+current+index
+
+## Adendo manual (2026-09-19) — gap do script de detecção
+
+As 20 páginas de Functions/Interface-HTTP abaixo escaparam do
+`find-tdn-stubs.sh` original (o script não pegou esse padrão de página vazia),
+mas foram inspecionadas manualmente e confirmadas vazias ("Tempo aproximado
+para leitura" / "Sem rótulos", sem corpo), mesmo padrão das demais desta
+lista. Verificado ao tentar avançar o backlog de `docs/tdn-pendencias.md`:
+
+- HTTPCTDisp, HTTPCTLen, HTTPCTType, HTTPExitProc, HTTPFreeSession,
+  HTTPGetPart, HTTPIsAPW, HTTPIsConnected, HTTPLeaveSession, HTTPLogonUser,
+  HTTPOtherContent, HTTPPostXml, HTTPPragma, HTTPRCTDisp, HTTPRCTLen,
+  HTTPRCTType, HTTPSend, HTTPSetPart, HttpCache, HttpCountSession
+  (Functions/Interface-HTTP) — todas com página TDN confirmada vazia.

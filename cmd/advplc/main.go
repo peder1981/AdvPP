@@ -181,6 +181,12 @@ func main() {
 	case "peer":
 		cmdPeer(os.Args[2:])
 
+	case "rpo":
+		if err := cmdRpo(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		fmt.Printf("advplc %s\n", version)
 
@@ -868,3 +874,4 @@ Examples:
   advplc build app.prw -o MyApp --gui
   advplc bytecode program.prw`)
 }
+

@@ -10,8 +10,69 @@ import (
 
 // registerManipulacaodoarquivoININatives registra funções de manipulação de arquivos INI:
 // DeleteKeyINI, DeleteSectionINI, GetINISessions, GetPvProfileInt, GetPvProfString,
-// GetSrvProfString, WriteSrvProfString.
+// GetSrvProfString, WriteSrvProfString, GetProfInt, GetProfString, WritePProString,
+// WriteProfString.
 func (v *VM) registerManipulacaodoarquivoININatives(natives map[string]func(args []advplrt.Value) (advplrt.Value, error)) {
+	// GetProfInt(cSecao, cChave, cNomeArqCfg, nPadrao) -> nRet
+	// ponytail: mesmo formato de GetPvProfileInt (arquivo em vez de WIN.INI), só muda a ordem dos argumentos
+	natives["GETPROFINT"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		section := advplrt.ToString(getArg(args, 0))
+		key := advplrt.ToString(getArg(args, 1))
+		iniFile := advplrt.ToString(getArg(args, 2))
+		defaultVal := toNumber(getArg(args, 3))
+
+		val, err := iniGetKey(iniFile, section, key)
+		if err != nil || val == "" {
+			return advplrt.NewNumber(defaultVal), nil
+		}
+		n, err := strconv.ParseFloat(strings.TrimSpace(val), 64)
+		if err != nil {
+			return advplrt.NewNumber(defaultVal), nil
+		}
+		return advplrt.NewNumber(n), nil
+	}
+
+	// GetProfString(cSecao, cChave, cNomeArqCfg, cPadrao) -> cRet
+	natives["GETPROFSTRING"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		section := advplrt.ToString(getArg(args, 0))
+		key := advplrt.ToString(getArg(args, 1))
+		iniFile := advplrt.ToString(getArg(args, 2))
+		defaultVal := advplrt.ToString(getArg(args, 3))
+
+		val, err := iniGetKey(iniFile, section, key)
+		if err != nil || val == "" {
+			return advplrt.NewString(defaultVal), nil
+		}
+		return advplrt.NewString(val), nil
+	}
+
+	// WritePProString(cSecao, cChave, cValor, cNomeArqCfg) -> lRet
+	natives["WRITEPPROSTRING"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		section := advplrt.ToString(getArg(args, 0))
+		key := advplrt.ToString(getArg(args, 1))
+		value := advplrt.ToString(getArg(args, 2))
+		iniFile := advplrt.ToString(getArg(args, 3))
+
+		success, err := iniSetKey(iniFile, section, key, value)
+		if err != nil {
+			return advplrt.NewBool(false), nil
+		}
+		return advplrt.NewBool(success), nil
+	}
+
+	// WriteProfString(cSecao, cChave, cValor, cNomeArqCfg) -> lRet
+	natives["WRITEPROFSTRING"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		section := advplrt.ToString(getArg(args, 0))
+		key := advplrt.ToString(getArg(args, 1))
+		value := advplrt.ToString(getArg(args, 2))
+		iniFile := advplrt.ToString(getArg(args, 3))
+
+		success, err := iniSetKey(iniFile, section, key, value)
+		if err != nil {
+			return advplrt.NewBool(false), nil
+		}
+		return advplrt.NewBool(success), nil
+	}
 	// DeleteKeyINI(cSecao, cChave, cIniFile) -> lRet
 	natives["DELETEKEYINI"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		section := advplrt.ToString(getArg(args, 0))

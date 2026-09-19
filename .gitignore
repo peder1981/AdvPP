@@ -63,3 +63,7 @@ cmd/advplc/fuzz*.log
 
 # Binários compilados pelos scripts de exemplo (BUILD.sh gera chat-peer-N)
 examples/chat/chat-peer-*
+
+# rpo_key_hook.so é gerado por `make` a partir do .cpp — nunca versionar
+# o binário compilado (arquitetura/ambiente-específico).
+tools/rpo-live-inspect/rpo_key_hook/*.so

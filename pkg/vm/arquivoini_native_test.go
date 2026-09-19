@@ -591,3 +591,38 @@ func TestKeyOrderDeterministic(t *testing.T) {
 		}
 	}
 }
+
+func TestGetProfIntStringAndWriteAliases(t *testing.T) {
+	v := NewVM(&compiler.Bytecode{}, false)
+	dir := t.TempDir()
+	iniPath := createTempINI(t, dir, "test.ini", "[TCP]\nPORT=8080\nHOST=localhost\n")
+
+	// GetProfInt(cSecao, cChave, cIniFile, nPadrao)
+	result, err := v.natives["GETPROFINT"].Fn([]advplrt.Value{
+		advplrt.NewString("TCP"), advplrt.NewString("PORT"), advplrt.NewString(iniPath), advplrt.NewNumber(0),
+	})
+	if err != nil || result.(*advplrt.NumberValue).Val != 8080 {
+		t.Errorf("GetProfInt: expected 8080, got %v (err=%v)", result, err)
+	}
+
+	// GetProfString(cSecao, cChave, cIniFile, cPadrao)
+	result, err = v.natives["GETPROFSTRING"].Fn([]advplrt.Value{
+		advplrt.NewString("TCP"), advplrt.NewString("HOST"), advplrt.NewString(iniPath), advplrt.NewString("fallback"),
+	})
+	if err != nil || result.(*advplrt.StringValue).Val != "localhost" {
+		t.Errorf("GetProfString: expected localhost, got %v (err=%v)", result, err)
+	}
+
+	// WritePProString/WriteProfString(cSecao, cChave, cValor, cIniFile) then read back
+	for _, fn := range []string{"WRITEPPROSTRING", "WRITEPROFSTRING"} {
+		result, err = v.natives[fn].Fn([]advplrt.Value{
+			advplrt.NewString("TCP"), advplrt.NewString("HOST"), advplrt.NewString("192.168.0.1"), advplrt.NewString(iniPath),
+		})
+		if err != nil || !result.(*advplrt.BoolValue).Val {
+			t.Fatalf("%s: expected true, got %v (err=%v)", fn, result, err)
+		}
+		if got := readINI(t, iniPath); !strings.Contains(got, "HOST=192.168.0.1") {
+			t.Errorf("%s: expected HOST=192.168.0.1 written, got %q", fn, got)
+		}
+	}
+}

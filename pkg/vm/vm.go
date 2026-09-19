@@ -1622,6 +1622,10 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callTRunDllMethod(obj, upperMethod, args)
 	case "TPBKDF2":
 		return v.callTPBKDF2Method(obj, upperMethod, args)
+	case "TJWT":
+		return v.callTJWTMethod(obj, upperMethod, args)
+	case "TAMQP":
+		return v.callTAMQPMethod(obj, upperMethod, args)
 	case "THASHMAP":
 		return v.callTHashMapMethod(obj, upperMethod, args)
 	case "TJSONPARSER":
@@ -1855,6 +1859,12 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "TPBKDF2":
 			v.push(newPBKDF2Object())
+			return nil
+		case "TJWT":
+			v.push(newJWTObject())
+			return nil
+		case "TAMQP":
+			v.push(newAMQPObject())
 			return nil
 		case "THASHMAP":
 			v.push(newTHashMapObject())

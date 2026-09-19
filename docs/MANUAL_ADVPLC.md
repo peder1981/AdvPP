@@ -184,6 +184,106 @@ advplc bytecode programa.prw  # imprime o bytecode
 advplc version                # versão do compilador
 ```
 
+### Inspeção e manipulação de RPO (`advplc rpo`)
+
+O RPO (Repositório de Programas Objeto) é o container binário onde o
+appserver Protheus guarda o P-Code compilado. O `advplc` lê e escreve a
+**estrutura de container** do RPO (cabeçalho, ponteiro de auto-referência,
+footer) de forma segura — round-trip byte-a-byte idêntico, verificado
+contra RPOs reais de até 379 MB. O conteúdo compilado em si (P-Code) é
+opaco e permanece criptografado (AES-128-CBC com chave efêmera por sessão
+de compilação — ver `docs/rpo-format.md`, Fase 8); a lista de funções só é
+obtida rodando um appserver real sob `gdb` (subcomando `extract`).
+
+| Subcomando | O que faz |
+|---|---|
+| `rpo info <rpo>` | Mostra metadados do container (nome, offsets, tamanhos) |
+| `rpo identify <rpo>` | Identifica a versão/tipo do RPO automaticamente |
+| `rpo decompose <rpo> <dir>` | Decompõe em arquivos binários (header/admin/body/footer) |
+| `rpo build <dir> <rpo>` | Reconstrói um RPO a partir de uma decomposição |
+| `rpo extract <rpo>` | Mostra a lista de funções de um dump de extração já salvo |
+| `rpo extract <rpo> --auto` | Roda a extração via `gdb`/Docker automaticamente |
+
+**Exemplo — inspecionar um RPO:**
+
+```bash
+$ advplc rpo identify custom.rpo
+Tipo ...........: custom
+Nome ...........: custom
+Magic ..........: APNSRM0419
+Sentinela ......: 0xFFFFFFFF
+Tamanho ........: 161553 bytes
+
+$ advplc rpo info custom.rpo
+Arquivo ........: custom.rpo
+Tamanho ........: 161553 bytes
+Nome do RPO ....: custom
+SelfOffset .....: 140240 (0x22370)
+Admin section ..: 140202 bytes (opaco)
+Body ...........: 21159 bytes (opaco — P-Code + estruturas internas)
+Footer magic ...: APNSRM0419
+Footer trailer .: 24 bytes (opaco), hex=...
+```
+
+**Exemplo — decompor e reconstruir (round-trip sem perdas):**
+
+```bash
+advplc rpo decompose custom.rpo saida/
+# saida/header.bin, admin_section.bin, body.bin, footer_magic.txt, footer_trail.bin
+
+advplc rpo build saida/ custom-reconstruido.rpo
+diff custom.rpo custom-reconstruido.rpo && echo "idêntico"
+```
+
+**Exemplo — extrair a lista de funções (requer Docker + appserver real):**
+
+```bash
+advplc rpo extract custom.rpo --auto
+# ...
+# --- Top 20 funções ---
+#   U_BLUCONC
+#   U_BLUDASH
+#   ...
+```
+
+Por padrão, `--auto` assume o container `protheus-compile`, ambiente
+`P12` e diretório `/protheus12/bin/appserver`/`/protheus12/apo` — o
+layout do template `compile-protheus`. Para outra instalação (ex.: uma
+matriz `protheus-compile-<versão>` própria), sobrescreva com variáveis de
+ambiente:
+
+```bash
+export ADVPP_RPO_CONTAINER=protheus-compile-12.1.2510
+export ADVPP_RPO_ENV=environment          # nome do [environment] no appserver.ini
+export ADVPP_RPO_APPDIR=/protheus12/bin/appserver
+export ADVPP_RPO_APODIR=/protheus12/apo
+advplc rpo extract tttm120.rpo --auto
+```
+
+**Como funciona por baixo dos panos**: como o RPO alvo pode já ser
+qualquer container carregado (custom.rpo, tttm120.rpo, tlpp.rpo), o
+`--auto` copia o arquivo para dentro do diretório `apo` do container com
+o nome que o appserver espera, cria um fonte-gatilho trivial (`User
+Function RPOEXT01() Return .T.`) e roda `appsrvlinux -compile` sobre
+esse gatilho — isso força o appserver a abrir e regravar o RPO alvo,
+expondo tanto as funções que já existiam nele quanto a nova. Um
+breakpoint `gdb` em `tAppMap::EndBuild()` (ver
+`tools/rpo-live-inspect/extract_rpo.py`) lê a lista completa de funções
+já registradas no mapa, nomes duplicados com prefixo `U_U_` (artefato de
+declarar `User Function U_XXX()` já com `U_` no nome) são normalizados
+para `U_` automaticamente.
+
+**Sem `--auto`** (ex.: sem Docker disponível), rode a extração
+manualmente e reaproveite o dump:
+
+```bash
+advplc rpo extract custom.rpo
+# Nenhum dump encontrado. Para extrair funções:
+# <comando gdb sugerido, copiável>
+# ... rode o comando sugerido, depois:
+advplc rpo extract custom.rpo   # agora lê custom.rpo.extract.json
+```
+
 ## Opções de Linha de Comando
 
 | Opção | Descrição | Exemplo |

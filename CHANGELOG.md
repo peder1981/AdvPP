@@ -2,7 +2,59 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
-## [4.0.0] — 2026-09-16
+## [4.0.1] — 2026-09-19
+
+### Adicionado
+
+- **Suporte real ao formato RPO do Protheus** (`pkg/rpo`,
+  `advplc rpo <subcomando>`): leitura/escrita segura do container
+  (`info`/`identify`/`decompose`/`build`, round-trip byte-a-byte
+  comprovado contra RPOs reais de até 379 MB), extração da lista de
+  funções via memória de um appserver real (`extract [--auto]`, hook
+  `gdb`/`tAppMap::EndBuild`), e decodificação do conteúdo cifrado dado
+  uma captura ao vivo (`decrypt`). O mecanismo real de cifra do RPO foi
+  identificado por desmontagem (`objdump`/`gdb disassemble` de
+  `tCryptoEVP::Encrypt`, sem suposição): não é AES fixo, é uma tabela
+  rotativa de ~12 cifras legadas do OpenSSL (DES, 3DES/DES-EDE, RC4,
+  RC5-32/12/16, CAST5, Blowfish, RC2), com chave/IV efêmeros por sessão
+  de compilação — implementado e verificado byte a byte contra RPO real
+  em `pkg/rpo/cipher_dispatch.go` (10 de 12 cifras confirmadas; IDEA
+  reconhecida mas com implementação ainda não validada, retorna erro
+  explícito em vez de decodificar errado). Inclui portas próprias de
+  RC2 (RFC 2268, cross-validada contra pycryptodome) e RC5-32/12/16
+  (validada contra dado real capturado). Ferramenta `LD_PRELOAD`
+  (`tools/rpo-live-inspect/rpo_key_hook`) automatiza a captura sem
+  precisar de `gdb`. Investigação completa em `docs/rpo-format.md` e
+  `docs/rpo-format-sonnet.md`.
+- **Classe `tJWT`** (`pkg/vm/jwt_native.go`, RFC 7519): geração e
+  verificação de tokens JWT (HS256/RS256/RS512/PS256/PS384/PS512/ES256)
+  100% Go stdlib, com testes reais de criação/verificação e rejeição de
+  token expirado.
+- **Classe `tAMQP`** (`pkg/vm/amqp_native.go`): cliente AMQP 0-9-1 real
+  via `github.com/rabbitmq/amqp091-go` — New/QueueDeclare/
+  ExchangeDeclare/QueueBind/BasicPublish/BasicConsume/BasicAck e
+  correlatos. Testado contra um `rabbitmq:3-alpine` real.
+- Aliases INI (`GETPROFINT`/`GETPROFSTRING`/`WRITEPPROSTRING`/
+  `WRITEPROFSTRING`) reaproveitando os helpers já existentes.
+
+### Corrigido
+
+- `cmd/advplc/main.go`: removido um bloco de código morto (comandos
+  Cobra nunca integrados — o projeto não usa esse framework —
+  referenciando uma API de `pkg/rpo` que não existia) que quebrava
+  `go build ./...` do projeto inteiro.
+- `advplc rpo extract --auto`: a flag `--auto` nunca era detectada
+  (checava o índice errado do argumento) e, mesmo detectada, nunca
+  colocava o RPO no diretório esperado pelo appserver nem disparava um
+  `-compile` de gatilho — não podia ter funcionado. Corrigido e testado
+  ponta a ponta contra um container real.
+- `advplc rpo build`: esquecia de repassar os bytes brutos do cabeçalho
+  preservados por `decompose`, produzindo um arquivo 38 bytes menor e
+  incompatível — round-trip agora é byte-a-byte idêntico (com teste de
+  regressão).
+- Nomes de função com prefixo duplicado `U_U_` (artefato conhecido do
+  AdvPL — declarar `User Function U_XXX()` já com `U_` no nome) agora
+  são normalizados para `U_` em toda extração/exibição.
 
 ### Adicionado
 

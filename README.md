@@ -62,6 +62,7 @@ documenta o padrão e os bugs reais já encontrados nessa categoria.
 - **Cliente FTP** (classe `TFtpClient`): cliente FTP real (RFC 959, modo passivo) — upload/download/listagem/renomear/apagar; ver [Cliente FTP](#cliente-ftp-tftpclient)
 - **Criptografia** (`Argon2id`, classe `tPBKDF2`): Argon2id (RFC9106) e PBKDF2 (SHA1–SHA3-512) via `golang.org/x/crypto`; ver [Criptografia](#criptografia--argon2id-e-pbkdf2-tpbkdf2)
 - **Classes utilitárias TLPP** (`tHashMap`, `tJsonParser`, `tUnicode`): formas OOP documentadas pela TDN, interoperando com a API funcional já existente; ver [Classes utilitárias TLPP](#classes-utilitárias-tlpp-thashmap-tjsonparser-tunicode)
+- **Inspeção e manipulação de RPO** (`advplc rpo`, `pkg/rpo`): lê/escreve a estrutura de container do RPO (Repositório de Programas Objeto) do Protheus — `info`, `identify`, `decompose`/`build` com round-trip byte-a-byte comprovado, e `extract [--auto]` para obter a lista de funções rodando um appserver real sob `gdb`; ver [Manual do AdvPlc](docs/MANUAL_ADVPLC.md#inspeção-e-manipulação-de-rpo-advplc-rpo) e a investigação completa em [`docs/rpo-format.md`](docs/rpo-format.md)
 
 ## Servidor MCP (`MCPServer`)
 
