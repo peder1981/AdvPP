@@ -152,3 +152,24 @@ aviso no topo apontando para cá:
 
 *Este documento é mantido com evidência, não com narrativa. Se você mudar
 o código, atualize a evidência correspondente.*
+
+---
+
+## 10. Limitações Identificadas (2026-09-20)
+
+### 10.1 AppServer 24.3.1.1 — Comportamento Diferente
+
+**Observação:** A versão 24.3.1.1 do appserver (build 7.00.240223P)
+apresenta comportamento diferente da versão usada nos testes originais:
+
+- `EVP_EncryptInit_ex` **não é chamado** durante operações de cifragem
+- O hook LD_PRELOAD captura `SetKey` (chave mestra) e `EncryptUpdate`
+  (dados de entrada), mas **não captura o cipher name**
+- Sem o cipher name, a decodificação automática é impossível
+
+**Workaround temporário:**
+1. Usar appserver de versão anterior (12.1.2310) para capturas
+2. Ou usar gdb manual para break em `tCryptoEVP::Encrypt`
+3. Ou implementar hook em nível diferente (ex: `tCryptoEVP::Encrypt`)
+
+**Status:** Bloqueio conhecido,文档ado em `docs/RPO-LIMITATIONS.md`.
