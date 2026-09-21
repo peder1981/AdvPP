@@ -1,9 +1,13 @@
 # Contexto do Projeto AdvPP — Branch Unstable
 
 **Data de criação:** 2026-09-19  
-**Última atualização:** 2026-09-19  
+**Última atualização:** 2026-09-20  
 **Branch atual:** `unstable`  
+**Versão:** `4.3.1`  
 **Commit base:** `e75cdbc` (release vscode v4.0.1)
+
+> **Convenção da branch `unstable`:** a versão unstable sempre possui um `3`
+> no meio (`X.3.Y`). A versão corrente é **4.3.1**.
 
 ---
 
@@ -185,3 +189,49 @@ python3 tools/rpo-live-inspect/rpo_extractor.py custom.rpo --output ./reports/
 - `docs/RPO-EXTRACTION-TOOLS.md`
 
 ---
+
+
+---
+
+## 📚 Sessão: Ground Truth + Ferramentas Honestas RPO (2026-09-20)
+
+### ✅ Concluído
+- **`advplc rpo regions`** — classificação honesta de conteúdo (zero/ciphertext/mixed/plaintext) por entropia
+- **Testes de regressão** que provam os falsos positivos das sessões anteriores
+- **`docs/RPO-GROUND-TRUTH.md`** — documento autoritativo (CONFIRMADO/INFERIDO/REFUTADO/DESCONHECIDO)
+- **`pkg/rpo/apo_parser.go`** reescrito com score estrito (não emite ruído)
+- **`dismantle_rpo.py`** reescrito (gate por entropia)
+- **14 docs antigos** com banner de retratação
+- **Versão 4.3.1** definida (convenção: `X.3.Y` na unstable)
+
+### 🔴 Alegações REFUTADAS (corrigidas)
+| Alegação antiga | Realidade |
+|-----------------|-----------|
+| "Rotinas: AP448, DK158..." | Falso positivo de regex sobre cifra |
+| "Funções: U_4SH, U_B0H, U_PXYU" | Falso positivo de regex |
+| "AES-128-CBC" | Cifras legadas OpenSSL rotativas |
+| "Trailer = SHA-1" | Não verificado; 24 bytes opacos |
+| "Extração de RPO real" | Sucesso foi em fixture sintético |
+
+### 🟢 Confirmado
+- Container legível + round-trip byte-a-byte
+- Cifra rotativa (~12 legadas OpenSSL), chave/IV efêmeros
+- Payload zlib (`78 9c`)
+- Decodificação real **com captura ao vivo** (10/10 cifras verificadas)
+- tlpp.rpo e tttm120.rpo idênticos entre 2310 e 2510
+
+### 🎯 Comandos
+```bash
+advplc rpo info/identify/decompose/build   # container
+advplc rpo regions  arquivo.rpo            # classificação honesta
+advplc rpo analyze  arquivo.rpo            # entropia/bytes/strings
+advplc rpo decrypt  arquivo.rpo captura.json  # decodifica (com captura)
+go test ./pkg/rpo/ -v                      # 30+ testes
+```
+
+### 📁 Arquivos-chave
+- `pkg/rpo/forensics.go` + `forensics_test.go`
+- `cmd/advplc/cmd_rpo_regions.go`
+- `cmd/advplc/cmd_rpo_analyze.go`
+- `docs/RPO-GROUND-TRUTH.md` ⬅ **fonte autoritativa**
+- `tools/rpo-live-inspect/dismantle_rpo.py`

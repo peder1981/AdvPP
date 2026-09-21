@@ -1,3 +1,16 @@
+> [!] **DOCUMENTO RETRATADO — NÃO USE COMO FONTE**
+>
+> Este relatório foi escrito em sessão anterior e contém **alegações não
+> verificadas** que foram **testadas e refutadas** (ex.: "rotinas
+> identificadas" por regex sobre conteúdo cifrado — falsos positivos;
+> "AES-128-CBC" — incorreto; "extração de RPOs reais" — o sucesso foi em
+> fixture sintético).
+>
+> A fonte autoritativa é **[`RPO-GROUND-TRUTH.md`](./RPO-GROUND-TRUTH.md)**.
+> O conteúdo abaixo é preservado apenas como registro histórico.
+>
+> ---
+>
 # Extração de GetSx3Cache - Status Final
 
 **Data:** 2026-09-20  

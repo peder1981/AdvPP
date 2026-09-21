@@ -46,6 +46,8 @@ func cmdRpo(args []string) error {
 		return rpoBuild(args[1], args[2])
 	case "analyze":
 		return cmdRpoAnalyze(args[1:])
+	case "regions":
+		return cmdRpoRegions(args[1:])
 	case "decrypt":
 		return cmdRpoDecrypt(args[1:])
 	default:
@@ -62,8 +64,9 @@ Subcomandos:
   decompose <arquivo.rpo> <dir-saida>       decompõe em arquivos (header/admin/body/footer)
   build <dir-decomposto> <arquivo.rpo>      recompõe um RPO a partir de uma decomposição
   extract <arquivo.rpo> [--auto]            extrai lista de funções (requer appserver rodando)
-  decrypt <arquivo.rpo> <captura.json>
-  analyze <arquivo.rpo> [--verbose]        analisa estrutura do RPO      decodifica segmentos usando uma captura ao vivo prévia
+  decrypt <arquivo.rpo> <captura.json>      decodifica segmentos usando captura ao vivo prévia
+  analyze <arquivo.rpo> [--verbose]         análise estrutural (entropia, bytes, strings)
+  regions <arquivo.rpo> [--window N]        classifica conteúdo em zero/cifra/plaintext
 
 AVISO: o compilador lê/escreve a estrutura de CONTAINER do RPO (cabeçalho,
 ponteiro de auto-referência, footer) de forma segura e verificada. O conteúdo

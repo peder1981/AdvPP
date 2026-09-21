@@ -1,5 +1,30 @@
 package rpo
 
+// apo_parser.go — scanner EXPERIMENTAL e CONSERVADOR de candidatos a
+// registros APO (Advanced Program Object) dentro do conteúdo do RPO.
+//
+// [!] AVISO DE HONESTIDADE (leia antes de usar):
+//
+// Os registros APO REAIS vivem no conteúdo DECIFRADO e DESCOMPRIMIDO do
+// RPO (zlib). O conteúdo no disco é cifra alta-entropia. Um scanner que
+// procura "size+type" diretamente no conteúdo cifrado casa com RUÍDO
+// estatístico — a taxa de falso positivo é indistinguível da de dados
+// aleatórios do mesmo tamanho. Ver pkg/rpo/forensics.go e
+// forensics_test.go (prova empírica) e docs/RPO-GROUND-TRUTH.md.
+//
+// Portanto:
+//   - Este scanner NÃO é a forma correta de ler APOs. A forma correta é
+//     `advplc rpo decrypt` (com captura ao vivo) e então parsear o
+//     plaintext zlib.
+//   - Ele existe apenas como utilitário de inspeção para conteúdo JÁ
+//     decifrado (plaintext) ou para triagem, e é deliberadamente estrito:
+//     parte de confiança 0.0 e só eleva com EVIDÊNCIA verificável.
+//   - Em conteúdo cifrado, o resultado esperado é ~nenhum candidato
+//     acima de DefaultAPOMinConfidence. Se muitos aparecerem, é bug/ruído.
+//
+// Os nomes de tipo (APO_TYPE_*) abaixo foram inferidos de análise do
+// produto e NÃO são uma tabela oficial confirmada da TOTVS.
+
 import (
 	"encoding/binary"
 	"fmt"
@@ -7,66 +32,72 @@ import (
 	"regexp"
 )
 
-// APO Record Types - Based on analysis of Protheus RPO format
+// Tipos de registro APO (inferidos, não confirmados oficialmente).
 const (
-	APO_TYPE_FUNCTION   = 0x01 // User Function
-	APO_TYPE_METHOD     = 0x02 // Class Method
-	APO_TYPE_CLASS      = 0x03 // Class definition
-	APO_TYPE_PROPERTY   = 0x04 // Class property
-	APO_TYPE_VARIABLE   = 0x05 // Local/Global variable
-	APO_TYPE_CONSTANT   = 0x06 // Constant definition
-	APO_TYPE_INCLUDE    = 0x07 // Include directive
-	APO_TYPE_LIBRARY    = 0x08 // Library reference
-	APO_TYPE_NAMESPACE  = 0x09 // Namespace definition
-	APO_TYPE_EVENT      = 0x0A // Event handler
-	APO_TYPE_TRIGGER    = 0x0B // Table trigger
-	APO_TYPE_INDEX      = 0x0C // Database index
-	APO_TYPE_RELATION   = 0x0D // Table relation
-	APO_TYPE_VALIDATION = 0x0E // Field validation
-	APO_TYPE_UI         = 0x0F // UI element
-	APO_TYPE_REPORT     = 0x10 // Report definition
-	APO_TYPE_MENU       = 0x11 // Menu definition
-	APO_TYPE_PROCESS    = 0x12 // Business process
-	APO_TYPE_SERVICE    = 0x13 // Web service
-	APO_TYPE_JOB        = 0x14 // Background job
+	APO_TYPE_FUNCTION   = 0x01
+	APO_TYPE_METHOD     = 0x02
+	APO_TYPE_CLASS      = 0x03
+	APO_TYPE_PROPERTY   = 0x04
+	APO_TYPE_VARIABLE   = 0x05
+	APO_TYPE_CONSTANT   = 0x06
+	APO_TYPE_INCLUDE    = 0x07
+	APO_TYPE_LIBRARY    = 0x08
+	APO_TYPE_NAMESPACE  = 0x09
+	APO_TYPE_EVENT      = 0x0A
+	APO_TYPE_TRIGGER    = 0x0B
+	APO_TYPE_INDEX      = 0x0C
+	APO_TYPE_RELATION   = 0x0D
+	APO_TYPE_VALIDATION = 0x0E
+	APO_TYPE_UI         = 0x0F
+	APO_TYPE_REPORT     = 0x10
+	APO_TYPE_MENU       = 0x11
+	APO_TYPE_PROCESS    = 0x12
+	APO_TYPE_SERVICE    = 0x13
+	APO_TYPE_JOB        = 0x14
 )
 
-// APORecord represents a single APO record in the RPO
+// DefaultAPOMinConfidence é o limiar mínimo recomendado. Alto de
+// propósito: em conteúdo cifrado, nada deve passar deste limiar.
+const DefaultAPOMinConfidence = 0.80
+
+// APORecord é um candidato que passou o limiar.
 type APORecord struct {
 	Offset     int               `json:"offset"`
 	Size       int               `json:"size"`
 	Type       uint8             `json:"type"`
 	TypeName   string            `json:"type_name"`
 	Name       string            `json:"name"`
+	Evidence   []string          `json:"evidence,omitempty"`
 	Data       []byte            `json:"-"`
 	Properties map[string]string `json:"properties,omitempty"`
 }
 
-// APOParser extracts APO records from RPO content
+// APOCandidate é um possível cabeçalho de registro APO.
+type APOCandidate struct {
+	Offset     int
+	Size       uint32
+	Type       uint8
+	Confidence float64
+	Evidence   []string
+}
+
+// APOParser varre um buffer em busca de candidatos a registros APO.
 type APOParser struct {
 	data       []byte
 	records    []*APORecord
 	candidates []APOCandidate
 }
 
-// APOCandidate represents a potential APO record header
-type APOCandidate struct {
-	Offset     int
-	Size       uint32
-	Type       uint8
-	Confidence float64
-}
-
-// NewAPOParser creates a new APO parser for the given data
+// NewAPOParser cria o parser para o buffer informado (idealmente plaintext).
 func NewAPOParser(data []byte) *APOParser {
 	return &APOParser{
-		data:     data,
-		records:  make([]*APORecord, 0),
+		data:       data,
+		records:    make([]*APORecord, 0),
 		candidates: make([]APOCandidate, 0),
 	}
 }
 
-// GetTypeName returns the human-readable name for an APO type
+// GetTypeName devolve o nome legível de um tipo APO.
 func GetTypeName(typeId uint8) string {
 	switch typeId {
 	case APO_TYPE_FUNCTION:
@@ -114,355 +145,228 @@ func GetTypeName(typeId uint8) string {
 	}
 }
 
-// ScanForCandidates scans the content for potential APO record headers
+// ScanForCandidates varre o buffer por possíveis cabeçalhos. Cada
+// candidato recebe confiança ESTRITA (base 0.0) e a lista de evidências.
 func (p *APOParser) ScanForCandidates() []APOCandidate {
 	p.candidates = make([]APOCandidate, 0)
-	
-	// Scan in 4-byte alignment
-	for i := 0; i < len(p.data)-8; i += 4 {
-		// Read size (4 bytes, little-endian)
+
+	for i := 0; i+8 <= len(p.data); i += 4 {
 		size := binary.LittleEndian.Uint32(p.data[i : i+4])
-		
-		// Read type (1 byte)
-		if i+4 >= len(p.data) {
-			continue
-		}
 		typeId := p.data[i+4]
-		
-		// Validate size (reasonable range for APO records)
-		if size < 32 || size > 10*1024*1024 {
+
+		// Pré-filtros duros (sem eles, nem vale pontuar).
+		if size < 8 || size > 10*1024*1024 {
 			continue
 		}
-		
-		// Validate type (known range)
 		if typeId > 0x20 {
 			continue
 		}
-		
-		// Calculate confidence based on patterns
-		confidence := p.calculateConfidence(i, size, typeId)
-		
+
+		conf, ev := p.scoreCandidate(i, size, typeId)
+		if conf < 0.5 {
+			continue
+		}
 		p.candidates = append(p.candidates, APOCandidate{
-			Offset: i,
-			Size:   size,
-			Type:   typeId,
-			Confidence: confidence,
+			Offset:     i,
+			Size:       size,
+			Type:       typeId,
+			Confidence: conf,
+			Evidence:   ev,
 		})
 	}
-	
 	return p.candidates
 }
 
-// calculateConfidence calculates how likely a candidate is to be a real APO record
-func (p *APOParser) calculateConfidence(offset int, size uint32, typeId uint8) float64 {
-	confidence := 0.5 // Base confidence
-	
-	// Check if followed by printable text (function names)
-	if offset+8 < len(p.data) {
-		end := offset + 8 + 15
-		if end > len(p.data) {
-			end = len(p.data)
+// scoreCandidate calcula confiança ESTRITA, partindo de 0.0 e só somando
+// com evidência verificável. Sem identificador válido, rejeita (0.0).
+func (p *APOParser) scoreCandidate(offset int, size uint32, typeId uint8) (float64, []string) {
+	conf := 0.0
+	var ev []string
+
+	// Evidência 1 (+0.40): identificador ASCII válido, null-terminado,
+	// logo após o cabeçalho de 5 bytes.
+	name, nameEnd := p.readIdentifierAt(offset + 5)
+	if name == "" {
+		return 0, nil // sem nome não há registro APO utilizável
+	}
+	conf += 0.40
+	ev = append(ev, "identificador válido: "+name)
+
+	// Evidência 2 (+0.10): tamanho declarado dentro dos limites.
+	if int(size)+offset <= len(p.data) {
+		conf += 0.10
+		ev = append(ev, "tamanho dentro dos limites")
+	}
+
+	// Evidência 3 (+0.20): tipo conhecido.
+	if GetTypeName(typeId) != fmt.Sprintf("Unknown_0x%02X", typeId) {
+		conf += 0.20
+		ev = append(ev, "tipo conhecido: "+GetTypeName(typeId))
+	}
+
+	// Evidência 4 (+0.20): após o nome vem outro campo length-prefixed
+	// ASCII plausível (encadeamento típico do diretório RPO).
+	if nameEnd+4 <= len(p.data) {
+		nextLen := int(binary.LittleEndian.Uint32(p.data[nameEnd : nameEnd+4]))
+		if nextLen > 0 && nextLen < 256 {
+			conf += 0.20
+			ev = append(ev, "campo seguinte length-prefixed plausível")
 		}
-		nextBytes := p.data[offset+5:end]
-		printable := 0
-		for _, b := range nextBytes {
-			if (b >= 0x20 && b <= 0x7E) || b == 0x00 {
-				printable++
-			}
-		}
-		if len(nextBytes) > 0 && printable > len(nextBytes)*7/10 {
-			confidence += 0.2
-		}
 	}
-	
-	// Check alignment
-	if offset%16 == 0 {
-		confidence += 0.1
+
+	// Evidência 5 (+0.10): alinhamento a 4 bytes.
+	if offset%4 == 0 {
+		conf += 0.10
+		ev = append(ev, "alinhado a 4 bytes")
 	}
-	
-	// Type-specific adjustments
-	switch typeId {
-	case APO_TYPE_FUNCTION, APO_TYPE_METHOD:
-		confidence += 0.1 // Common types
-	case APO_TYPE_CLASS:
-		confidence += 0.15 // Important type
+
+	if conf > 1.0 {
+		conf = 1.0
 	}
-	
-	if confidence > 1.0 {
-		confidence = 1.0
-	}
-	
-	return confidence
+	return conf, ev
 }
 
-// ParseRecords extracts APO records from candidates
+// readIdentifierAt lê um identificador ASCII null-terminado em `off`.
+// Devolve (nome, offset_apos_null) ou ("", off) se inválido.
+func (p *APOParser) readIdentifierAt(off int) (string, int) {
+	if off < 0 || off >= len(p.data) {
+		return "", off
+	}
+	end := off
+	for end < len(p.data) && p.data[end] != 0 {
+		end++
+		if end-off > 64 {
+			return "", off
+		}
+	}
+	if end >= len(p.data) {
+		return "", off
+	}
+	name := string(p.data[off:end])
+	if !isValidAdvplName(name) {
+		return "", off
+	}
+	return name, end + 1
+}
+
+// isValidAdvplName valida um identificador AdvPL/TLPP (nome puro, sem
+// pontos). Aceita até 64 chars para nomes de módulo.
+func isValidAdvplName(name string) bool {
+	if len(name) == 0 || len(name) > 64 {
+		return false
+	}
+	re := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	return re.MatchString(name)
+}
+
+// ParseRecords devolve os candidatos acima de minConfidence. Use
+// DefaultAPOMinConfidence (0.85) — limiar baixo produz ruído.
 func (p *APOParser) ParseRecords(minConfidence float64) []*APORecord {
-	candidates := p.ScanForCandidates()
-	
 	p.records = make([]*APORecord, 0)
-	for _, cand := range candidates {
+	for _, cand := range p.ScanForCandidates() {
 		if cand.Confidence < minConfidence {
 			continue
 		}
-		
-		// Extract record
-		record := p.extractRecord(cand)
-		if record != nil {
-			p.records = append(p.records, record)
+		if rec := p.extractRecord(cand); rec != nil {
+			p.records = append(p.records, rec)
 		}
 	}
-	
 	return p.records
 }
 
-// extractRecord extracts an APO record from a candidate
 func (p *APOParser) extractRecord(cand APOCandidate) *APORecord {
 	end := cand.Offset + int(cand.Size)
 	if end > len(p.data) {
-		return nil
+		end = len(p.data)
 	}
-	
 	data := p.data[cand.Offset:end]
-	
-	record := &APORecord{
-		Offset: cand.Offset,
-		Size: int(cand.Size),
-		Type: cand.Type,
-		TypeName: GetTypeName(cand.Type),
-		Data: data,
-		Properties: make(map[string]string),
+
+	rec := &APORecord{
+		Offset:     cand.Offset,
+		Size:       int(cand.Size),
+		Type:       cand.Type,
+		TypeName:   GetTypeName(cand.Type),
+		Name:       func() string { n, _ := p.readIdentifierAt(cand.Offset + 5); return n }(),
+		Evidence:   cand.Evidence,
+		Data:       data,
+		Properties: map[string]string{},
 	}
-	
-	// Extract name (usually first printable string after header)
-	name := p.extractName(data)
-	record.Name = name
-	if name != "" {
-		record.Properties["name"] = name
+	if rec.Name != "" {
+		rec.Properties["name"] = rec.Name
 	}
-	
-	// Extract additional properties based on type
-	p.extractProperties(record, data)
-	
-	return record
+	return rec
 }
 
-// extractName extracts the function/method name from APO data
-func (p *APOParser) extractName(data []byte) string {
-	// Skip the 5-byte header (4 size + 1 type)
-	offset := 5
-	if offset >= len(data) {
-		return ""
-	}
-	
-	// Find first null-terminated string
-	nameEnd := -1
-	for i := offset; i < len(data)-1; i++ {
-		if data[i] == 0x00 && i > offset {
-			nameEnd = i
-			break
-		}
-	}
-	
-	if nameEnd > 0 {
-		nameBytes := data[offset:nameEnd]
-		// Validate it looks like a valid identifier
-		if isValidAdvplName(string(nameBytes)) {
-			return string(nameBytes)
-		}
-	}
-	
-	return ""
-}
-
-// isValidAdvplName checks if a string is a valid AdvPL identifier
-func isValidAdvplName(name string) bool {
-	if len(name) == 0 || len(name) > 30 {
-		return false
-	}
-	
-	// Must start with letter or underscore
-	first := name[0]
-	if !((first >= 'A' && first <= 'Z') || (first >= 'a' && first <= 'z') || first == '_') {
-		return false
-	}
-	
-	// Allow alphanumeric and underscore
-	nameRegex := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-	return nameRegex.MatchString(name)
-}
-
-// extractProperties extracts type-specific properties from APO data
-func (p *APOParser) extractProperties(record *APORecord, data []byte) {
-	// Common properties extraction
-	switch record.Type {
-	case APO_TYPE_FUNCTION, APO_TYPE_METHOD:
-		p.extractFunctionProperties(record, data)
-	case APO_TYPE_CLASS:
-		p.extractClassProperties(record, data)
-	case APO_TYPE_VARIABLE:
-		p.extractVariableProperties(record, data)
-	}
-}
-
-// extractFunctionProperties extracts properties from function APO records
-func (p *APOParser) extractFunctionProperties(record *APORecord, data []byte) {
-	// Look for parameter count
-	if len(data) > 10 {
-		paramCount := int(data[5])
-		if paramCount >= 0 && paramCount < 50 {
-			record.Properties["parameters"] = fmt.Sprintf("%d", paramCount)
-		}
-	}
-	
-	// Look for return type indicator
-	if len(data) > 12 {
-		record.Properties["has_return"] = fmt.Sprintf("%v", data[11] != 0)
-	}
-}
-
-// extractClassProperties extracts properties from class APO records
-func (p *APOParser) extractClassProperties(record *APORecord, data []byte) {
-	// Look for parent class reference
-	if len(data) > 8 {
-		record.Properties["has_parent"] = fmt.Sprintf("%v", data[5] != 0)
-	}
-}
-
-// extractVariableProperties extracts properties from variable APO records
-func (p *APOParser) extractVariableProperties(record *APORecord, data []byte) {
-	// Look for variable type
-	if len(data) > 8 {
-		varType := data[5]
-		typeNames := map[uint8]string{
-			0x00: "auto",
-			0x01: "local",
-			0x02: "static",
-			0x03: "global",
-			0x04: "parameter",
-		}
-		if name, ok := typeNames[varType]; ok {
-			record.Properties["var_type"] = name
-		}
-	}
-}
-
-// ExtractFunctions extracts all function/method names from RPO content
+// ExtractFunctions devolve nomes de candidatos de tipo Function/Method.
+// Em conteúdo cifrado o resultado esperado é vazio.
 func (p *APOParser) ExtractFunctions() []string {
-	records := p.ParseRecords(0.6)
-	
-	functions := make([]string, 0)
-	for _, record := range records {
-		if record.Type == APO_TYPE_FUNCTION || record.Type == APO_TYPE_METHOD {
-			if record.Name != "" {
-				functions = append(functions, record.Name)
-			}
+	out := make([]string, 0)
+	for _, r := range p.ParseRecords(DefaultAPOMinConfidence) {
+		if (r.Type == APO_TYPE_FUNCTION || r.Type == APO_TYPE_METHOD) && r.Name != "" {
+			out = append(out, r.Name)
 		}
 	}
-	
-	return functions
+	return out
 }
 
-// ExtractAll extracts all APO information from RPO content
+// ExtractAll devolve um resumo estruturado.
 func (p *APOParser) ExtractAll() map[string]interface{} {
-	records := p.ParseRecords(0.5)
-	
+	records := p.ParseRecords(DefaultAPOMinConfidence)
 	result := map[string]interface{}{
 		"total_records": len(records),
-		"by_type":      make(map[string]int),
-		"records":      make([]map[string]interface{}, 0),
+		"by_type":       map[string]int{},
+		"records":       []map[string]interface{}{},
+		"note":          "scanner estrito; em conteúdo cifrado o esperado é 0 registros",
 	}
-	
-	// Count by type
-	for _, record := range records {
-		result["by_type"].(map[string]int)[record.TypeName]++
-	}
-	
-	// Add records
-	for _, record := range records {
-		recordMap := map[string]interface{}{
-			"offset": record.Offset,
-			"size": record.Size,
-			"type": record.TypeName,
-			"name": record.Name,
-		}
-		if len(record.Properties) > 0 {
-			recordMap["properties"] = record.Properties
-		}
-		result["records"] = append(result["records"].([]map[string]interface{}), recordMap)
-	}
-	
-	return result
-}
-
-// DumpToWriter dumps APO information to a writer
-func (p *APOParser) DumpToWriter(w io.Writer) {
-	records := p.ParseRecords(0.5)
-	
-	fmt.Fprintf(w, "=== APO Records Analysis ===\n")
-	fmt.Fprintf(w, "Total records found: %d\n\n", len(records))
-	
-	// Summary by type
-	typeCounts := make(map[string]int)
 	for _, r := range records {
-		typeCounts[r.TypeName]++
+		result["by_type"].(map[string]int)[r.TypeName]++
+		result["records"] = append(result["records"].([]map[string]interface{}), map[string]interface{}{
+			"offset":   r.Offset,
+			"size":     r.Size,
+			"type":     r.TypeName,
+			"name":     r.Name,
+			"evidence": r.Evidence,
+		})
 	}
-	
-	fmt.Fprintf(w, "By type:\n")
-	for typeName, count := range typeCounts {
-		fmt.Fprintf(w, "  %-20s: %d\n", typeName, count)
-	}
-	fmt.Fprintf(w, "\n")
-	
-	// List records
-	fmt.Fprintf(w, "Records:\n")
-	for i, record := range records {
-		fmt.Fprintf(w, "  [%d] Offset: %d, Size: %d, Type: %s", i+1, record.Offset, record.Size, record.TypeName)
-		if record.Name != "" {
-			fmt.Fprintf(w, ", Name: %s", record.Name)
-		}
-		fmt.Fprintf(w, "\n")
-		
-		if len(record.Properties) > 0 {
-			for k, v := range record.Properties {
-				fmt.Fprintf(w, "      %s: %s\n", k, v)
-			}
-		}
-	}
-}
-
-// FindCandidatesAboveThreshold finds candidates with confidence above threshold
-func (p *APOParser) FindCandidatesAboveThreshold(threshold float64) []APOCandidate {
-	candidates := p.ScanForCandidates()
-	
-	filtered := make([]APOCandidate, 0)
-	for _, cand := range candidates {
-		if cand.Confidence >= threshold {
-			filtered = append(filtered, cand)
-		}
-	}
-	
-	return filtered
-}
-
-// GetTopCandidates returns the top N candidates by confidence
-func (p *APOParser) GetTopCandidates(n int) []APOCandidate {
-	candidates := p.ScanForCandidates()
-	
-	// Sort by confidence (bubble sort for simplicity)
-	for i := 0; i < len(candidates); i++ {
-		for j := i + 1; j < len(candidates); j++ {
-			if candidates[j].Confidence > candidates[i].Confidence {
-				candidates[i], candidates[j] = candidates[j], candidates[i]
-			}
-		}
-	}
-	
-	if n > len(candidates) {
-		n = len(candidates)
-	}
-	
-	result := make([]APOCandidate, n)
-	copy(result, candidates[:n])
-	
 	return result
+}
+
+// DumpToWriter escreve o relatório textual.
+func (p *APOParser) DumpToWriter(w io.Writer) {
+	records := p.ParseRecords(DefaultAPOMinConfidence)
+	fmt.Fprintf(w, "=== APO (scanner estrito) ===\n")
+	fmt.Fprintf(w, "Registros acima de %.2f: %d\n\n", DefaultAPOMinConfidence, len(records))
+	for i, r := range records {
+		fmt.Fprintf(w, "  [%d] +%d size=%d type=%s name=%s\n", i+1, r.Offset, r.Size, r.TypeName, r.Name)
+		for _, e := range r.Evidence {
+			fmt.Fprintf(w, "        - %s\n", e)
+		}
+	}
+}
+
+// FindCandidatesAboveThreshold devolve candidatos acima do limiar.
+func (p *APOParser) FindCandidatesAboveThreshold(threshold float64) []APOCandidate {
+	var out []APOCandidate
+	for _, c := range p.ScanForCandidates() {
+		if c.Confidence >= threshold {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// GetTopCandidates devolve os N candidatos de maior confiança.
+func (p *APOParser) GetTopCandidates(n int) []APOCandidate {
+	cs := p.ScanForCandidates()
+	for i := 0; i < len(cs); i++ {
+		for j := i + 1; j < len(cs); j++ {
+			if cs[j].Confidence > cs[i].Confidence {
+				cs[i], cs[j] = cs[j], cs[i]
+			}
+		}
+	}
+	if n > len(cs) {
+		n = len(cs)
+	}
+	return cs[:n]
 }

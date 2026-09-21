@@ -1,3 +1,7 @@
+> **Fonte autoritativa:** [`RPO-GROUND-TRUTH.md`](./RPO-GROUND-TRUTH.md).
+> Este guia descreve as ferramentas; o ground-truth descreve o que é
+> **confirmado / inferido / refutado**.
+
 # RPO Extraction Tools
 
 Ferramentas genéricas para análise e extração de metadata de RPOs Protheus sem necessidade de chaves de criptografia.
@@ -28,6 +32,23 @@ advplc rpo analyze --verbose custom.rpo
 ```
 
 **Arquivo:** `cmd/advplc/cmd_rpo_analyze.go`
+
+### 1b. CLI: `advplc rpo regions` (recomendado)
+
+Classificação **honesta** do conteúdo em zero / ciphertext / mixed / plaintext
+por entropia de Shannon. É a ferramenta que **não inventa estrutura**.
+
+```bash
+advplc rpo regions arquivo.rpo                # resumo + veredito
+advplc rpo regions arquivo.rpo --top 5        # janelas de maior entropia
+advplc rpo regions arquivo.rpo --strings      # strings só de janelas plaintext
+advplc rpo regions arquivo.rpo --window 8192  # tamanho de janela
+```
+
+Saída típica de um RPO real: **100% ciphertext, 0% plaintext** → veredito
+explícito de que não há estrutura legível sem captura de chave.
+
+**Arquivo:** `cmd/advplc/cmd_rpo_regions.go` + `pkg/rpo/forensics.go`
 
 ### 2. Script Python: `rpo_extractor.py`
 

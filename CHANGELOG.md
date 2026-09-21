@@ -2,6 +2,55 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [4.3.1] — 2026-09-20
+
+> **Convenção da branch `unstable`:** a versão unstable sempre terá um `3` no
+> meio (`X.3.Y`). Esta é a `4.3.1`.
+
+### Adicionado
+
+- **`advplc rpo regions`** (`cmd/advplc/cmd_rpo_regions.go`, `pkg/rpo/forensics.go`):
+  classificação **honesta** do conteúdo do RPO em janelas `zero` /
+  `ciphertext` / `mixed` / `plaintext` por entropia de Shannon. Substitui as
+  tentativas antigas de "identificar rotinas" por regex sobre conteúdo cifrado
+  — que produziam **falsos positivos**. `--top N` lista as janelas de maior
+  entropia; `--strings` extrai strings **apenas** de janelas plaintext.
+- **Testes de regressão que provam os falsos positivos**
+  (`pkg/rpo/forensics_test.go`): `TestRegexFalsePositiveOnCiphertext` demonstra
+  que a taxa de matches de `U_[...]` e `[A-Z]{2,4}[0-9]{3,5}` sobre o conteúdo
+  cifrado real é indistinguível de dados aleatórios; `TestPlaintextGateBlocosStrings`
+  e `TestClassifyRegionsSeparaCifraDeTexto` garantem o gate por entropia.
+- **`docs/RPO-GROUND-TRUTH.md`**: documento autoritativo com veredito
+  classificado em CONFIRMADO / INFERIDO / REFUTADO / DESCONHECIDO, com
+  evidência (arquivo de teste) por afirmação. Retrata explicitamente as
+  alegações falsas antigas (`AES-128-CBC`; "rotinas identificadas"; "funções U_";
+  "candidatos APO"; trailer como "SHA-1"; sucesso de extração em fixture
+  sintético).
+
+### Corrigido
+
+- **`pkg/rpo/apo_parser.go`**: o scanner de candidatos APO foi reescrito com
+  score **estrito** (base 0.0, só sobe com evidência verificável — identificador
+  válido null-terminado, tipo conhecido, campo seguinte length-prefixed,
+  alinhamento). Antes tinha confiança-base 0.5 e aceitava ruído de conteúdo
+  cifrado. Novo limiar padrão `DefaultAPOMinConfidence = 0.80`. Em conteúdo
+  cifrado/aleatório o resultado esperado passa a ser **0 candidatos**
+  (`TestAPOScannerRejectsCiphertext`).
+- **`tools/rpo-live-inspect/dismantle_rpo.py`**: reescrito. Não aplica mais
+  regex de nomes sobre o arquivo inteiro; classifica regiões por entropia e só
+  extrai strings de janelas plaintext. Em RPOs cifrados, reporta explicitamente
+  que não há estrutura legível.
+- **`docs/`**: 14 relatórios antigos receberam banner de **retratação** no topo,
+  apontando para `RPO-GROUND-TRUTH.md` (conteúdo preservado como registro
+  histórico).
+
+### Notas
+
+- O miolo do RPO (cifra rotativa de ~12 cifras legadas OpenSSL + payload zlib)
+  segue **só decodificável com captura de chave ao vivo** da mesma sessão de
+  compilação (`advplc rpo decrypt`). Nenhuma alegação deste release afirma o
+  contrário.
+
 ## [4.0.1] — 2026-09-19
 
 ### Adicionado
