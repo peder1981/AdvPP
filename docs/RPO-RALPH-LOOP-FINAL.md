@@ -173,3 +173,39 @@ A recuperação completa de fontes depende de:
 ---
 
 *Documento gerado por Agnes (Sapiens AI) — 2026-09-21*
+
+---
+
+## 9. Lições Aprendidas (2026-09-21)
+
+### 9.1 Chaves São Efêmeras Por Compilação
+```
+Live Capture (funcional):   Key = 2c92e5a7d1b59f4fad2060247631e220
+Nova Compilação:            Key = fbe6abe761b3abbb1bd4f639bf46dde2
+```
+**Conclusão:** Cada compilação gera chaves ÚNICAS. Para decodificar um RPO:
+1. Capturar chaves DURANTE a compilação que gerou o RPO
+2. Usar o MESMO RPO gerado naquela compilação
+3. Nunca usar captura de uma compilação diferente
+
+### 9.2 Versões do AppServer
+| Versão | EVP API | Hook Funciona |
+|--------|---------|---------------|
+| 20.3.2.14 (12.1.2310) | NÃO usa EVP_EncryptInit_ex | ❌ Não captura cipher |
+| 24.3.1.1 (12.1.2510) | NÃO usa EVP_EncryptInit_ex | ❌ Não captura cipher |
+| Fixture sintético | Usa EVP API | ✅ Funciona |
+
+### 9.3 Decodificação Bem-Sucedida
+O fixture `live_capture.rpo` foi decodificado com sucesso:
+- 10/15 segmentos decodificados
+- Estrutura interna revelada: diretório de nomes (RPORC5_TRIGGER.PRW, SIGA*.MAP)
+- Payload zlib confirmado
+
+### 9.4 RPOs de Produção
+| RPO | Tamanho | MD5 | Decodificado? |
+|-----|---------|-----|---------------|
+| custom.rpo | 11.44 MB | a65af2e5... | ❌ Sem captura correspondente |
+| tlpp.rpo | 3.99 MB | 1755a366... | ❌ Sem captura correspondente |
+| tttm120.rpo | 15.07 MB | d1ba7556... | ❌ Sem captura correspondente |
+
+**Nota:** Os RPOs em `/tmp/*_1212310.rpo` são de uma versão diferente (20.3.2.14) e podem ter formato ligeiramente distinto.
