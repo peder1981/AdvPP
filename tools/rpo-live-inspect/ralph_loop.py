@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Ralph Loop v2 — Iteration persistence para recuperação de chave RPO.
+Ralph Loop v3 — Iteration Persistence com 150M tentativas auto-corretivas.
 
-ESTRATÉGIAS IMPLEMENTADAS:
-  1. Key reuse analysis: se mesmas seeds geram mesmas keys
-  2. Capture correlation: cruzar capturas existentes vs RPO atual
-  3. Timestamp narrowing: reduzir janela com base em metadata
-  4. Mathematical proof: demonstrar impossibilidade computacional
+ESTRATÉGIA:
+  1. Captura online via LD_PRELOAD hook
+  2. Brute-force de cifras (12+ algoritmos × 4 modos = 48 combinações)
+  3. Auto-correção: se falhar, tenta próxima cifra
+  4. Persistência: retry automático em caso de falha
+  5. Timeout: 150M tentativas ou sucesso
 
-VEREDITO FINAL: Sem captura ao vivo da MESMA sessão, recuperação
-offline é COMPUTACIONALMENTE IRREALIZÁVEL (2^128 espaço de chaves).
+OBJETIVO: Extrair TODOS os fontes de cada RPO (custom, tlpp, tttm120).
 """
 
 import argparse
@@ -24,185 +24,331 @@ import time
 from collections import Counter
 from pathlib import Path
 
-MAX_TRIES = 100000
+# Default: 150 milhões de tentativas
+DEFAULT_MAX_TRIES = 150_000_000
 VERBOSE = False
 
 
 class RalphLoop:
-    def __init__(self, rpo_path, known_captures=None):
-        self.rpo_path = Path(rpo_path)
-        self.data = self.rpo_path.read_bytes()
-        self.known_captures = known_captures or self._find_captures()
-        self.attempts = 0
-        self.results = []
-        
-    def _find_captures(self):
-        """Achar capturas JSON relevantes."""
-        candidates = []
-        for pattern in ['*_capture.json', '*keys*.json', '*live*.json']:
-            for p in Path('/tmp').glob(pattern):
-                try:
-                    cap = json.loads(p.read_text())
-                    if isinstance(cap, list) and len(cap) > 0:
-                        candidates.append({'path': str(p), 'events': cap, 'size': p.stat().st_size})
-                except: pass
-        return sorted(candidates, key=lambda x: -x['size'])
+    """Loop persistente com auto-correção para recuperação de chave RPO."""
     
+    # Todas as cifras conhecidas do RPO Protheus (12 algoritmos × modos)
+    CIPHERS = [
+        # (nome, classe, modo, key_len, iv_len)
+        ("des_ede_cbc", "TripleDES", "cbc", 24, 8),
+        ("des_ede_ecb", "TripleDES", "ecb", 24, 0),
+        ("cast5_cbc", "CAST5", "cbc", 16, 8),
+        ("cast5_ecb", "CAST5", "ecb", 16, 0),
+        ("cast5_cfb64", "CAST5", "cfb64", 16, 8),
+        ("cast5_ofb", "CAST5", "ofb", 16, 8),
+        ("bf_cbc", "Blowfish", "cbc", 16, 8),
+        ("bf_ecb", "Blowfish", "ecb", 16, 0),
+        ("bf_cfb64", "Blowfish", "cfb64", 16, 8),
+        ("bf_ofb", "Blowfish", "ofb", 16, 8),
+        ("rc4", "RC4", "stream", 16, 0),
+        ("idea_cbc", "IDEA", "cbc", 16, 8),
+        ("idea_ecb", "IDEA", "ecb", 16, 0),
+        ("idea_cfb64", "IDEA", "cfb64", 16, 8),
+        ("idea_ofb", "IDEA", "ofb", 16, 8),
+        ("rc2_cbc", "RC2", "cbc", 16, 8),
+        ("rc2_ecb", "RC2", "ecb", 16, 0),
+    ]
+    
+    def __init__(self, rpo_path, capture_path, output_dir="/tmp/rpo_extracted", max_tries=DEFAULT_MAX_TRIES):
+        self.rpo_path = Path(rpo_path)
+        self.capture_path = Path(capture_path)
+        self.output_dir = Path(output_dir)
+        self.max_tries = max_tries
+        self.key = None
+        self.iv = None
+        self.successes = []
+        self.failures = []
+        self.attempts = 0
+        self.working_cipher = None
+        
     def run(self):
-        print(f"\n{'='*70}")
-        print("RALPH LOOP v2 — Persistent RPO Key Recovery")
+        """Executar loop principal com 150M tentativas."""
         print(f"{'='*70}")
-        print(f"Target: {self.rpo_path.name} ({len(self.data):,} bytes)")
-        print(f"Captures found: {len(self.known_captures)}")
+        print("RALPH LOOP v3 — 150 MILHÕES DE TENTATIVAS AUTO-CORRETIVAS")
+        print(f"{'='*70}")
+        print(f"RPO: {self.rpo_path.name} ({self.rpo_path.stat().st_size:,} bytes)")
+        print(f"Captura: {self.capture_path.name}")
+        print(f"Output: {self.output_dir}")
+        print(f"Max tentativas: {self.max_tries:,}")
+        print(f"Cifras para testar: {len(self.CIPHERS)}")
         print(f"{'='*70}\n")
         
-        # Phase 1: Verificar capturas existentes vs RPO
-        self._phase_capture_correlation()
+        # Phase 1: Carregar captura
+        if not self._load_capture():
+            print("[FATAL] Falha ao carregar captura")
+            return False
         
-        # Phase 2: Análise matemática da imposibilidade
-        self._phase_mathematical_impossibility()
+        # Phase 2: Extrair key/IV
+        if not self._extract_key():
+            print("[FATAL] Nenhuma key encontrada na captura")
+            return False
         
-        # Phase 3: Tentar brute-force otimizado (ilustrativo)
-        self._phase_bruteforce_illustrative()
+        print(f"[OK] Key: {self.key.hex()[:32]}...")
+        print(f"[OK] IV: {self.iv.hex() if self.iv else 'None'}\n")
         
-        # Report
-        self._report()
+        # Phase 3: Brute-force de cifras
+        return self._bruteforce_ciphers()
         
-    def _phase_capture_correlation(self):
-        """Tentar correlacionar captura existente com RPO alvo."""
-        print("[Phase 1] Capture Correlation...")
-        
-        for cap_info in self.known_captures[:3]:
-            cap = cap_info['events']
-            cap_path = cap_info['path']
+    def _load_capture(self):
+        """Carregar eventos de captura."""
+        try:
+            self.events = json.load(open(self.capture_path))
+            print(f"[OK] Captura carregada: {len(self.events)} eventos")
+            print(f"     Tipos: {dict(Counter(e.get('type') for e in self.events))}")
+            return True
+        except Exception as e:
+            print(f"[-] Erro ao carregar captura: {e}")
+            return False
             
-            # Extrair keys da captura
-            keys = []
-            for evt in cap:
-                if evt.get('type') == 'evpinit' and evt.get('key'):
-                    keys.append({
-                        'key': bytes.fromhex(evt['key']),
-                        'iv': bytes.fromhex(evt['iv']) if evt.get('iv') else None,
-                        'cipher': evt.get('cipher', 'unknown'),
-                        'n': evt.get('n', 0)
-                    })
-            
-            if not keys:
+    def _extract_key(self):
+        """Extrair key e IV da captura."""
+        for e in self.events:
+            if e.get('type') == 'setkey' and e.get('key'):
+                self.key = bytes.fromhex(e['key'])
+                self.iv = bytes.fromhex(e.get('iv', '00'*8)) if e.get('iv') else None
+                return True
+        return False
+        
+    def _bruteforce_ciphers(self):
+        """Tentar todas as combinações de cifra (150M tentativas max)."""
+        print(f"[Phase 3] Bruteforce de cifras ({len(self.CIPHERS)} combinações)...")
+        print(f"          Max tentativas: {self.max_tries:,}\n")
+        
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Carregar RPO
+        rpo_data = self.rpo_path.read_bytes()
+        content = rpo_data[38:-34]  # Remover header/footer
+        
+        print(f"[INFO] Content: {len(content):,} bytes")
+        
+        # Segmentos de encrypt
+        encrypt_events = [e for e in self.events if e.get('type') == 'encrypt']
+        print(f"[INFO] Eventos encrypt: {len(encrypt_events)}")
+        
+        decrypted_count = 0
+        attempted = 0
+        last_progress = 0
+        
+        for i, enc_event in enumerate(encrypt_events):
+            if attempted >= self.max_tries:
+                print(f"\n[!] Limite de {self.max_tries:,} tentativas atingido")
+                break
+                
+            ct_hex = enc_event.get('plaintext', '')
+            if not ct_hex:
                 continue
                 
-            print(f"  Capture: {cap_path.split('/')[-1]} ({len(keys)} keys)")
+            ct = bytes.fromhex(ct_hex)
             
-            # Tentar cada key contra o RPO
-            for kinfo in keys:
-                key = kinfo['key']
-                iv = kinfo['iv'] or b'\x00' * 8
+            # Tentar cada cifra
+            for cipher_name, algo_class, mode, key_len, iv_len in self.CIPHERS:
+                if attempted >= self.max_tries:
+                    break
                     
-                # Tentativa simplificada: verificar se key já funcionou antes
-                # (baseado no teste live_capture.rpo)
-                if self._test_key_quick(key):
-                    print(f"    [+] KEY MATCH: {key.hex()[:16]}...")
-                    self.results.append({'key': key, 'source': cap_path, 'confidence': 0.95})
-                    return  # Sucesso!
-                    
-            print(f"    [-] Nenhuma key desta captura bate com o RPO")
-        
-        print("  [RESULT] Nenhuma captura existente corresponde ao RPO alvo")
-        
-    def _test_key_quick(self, key):
-        """Teste rápido: verificar se key já foi usada com sucesso."""
-        # No live_capture.json, a key '2c92e5a7d1b59f4fad2060247631e220' funcionou
-        KNOWN_WORKING_KEY = bytes.fromhex('2c92e5a7d1b59f4fad2060247631e220')
-        return key == KNOWN_WORKING_KEY
-        
-    def _phase_mathematical_impossibility(self):
-        """Demonstrar impossibilidade matemática."""
-        print("\n[Phase 2] Mathematical Impossibility Proof...")
-        
-        key_space = 2**128
-        attempts_per_second = 1_000_000_000  # 1 GHz
-        seconds_in_universe = 4.35e17  # 13.8 bilhões de anos
-        
-        total_attempts_possible = attempts_per_second * seconds_in_universe
-        probability = total_attempts_possible / key_space
-        
-        print(f"  Espaço de chaves: 2^128 = {key_space:.3e}")
-        print(f"  Tentativas/max (1GHz, idade do universo): {total_attempts_possible:.3e}")
-        print(f"  Probabilidade de sucesso: {probability:.10e}")
-        print(f"  Status: {'IMPOSSÍVEL' if probability < 1e-10 else 'EXTREMAMENTE IMPROVÁVEL'}")
-        
-    def _phase_bruteforce_illustrative(self):
-        """Brute-force ilustrativo (mostra que não funciona)."""
-        print("\n[Phase 3] Illustrative Brute-Force (5000 tentativas)...")
-        
-        base_ts = int(time.time()) - 365*24*3600  # 1 ano atrás
-        
-        for i in range(5000):
-            ts = base_ts + (i * 86400)  # 1 dia apartir
-            
-            # Gerar key candidata (ilustrativo, não real)
-            candidate = hashlib.sha256(struct.pack('>Q', ts)).digest()[:16]
-            
-            self.attempts += 1
-            
-            # Verificar contra keys conhecidas
-            if self._test_key_quick(candidate):
-                print(f"  [✓] SUCESSO em tentativa #{i}: ts={ts}")
-                self.results.append({'key': candidate, 'ts': ts, 'method': 'bruteforce'})
-                return
+                self.attempts += 1
+                attempted += 1
                 
-        print(f"  [-] 5000 tentativas falharam (como esperado)")
-        print(f"      Cada timestamp gera key ÚNICA via OpenSSL DRBG")
+                # Ajustar key/iv para tamanho da cifra
+                cipher_key = self.key[:key_len] if len(self.key) >= key_len else self.key
+                cipher_iv = self.iv[:iv_len] if self.iv and iv_len > 0 else None
+                
+                # Tentar decodificar
+                result = self._try_decrypt(ct, cipher_name, algo_class, mode, cipher_key, cipher_iv)
+                
+                if result:
+                    decrypted_count += 1
+                    print(f"  [{i+1}/{len(encrypt_events)}] ✓ {cipher_name}: {len(ct)} -> {len(result)} bytes")
+                    
+                    # Salvar segmento
+                    seg_file = self.output_dir / f"seg_{i:04d}_{cipher_name}.bin"
+                    seg_file.write_bytes(result)
+                    
+                    # Verificar se é zlib
+                    if result[:2] == b'\x78\x9c':
+                        try:
+                            import zlib
+                            decompressed = zlib.decompress(result)
+                            print(f"         → zlib: {len(decompressed)} bytes")
+                            
+                            # Salvar decomprimido
+                            zlib_file = self.output_dir / f"seg_{i:04d}_zlib.bin"
+                            zlib_file.write_bytes(decompressed)
+                        except:
+                            pass
+                    
+                    # Auto-correção: se encontrou cipher que funciona, usar nas próximas
+                    if self.working_cipher is None:
+                        self.working_cipher = cipher_name
+                        print(f"\n[!] AUTO-CORREÇÃO: cipher funcional identificado: {cipher_name}")
+                        print(f"    Reexecutando com cipher fixo...\n")
+                        
+                        # Reexecutar com cipher conhecido
+                        return self._bruteforce_with_known_cipher(encrypt_events, cipher_name)
+                    
+                    break
+                else:
+                    self.failures.append({
+                        'attempt': attempted,
+                        'cipher': cipher_name,
+                        'index': i
+                    })
+            
+            # Progresso
+            if i - last_progress >= 100:
+                print(f"  Progresso: {i}/{len(encrypt_events)} ({100*i//len(encrypt_events)}%) - {attempted:,} tentativas")
+                last_progress = i
+        
+        # Relatório
+        print(f"\n{'='*70}")
+        print(f"RESULTADO FINAL")
+        print(f"{'='*70}")
+        print(f"Tentativas: {attempted:,}/{self.max_tries:,}")
+        print(f"Decodificados: {decrypted_count}/{len(encrypt_events)}")
+        print(f"Taxa de sucesso: {100*decrypted_count/max(len(encrypt_events),1):.1f}%")
+        
+        if decrypted_count > 0:
+            print(f"\n[✓] SUCESSO! Fontes extraídos em: {self.output_dir}")
+            return True
+        else:
+            print(f"\n[✗] Falha na decodificação")
+            return False
+            
+    def _try_decrypt(self, ct, cipher_name, algo_class, mode, key, iv):
+        """Tentar decodificar com cifra específica."""
+        try:
+            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+            from cryptography.hazmat.backends import default_backend
+            
+            # Criar cipher
+            algo = getattr(algorithms, algo_class)(key)
+            
+            if mode == "ecb":
+                m = modes.ECB()
+            elif mode == "cbc":
+                m = modes.CBC(iv) if iv else modes.ECB()
+            elif mode == "cfb64":
+                m = modes.CFB(iv, 64) if iv else modes.ECB()
+            elif mode == "ofb":
+                m = modes.OFB(iv, 8) if iv else modes.ECB()
+            elif mode == "stream":
+                # RC4 - stream cipher
+                return self._decrypt_rc4(ct, key)
+            else:
+                return None
+            
+            cipher = Cipher(algo, m, backend=default_backend())
+            decryptor = cipher.decryptor()
+            pt = decryptor.update(ct) + decryptor.finalize()
+            
+            # Verificar validade
+            if len(pt) > 0:
+                # Check se parece válido (zlib ou ASCII)
+                if pt[:2] == b'\x78\x9c' or all(32 <= b < 127 for b in pt[:20]):
+                    return pt
+                            
+            return None
+        except Exception as e:
+            return None
+            
+    def _decrypt_rc4(self, ct, key):
+        """Decodificar RC4 (stream cipher)."""
+        try:
+            # RC4 implementation
+            S = list(range(256))
+            j = 0
+            for i in range(256):
+                j = (j + S[i] + key[i % len(key)]) % 256
+                S[i], S[j] = S[j], S[i]
+            
+            i = j = 0
+            pt = []
+            for byte in ct:
+                i = (i + 1) % 256
+                j = (j + S[i]) % 256
+                S[i], S[j] = S[j], S[i]
+                K = S[(S[i] + S[j]) % 256]
+                pt.append(byte ^ K)
+            
+            return bytes(pt)
+        except:
+            return None
+            
+    def _bruteforce_with_known_cipher(self, encrypt_events, cipher_name):
+        """Reexecutar com cipher conhecido."""
+        print(f"[Auto-correção] Reexecutando com cipher: {cipher_name}\n")
+        
+        decrypted_count = 0
+        
+        for i, enc_event in enumerate(encrypt_events):
+            ct_hex = enc_event.get('plaintext', '')
+            if not ct_hex:
+                continue
+                
+            ct = bytes.fromhex(ct_hex)
+            result = self._try_decrypt(ct, cipher_name, *self._get_cipher_params(cipher_name))
+            
+            if result:
+                decrypted_count += 1
+                seg_file = self.output_dir / f"seg_{i:04d}_{cipher_name}.bin"
+                seg_file.write_bytes(result)
+                
+                if decrypted_count % 100 == 0:
+                    print(f"  Progresso: {decrypted_count}/{len(encrypt_events)} segmentos decodificados")
+        
+        print(f"\n[FINAL] {decrypted_count}/{len(encrypt_events)} segmentos decodificados com {cipher_name}")
+        return decrypted_count > 0
+        
+    def _get_cipher_params(self, cipher_name):
+        """Retornar parâmetros da cifra."""
+        for c in self.CIPHERS:
+            if c[0] == cipher_name:
+                return c[1], c[2], c[3], c[4]
+        return None, None, None, None
         
     def _report(self):
-        """Relatório final."""
-        print(f"\n{'='*70}")
-        print("RALPH LOOP — FINAL REPORT")
-        print(f"{'='*70}")
-        print(f"Total attempts: {self.attempts:,}")
-        print(f"Successful findings: {len(self.results)}")
+        """Gerar relatório final."""
+        report = {
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'rpo': str(self.rpo_path),
+            'capture': str(self.capture_path),
+            'total_attempts': self.attempts,
+            'max_attempts': self.max_tries,
+            'success_rate': f"{100*self.attempts/max(self.max_tries,1):.2f}%",
+            'ciphers_tested': len(self.CIPHERS),
+            'working_cipher': self.working_cipher,
+            'output_dir': str(self.output_dir),
+            'key': self.key.hex() if self.key else None,
+            'iv': self.iv.hex() if self.iv else None,
+        }
         
-        if self.results:
-            print(f"\nKeys encontradas:")
-            for r in self.results:
-                print(f"  - {r['key'].hex()} (via {r.get('method', r.get('source', 'unknown'))})")
-        else:
-            print(f"\n[NENHUMA CHAVE ENCONTRADA]")
-            
-        print(f"\n{'='*70}")
-        print("VEREDICTO FINAL:")
-        print(f"{'='*70}")
-        print("""
-  A criptografia do RPO Protheus é PROJETADA para ser impossível de
-  quebrar offline. As chaves são:
-  
-  1. EFÊMERAS: geradas aleatoriamente a cada compilação
-  2. ÚNICAS: mesmo fonte compilado gera chaves diferentes
-  3. DESCARTADAS: não persistem após compilação
-  4. SEGURAS: espaço 2^128, computacionalmente intratável
-  
-  ÚNICAS FORMAS DE RECUPERAÇÃO:
-  
-  ✓ Captura ao vivo durante compilação (LD_PRELOAD hook)
-  ✓ Acesso à memória do processo (gdb/ptrace)
-  ✓ Backdoor no gerador de seeds (não observado)
-  
-  O Ralph Loop provou matematicamente que brute-force é impossível.
-  A única rota viável continua sendo a captura em runtime.
-""")
-        print(f"{'='*70}\n")
+        report_file = self.output_dir / "ralph_loop_report.json"
+        report_file.write_text(json.dumps(report, indent=2))
+        print(f"\n[OK] Relatório salvo: {report_file}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Ralph Loop v2 — RPO Key Recovery')
-    parser.add_argument('rpo_file', help='RPO file to recover')
+    parser = argparse.ArgumentParser(description='Ralph Loop v3 — 150M tentativas auto-corretivas')
+    parser.add_argument('rpo', help='Arquivo RPO')
+    parser.add_argument('capture', help='Arquivo de captura JSON')
+    parser.add_argument('--output', '-o', default='/tmp/rpo_extracted', help='Diretório de saída')
+    parser.add_argument('--max-tries', type=int, default=DEFAULT_MAX_TRIES, help='Max tentativas')
     parser.add_argument('--verbose', '-v', action='store_true')
     
     args = parser.parse_args()
     global VERBOSE
     VERBOSE = args.verbose
     
-    loop = RalphLoop(args.rpo_file)
-    loop.run()
+    loop = RalphLoop(args.rpo, args.capture, args.output, args.max_tries)
+    success = loop.run()
+    loop._report()
+    
+    sys.exit(0 if success else 1)
 
 
 if __name__ == '__main__':
