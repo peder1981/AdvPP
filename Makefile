@@ -74,3 +74,20 @@ release:
 
 clean:
 	rm -rf dist $(TOOLS) *.exe
+
+# RPO Extraction targets
+.PHONY: rpo-extract rpo-decrypt rpo-analyze
+
+## Extract sources from RPO (requires capture)
+rpo-extract:
+	@echo "Usage: make rpo-extract RPO=file.rpo CAPTURE=keys.json"
+	@./scripts/rpo-extract.sh $(RPO) $(CAPTURE) $(OUTPUT_DIR)
+
+## Decrypt RPO with capture
+rpo-decrypt:
+	@go run ./cmd/advplc rpo decrypt $(RPO) $(CAPTURE)
+
+## Analyze RPO structure
+rpo-analyze:
+	@go run ./cmd/advplc rpo info $(RPO)
+	@go run ./cmd/advplc rpo identify $(RPO)

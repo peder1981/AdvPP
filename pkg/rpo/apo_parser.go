@@ -4,385 +4,465 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"strings"
+	"regexp"
 )
 
-// ApoRecordType represents the type of an APO record
-type ApoRecordType uint32
-
+// APO Record Types - Based on analysis of Protheus RPO format
 const (
-	ApoFuncHeader    ApoRecordType = 0x00000001 // Function header
-	ApoFuncBody      ApoRecordType = 0x00000002 // Function body/code
-	ApoDebugInfo     ApoRecordType = 0x00000003 // Debug information
-	ApoMetadata      ApoRecordType = 0x00000004 // Metadata
-	ApoParameter     ApoRecordType = 0x00000005 // Function parameters
-	ApoLocalVar      ApoRecordType = 0x00000006 // Local variables
-	ApoReturnValue   ApoRecordType = 0x00000007 // Return value info
-	ApoLineNumber    ApoRecordType = 0x00000008 // Line number mapping
-	ApoClassDef      ApoRecordType = 0x00000009 // Class definition
-	ApoMethodDef     ApoRecordType = 0x0000000A // Method definition
-	ApoPropertyDef   ApoRecordType = 0x0000000B // Property definition
-	ApoEventDef      ApoRecordType = 0x0000000C // Event definition
-	ApoInterfaceDef  ApoRecordType = 0x0000000D // Interface definition
-	ApoConstantDef   ApoRecordType = 0x0000000E // Constant definition
-	ApoImportDef     ApoRecordType = 0x0000000F // Import definition
-	ApoNamespaceDef  ApoRecordType = 0x00000010 // Namespace definition
-	ApoStringTable   ApoRecordType = 0xFFFFFFFE // String table
-	ApoEndMarker     ApoRecordType = 0x7FFFFFFF // End marker
+	APO_TYPE_FUNCTION   = 0x01 // User Function
+	APO_TYPE_METHOD     = 0x02 // Class Method
+	APO_TYPE_CLASS      = 0x03 // Class definition
+	APO_TYPE_PROPERTY   = 0x04 // Class property
+	APO_TYPE_VARIABLE   = 0x05 // Local/Global variable
+	APO_TYPE_CONSTANT   = 0x06 // Constant definition
+	APO_TYPE_INCLUDE    = 0x07 // Include directive
+	APO_TYPE_LIBRARY    = 0x08 // Library reference
+	APO_TYPE_NAMESPACE  = 0x09 // Namespace definition
+	APO_TYPE_EVENT      = 0x0A // Event handler
+	APO_TYPE_TRIGGER    = 0x0B // Table trigger
+	APO_TYPE_INDEX      = 0x0C // Database index
+	APO_TYPE_RELATION   = 0x0D // Table relation
+	APO_TYPE_VALIDATION = 0x0E // Field validation
+	APO_TYPE_UI         = 0x0F // UI element
+	APO_TYPE_REPORT     = 0x10 // Report definition
+	APO_TYPE_MENU       = 0x11 // Menu definition
+	APO_TYPE_PROCESS    = 0x12 // Business process
+	APO_TYPE_SERVICE    = 0x13 // Web service
+	APO_TYPE_JOB        = 0x14 // Background job
 )
 
-// String returns the name of the record type
-func (t ApoRecordType) String() string {
-	switch t {
-	case ApoFuncHeader:
-		return "FUNC_HEADER"
-	case ApoFuncBody:
-		return "FUNC_BODY"
-	case ApoDebugInfo:
-		return "DEBUG_INFO"
-	case ApoMetadata:
-		return "METADATA"
-	case ApoParameter:
-		return "PARAMETER"
-	case ApoLocalVar:
-		return "LOCAL_VAR"
-	case ApoReturnValue:
-		return "RETURN_VALUE"
-	case ApoLineNumber:
-		return "LINE_NUMBER"
-	case ApoClassDef:
-		return "CLASS_DEF"
-	case ApoMethodDef:
-		return "METHOD_DEF"
-	case ApoPropertyDef:
-		return "PROPERTY_DEF"
-	case ApoEventDef:
-		return "EVENT_DEF"
-	case ApoInterfaceDef:
-		return "INTERFACE_DEF"
-	case ApoConstantDef:
-		return "CONSTANT_DEF"
-	case ApoImportDef:
-		return "IMPORT_DEF"
-	case ApoNamespaceDef:
-		return "NAMESPACE_DEF"
-	case ApoStringTable:
-		return "STRING_TABLE"
-	case ApoEndMarker:
-		return "END_MARKER"
+// APORecord represents a single APO record in the RPO
+type APORecord struct {
+	Offset     int               `json:"offset"`
+	Size       int               `json:"size"`
+	Type       uint8             `json:"type"`
+	TypeName   string            `json:"type_name"`
+	Name       string            `json:"name"`
+	Data       []byte            `json:"-"`
+	Properties map[string]string `json:"properties,omitempty"`
+}
+
+// APOParser extracts APO records from RPO content
+type APOParser struct {
+	data       []byte
+	records    []*APORecord
+	candidates []APOCandidate
+}
+
+// APOCandidate represents a potential APO record header
+type APOCandidate struct {
+	Offset     int
+	Size       uint32
+	Type       uint8
+	Confidence float64
+}
+
+// NewAPOParser creates a new APO parser for the given data
+func NewAPOParser(data []byte) *APOParser {
+	return &APOParser{
+		data:     data,
+		records:  make([]*APORecord, 0),
+		candidates: make([]APOCandidate, 0),
+	}
+}
+
+// GetTypeName returns the human-readable name for an APO type
+func GetTypeName(typeId uint8) string {
+	switch typeId {
+	case APO_TYPE_FUNCTION:
+		return "Function"
+	case APO_TYPE_METHOD:
+		return "Method"
+	case APO_TYPE_CLASS:
+		return "Class"
+	case APO_TYPE_PROPERTY:
+		return "Property"
+	case APO_TYPE_VARIABLE:
+		return "Variable"
+	case APO_TYPE_CONSTANT:
+		return "Constant"
+	case APO_TYPE_INCLUDE:
+		return "Include"
+	case APO_TYPE_LIBRARY:
+		return "Library"
+	case APO_TYPE_NAMESPACE:
+		return "Namespace"
+	case APO_TYPE_EVENT:
+		return "Event"
+	case APO_TYPE_TRIGGER:
+		return "Trigger"
+	case APO_TYPE_INDEX:
+		return "Index"
+	case APO_TYPE_RELATION:
+		return "Relation"
+	case APO_TYPE_VALIDATION:
+		return "Validation"
+	case APO_TYPE_UI:
+		return "UI"
+	case APO_TYPE_REPORT:
+		return "Report"
+	case APO_TYPE_MENU:
+		return "Menu"
+	case APO_TYPE_PROCESS:
+		return "Process"
+	case APO_TYPE_SERVICE:
+		return "Service"
+	case APO_TYPE_JOB:
+		return "Job"
 	default:
-		return fmt.Sprintf("UNKNOWN_0x%08X", uint32(t))
+		return fmt.Sprintf("Unknown_0x%02X", typeId)
 	}
 }
 
-// ApoRecord represents a parsed APO record
-type ApoRecord struct {
-	Type     ApoRecordType `json:"type"`
-	Length   uint32        `json:"length"`
-	Data     []byte        `json:"-"`
-	Offset   uint32        `json:"offset"`
-	Parsed   interface{}   `json:"parsed,omitempty"`
-	Error    error         `json:"error,omitempty"`
-}
-
-// ApoParser parses APO records from decrypted RPO body
-type ApoParser struct {
-	Data       []byte
-	Offset     uint32
-	Records    []*ApoRecord
-	Strings    map[uint32]string
-	Functions  map[string]*ApoRecord
-	Classes    map[string]*ApoRecord
-}
-
-// NewApoParser creates a new APO parser
-func NewApoParser(data []byte) *ApoParser {
-	return &ApoParser{
-		Data:      data,
-		Offset:    0,
-		Records:   make([]*ApoRecord, 0),
-		Strings:   make(map[uint32]string),
-		Functions: make(map[string]*ApoRecord),
-		Classes:   make(map[string]*ApoRecord),
-	}
-}
-
-// ParseAll parses all APO records from the data
-func (p *ApoParser) ParseAll() ([]*ApoRecord, error) {
-	p.Records = make([]*ApoRecord, 0)
+// ScanForCandidates scans the content for potential APO record headers
+func (p *APOParser) ScanForCandidates() []APOCandidate {
+	p.candidates = make([]APOCandidate, 0)
 	
-	for p.Offset < uint32(len(p.Data)) {
-		record, err := p.ParseNext()
-		if err != nil {
-			return p.Records, err
+	// Scan in 4-byte alignment
+	for i := 0; i < len(p.data)-8; i += 4 {
+		// Read size (4 bytes, little-endian)
+		size := binary.LittleEndian.Uint32(p.data[i : i+4])
+		
+		// Read type (1 byte)
+		if i+4 >= len(p.data) {
+			continue
 		}
-		if record == nil {
-			break
+		typeId := p.data[i+4]
+		
+		// Validate size (reasonable range for APO records)
+		if size < 32 || size > 10*1024*1024 {
+			continue
 		}
-		p.Records = append(p.Records, record)
+		
+		// Validate type (known range)
+		if typeId > 0x20 {
+			continue
+		}
+		
+		// Calculate confidence based on patterns
+		confidence := p.calculateConfidence(i, size, typeId)
+		
+		p.candidates = append(p.candidates, APOCandidate{
+			Offset: i,
+			Size:   size,
+			Type:   typeId,
+			Confidence: confidence,
+		})
 	}
 	
-	return p.Records, nil
+	return p.candidates
 }
 
-// ParseNext parses the next APO record
-func (p *ApoParser) ParseNext() (*ApoRecord, error) {
-	// Check if we have enough data for header
-	if p.Offset+8 > uint32(len(p.Data)) {
-		return nil, nil // End of data
-	}
+// calculateConfidence calculates how likely a candidate is to be a real APO record
+func (p *APOParser) calculateConfidence(offset int, size uint32, typeId uint8) float64 {
+	confidence := 0.5 // Base confidence
 	
-	// Read header
-	recordType := binary.LittleEndian.Uint32(p.Data[p.Offset : p.Offset+4])
-	recordLen := binary.LittleEndian.Uint32(p.Data[p.Offset+4 : p.Offset+8])
-	
-	p.Offset += 8
-	
-	// Validate length
-	if recordLen > uint32(len(p.Data)-int(p.Offset)) {
-		return nil, fmt.Errorf("record length %d exceeds remaining data", recordLen)
-	}
-	
-	// Read data
-	data := make([]byte, recordLen)
-	copy(data, p.Data[p.Offset:p.Offset+recordLen])
-	p.Offset += recordLen
-	
-	// Create record
-	record := &ApoRecord{
-		Type:   ApoRecordType(recordType),
-		Length: recordLen,
-		Data:   data,
-		Offset: p.Offset - recordLen - 8,
-	}
-	
-	// Parse based on type
-	parsed, err := p.parseRecord(record)
-	if err != nil {
-		record.Error = err
-	} else {
-		record.Parsed = parsed
-	}
-	
-	return record, nil
-}
-
-// parseRecord parses record-specific data
-func (p *ApoParser) parseRecord(record *ApoRecord) (interface{}, error) {
-	switch record.Type {
-	case ApoFuncHeader:
-		return p.parseFuncHeader(record)
-	case ApoFuncBody:
-		return p.parseFuncBody(record)
-	case ApoStringTable:
-		return p.parseStringTable(record)
-	case ApoClassDef:
-		return p.parseClassDef(record)
-	case ApoMetadata:
-		return p.parseMetadata(record)
-	default:
-		return p.parseGeneric(record)
-	}
-}
-
-// parseFuncHeader parses function header record
-func (p *ApoParser) parseFuncHeader(record *ApoRecord) (map[string]interface{}, error) {
-	result := make(map[string]interface{})
-	data := record.Data
-	
-	if len(data) < 4 {
-		return result, fmt.Errorf("func header too short")
-	}
-	
-	// Parse function name (null-terminated string)
-	nameEnd := bytesIndex(data, 0)
-	if nameEnd < 0 {
-		nameEnd = len(data)
-	}
-	result["name"] = string(data[:nameEnd])
-	
-	// Store in functions map
-	p.Functions[string(data[:nameEnd])] = record
-	
-	// Parse remaining fields
-	if len(data) >= 8 {
-		result["flags"] = binary.LittleEndian.Uint32(data[4:8])
-	}
-	
-	return result, nil
-}
-
-// parseFuncBody parses function body record
-func (p *ApoParser) parseFuncBody(record *ApoRecord) (map[string]interface{}, error) {
-	result := make(map[string]interface{})
-	data := record.Data
-	
-	// First 4 bytes might be function reference
-	if len(data) >= 4 {
-		result["funcRef"] = binary.LittleEndian.Uint32(data[0:4])
-	}
-	
-	// Rest is machine code or bytecode
-	result["code"] = data
-	
-	return result, nil
-}
-
-// parseStringTable parses string table record
-func (p *ApoParser) parseStringTable(record *ApoRecord) (map[string]interface{}, error) {
-	result := make(map[string]interface{})
-	data := record.Data
-	
-	// Parse null-terminated strings
-	strings := make([]string, 0)
-	offset := 0
-	for offset < len(data) {
-		// Find null terminator
-		end := -1
-		for i := offset; i < len(data); i++ {
-			if data[i] == 0 {
-				end = i - offset
-				break
+	// Check if followed by printable text (function names)
+	if offset+8 < len(p.data) {
+		end := offset + 8 + 15
+		if end > len(p.data) {
+			end = len(p.data)
+		}
+		nextBytes := p.data[offset+5:end]
+		printable := 0
+		for _, b := range nextBytes {
+			if (b >= 0x20 && b <= 0x7E) || b == 0x00 {
+				printable++
 			}
 		}
-		if end < 0 {
-			// No null terminator, take rest
-			strings = append(strings, string(data[offset:]))
+		if len(nextBytes) > 0 && printable > len(nextBytes)*7/10 {
+			confidence += 0.2
+		}
+	}
+	
+	// Check alignment
+	if offset%16 == 0 {
+		confidence += 0.1
+	}
+	
+	// Type-specific adjustments
+	switch typeId {
+	case APO_TYPE_FUNCTION, APO_TYPE_METHOD:
+		confidence += 0.1 // Common types
+	case APO_TYPE_CLASS:
+		confidence += 0.15 // Important type
+	}
+	
+	if confidence > 1.0 {
+		confidence = 1.0
+	}
+	
+	return confidence
+}
+
+// ParseRecords extracts APO records from candidates
+func (p *APOParser) ParseRecords(minConfidence float64) []*APORecord {
+	candidates := p.ScanForCandidates()
+	
+	p.records = make([]*APORecord, 0)
+	for _, cand := range candidates {
+		if cand.Confidence < minConfidence {
+			continue
+		}
+		
+		// Extract record
+		record := p.extractRecord(cand)
+		if record != nil {
+			p.records = append(p.records, record)
+		}
+	}
+	
+	return p.records
+}
+
+// extractRecord extracts an APO record from a candidate
+func (p *APOParser) extractRecord(cand APOCandidate) *APORecord {
+	end := cand.Offset + int(cand.Size)
+	if end > len(p.data) {
+		return nil
+	}
+	
+	data := p.data[cand.Offset:end]
+	
+	record := &APORecord{
+		Offset: cand.Offset,
+		Size: int(cand.Size),
+		Type: cand.Type,
+		TypeName: GetTypeName(cand.Type),
+		Data: data,
+		Properties: make(map[string]string),
+	}
+	
+	// Extract name (usually first printable string after header)
+	name := p.extractName(data)
+	record.Name = name
+	if name != "" {
+		record.Properties["name"] = name
+	}
+	
+	// Extract additional properties based on type
+	p.extractProperties(record, data)
+	
+	return record
+}
+
+// extractName extracts the function/method name from APO data
+func (p *APOParser) extractName(data []byte) string {
+	// Skip the 5-byte header (4 size + 1 type)
+	offset := 5
+	if offset >= len(data) {
+		return ""
+	}
+	
+	// Find first null-terminated string
+	nameEnd := -1
+	for i := offset; i < len(data)-1; i++ {
+		if data[i] == 0x00 && i > offset {
+			nameEnd = i
 			break
 		}
-		strings = append(strings, string(data[offset:offset+end]))
-		offset += end + 1
 	}
 	
-	result["strings"] = strings
-	return result, nil
-}
-
-// parseClassDef parses class definition record
-func (p *ApoParser) parseClassDef(record *ApoRecord) (map[string]interface{}, error) {
-	result := make(map[string]interface{})
-	data := record.Data
-	
-	if len(data) < 4 {
-		return result, fmt.Errorf("class def too short")
-	}
-	
-	// Parse class name
-	nameEnd := bytesIndex(data, 0)
-	if nameEnd < 0 {
-		nameEnd = len(data)
-	}
-	result["name"] = string(data[:nameEnd])
-	
-	// Store in classes map
-	p.Classes[string(data[:nameEnd])] = record
-	
-	return result, nil
-}
-
-// parseMetadata parses metadata record
-func (p *ApoParser) parseMetadata(record *ApoRecord) (map[string]interface{}, error) {
-	result := make(map[string]interface{})
-	data := record.Data
-	
-	// Parse key-value pairs (simplified)
-	if len(data) >= 4 {
-		result["version"] = binary.LittleEndian.Uint32(data[0:4])
-	}
-	
-	return result, nil
-}
-
-// parseGeneric parses unknown record types
-func (p *ApoParser) parseGeneric(record *ApoRecord) (map[string]interface{}, error) {
-	result := make(map[string]interface{})
-	result["raw_hex"] = fmt.Sprintf("%x", record.Data[:min(64, len(record.Data))])
-	return result, nil
-}
-
-// bytesIndex finds the index of a byte in a slice
-func bytesIndex(data []byte, b byte) int {
-	for i, c := range data {
-		if c == b {
-			return i
+	if nameEnd > 0 {
+		nameBytes := data[offset:nameEnd]
+		// Validate it looks like a valid identifier
+		if isValidAdvplName(string(nameBytes)) {
+			return string(nameBytes)
 		}
 	}
-	return -1
-}
-
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// GetFunction returns a function record by name
-func (p *ApoParser) GetFunction(name string) *ApoRecord {
-	return p.Functions[name]
-}
-
-// GetClass returns a class record by name
-func (p *ApoParser) GetClass(name string) *ApoRecord {
-	return p.Classes[name]
-}
-
-// GetFunctions returns all function records
-func (p *ApoParser) GetFunctions() map[string]*ApoRecord {
-	return p.Functions
-}
-
-// GetClasses returns all class records
-func (p *ApoParser) GetClasses() map[string]*ApoRecord {
-	return p.Classes
-}
-
-// WriteTo writes parsed records to a writer
-func (p *ApoParser) WriteTo(w io.Writer) (int64, error) {
-	var total int64
 	
-	for _, record := range p.Records {
-		// Write header
-		header := make([]byte, 8)
-		binary.LittleEndian.PutUint32(header[0:4], uint32(record.Type))
-		binary.LittleEndian.PutUint32(header[4:8], record.Length)
+	return ""
+}
+
+// isValidAdvplName checks if a string is a valid AdvPL identifier
+func isValidAdvplName(name string) bool {
+	if len(name) == 0 || len(name) > 30 {
+		return false
+	}
+	
+	// Must start with letter or underscore
+	first := name[0]
+	if !((first >= 'A' && first <= 'Z') || (first >= 'a' && first <= 'z') || first == '_') {
+		return false
+	}
+	
+	// Allow alphanumeric and underscore
+	nameRegex := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	return nameRegex.MatchString(name)
+}
+
+// extractProperties extracts type-specific properties from APO data
+func (p *APOParser) extractProperties(record *APORecord, data []byte) {
+	// Common properties extraction
+	switch record.Type {
+	case APO_TYPE_FUNCTION, APO_TYPE_METHOD:
+		p.extractFunctionProperties(record, data)
+	case APO_TYPE_CLASS:
+		p.extractClassProperties(record, data)
+	case APO_TYPE_VARIABLE:
+		p.extractVariableProperties(record, data)
+	}
+}
+
+// extractFunctionProperties extracts properties from function APO records
+func (p *APOParser) extractFunctionProperties(record *APORecord, data []byte) {
+	// Look for parameter count
+	if len(data) > 10 {
+		paramCount := int(data[5])
+		if paramCount >= 0 && paramCount < 50 {
+			record.Properties["parameters"] = fmt.Sprintf("%d", paramCount)
+		}
+	}
+	
+	// Look for return type indicator
+	if len(data) > 12 {
+		record.Properties["has_return"] = fmt.Sprintf("%v", data[11] != 0)
+	}
+}
+
+// extractClassProperties extracts properties from class APO records
+func (p *APOParser) extractClassProperties(record *APORecord, data []byte) {
+	// Look for parent class reference
+	if len(data) > 8 {
+		record.Properties["has_parent"] = fmt.Sprintf("%v", data[5] != 0)
+	}
+}
+
+// extractVariableProperties extracts properties from variable APO records
+func (p *APOParser) extractVariableProperties(record *APORecord, data []byte) {
+	// Look for variable type
+	if len(data) > 8 {
+		varType := data[5]
+		typeNames := map[uint8]string{
+			0x00: "auto",
+			0x01: "local",
+			0x02: "static",
+			0x03: "global",
+			0x04: "parameter",
+		}
+		if name, ok := typeNames[varType]; ok {
+			record.Properties["var_type"] = name
+		}
+	}
+}
+
+// ExtractFunctions extracts all function/method names from RPO content
+func (p *APOParser) ExtractFunctions() []string {
+	records := p.ParseRecords(0.6)
+	
+	functions := make([]string, 0)
+	for _, record := range records {
+		if record.Type == APO_TYPE_FUNCTION || record.Type == APO_TYPE_METHOD {
+			if record.Name != "" {
+				functions = append(functions, record.Name)
+			}
+		}
+	}
+	
+	return functions
+}
+
+// ExtractAll extracts all APO information from RPO content
+func (p *APOParser) ExtractAll() map[string]interface{} {
+	records := p.ParseRecords(0.5)
+	
+	result := map[string]interface{}{
+		"total_records": len(records),
+		"by_type":      make(map[string]int),
+		"records":      make([]map[string]interface{}, 0),
+	}
+	
+	// Count by type
+	for _, record := range records {
+		result["by_type"].(map[string]int)[record.TypeName]++
+	}
+	
+	// Add records
+	for _, record := range records {
+		recordMap := map[string]interface{}{
+			"offset": record.Offset,
+			"size": record.Size,
+			"type": record.TypeName,
+			"name": record.Name,
+		}
+		if len(record.Properties) > 0 {
+			recordMap["properties"] = record.Properties
+		}
+		result["records"] = append(result["records"].([]map[string]interface{}), recordMap)
+	}
+	
+	return result
+}
+
+// DumpToWriter dumps APO information to a writer
+func (p *APOParser) DumpToWriter(w io.Writer) {
+	records := p.ParseRecords(0.5)
+	
+	fmt.Fprintf(w, "=== APO Records Analysis ===\n")
+	fmt.Fprintf(w, "Total records found: %d\n\n", len(records))
+	
+	// Summary by type
+	typeCounts := make(map[string]int)
+	for _, r := range records {
+		typeCounts[r.TypeName]++
+	}
+	
+	fmt.Fprintf(w, "By type:\n")
+	for typeName, count := range typeCounts {
+		fmt.Fprintf(w, "  %-20s: %d\n", typeName, count)
+	}
+	fmt.Fprintf(w, "\n")
+	
+	// List records
+	fmt.Fprintf(w, "Records:\n")
+	for i, record := range records {
+		fmt.Fprintf(w, "  [%d] Offset: %d, Size: %d, Type: %s", i+1, record.Offset, record.Size, record.TypeName)
+		if record.Name != "" {
+			fmt.Fprintf(w, ", Name: %s", record.Name)
+		}
+		fmt.Fprintf(w, "\n")
 		
-		n, err := w.Write(header)
-		total += int64(n)
-		if err != nil {
-			return total, err
-		}
-		
-		// Write data
-		n, err = w.Write(record.Data)
-		total += int64(n)
-		if err != nil {
-			return total, err
+		if len(record.Properties) > 0 {
+			for k, v := range record.Properties {
+				fmt.Fprintf(w, "      %s: %s\n", k, v)
+			}
 		}
 	}
-	
-	return total, nil
 }
 
-// Summary returns a summary of parsed records
-func (p *ApoParser) Summary() string {
-	typeCounts := make(map[ApoRecordType]int)
-	for _, record := range p.Records {
-		typeCounts[record.Type]++
+// FindCandidatesAboveThreshold finds candidates with confidence above threshold
+func (p *APOParser) FindCandidatesAboveThreshold(threshold float64) []APOCandidate {
+	candidates := p.ScanForCandidates()
+	
+	filtered := make([]APOCandidate, 0)
+	for _, cand := range candidates {
+		if cand.Confidence >= threshold {
+			filtered = append(filtered, cand)
+		}
 	}
 	
-	lines := make([]string, 0)
-	lines = append(lines, "APO Parser Summary:")
-	lines = append(lines, fmt.Sprintf("  Total records: %d", len(p.Records)))
-	lines = append(lines, fmt.Sprintf("  Functions: %d", len(p.Functions)))
-	lines = append(lines, fmt.Sprintf("  Classes: %d", len(p.Classes)))
-	lines = append(lines, "")
-	lines = append(lines, "Record Types:")
+	return filtered
+}
+
+// GetTopCandidates returns the top N candidates by confidence
+func (p *APOParser) GetTopCandidates(n int) []APOCandidate {
+	candidates := p.ScanForCandidates()
 	
-	for typ, count := range typeCounts {
-		lines = append(lines, fmt.Sprintf("  %-20s: %d", typ.String(), count))
+	// Sort by confidence (bubble sort for simplicity)
+	for i := 0; i < len(candidates); i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			if candidates[j].Confidence > candidates[i].Confidence {
+				candidates[i], candidates[j] = candidates[j], candidates[i]
+			}
+		}
 	}
 	
-	return strings.Join(lines, "\n")
+	if n > len(candidates) {
+		n = len(candidates)
+	}
+	
+	result := make([]APOCandidate, n)
+	copy(result, candidates[:n])
+	
+	return result
 }

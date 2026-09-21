@@ -1,0 +1,23 @@
+No ramo unstable
+Arquivos não monitorados:
+  (utilize "git add <arquivo>..." para incluir o que será submetido)
+	CONTEXT.md
+	git-status.txt
+
+nada adicionado ao envio mas arquivos não registrados estão presentes (use "git add" to registrar)
+  backup/get-width-fyne-pre-lei2 df3d75a fix(ui): dimensiona os campos de GET do MSDIALOG no Fyne
+  development                    3b5aecc Docs: Adiciona documentação completa em português brasileiro
+  get-width-fyne                 1e6066b fix(ui): dimensiona os campos de GET do MSDIALOG no Fyne
+  master                         e75cdbc release(vscode): extensão AdvPL/TLPP v4.0.1
+* unstable                       e75cdbc release(vscode): extensão AdvPL/TLPP v4.0.1
++ worktree-advpp-multidb         3179801 docs+chore: corrige spec sobre TCSQLEXEC/TCSQLQUERY; go mod tidy
+e75cdbc release(vscode): extensão AdvPL/TLPP v4.0.1
+7d17e4a feat(rpo): suporte real ao formato RPO do Protheus + tJWT/tAMQP
+e30e528 release(vscode): extensão AdvPL/TLPP v4.0.0
+65200b8 docs: fecha CHANGELOG e documentação da v4.0.0 (multi-provider + Q4_K/Q6_K/minicpm + fix senha web)
+aa13e46 merge: conectividade real multi-provider (PostgreSQL/Oracle/MSSQL)
+e24b9f8 feat(llm): suporte real a Q4_K/Q6_K e arquitetura minicpm no motor GGUF
+3179801 docs+chore: corrige spec sobre TCSQLEXEC/TCSQLQUERY; go mod tidy
+fc2dced fix(vm): DbConnection Close()/Connect() mantêm v.dbEngine sincronizado
+7d365d7 fix(db): tipo real de coluna remota (sqlType), time.Time e limitação de introspecção
+3e7549c fix(compiler): DBCONNECTION alcançável de AdvPL real (builtinClasses)
