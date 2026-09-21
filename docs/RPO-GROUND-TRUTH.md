@@ -173,3 +173,30 @@ apresenta comportamento diferente da versão usada nos testes originais:
 3. Ou implementar hook em nível diferente (ex: `tCryptoEVP::Encrypt`)
 
 **Status:** Bloqueio conhecido,文档ado em `docs/RPO-LIMITATIONS.md`.
+
+---
+
+## 11. Tentativa Ralph Loop (2026-09-21)
+
+### Execução
+- Hook LD_PRELOAD capturou 725 eventos (184 SetKey, 539 Encrypt, 2 RSA)
+- Key: `fbe6abe761b3abbb1bd4f639bf46dde2`
+- IV: `b146c7c66bfe6b7d6e6e2dfbf24f9f6f`
+- RSA password: `manezinho`
+
+### Resultado
+- ❌ Decodificação automática **FALHOU**
+- ❌ Re-criptografia + busca **NÃO encontrou matches**
+- ❌ Plaintext capturado não aparece no RPO (confirmado criptografado)
+- ⚠️ AppServer 24.3.1.1 usa caminho de cifragem diferente do esperado
+
+### Lições
+1. **Captura de key/IV é possível** via LD_PRELOAD
+2. **Cipher identification é necessário** — sem EVP_EncryptInit_ex, não sabemos qual algoritmo
+3. **Re-criptografar não funciona** — ou a key não é a usada, ou o caminho de cifragem é diferente
+4. **AppServer 24.3.1.1** tem comportamento diferente de versões anteriores
+
+### Próximos Passos Recomendados
+1. Usar appserver 12.1.2310 (onde EVP funciona)
+2. GDB manual para break em `tCryptoEVP::Encrypt`
+3. Buscar por outras formas de extração (memória, arquivos temporários)
