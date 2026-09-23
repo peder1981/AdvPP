@@ -3,6 +3,8 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -386,7 +388,23 @@ func (e *RemoteSQLEngine) RecNo() int {
 	return e.current + 1
 }
 
+// pragmaTableInfoRe reconhece "PRAGMA table_info(NOME)" — a única sintaxe
+// de introspecção SQLite que browseColumns (pkg/vm/browse.go, FWMBrowse) e
+// TCSTRUCT/DBSTRUCT (pkg/vm/dbaccess_native.go) emitem contra o SQLEngine
+// ativo, sem saber se é local (SQLite) ou remoto.
+var pragmaTableInfoRe = regexp.MustCompile(`(?i)^\s*PRAGMA\s+table_info\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*;?\s*$`)
+
+// QueryRows intercepta PRAGMA table_info(X) e sintetiza a mesma forma que o
+// SQLite devolve (colunas NAME/TYPE/NOTNULL/...) usando introspecção
+// genérica do database/sql (SELECT ... WHERE 1=0 + ColumnTypes()) — a
+// mesma técnica que SelectArea já usa mais acima neste arquivo. Isso faz
+// FWMBrowse e TCSTRUCT/DBSTRUCT funcionarem sobre qualquer um dos 3 bancos
+// remotos (Postgres/Oracle/MSSQL) sem SQL específico por dialeto: o driver
+// Go de cada um já sabe descrever suas próprias colunas.
 func (e *RemoteSQLEngine) QueryRows(query string, args ...any) ([]map[string]string, error) {
+	if m := pragmaTableInfoRe.FindStringSubmatch(query); m != nil {
+		return e.pragmaTableInfo(m[1])
+	}
 	rows, err := e.db.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -413,6 +431,47 @@ func (e *RemoteSQLEngine) QueryRows(query string, args ...any) ([]map[string]str
 		out = append(out, row)
 	}
 	return out, rows.Err()
+}
+
+// pragmaTableInfo devolve, no formato do PRAGMA table_info(X) do SQLite
+// (colunas CID/NAME/TYPE/NOTNULL/DFLT_VALUE/PK), a estrutura física de uma
+// tabela remota — obtida via SELECT ... WHERE 1=0 + ColumnTypes(), que
+// funciona igual em qualquer driver database/sql (Postgres/Oracle/MSSQL).
+func (e *RemoteSQLEngine) pragmaTableInfo(table string) ([]map[string]string, error) {
+	table = strings.ToUpper(table)
+	if !identRe.MatchString(table) {
+		return nil, fmt.Errorf("invalid table name: %q", table)
+	}
+	rows, err := e.db.Query(fmt.Sprintf("SELECT * FROM %s WHERE 1=0", table))
+	if err != nil {
+		return nil, fmt.Errorf("table %s not found: %v", table, err)
+	}
+	defer rows.Close()
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	colTypes, ctErr := rows.ColumnTypes()
+	out := make([]map[string]string, 0, len(cols))
+	for i, c := range cols {
+		sqlType := ""
+		notNull := "0"
+		if ctErr == nil && i < len(colTypes) {
+			sqlType = strings.ToUpper(colTypes[i].DatabaseTypeName())
+			if nullable, ok := colTypes[i].Nullable(); ok && !nullable {
+				notNull = "1"
+			}
+		}
+		out = append(out, map[string]string{
+			"CID":        strconv.Itoa(i),
+			"NAME":       strings.ToUpper(c),
+			"TYPE":       sqlType,
+			"NOTNULL":    notNull,
+			"DFLT_VALUE": "",
+			"PK":         "0",
+		})
+	}
+	return out, nil
 }
 
 func (e *RemoteSQLEngine) Exec(query string, args ...any) error {
