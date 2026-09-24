@@ -443,7 +443,15 @@ func (c *Compiler) compileStatement(stmt ast.Statement) error {
 		// Treat like try/catch with break
 		return c.compileBeginSequence(s)
 	case *ast.ExprStmt:
-		return c.compileExpr(s.Expr)
+		if err := c.compileExpr(s.Expr); err != nil {
+			return err
+		}
+		// O valor de uma expressão usada como comando (chamada de função,
+		// x++, x--) é descartado. Sem este POP cada iteração de laço vazava
+		// um valor na pilha da VM até estourar MaxStackSize, e o programa
+		// entrava em loop infinito silencioso.
+		c.emit(OP_POP, 0, 0, "", s.Loc.Line)
+		return nil
 	case *ast.InterfaceDecl:
 		// Interface declarations are compile-time only, no code to emit
 		return nil
