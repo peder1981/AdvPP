@@ -2,6 +2,24 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [4.0.2] — 2026-09-24
+
+### Corrigido
+
+- `DBSTRUCT`/`TCSTRUCT`/`FWMBrowse` agora funcionam sobre tabela
+  remota (Postgres/Oracle/MSSQL via `TOPCONN`). Antes, essas rotinas
+  falhavam ao conectar em banco remoto porque a introspecção de
+  schema assumia SQLite: `browseColumns` (usado por `FWMBrowse`) e
+  `TCSTRUCT` emitem `PRAGMA table_info(X)` — sintaxe exclusiva do
+  SQLite — sem saber se o `SQLEngine` ativo é local ou remoto.
+  `RemoteSQLEngine.QueryRows` (`pkg/db/remote_engine.go`) agora
+  intercepta essa chamada e sintetiza a mesma forma de resposta do
+  SQLite usando introspecção genérica do `database/sql`
+  (`SELECT ... WHERE 1=0` + `ColumnTypes()`), que funciona igual para
+  Postgres/Oracle/MSSQL sem precisar de SQL específico por dialeto.
+  Validado com teste real contra Postgres (não só mock): `TCStruct()`
+  sobre tabela remota real retorna nomes e tipos ADVPL corretos.
+
 ## [4.0.1] — 2026-09-19
 
 ### Adicionado
