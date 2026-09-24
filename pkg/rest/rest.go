@@ -17,6 +17,19 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
+)
+
+// Limites de endurecimento do servidor HTTP (FULL-REVIEW A2). Sem eles, o
+// servidor ficava vulnerável a Slowloris (conexões lentas segurando
+// goroutines) e a corpos de requisição arbitrariamente grandes.
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 30 * time.Second
+	idleTimeout       = 120 * time.Second
+	maxHeaderBytes    = 1 << 20  // 1 MiB de cabeçalhos
+	maxBodyBytes      = 10 << 20 // 10 MiB de corpo por requisição
 )
 
 // Route é um endpoint REST: verbo HTTP + path (aceita `{param}` no estilo
@@ -184,7 +197,15 @@ func (s *Server) Serve(addr string) error {
 	// reentrante).
 	mux := s.buildMux()
 	s.mu.Lock()
-	s.httpServer = &http.Server{Addr: addr, Handler: mux}
+	s.httpServer = &http.Server{
+		Addr:              addr,
+		Handler:           limitBody(mux),
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+		MaxHeaderBytes:    maxHeaderBytes,
+	}
 	srv := s.httpServer
 	s.mu.Unlock()
 
@@ -193,6 +214,16 @@ func (s *Server) Serve(addr string) error {
 		return nil
 	}
 	return err
+}
+
+// limitBody envolve o handler limitando o corpo de cada requisição a
+// maxBodyBytes (FULL-REVIEW A2), impedindo exaustão de memória por uploads
+// arbitrariamente grandes.
+func limitBody(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+		h.ServeHTTP(w, r)
+	})
 }
 
 // Shutdown encerra graciosamente o servidor iniciado por Serve.
