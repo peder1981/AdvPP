@@ -2,6 +2,51 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [4.1.0] — 2026-09-24
+
+Release de endurecimento do motor, a partir de uma revisão completa
+(FULL-REVIEW) do compilador/VM. Foco em corretude e robustez; sem
+quebras de API.
+
+### Corrigido
+
+- **Loop infinito silencioso (crítico).** Todo comando cujo valor é
+  descartado — chamada de função isolada, `x++`, `x--` — não emitia
+  `OP_POP` no codegen e vazava um valor na pilha da VM a cada iteração.
+  Ao passar de `MaxStackSize` (10.000) o `push` falhava em silêncio, a
+  condição do laço nunca ficava falsa e o programa girava consumindo
+  100% de CPU. Reproduzível com um simples `For nI := 1 To 20000`
+  contendo `nC++`, `aAdd(a,nI)` ou uma chamada de função como comando.
+  Fixture de regressão em `tests/stack_regression_test.prw`.
+- **Estouro da pilha de operandos agora é erro visível.** `push`
+  retornava erro no estouro, mas ~490 chamadores o descartavam; a VM
+  seguia sobre uma pilha corrompida. Agora marca `VM.fault` e o
+  `runLoop` aborta com erro (não capturável por Try/Catch — é falha do
+  motor, não erro de aplicação).
+- **`DBDelete()` era um stub no-op:** exclusões sumiam em silêncio e
+  `Deleted()` nunca virava `.T.`. Agora marca `D_E_L_E_T_ = '*'`
+  (simétrico a `DBRecall`), persistido no ciclo `RecLock`/`MsUnlock`.
+  Fixture em `tests/dbdelete_test.prw`.
+
+### Adicionado
+
+- **Endurecimento do servidor REST (`WSRestServer`):** `ReadHeaderTimeout`,
+  `ReadTimeout`, `WriteTimeout`, `IdleTimeout`, `MaxHeaderBytes` e limite
+  de 10 MiB por corpo de requisição (`http.MaxBytesReader`), contra
+  Slowloris e exaustão de memória. O endereço de bind não muda.
+- **Mensagens de erro do parser legíveis:** `TokenType.String()` gerado
+  por `stringer` — `expected TOKEN_RPAREN, got TOKEN_IDENT ("ConOut")`
+  no lugar de `expected 27, got 5`.
+
+### Notas
+
+- Itens estruturais levantados na revisão e adiados para releases
+  dedicados: workarea multi-área com cursor por índice (hoje
+  `DbSelectArea` carrega a tabela inteira em memória), `DbSeek` por
+  índice, `R_E_C_N_O_` alocado pelo banco, `Select()`/`GetArea()`/
+  `RestArea()` com semântica fiel, representação de `Value` sem boxing e
+  bind em loopback + auth/TLS nos servidores.
+
 ## [4.0.2] — 2026-09-24
 
 ### Corrigido

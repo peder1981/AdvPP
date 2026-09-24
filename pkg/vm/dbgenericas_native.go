@@ -261,6 +261,21 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 	}
 
 	// =========================================================================
+	// DBDelete() -> NIL
+	//   Marca o registro corrente para exclusão (D_E_L_E_T_ = '*'), oposto
+	//   simétrico de DBRecall. A gravação segue o mesmo ciclo dos demais
+	//   FieldPut (persistido em MsUnlock). Substitui o antigo stub no-op de
+	//   natives.go (registrado antes desta camada), que fazia exclusões
+	//   sumirem silenciosamente (FULL-REVIEW A1a).
+	// =========================================================================
+	natives["DBDELETE"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		if v.dbEngine != nil {
+			v.dbEngine.FieldPut("D_E_L_E_T_", advplrt.NewString("*"))
+		}
+		return advplrt.Nil, nil
+	}
+
+	// =========================================================================
 	// DBRecordInfo(nInfoType, [@nRecord]) -> xRet
 	//   1 (DBRI_DELETED) = estado de excluído (L) — igual Deleted()
 	//   3 (DBRI_RECSIZE) = tamanho do registro (N) — soma dos tamanhos da estrutura

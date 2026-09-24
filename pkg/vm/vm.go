@@ -85,6 +85,13 @@ type TryCatch struct {
 type VM struct {
 	bc                    *compiler.Bytecode
 	stack                 []advplrt.Value
+	// fault guarda uma falha fatal e não-recuperável do próprio motor
+	// (estouro de pilha de operandos). Como as ~490 chamadas de push()
+	// descartam o retorno de erro, o estouro era silencioso: o runLoop
+	// verifica este campo a cada instrução e aborta com erro visível, em
+	// vez de deixar a VM girar sobre uma pilha corrompida. Não é
+	// capturável por Try/Catch (não é um ErrorValue de aplicação).
+	fault                 error
 	frames                []*CallFrame
 	current               *CallFrame
 	natives               map[string]*advplrt.FunctionValue
@@ -375,7 +382,13 @@ func convertParams(names []string) []*advplrt.ParamDef {
 
 func (v *VM) push(val advplrt.Value) error {
 	if len(v.stack) >= MaxStackSize {
-		return fmt.Errorf("stack overflow: maximum stack size (%d) exceeded", MaxStackSize)
+		err := fmt.Errorf("stack overflow: maximum stack size (%d) exceeded", MaxStackSize)
+		// Marca a falha para o runLoop abortar, já que quase todos os
+		// chamadores de push ignoram este retorno.
+		if v.fault == nil {
+			v.fault = err
+		}
+		return err
 	}
 	v.stack = append(v.stack, val)
 	return nil
@@ -564,6 +577,13 @@ func (v *VM) runLoop() (advplrt.Value, error) {
 				return advplrt.Nil, fmt.Errorf("%s", advErr.String())
 			}
 			return advplrt.Nil, err
+		}
+
+		// Falha fatal do motor (estouro de pilha) sinalizada por push:
+		// aborta em vez de continuar sobre uma pilha corrompida. Não passa
+		// por handleCatch de propósito — não é erro de aplicação.
+		if v.fault != nil {
+			return advplrt.Nil, v.fault
 		}
 
 		// Check for HALT
