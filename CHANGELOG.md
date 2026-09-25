@@ -2,6 +2,45 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [4.2.0] — 2026-09-25
+
+### Adicionado
+
+- **`WSRestServer` agora pode devolver HTML/texto puro, além de JSON.**
+  Uma rota registrada via `AddRoute()` ou anotação `@Get`/`@Post` pode
+  devolver `{"__RAW_HTTP__", cContentType, cBody[, nStatus]}` em vez do
+  valor normal — o servidor grava a resposta exatamente como veio, com o
+  `Content-Type` e status pedidos, em vez de serializar como JSON. Sem
+  isso, `WSRestServer` só conseguia servir uma API JSON; qualquer página
+  HTML servida pela mesma aplicação precisava de um servidor HTTP
+  separado. Implementado em `pkg/rest.RawResponse` (tipo novo, retrocompatível — nenhuma rota existente muda de comportamento) e
+  reconhecido em `pkg/vm/rest_native.go`. Testado manualmente servindo
+  uma página de login real ao lado de uma rota JSON na mesma porta.
+
+### Corrigido
+
+- **VM isolada de requisição REST perdia a conexão de banco remota
+  (crítico).** `restHandlerFor` (o despachante de cada rota
+  `WSRestServer`) criava a VM isolada de cada requisição chamando
+  `v.dbFactory()` para obter seu `dbEngine` — mecanismo pensado só para
+  o engine SQLite local (cada job WAL ganha sua própria conexão de
+  arquivo). Contra uma conexão remota ativa (`TOPCONN`/Postgres via
+  `pkg/db.RemoteSQLEngine`, um pool `database/sql` já seguro para uso
+  concorrente), `dbFactory()` descartava esse engine remoto configurado
+  e a VM do job caía de volta num engine SQLite local vazio/default —
+  toda rota REST contra um backend Postgres remoto falhava em silêncio
+  com erros do tipo `SQL logic error: no such table` mesmo com o
+  processo pai plenamente conectado. Corrigido compartilhando
+  diretamente `job.dbEngine = v.dbEngine` (a mesma conexão ativa da VM
+  pai) em vez de reabrir via `dbFactory()`. O mesmo padrão
+  (`job.dbFactory = v.dbFactory; job.dbEngine = v.dbFactory()`) também
+  existe em `StartJob`, `pkg/vm/grid.go`, `grpcserver_native.go` e
+  `mcp_native.go` — não alterados nesta release (risco/escopo maiores,
+  cada um precisa de verificação própria antes de mudar o
+  comportamento de jobs assíncronos já em uso); registrado aqui como
+  pendência conhecida para quem for mexer nesses caminhos contra um
+  backend remoto.
+
 ## [4.1.0] — 2026-09-24
 
 Release de endurecimento do motor, a partir de uma revisão completa

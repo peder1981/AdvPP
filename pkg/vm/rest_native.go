@@ -165,17 +165,54 @@ func normalizeRestPath(path string) string {
 func (v *VM) restHandlerFor(funcName string) func(map[string]any) (any, error) {
 	return func(params map[string]any) (any, error) {
 		job := NewVM(v.bc, false)
+		// Compartilha o MESMO dbEngine ativo da VM pai (não chama
+		// v.dbFactory() para abrir uma conexão "fresca" nova): dbFactory
+		// só faz sentido pro engine SQLite local (cada job em WAL ganha
+		// sua própria conexão de arquivo); quando a conexão ativa é
+		// remota (TOPCONN/Postgres via pkg/db.RemoteSQLEngine, um pool
+		// database/sql seguro para uso concorrente), chamar dbFactory()
+		// aqui descartava silenciosamente o engine remoto configurado e
+		// a VM do job caía de volta no engine SQLite local vazio/default
+		// — toda rota REST contra um backend remoto quebrava com "no
+		// such table" mesmo com o processo pai plenamente conectado.
 		job.dbFactory = v.dbFactory
-		if v.dbFactory != nil {
-			job.dbEngine = v.dbFactory()
-		}
+		job.dbEngine = v.dbEngine
 		argObj := jsonMapToAdvplObject(params)
 		result, err := job.RunFunction(funcName, []advplrt.Value{argObj})
 		if err != nil {
 			return nil, err
 		}
+		if raw, ok := advplRawHTTPResponse(result); ok {
+			return raw, nil
+		}
 		return advplValueToJSON(result), nil
 	}
+}
+
+// rawHTTPSentinel é o marcador que uma User Function/TLPP registrada numa
+// rota WSRestServer usa pra pedir resposta HTTP crua (HTML/texto) em vez
+// do JSON automático: Return {"__RAW_HTTP__", cContentType, cBody[, nStatus]}.
+const rawHTTPSentinel = "__RAW_HTTP__"
+
+// advplRawHTTPResponse reconhece o array-sentinela acima e monta o
+// rest.RawResponse correspondente.
+func advplRawHTTPResponse(val advplrt.Value) (rest.RawResponse, bool) {
+	arr, ok := val.(*advplrt.ArrayValue)
+	if !ok || len(arr.Elements) < 3 {
+		return rest.RawResponse{}, false
+	}
+	head, ok := arr.Elements[0].(*advplrt.StringValue)
+	if !ok || head.Val != rawHTTPSentinel {
+		return rest.RawResponse{}, false
+	}
+	resp := rest.RawResponse{
+		ContentType: advplrt.ToString(arr.Elements[1]),
+		Body:        []byte(advplrt.ToString(arr.Elements[2])),
+	}
+	if len(arr.Elements) >= 4 {
+		resp.Status = int(advplrt.ToFloat(arr.Elements[3]))
+	}
+	return resp, true
 }
 
 // advplValueToJSON converte um advplrt.Value (retorno de uma função
