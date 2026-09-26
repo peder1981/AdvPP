@@ -57,6 +57,43 @@ func TestRemoteSQLEngineSelectAreaAndSkip(t *testing.T) {
 	}
 }
 
+// TestRemoteSQLEngineQueryRowsPragmaTableInfo prova que FWMBrowse/TCSTRUCT
+// (que emitem "PRAGMA table_info(X)" sem saber se o SQLEngine ativo é
+// local ou remoto) recebem a mesma forma de resposta do SQLite também
+// contra um banco remoto (Postgres/Oracle/MSSQL) — via introspecção
+// genérica do database/sql, não SQL específico de dialeto.
+func TestRemoteSQLEngineQueryRowsPragmaTableInfo(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer mockDB.Close()
+
+	rows := sqlmock.NewRowsWithColumnDefinition(
+		sqlmock.NewColumn("R_E_C_N_O_").OfType("INT4", int64(0)).Nullable(false),
+		sqlmock.NewColumn("NOME").OfType("VARCHAR", "").Nullable(true),
+	)
+	mock.ExpectQuery(`SELECT \* FROM CLIENTES WHERE 1=0`).WillReturnRows(rows)
+
+	e := NewRemoteSQLEngine(mockDB, postgresDialect{})
+	got, err := e.QueryRows("PRAGMA table_info(CLIENTES)")
+	if err != nil {
+		t.Fatalf("QueryRows: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len(got) = %d, want 2", len(got))
+	}
+	if got[0]["NAME"] != "R_E_C_N_O_" || got[0]["NOTNULL"] != "1" {
+		t.Fatalf("col 0 = %+v, want NAME=R_E_C_N_O_ NOTNULL=1", got[0])
+	}
+	if got[1]["NAME"] != "NOME" || got[1]["NOTNULL"] != "0" {
+		t.Fatalf("col 1 = %+v, want NAME=NOME NOTNULL=0", got[1])
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}
+
 func TestRemoteSQLEngineFieldPutAndMsUnlock(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {

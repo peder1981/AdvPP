@@ -24,11 +24,20 @@ const MENU_ICON_RULES: [RegExp, string][] = [
   [/voltar/i, 'an-arrow-left'],
   [/sair|encerrar|fechar/i, 'an-sign-out'],
 ];
+// Prefixo explicito de icone: o AdvPL pode mandar "icon:<nome>|Texto"
+// (ex.: "icon:wallet|Financeiro") para forcar um icone PO/Animal em vez
+// da heuristica por palavra-chave abaixo. Sem prefixo, vale a heuristica
+// de sempre (compat: GesCon e demais apps mandam texto puro).
 function menuItemIcon(label: string): string {
+  const m = /^icon:([a-z0-9-]+)\|/i.exec(label);
+  if (m) { return 'an-' + m[1].toLowerCase(); }
   for (const [re, icon] of MENU_ICON_RULES) {
     if (re.test(label)) { return icon; }
   }
   return 'an-caret-right';
+}
+function menuItemLabel(label: string): string {
+  return label.replace(/^icon:[a-z0-9-]+\|/i, '');
 }
 
 // Espelho de browseSpec/browseAction do servidor (pkg/vm/browse.go)
@@ -93,7 +102,7 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
           @for (item of m.items; track $index) {
             <button type="button" class="advpp-menu-item" (click)="menuChoose($index + 1)">
               <i class="an {{ menuIcon(item) }} advpp-menu-item-icon"></i>
-              <span class="advpp-menu-item-label">{{ item }}</span>
+              <span class="advpp-menu-item-label">{{ menuLabel(item) }}</span>
               <i class="an an-caret-right advpp-menu-item-chevron"></i>
             </button>
           }
@@ -160,6 +169,7 @@ export class App {
   protected inputFormValue: any = {};
   protected consoleOpen = signal(false);
   protected menuIcon = menuItemIcon;
+  protected menuLabel = menuItemLabel;
 
   private sid = Math.random().toString(36).slice(2);
   private browseId = 0;

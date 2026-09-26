@@ -50,6 +50,114 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
   segue **só decodificável com captura de chave ao vivo** da mesma sessão de
   compilação (`advplc rpo decrypt`). Nenhuma alegação deste release afirma o
   contrário.
+## [4.2.1] — 2026-09-26
+
+### Adicionado
+
+- **Menu do modo serve aceita ícone explícito por item.** Uma opção enviada como texto com prefixo icon:<nome> mais barra vertical mais Texto renderiza o ícone PO correspondente em vez da heurística por palavra-chave, que continua valendo inalterada para itens sem prefixo (compatível com apps existentes como o GesCon). O rótulo exibido nunca mostra o prefixo. Implementado no frontend web com pkg/webui/dist reconstruído. Motivação: menus com dezenas de opções (ex.: ERP GEBAN) onde a heurística deixava a maioria dos itens com o chevron neutro.
+
+
+## [4.2.0] — 2026-09-25
+
+### Adicionado
+
+- **`WSRestServer` agora pode devolver HTML/texto puro, além de JSON.**
+  Uma rota registrada via `AddRoute()` ou anotação `@Get`/`@Post` pode
+  devolver `{"__RAW_HTTP__", cContentType, cBody[, nStatus]}` em vez do
+  valor normal — o servidor grava a resposta exatamente como veio, com o
+  `Content-Type` e status pedidos, em vez de serializar como JSON. Sem
+  isso, `WSRestServer` só conseguia servir uma API JSON; qualquer página
+  HTML servida pela mesma aplicação precisava de um servidor HTTP
+  separado. Implementado em `pkg/rest.RawResponse` (tipo novo, retrocompatível — nenhuma rota existente muda de comportamento) e
+  reconhecido em `pkg/vm/rest_native.go`. Testado manualmente servindo
+  uma página de login real ao lado de uma rota JSON na mesma porta.
+
+### Corrigido
+
+- **VM isolada de requisição REST perdia a conexão de banco remota
+  (crítico).** `restHandlerFor` (o despachante de cada rota
+  `WSRestServer`) criava a VM isolada de cada requisição chamando
+  `v.dbFactory()` para obter seu `dbEngine` — mecanismo pensado só para
+  o engine SQLite local (cada job WAL ganha sua própria conexão de
+  arquivo). Contra uma conexão remota ativa (`TOPCONN`/Postgres via
+  `pkg/db.RemoteSQLEngine`, um pool `database/sql` já seguro para uso
+  concorrente), `dbFactory()` descartava esse engine remoto configurado
+  e a VM do job caía de volta num engine SQLite local vazio/default —
+  toda rota REST contra um backend Postgres remoto falhava em silêncio
+  com erros do tipo `SQL logic error: no such table` mesmo com o
+  processo pai plenamente conectado. Corrigido compartilhando
+  diretamente `job.dbEngine = v.dbEngine` (a mesma conexão ativa da VM
+  pai) em vez de reabrir via `dbFactory()`. O mesmo padrão
+  (`job.dbFactory = v.dbFactory; job.dbEngine = v.dbFactory()`) também
+  existe em `StartJob`, `pkg/vm/grid.go`, `grpcserver_native.go` e
+  `mcp_native.go` — não alterados nesta release (risco/escopo maiores,
+  cada um precisa de verificação própria antes de mudar o
+  comportamento de jobs assíncronos já em uso); registrado aqui como
+  pendência conhecida para quem for mexer nesses caminhos contra um
+  backend remoto.
+
+## [4.1.0] — 2026-09-24
+
+Release de endurecimento do motor, a partir de uma revisão completa
+(FULL-REVIEW) do compilador/VM. Foco em corretude e robustez; sem
+quebras de API.
+
+### Corrigido
+
+- **Loop infinito silencioso (crítico).** Todo comando cujo valor é
+  descartado — chamada de função isolada, `x++`, `x--` — não emitia
+  `OP_POP` no codegen e vazava um valor na pilha da VM a cada iteração.
+  Ao passar de `MaxStackSize` (10.000) o `push` falhava em silêncio, a
+  condição do laço nunca ficava falsa e o programa girava consumindo
+  100% de CPU. Reproduzível com um simples `For nI := 1 To 20000`
+  contendo `nC++`, `aAdd(a,nI)` ou uma chamada de função como comando.
+  Fixture de regressão em `tests/stack_regression_test.prw`.
+- **Estouro da pilha de operandos agora é erro visível.** `push`
+  retornava erro no estouro, mas ~490 chamadores o descartavam; a VM
+  seguia sobre uma pilha corrompida. Agora marca `VM.fault` e o
+  `runLoop` aborta com erro (não capturável por Try/Catch — é falha do
+  motor, não erro de aplicação).
+- **`DBDelete()` era um stub no-op:** exclusões sumiam em silêncio e
+  `Deleted()` nunca virava `.T.`. Agora marca `D_E_L_E_T_ = '*'`
+  (simétrico a `DBRecall`), persistido no ciclo `RecLock`/`MsUnlock`.
+  Fixture em `tests/dbdelete_test.prw`.
+
+### Adicionado
+
+- **Endurecimento do servidor REST (`WSRestServer`):** `ReadHeaderTimeout`,
+  `ReadTimeout`, `WriteTimeout`, `IdleTimeout`, `MaxHeaderBytes` e limite
+  de 10 MiB por corpo de requisição (`http.MaxBytesReader`), contra
+  Slowloris e exaustão de memória. O endereço de bind não muda.
+- **Mensagens de erro do parser legíveis:** `TokenType.String()` gerado
+  por `stringer` — `expected TOKEN_RPAREN, got TOKEN_IDENT ("ConOut")`
+  no lugar de `expected 27, got 5`.
+
+### Notas
+
+- Itens estruturais levantados na revisão e adiados para releases
+  dedicados: workarea multi-área com cursor por índice (hoje
+  `DbSelectArea` carrega a tabela inteira em memória), `DbSeek` por
+  índice, `R_E_C_N_O_` alocado pelo banco, `Select()`/`GetArea()`/
+  `RestArea()` com semântica fiel, representação de `Value` sem boxing e
+  bind em loopback + auth/TLS nos servidores.
+
+## [4.0.2] — 2026-09-24
+
+### Corrigido
+
+- `DBSTRUCT`/`TCSTRUCT`/`FWMBrowse` agora funcionam sobre tabela
+  remota (Postgres/Oracle/MSSQL via `TOPCONN`). Antes, essas rotinas
+  falhavam ao conectar em banco remoto porque a introspecção de
+  schema assumia SQLite: `browseColumns` (usado por `FWMBrowse`) e
+  `TCSTRUCT` emitem `PRAGMA table_info(X)` — sintaxe exclusiva do
+  SQLite — sem saber se o `SQLEngine` ativo é local ou remoto.
+  `RemoteSQLEngine.QueryRows` (`pkg/db/remote_engine.go`) agora
+  intercepta essa chamada e sintetiza a mesma forma de resposta do
+  SQLite usando introspecção genérica do `database/sql`
+  (`SELECT ... WHERE 1=0` + `ColumnTypes()`), que funciona igual para
+  Postgres/Oracle/MSSQL sem precisar de SQL específico por dialeto.
+  Validado com teste real contra Postgres (não só mock): `TCStruct()`
+  sobre tabela remota real retorna nomes e tipos ADVPL corretos.
 
 ## [4.0.1] — 2026-09-19
 

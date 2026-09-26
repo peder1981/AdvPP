@@ -17,6 +17,19 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
+)
+
+// Limites de endurecimento do servidor HTTP (FULL-REVIEW A2). Sem eles, o
+// servidor ficava vulnerável a Slowloris (conexões lentas segurando
+// goroutines) e a corpos de requisição arbitrariamente grandes.
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 30 * time.Second
+	idleTimeout       = 120 * time.Second
+	maxHeaderBytes    = 1 << 20  // 1 MiB de cabeçalhos
+	maxBodyBytes      = 10 << 20 // 10 MiB de corpo por requisição
 )
 
 // Route é um endpoint REST: verbo HTTP + path (aceita `{param}` no estilo
@@ -28,8 +41,25 @@ type Route struct {
 	// Handler recebe os parâmetros já resolvidos (path params + query
 	// string + corpo JSON decodificado, todos mesclados num único mapa —
 	// ver precedência em (*Server).ServeHTTP) e devolve o valor Go a ser
-	// serializado como corpo JSON da resposta (200) ou um erro (500).
+	// serializado como corpo JSON da resposta (200) ou um erro (500). Se o
+	// valor devolvido for um RawResponse, o corpo vai para a resposta
+	// exatamente como está (sem JSON), com o Content-Type e status HTTP
+	// que o RawResponse pedir — usado por rotas que servem HTML/texto
+	// puro em vez de uma API JSON (ex.: uma página de login).
 	Handler func(params map[string]any) (any, error)
+}
+
+// RawResponse é um corpo de resposta HTTP que não passa pelo
+// serializador JSON — o handler assume controle total do Content-Type e
+// dos bytes exatos da resposta. Devolvida por um Handler no lugar do
+// valor normal quando a rota precisa emitir HTML/texto/binário puro.
+type RawResponse struct {
+	// Status é o código HTTP; 0 vira 200.
+	Status int
+	// ContentType vai literal no header Content-Type; vazio vira
+	// "text/plain; charset=utf-8".
+	ContentType string
+	Body        []byte
 }
 
 // Server é um servidor REST servindo um conjunto fixo de rotas sobre HTTP.
@@ -146,6 +176,10 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request, route Route) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	if raw, ok := result.(RawResponse); ok {
+		writeRaw(w, raw)
+		return
+	}
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -153,6 +187,20 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeRaw(w http.ResponseWriter, raw RawResponse) {
+	status := raw.Status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	contentType := raw.ContentType
+	if contentType == "" {
+		contentType = "text/plain; charset=utf-8"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(status)
+	_, _ = w.Write(raw.Body)
 }
 
 // pathParamNames extrai os nomes `{nome}` de um path no formato do
@@ -184,7 +232,15 @@ func (s *Server) Serve(addr string) error {
 	// reentrante).
 	mux := s.buildMux()
 	s.mu.Lock()
-	s.httpServer = &http.Server{Addr: addr, Handler: mux}
+	s.httpServer = &http.Server{
+		Addr:              addr,
+		Handler:           limitBody(mux),
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+		MaxHeaderBytes:    maxHeaderBytes,
+	}
 	srv := s.httpServer
 	s.mu.Unlock()
 
@@ -193,6 +249,16 @@ func (s *Server) Serve(addr string) error {
 		return nil
 	}
 	return err
+}
+
+// limitBody envolve o handler limitando o corpo de cada requisição a
+// maxBodyBytes (FULL-REVIEW A2), impedindo exaustão de memória por uploads
+// arbitrariamente grandes.
+func limitBody(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+		h.ServeHTTP(w, r)
+	})
 }
 
 // Shutdown encerra graciosamente o servidor iniciado por Serve.

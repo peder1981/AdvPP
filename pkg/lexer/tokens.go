@@ -2,6 +2,8 @@ package lexer
 
 import "fmt"
 
+//go:generate stringer -type=TokenType .
+
 // TokenType represents the classification of a lexical token (keyword, operator, literal, etc.).
 type TokenType int
 

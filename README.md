@@ -228,8 +228,10 @@ comportamento de sempre.
 - Tabela física remota precisa ter as colunas `R_E_C_N_O_`/`D_E_L_E_T_`
   (mesma convenção do SQLite local) — não é para conectar a schemas
   legados sem essas colunas
-- `DBSTRUCT`/`TCSTRUCT`/`FWMBrowse` sobre uma tabela remota ainda não
-  funcionam (introspecção de schema assume SQLite)
+- `DBSTRUCT`/`TCSTRUCT`/`FWMBrowse` funcionam sobre tabela remota: `QueryRows`
+  intercepta `PRAGMA table_info(X)` e sintetiza a mesma forma usando
+  introspecção genérica do `database/sql` (`SELECT ... WHERE 1=0` +
+  `ColumnTypes()`), igual para Postgres/Oracle/MSSQL — sem SQL por dialeto
 - Um único RDD remoto "ativo" por vez na sessão — não há roteamento por
   alias entre múltiplas conexões simultâneas
 
