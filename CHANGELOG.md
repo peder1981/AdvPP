@@ -2,6 +2,13 @@
 
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
+## [4.2.1] — 2026-09-26
+
+### Adicionado
+
+- **Menu do modo serve aceita ícone explícito por item.** Uma opção enviada como texto com prefixo icon:<nome> mais barra vertical mais Texto renderiza o ícone PO correspondente em vez da heurística por palavra-chave, que continua valendo inalterada para itens sem prefixo (compatível com apps existentes como o GesCon). O rótulo exibido nunca mostra o prefixo. Implementado no frontend web com pkg/webui/dist reconstruído. Motivação: menus com dezenas de opções (ex.: ERP GEBAN) onde a heurística deixava a maioria dos itens com o chevron neutro.
+
+
 ## [4.2.0] — 2026-09-25
 
 ### Adicionado
