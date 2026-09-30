@@ -81,3 +81,21 @@ dev: build
 
 run: build
 	./$(BINARY) $(ARGS)
+
+# Package (usado pelo workflow de release)
+package:
+	@echo "Packaging for release $(VERSION)..."
+	mkdir -p dist
+	# CLI Linux
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v$(VERSION)" -o advplc ./cmd/advplc
+	tar czf "dist/advpp-$(VERSION)-linux-amd64.tar.gz" advplc
+	# CLI Windows
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v$(VERSION)" -o advplc.exe ./cmd/advplc
+	zip "dist/advpp-$(VERSION)-windows-amd64.zip" advplc.exe
+	# CLI macOS
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v$(VERSION)" -o advplc-darwin ./cmd/advplc
+	tar czf "dist/advpp-$(VERSION)-darwin-arm64.tar.gz" advplc-darwin
+	# Limpar
+	rm -f advplc advplc.exe advplc-darwin*
+	@echo "Packages created in dist/"
+	@ls -lh dist/
