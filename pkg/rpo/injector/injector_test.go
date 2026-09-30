@@ -161,7 +161,7 @@ func TestSave_ReconstróiRPO(t *testing.T) {
 		t.Fatalf("NewInjector falhou: %v", err)
 	}
 
-	tmpFile := "/tmp/test_save_rpo.rpo"
+	tmpFile := t.TempDir() + "/test_save_rpo.rpo"
 	defer os.Remove(tmpFile)
 
 	err = inj.Save(tmpFile)
