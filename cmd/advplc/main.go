@@ -187,6 +187,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "inject":
+		if err := cmdRpoInject(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		fmt.Printf("advplc %s\n", version)
 

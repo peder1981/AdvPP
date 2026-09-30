@@ -1,226 +1,109 @@
 package rpo
 
 import (
-	"bytes"
+	"crypto/rand"
+	"os"
+	"strings"
 	"testing"
 )
 
-func TestApoParser_ParseFuncHeader(t *testing.T) {
-	data := []byte{
-		0x01, 0x00, 0x00, 0x00,
-		0x07, 0x00, 0x00, 0x00,
-		'M', 'y', 'F', 'u', 'n', 'c', 0x00,
-	}
+// TestAPOScannerRejectsCiphertext prova que o scanner estrito NÃO produz
+// candidatos a partir de conteúdo cifrado (fonte dos falsos positivos
+// antigos).
+func TestAPOScannerRejectsCiphertext(t *testing.T) {
+	t.Parallel()
 
-	parser := NewApoParser(data)
-	records, err := parser.ParseAll()
+	rpoData, err := os.ReadFile("testdata/live_capture.rpo")
 	if err != nil {
-		t.Fatalf("ParseAll failed: %v", err)
+		t.Skipf("testdata indisponível: %v", err)
 	}
-
-	if len(records) != 1 {
-		t.Fatalf("Expected 1 record, got %d", len(records))
-	}
-
-	if records[0].Type != ApoFuncHeader {
-		t.Errorf("Expected FUNC_HEADER, got %v", records[0].Type)
-	}
-
-	parsed := records[0].Parsed.(map[string]interface{})
-	if parsed["name"] != "MyFunc" {
-		t.Errorf("Expected 'MyFunc', got %v", parsed["name"])
-	}
-}
-
-func TestApoParser_MultipleRecords(t *testing.T) {
-	var data []byte
-	
-	// Record 1: FUNC_HEADER
-	data = append(data, []byte{
-		0x01, 0x00, 0x00, 0x00,
-		0x05, 0x00, 0x00, 0x00,
-		'T', 'e', 's', 't', 0x00,
-	}...)
-	
-	// Record 2: STRING_TABLE (0xFEFFFFFF)
-	data = append(data, []byte{
-		0xFE, 0xFF, 0xFF, 0xFF,
-		0x07, 0x00, 0x00, 0x00,
-		'h', 'i', 0x00, 't', 'h', 'e', 'r', 0x00,
-	}...)
-
-	parser := NewApoParser(data)
-	records, err := parser.ParseAll()
+	f, err := Parse(rpoData)
 	if err != nil {
-		t.Fatalf("ParseAll failed: %v", err)
+		t.Fatalf("Parse: %v", err)
+	}
+	content := append(append([]byte{}, f.AdminSection...), f.Body...)
+
+	parser := NewAPOParser(content)
+	recs := parser.ParseRecords(DefaultAPOMinConfidence)
+	if len(recs) != 0 {
+		t.Errorf("esperado 0 registros de ciphertext, obtido %d: %+v", len(recs), recs)
 	}
 
-	if len(records) != 2 {
-		t.Errorf("Expected 2 records, got %d", len(records))
+	random := make([]byte, 2<<20)
+	if _, err := rand.Read(random); err != nil {
+		t.Fatal(err)
 	}
-
-	if records[0].Type != ApoFuncHeader {
-		t.Errorf("Expected first record to be FUNC_HEADER")
-	}
-
-	if records[1].Type != ApoStringTable {
-		t.Errorf("Expected second record to be STRING_TABLE, got %v", records[1].Type)
-	}
-}
-
-func TestApoParser_FunctionLookup(t *testing.T) {
-	data := []byte{
-		0x01, 0x00, 0x00, 0x00,
-		0x08, 0x00, 0x00, 0x00,
-		'A', 'd', 'd', 'R', 'o', 'u', 't', 'e', 0x00,
-		0x01, 0x00, 0x00, 0x00,
-	}
-
-	_, err := NewApoParser(data).ParseAll()
-	if err != nil {
-		t.Fatalf("ParseAll failed: %v", err)
-	}
-
-	parser := NewApoParser(data)
-	parser.ParseAll()
-
-	funcRecord := parser.GetFunction("AddRoute")
-	if funcRecord == nil {
-		t.Fatal("Expected to find function 'AddRoute'")
+	recs = NewAPOParser(random).ParseRecords(DefaultAPOMinConfidence)
+	if len(recs) != 0 {
+		t.Errorf("esperado 0 registros de dados aleatórios, obtido %d", len(recs))
 	}
 }
 
-func TestApoParser_StringTable(t *testing.T) {
-	data := []byte{
-		0xFE, 0xFF, 0xFF, 0xFF,
-		0x0B, 0x00, 0x00, 0x00,
-		'h', 'e', 'l', 'l', 'o', 0x00, 'w', 'o', 'r', 'l', 'd', 0x00,
-	}
+// TestAPOScannerFindsSynthetic prova que o scanner ENCONTRA um registro
+// sintético bem-formado (controle positivo).
+func TestAPOScannerFindsSynthetic(t *testing.T) {
+	t.Parallel()
 
-	parser := NewApoParser(data)
-	records, err := parser.ParseAll()
-	if err != nil {
-		t.Fatalf("ParseAll failed: %v", err)
-	}
+	// Cabeçalho: size(4 LE) + type(1) + "MinhaFuncao\0" + nextLen(4 LE)
+	name := []byte("MinhaFuncao\x00")
+	next := []byte{4, 0, 0, 0}
+	payloadLen := 4 + 1 + len(name) + len(next)
+	buf := make([]byte, 5+len(name)+len(next)+8)
+	buf[0] = byte(payloadLen)
+	buf[1] = 0
+	buf[2] = 0
+	buf[3] = 0
+	buf[4] = APO_TYPE_FUNCTION
+	copy(buf[5:], name)
+	copy(buf[5+len(name):], next)
 
-	if len(records) != 1 {
-		t.Fatalf("Expected 1 record, got %d", len(records))
+	recs := NewAPOParser(buf).ParseRecords(DefaultAPOMinConfidence)
+	if len(recs) != 1 {
+		t.Fatalf("esperado 1 registro sintético, obtido %d", len(recs))
 	}
-
-	parsed := records[0].Parsed.(map[string]interface{})
-	strings, ok := parsed["strings"].([]string)
-	if !ok {
-		t.Fatalf("Expected strings array, got %T", parsed["strings"])
+	if recs[0].Name != "MinhaFuncao" {
+		t.Errorf("nome: esperado MinhaFuncao, obtido %q", recs[0].Name)
 	}
-
-	if len(strings) != 2 {
-		t.Errorf("Expected 2 strings, got %d", len(strings))
-	}
-
-	if strings[0] != "hello" || strings[1] != "world" {
-		t.Errorf("Expected ['hello', 'world'], got %v", strings)
+	if recs[0].Type != APO_TYPE_FUNCTION {
+		t.Errorf("tipo: esperado Function, obtido %s", recs[0].TypeName)
 	}
 }
 
-func TestApoParser_WriteTo(t *testing.T) {
-	original := []byte{
-		0x01, 0x00, 0x00, 0x00,
-		0x05, 0x00, 0x00, 0x00,
-		'T', 'e', 's', 't', 0x00,
-	}
-
-	parser := NewApoParser(original)
-	parser.ParseAll()
-
-	var buf bytes.Buffer
-	n, err := parser.WriteTo(&buf)
-	if err != nil {
-		t.Fatalf("WriteTo failed: %v", err)
-	}
-
-	if int(n) != len(original) {
-		t.Errorf("Expected written %d bytes, got %d", len(original), n)
-	}
-
-	if !bytes.Equal(buf.Bytes(), original) {
-		t.Error("Written data does not match original")
-	}
-}
-
-func TestApoParser_Summary(t *testing.T) {
-	var data []byte
-	
-	for i := 0; i < 3; i++ {
-		name := []byte{byte('F' + i), 'u', 'n', 'c', 0x00}
-		data = append(data, []byte{
-			0x01, 0x00, 0x00, 0x00,
-			byte(len(name)), 0x00, 0x00, 0x00,
-		}...)
-		data = append(data, name...)
-	}
-
-	parser := NewApoParser(data)
-	parser.ParseAll()
-
-	summary := parser.Summary()
-	if summary == "" {
-		t.Error("Expected non-empty summary")
-	}
-}
-
-func TestApoRecordType_String(t *testing.T) {
-	tests := []struct {
-		typ      ApoRecordType
-		expected string
+func TestGetTypeName(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		id   uint8
+		want string
 	}{
-		{ApoFuncHeader, "FUNC_HEADER"},
-		{ApoFuncBody, "FUNC_BODY"},
-		{ApoStringTable, "STRING_TABLE"},
-		{ApoEndMarker, "END_MARKER"},
-		{ApoRecordType(0xFFFFFFFF), "UNKNOWN_0xFFFFFFFF"},
+		{APO_TYPE_FUNCTION, "Function"},
+		{APO_TYPE_METHOD, "Method"},
+		{APO_TYPE_CLASS, "Class"},
+		{0xFF, "Unknown_0xFF"},
 	}
-
-	for _, tt := range tests {
-		if tt.typ.String() != tt.expected {
-			t.Errorf("ApoRecordType(%d).String() = %s, want %s", tt.typ, tt.typ.String(), tt.expected)
+	for _, c := range cases {
+		if got := GetTypeName(c.id); got != c.want {
+			t.Errorf("GetTypeName(%d)=%q, want %q", c.id, got, c.want)
 		}
 	}
 }
 
-func TestApoParser_ParseFuncBody(t *testing.T) {
-	data := []byte{
-		0x02, 0x00, 0x00, 0x00,
-		0x08, 0x00, 0x00, 0x00,
-		0x01, 0x00, 0x00, 0x00,
-		0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE,
+func TestIsValidAdvplName(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		ok   bool
+	}{
+		{"GetSx3Cache", true},
+		{"U_MyFunction", true},
+		{"Invalid Name", false},
+		{"123Start", false},
+		{"", false},
+		{"A", true},
+		{"X"+strings.Repeat("a",70), false},
 	}
-
-	parser := NewApoParser(data)
-	records, err := parser.ParseAll()
-	if err != nil {
-		t.Fatalf("ParseAll failed: %v", err)
-	}
-
-	parsed := records[0].Parsed.(map[string]interface{})
-	if parsed["funcRef"].(uint32) != 1 {
-		t.Errorf("Expected funcRef 1, got %v", parsed["funcRef"])
-	}
-}
-
-func BenchmarkApoParser_Parse(b *testing.B) {
-	var data []byte
-	for i := 0; i < 100; i++ {
-		name := []byte{byte('F' + i%26), 'u', 'n', 'c', '_', byte(i), 0x00}
-		data = append(data, []byte{
-			0x01, 0x00, 0x00, 0x00,
-			byte(len(name)), 0x00, 0x00, 0x00,
-		}...)
-		data = append(data, name...)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		parser := NewApoParser(data)
-		parser.ParseAll()
+	for _, c := range cases {
+		if got := isValidAdvplName(c.name); got != c.ok {
+			t.Errorf("isValidAdvplName(%q)=%v, want %v", c.name, got, c.ok)
+		}
 	}
 }
