@@ -1,9 +1,8 @@
 # Makefile para AdvPP - Compilador AdvPL/TLPP
 
-.PHONY: all build test clean help \
+.PHONY: all build test clean help cross \
         rpo-analyze rpo-decrypt rpo-inject \
-        docker-build docker-run docker-logs \
-        bytecode-generate
+        docker-build docker-run docker-logs
 
 # Configurações
 BINARY := advplc
@@ -12,6 +11,13 @@ GO := go
 DOCKER_COMPOSE := docker-compose
 
 all: build test
+
+cross:
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o advplc-linux-amd64 ./cmd/advplc
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o advplc-windows-amd64.exe ./cmd/advplc
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o advplc-darwin-arm64 ./cmd/advplc
+	@echo "Cross-compile concluído:"
+	@ls -lh advplc-*
 
 # Build
 build:
@@ -28,6 +34,7 @@ test-short:
 # Limpeza
 clean:
 	rm -f $(BINARY)
+	rm -f advplc-*
 	rm -rf releases/bytecode/*.bytecode
 	find . -name "*.rpo" -path "*/tmp/*" -delete 2>/dev/null || true
 
@@ -40,20 +47,13 @@ help:
 	@echo "  test           - Run all tests"
 	@echo "  test-short     - Run short tests"
 	@echo "  clean          - Clean build artifacts"
+	@echo "  cross          - Cross-compile for all platforms"
 	@echo "  help           - Show this help"
 	@echo ""
 	@echo "RPO Tools:"
 	@echo "  rpo-analyze    - Analyze RPO file"
 	@echo "  rpo-decrypt    - Decrypt RPO with capture"
 	@echo "  rpo-inject     - Inject bytecode into RPO"
-	@echo ""
-	@echo "Docker:"
-	@echo "  docker-build   - Build Docker images"
-	@echo "  docker-run     - Run containers"
-	@echo "  docker-logs    - Show container logs"
-	@echo ""
-	@echo "Bytecode:"
-	@echo "  bytecode-generate - Generate bytecode from sources"
 
 # RPO Analysis
 rpo-analyze: build
@@ -75,50 +75,9 @@ docker-run:
 docker-logs:
 	$(DOCKER_COMPOSE) logs -f
 
-# Bytecode
-bytecode-generate: build
-	@mkdir -p releases/bytecode
-	@echo "Generating bytecode..."
-	@for f in $$($(GO) list ./... | grep -v vendor); do \
-		echo "Processing $$f..."; \
-	done
-	@echo "Bytecode generation complete"
-
 # Dev targets
 dev: build
 	$(GO) run ./cmd/advplc $(ARGS)
 
 run: build
 	./$(BINARY) $(ARGS)
-
-# RPO Injection targets
-rpo-capture:
-	@echo "Capturando chaves de criptografia..."
-	@docker exec protheus-custom bash -c ' \
-		export LD_PRELOAD=/tmp/rpo_key_hook_v10.so; \
-		export RPO_KEYS_OUTPUT=/tmp/capture_latest.json; \
-		cd /totvs/protheus12.1.2510/bin; \
-		./appsrvlinux -compile -env=P12 -files=$(SOURCE) 2>&1' || \
-	docker exec protheus-custom bash -c ' \
-		export LD_PRELOAD=/tmp/rpo_key_hook_v11.so; \
-		export RPO_KEYS_OUTPUT=/tmp/capture_latest.json; \
-		cd /totvs/protheus12.1.2510/bin; \
-		./appsrvlinux -compile -env=P12 -files=$(SOURCE) 2>&1'
-	@docker cp protheus-custom:/tmp/capture_latest.json /tmp/capture_latest.json
-	@echo "Captura salva em /tmp/capture_latest.json"
-
-rpo-inject: build rpo-capture
-	@./$(BINARY) rpo inject $(RPO) /tmp/capture_latest.json \
-		--inject $(REGISTER)=$(BYTECODE) \
-		$(if $(OUTPUT),-o $(OUTPUT))
-	@echo "RPO injetado em $(if $(OUTPUT),$(OUTPUT),/tmp/injected.rpo)"
-
-rpo-analyze: build
-	@./$(BINARY) rpo info $(RPO)
-	@./$(BINARY) rpo regions $(RPO)
-	@./$(BINARY) rpo analyze $(RPO)
-
-rpo-decrypt: build
-	@./$(BINARY) rpo decrypt $(RPO) $(CAPTURE)
-
-.PHONY: rpo-capture rpo-inject rpo-analyze rpo-decrypt
