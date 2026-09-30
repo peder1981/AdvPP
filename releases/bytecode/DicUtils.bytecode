@@ -1,0 +1,5475 @@
+{
+  "version": "1.0",
+  "constants": [
+    {
+      "Type": "number",
+      "Num": 1,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "@R 999"
+    },
+    {
+      "Type": "number",
+      "Num": 3,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "0"
+    },
+    {
+      "Type": "number",
+      "Num": 0,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 2,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "SX3"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "00"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": " "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "'"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_ARQUIVO"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_ORDEM"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_CAMPO"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_TIPO"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_TAMANHO"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_DECIMAL"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_TITULO"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_TITSPA"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_TITENG"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_DESCRIC"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_DESCSPA"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_DESCENG"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_PICTURE"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_VALID"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_USADO"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_RELACAO"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_F3"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_NIVEL"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_RESERV"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_CHECK"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_TRIGGER"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_PROPRI"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_BROWSE"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_VISUAL"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_CONTEXT"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_OBRIGAT"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_VLDUSER"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_CBOX"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_CBOXSPA"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_CBOXENG"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_PICTVAR"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_WHEN"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_INIBRW"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_GRPSXG"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_FOLDER"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X3_PYME"
+    },
+    {
+      "Type": "number",
+      "Num": 36,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "ATUALIZADO"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "INCLUIDO"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "JÁ EXISTE"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "SX1"
+    },
+    {
+      "Type": "number",
+      "Num": 4,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 5,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 6,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 7,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 8,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 9,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 10,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 11,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 12,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 13,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 14,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 15,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 16,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 17,
+      "Str": ""
+    }
+  ],
+  "functions": {
+    "GetOrdem": {
+      "Name": "GetOrdem",
+      "NumParams": 1,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 121,
+      "ParamNames": [
+        "cCampo"
+      ],
+      "LocalNames": {
+        "aAreaSX3": 2,
+        "cCampo": 0,
+        "cOrdem": 1
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "IniAtuSX3": {
+      "Name": "IniAtuSX3",
+      "NumParams": 2,
+      "NumLocals": 5,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 621,
+      "ParamNames": [
+        "cArq",
+        "aOrdem"
+      ],
+      "LocalNames": {
+        "aEstrut": 2,
+        "aOrdem": 1,
+        "aSX3": 3,
+        "cArq": 0,
+        "cOrdem": 4
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "PutSx1": {
+      "Name": "PutSx1",
+      "NumParams": 32,
+      "NumLocals": 36,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 444,
+      "ParamNames": [
+        "cPerg",
+        "cOrdem",
+        "cTitPor",
+        "cTitEsp",
+        "cTitIng",
+        "cNomeVar",
+        "cTipo",
+        "nTam",
+        "nDec",
+        "nNivel",
+        "cGroup",
+        "cValid",
+        "cF3",
+        "cMvPar",
+        "cVal1Por",
+        "cVal1Esp",
+        "cVal1Ing",
+        "cVal2Por",
+        "cVal2Esp",
+        "cVal2Ing",
+        "cVal3Por",
+        "cVal3Esp",
+        "cVal3Ing",
+        "cVal4Por",
+        "cVal4Esp",
+        "cVal4Ing",
+        "cVal5Por",
+        "cVal5Esp",
+        "cVal5Ing",
+        "aHelpPor",
+        "aHelpEng",
+        "aHelpEsp"
+      ],
+      "LocalNames": {
+        "aHelpEng": 30,
+        "aHelpEsp": 31,
+        "aHelpPor": 29,
+        "cAlias": 32,
+        "cF3": 12,
+        "cGroup": 10,
+        "cMsg": 34,
+        "cMvPar": 13,
+        "cNomeVar": 5,
+        "cOrdem": 1,
+        "cPerg": 0,
+        "cTipo": 6,
+        "cTitEsp": 3,
+        "cTitIng": 4,
+        "cTitPor": 2,
+        "cVal1Esp": 15,
+        "cVal1Ing": 16,
+        "cVal1Por": 14,
+        "cVal2Esp": 18,
+        "cVal2Ing": 19,
+        "cVal2Por": 17,
+        "cVal3Esp": 21,
+        "cVal3Ing": 22,
+        "cVal3Por": 20,
+        "cVal4Esp": 24,
+        "cVal4Ing": 25,
+        "cVal4Por": 23,
+        "cVal5Esp": 27,
+        "cVal5Ing": 28,
+        "cVal5Por": 26,
+        "cValid": 11,
+        "lInclui": 33,
+        "nDec": 8,
+        "nI": 35,
+        "nNivel": 9,
+        "nTam": 7
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "PutSx3": {
+      "Name": "PutSx3",
+      "NumParams": 1,
+      "NumLocals": 9,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 149,
+      "ParamNames": [
+        "aRecord"
+      ],
+      "LocalNames": {
+        "aEstrut": 7,
+        "aRecord": 0,
+        "cAlias": 1,
+        "cArquivo": 5,
+        "cCampo": 6,
+        "cMsg": 3,
+        "lInclui": 2,
+        "nI": 4,
+        "nI step": 8
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "RetornaOrdem": {
+      "Name": "RetornaOrdem",
+      "NumParams": 2,
+      "NumLocals": 6,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 32,
+      "ParamNames": [
+        "cTabela",
+        "aOrdem"
+      ],
+      "LocalNames": {
+        "aAreaSX3": 2,
+        "aOrdem": 1,
+        "cOrdem": 5,
+        "cProxOrdem": 4,
+        "cTabela": 0,
+        "nX": 3
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Soma1": {
+      "Name": "Soma1",
+      "NumParams": 1,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 1,
+      "ParamNames": [
+        "cOrdem"
+      ],
+      "LocalNames": {
+        "cOrdem": 0,
+        "cRet": 2,
+        "nVal": 1
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "__codeblock_0": {
+      "Name": "__codeblock_0",
+      "NumParams": 2,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 44,
+      "ParamNames": [
+        "self",
+        "x"
+      ],
+      "LocalNames": null,
+      "Annotations": null,
+      "Upvals": [
+        {
+          "Kind": 0,
+          "Index": 0
+        }
+      ]
+    }
+  },
+  "classes": {},
+  "code": [
+    {
+      "Op": 75,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 13
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Val",
+      "Line": 13
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nVal",
+      "Line": 13
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nVal",
+      "Line": 14
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 76,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nVal",
+      "Line": 14
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 15
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nVal",
+      "Line": 15
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 15
+    },
+    {
+      "Op": 4,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 15
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "Transform",
+      "Line": 15
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "cRet",
+      "Line": 15
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 17
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "cRet",
+      "Line": 17
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 17
+    },
+    {
+      "Op": 3,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 17
+    },
+    {
+      "Op": 38,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 17
+    },
+    {
+      "Op": 27,
+      "Arg": 30,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 17
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "cRet",
+      "Line": 18
+    },
+    {
+      "Op": 4,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "cRet",
+      "Line": 18
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 26,
+      "Arg": 17,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 17
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "cRet",
+      "Line": 20
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetArea",
+      "Line": 28
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "aAreaSX3",
+      "Line": 28
+    },
+    {
+      "Op": 3,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "nX",
+      "Line": 29
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 30
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cProxOrdem",
+      "Line": 30
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 7,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 31
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "aOrdem",
+      "Line": 33
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 26,
+      "Arg": 50,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "x",
+      "Line": 33
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 82,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cTabela",
+      "Line": 33
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 47,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "__codeblock_0",
+      "Line": 33
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "Ascan",
+      "Line": 33
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "nX",
+      "Line": 33
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "nX",
+      "Line": 35
+    },
+    {
+      "Op": 3,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 35
+    },
+    {
+      "Op": 39,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 35
+    },
+    {
+      "Op": 27,
+      "Arg": 72,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 35
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 36
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "aOrdem",
+      "Line": 36
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "nX",
+      "Line": 36
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 36
+    },
+    {
+      "Op": 3,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 36
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 36
+    },
+    {
+      "Op": 21,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Soma1",
+      "Line": 36
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cProxOrdem",
+      "Line": 36
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cProxOrdem",
+      "Line": 37
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "aOrdem",
+      "Line": 37
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "nX",
+      "Line": 37
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 37
+    },
+    {
+      "Op": 3,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 37
+    },
+    {
+      "Op": 14,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 37
+    },
+    {
+      "Op": 26,
+      "Arg": 115,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 35
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 39
+    },
+    {
+      "Op": 4,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 39
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSelectArea",
+      "Line": 39
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 39
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 40
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 40
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSetOrder",
+      "Line": 40
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 40
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cTabela",
+      "Line": 41
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "MsSeek",
+      "Line": 41
+    },
+    {
+      "Op": 27,
+      "Arg": 101,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 42
+    },
+    {
+      "Op": 60,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "X3_ARQUIVO",
+      "Line": 42
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Upper",
+      "Line": 42
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 42
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cTabela",
+      "Line": 42
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Upper",
+      "Line": 42
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 42
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Eof",
+      "Line": 42
+    },
+    {
+      "Op": 44,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 42
+    },
+    {
+      "Op": 42,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 42
+    },
+    {
+      "Op": 27,
+      "Arg": 100,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 42
+    },
+    {
+      "Op": 60,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "X3_ORDEM",
+      "Line": 43
+    },
+    {
+      "Op": 7,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 43
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "DbSkip",
+      "Line": 44
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 44
+    },
+    {
+      "Op": 26,
+      "Arg": 84,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 42
+    },
+    {
+      "Op": 26,
+      "Arg": 103,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 4,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 7,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 47
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 49
+    },
+    {
+      "Op": 6,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 49
+    },
+    {
+      "Op": 21,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Soma1",
+      "Line": 49
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cProxOrdem",
+      "Line": 49
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 50
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "aOrdem",
+      "Line": 50
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 50
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cTabela",
+      "Line": 50
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cProxOrdem",
+      "Line": 50
+    },
+    {
+      "Op": 12,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 50
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "Aadd",
+      "Line": 50
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 50
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 53
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "aAreaSX3",
+      "Line": 53
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "RestArea",
+      "Line": 53
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 53
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cProxOrdem",
+      "Line": 54
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 61
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 61
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetArea",
+      "Line": 62
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "aAreaSX3",
+      "Line": 62
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 64
+    },
+    {
+      "Op": 4,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 64
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSelectArea",
+      "Line": 64
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 64
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 65
+    },
+    {
+      "Op": 3,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 65
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSetOrder",
+      "Line": 65
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 65
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 66
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 66
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cCampo",
+      "Line": 66
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 66
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "MsSeek",
+      "Line": 66
+    },
+    {
+      "Op": 27,
+      "Arg": 143,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 66
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 67
+    },
+    {
+      "Op": 60,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "X3_ORDEM",
+      "Line": 67
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 67
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 67
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 70
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "aAreaSX3",
+      "Line": 70
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "RestArea",
+      "Line": 70
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 70
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 71
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 4,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 85
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cAlias",
+      "Line": 85
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 86
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lInclui",
+      "Line": 86
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 87
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "cMsg",
+      "Line": 87
+    },
+    {
+      "Op": 3,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 88
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 88
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 89
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 89
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 4,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 3,
+      "Str": "StrTran",
+      "Line": 89
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 4,
+      "Arg": 10,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 89
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 3,
+      "Str": "StrTran",
+      "Line": 89
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 89
+    },
+    {
+      "Op": 7,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "cArquivo",
+      "Line": 89
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 90
+    },
+    {
+      "Op": 3,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 90
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 4,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 3,
+      "Str": "StrTran",
+      "Line": 90
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 4,
+      "Arg": 10,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 3,
+      "Str": "StrTran",
+      "Line": 90
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 90
+    },
+    {
+      "Op": 7,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "cCampo",
+      "Line": 90
+    },
+    {
+      "Op": 12,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 91
+    },
+    {
+      "Op": 7,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "aEstrut",
+      "Line": 91
+    },
+    {
+      "Op": 4,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 94
+    },
+    {
+      "Op": 4,
+      "Arg": 12,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 94
+    },
+    {
+      "Op": 4,
+      "Arg": 13,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 94
+    },
+    {
+      "Op": 4,
+      "Arg": 14,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 94
+    },
+    {
+      "Op": 4,
+      "Arg": 15,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 94
+    },
+    {
+      "Op": 4,
+      "Arg": 16,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 94
+    },
+    {
+      "Op": 4,
+      "Arg": 17,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 95
+    },
+    {
+      "Op": 4,
+      "Arg": 18,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 95
+    },
+    {
+      "Op": 4,
+      "Arg": 19,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 95
+    },
+    {
+      "Op": 4,
+      "Arg": 20,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 95
+    },
+    {
+      "Op": 4,
+      "Arg": 21,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 95
+    },
+    {
+      "Op": 4,
+      "Arg": 22,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 95
+    },
+    {
+      "Op": 4,
+      "Arg": 23,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 96
+    },
+    {
+      "Op": 4,
+      "Arg": 24,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 96
+    },
+    {
+      "Op": 4,
+      "Arg": 25,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 96
+    },
+    {
+      "Op": 4,
+      "Arg": 26,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 96
+    },
+    {
+      "Op": 4,
+      "Arg": 27,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 96
+    },
+    {
+      "Op": 4,
+      "Arg": 28,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 96
+    },
+    {
+      "Op": 4,
+      "Arg": 29,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 4,
+      "Arg": 30,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 4,
+      "Arg": 31,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 4,
+      "Arg": 32,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 4,
+      "Arg": 33,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 4,
+      "Arg": 34,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 4,
+      "Arg": 35,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 98
+    },
+    {
+      "Op": 4,
+      "Arg": 36,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 98
+    },
+    {
+      "Op": 4,
+      "Arg": 37,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 98
+    },
+    {
+      "Op": 4,
+      "Arg": 38,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 98
+    },
+    {
+      "Op": 4,
+      "Arg": 39,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 98
+    },
+    {
+      "Op": 4,
+      "Arg": 40,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 98
+    },
+    {
+      "Op": 4,
+      "Arg": 41,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 99
+    },
+    {
+      "Op": 4,
+      "Arg": 42,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 99
+    },
+    {
+      "Op": 4,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 99
+    },
+    {
+      "Op": 4,
+      "Arg": 44,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 99
+    },
+    {
+      "Op": 4,
+      "Arg": 45,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 99
+    },
+    {
+      "Op": 4,
+      "Arg": 46,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 99
+    },
+    {
+      "Op": 12,
+      "Arg": 36,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 94
+    },
+    {
+      "Op": 7,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "aEstrut",
+      "Line": 94
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 101
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 101
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 101
+    },
+    {
+      "Op": 3,
+      "Arg": 47,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 101
+    },
+    {
+      "Op": 38,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 101
+    },
+    {
+      "Op": 27,
+      "Arg": 267,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 101
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 103
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 103
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 103
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 7,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 103
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 103
+    },
+    {
+      "Op": 3,
+      "Arg": 47,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 6,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 103
+    },
+    {
+      "Op": 81,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 27,
+      "Arg": 267,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 104
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "Aadd",
+      "Line": 104
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 103
+    },
+    {
+      "Op": 6,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 103
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 103
+    },
+    {
+      "Op": 26,
+      "Arg": 251,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 108
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cAlias",
+      "Line": 108
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSelectArea",
+      "Line": 108
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 108
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 109
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 109
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSetOrder",
+      "Line": 109
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 109
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 112
+    },
+    {
+      "Op": 3,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 112
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSetOrder",
+      "Line": 112
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 112
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 113
+    },
+    {
+      "Op": 6,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "cCampo",
+      "Line": 113
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "MsSeek",
+      "Line": 113
+    },
+    {
+      "Op": 27,
+      "Arg": 286,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 113
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 114
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lInclui",
+      "Line": 114
+    },
+    {
+      "Op": 26,
+      "Arg": 288,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 113
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 116
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lInclui",
+      "Line": 116
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 120
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 120
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSetOrder",
+      "Line": 120
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 120
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 121
+    },
+    {
+      "Op": 6,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "cArquivo",
+      "Line": 121
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 121
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 121
+    },
+    {
+      "Op": 3,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 121
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 121
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 121
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 121
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 121
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 121
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "MsSeek",
+      "Line": 121
+    },
+    {
+      "Op": 44,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 121
+    },
+    {
+      "Op": 27,
+      "Arg": 394,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 121
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lInclui",
+      "Line": 123
+    },
+    {
+      "Op": 44,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 123
+    },
+    {
+      "Op": 27,
+      "Arg": 355,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 123
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 125
+    },
+    {
+      "Op": 3,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 125
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSetOrder",
+      "Line": 125
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 125
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 126
+    },
+    {
+      "Op": 6,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "cCampo",
+      "Line": 126
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "MsSeek",
+      "Line": 126
+    },
+    {
+      "Op": 27,
+      "Arg": 354,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 126
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cAlias",
+      "Line": 127
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "RecLock",
+      "Line": 127
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 128
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 7,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 128
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 128
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 128
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 128
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 3,
+      "Arg": 47,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "Min",
+      "Line": 128
+    },
+    {
+      "Op": 6,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 128
+    },
+    {
+      "Op": 81,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 27,
+      "Arg": 350,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 129
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 129
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 129
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 129
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 129
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 129
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 129
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 129
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 128
+    },
+    {
+      "Op": 6,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 128
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 128
+    },
+    {
+      "Op": 26,
+      "Arg": 326,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "MsUnlock",
+      "Line": 131
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 131
+    },
+    {
+      "Op": 4,
+      "Arg": 48,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 132
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "cMsg",
+      "Line": 132
+    },
+    {
+      "Op": 26,
+      "Arg": 393,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 123
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 136
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cAlias",
+      "Line": 136
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 136
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 136
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "RecLock",
+      "Line": 136
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 136
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 137
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 7,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 137
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 137
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 137
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 137
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 3,
+      "Arg": 47,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "Min",
+      "Line": 137
+    },
+    {
+      "Op": 6,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 137
+    },
+    {
+      "Op": 81,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 27,
+      "Arg": 389,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 138
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 138
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 138
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 138
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 138
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 138
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 138
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 138
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 137
+    },
+    {
+      "Op": 6,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 137
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 137
+    },
+    {
+      "Op": 26,
+      "Arg": 365,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "MsUnlock",
+      "Line": 140
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 140
+    },
+    {
+      "Op": 4,
+      "Arg": 49,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 141
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "cMsg",
+      "Line": 141
+    },
+    {
+      "Op": 26,
+      "Arg": 432,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 121
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 145
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cAlias",
+      "Line": 145
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 145
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 145
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "RecLock",
+      "Line": 145
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 145
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 146
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 146
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 146
+    },
+    {
+      "Op": 7,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 146
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 146
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 146
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 146
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 146
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 146
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 146
+    },
+    {
+      "Op": 3,
+      "Arg": 47,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 146
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "Min",
+      "Line": 146
+    },
+    {
+      "Op": 6,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 146
+    },
+    {
+      "Op": 81,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 146
+    },
+    {
+      "Op": 27,
+      "Arg": 428,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 146
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 147
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 147
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 147
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aRecord",
+      "Line": 147
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 147
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 147
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 147
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 147
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 146
+    },
+    {
+      "Op": 6,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 146
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 146
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 146
+    },
+    {
+      "Op": 26,
+      "Arg": 404,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 146
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "MsUnlock",
+      "Line": 149
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 149
+    },
+    {
+      "Op": 4,
+      "Arg": 48,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 150
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "cMsg",
+      "Line": 150
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 154
+    },
+    {
+      "Op": 3,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 154
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSetOrder",
+      "Line": 154
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 154
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 155
+    },
+    {
+      "Op": 6,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "cCampo",
+      "Line": 155
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "MsSeek",
+      "Line": 155
+    },
+    {
+      "Op": 27,
+      "Arg": 442,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 155
+    },
+    {
+      "Op": 4,
+      "Arg": 50,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 156
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "cMsg",
+      "Line": 156
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "cMsg",
+      "Line": 159
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 4,
+      "Arg": 51,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 190
+    },
+    {
+      "Op": 7,
+      "Arg": 32,
+      "Arg2": 0,
+      "Str": "cAlias",
+      "Line": 190
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 191
+    },
+    {
+      "Op": 7,
+      "Arg": 33,
+      "Arg2": 0,
+      "Str": "lInclui",
+      "Line": 191
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 192
+    },
+    {
+      "Op": 7,
+      "Arg": 34,
+      "Arg2": 0,
+      "Str": "cMsg",
+      "Line": 192
+    },
+    {
+      "Op": 3,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 193
+    },
+    {
+      "Op": 7,
+      "Arg": 35,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 193
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 195
+    },
+    {
+      "Op": 6,
+      "Arg": 32,
+      "Arg2": 0,
+      "Str": "cAlias",
+      "Line": 195
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSelectArea",
+      "Line": 195
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 195
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 196
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 196
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSetOrder",
+      "Line": 196
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 196
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cPerg",
+      "Line": 199
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 199
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 199
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "MsSeek",
+      "Line": 199
+    },
+    {
+      "Op": 27,
+      "Arg": 471,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 200
+    },
+    {
+      "Op": 7,
+      "Arg": 33,
+      "Arg2": 0,
+      "Str": "lInclui",
+      "Line": 200
+    },
+    {
+      "Op": 26,
+      "Arg": 473,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 202
+    },
+    {
+      "Op": 7,
+      "Arg": 33,
+      "Arg2": 0,
+      "Str": "lInclui",
+      "Line": 202
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 205
+    },
+    {
+      "Op": 6,
+      "Arg": 32,
+      "Arg2": 0,
+      "Str": "cAlias",
+      "Line": 205
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 205
+    },
+    {
+      "Op": 6,
+      "Arg": 33,
+      "Arg2": 0,
+      "Str": "lInclui",
+      "Line": 205
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "RecLock",
+      "Line": 205
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 205
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cPerg",
+      "Line": 217
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 217
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 218
+    },
+    {
+      "Op": 3,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 218
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 218
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 218
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 218
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 218
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 219
+    },
+    {
+      "Op": 3,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 219
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 219
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 219
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "cTitPor",
+      "Line": 219
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 219
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 219
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 219
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 220
+    },
+    {
+      "Op": 3,
+      "Arg": 52,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 220
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 220
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 220
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "cTitEsp",
+      "Line": 220
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 220
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 220
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 220
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 221
+    },
+    {
+      "Op": 3,
+      "Arg": 53,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 221
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 221
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 221
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cTitIng",
+      "Line": 221
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 221
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 221
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 221
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 3,
+      "Arg": 54,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 6,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "cNomeVar",
+      "Line": 222
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 222
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 222
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 223
+    },
+    {
+      "Op": 3,
+      "Arg": 55,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 223
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 223
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 223
+    },
+    {
+      "Op": 6,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "cTipo",
+      "Line": 223
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 223
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 223
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 223
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 224
+    },
+    {
+      "Op": 3,
+      "Arg": 56,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 224
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 224
+    },
+    {
+      "Op": 6,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "nTam",
+      "Line": 224
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 224
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 224
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 225
+    },
+    {
+      "Op": 3,
+      "Arg": 57,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 225
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 225
+    },
+    {
+      "Op": 6,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nDec",
+      "Line": 225
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 225
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 225
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 226
+    },
+    {
+      "Op": 3,
+      "Arg": 58,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 226
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 226
+    },
+    {
+      "Op": 6,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "nNivel",
+      "Line": 226
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 226
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 226
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 227
+    },
+    {
+      "Op": 3,
+      "Arg": 59,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 227
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 227
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 227
+    },
+    {
+      "Op": 6,
+      "Arg": 10,
+      "Arg2": 0,
+      "Str": "cGroup",
+      "Line": 227
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 227
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 227
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 227
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 228
+    },
+    {
+      "Op": 3,
+      "Arg": 60,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 228
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 228
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 228
+    },
+    {
+      "Op": 6,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "cValid",
+      "Line": 228
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 228
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 228
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 228
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 229
+    },
+    {
+      "Op": 3,
+      "Arg": 61,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 229
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 229
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 229
+    },
+    {
+      "Op": 6,
+      "Arg": 12,
+      "Arg2": 0,
+      "Str": "cF3",
+      "Line": 229
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 229
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 229
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 229
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 230
+    },
+    {
+      "Op": 3,
+      "Arg": 62,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 230
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 230
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 230
+    },
+    {
+      "Op": 6,
+      "Arg": 13,
+      "Arg2": 0,
+      "Str": "cMvPar",
+      "Line": 230
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 230
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 230
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 230
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 231
+    },
+    {
+      "Op": 3,
+      "Arg": 63,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 231
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 231
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 231
+    },
+    {
+      "Op": 6,
+      "Arg": 29,
+      "Arg2": 0,
+      "Str": "aHelpPor",
+      "Line": 231
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 231
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 231
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 231
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 231
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 231
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 232
+    },
+    {
+      "Op": 3,
+      "Arg": 64,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 232
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 232
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 232
+    },
+    {
+      "Op": 6,
+      "Arg": 30,
+      "Arg2": 0,
+      "Str": "aHelpEng",
+      "Line": 232
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 232
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 232
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 232
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 232
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 232
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 233
+    },
+    {
+      "Op": 3,
+      "Arg": 65,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 233
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 233
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 233
+    },
+    {
+      "Op": 6,
+      "Arg": 31,
+      "Arg2": 0,
+      "Str": "aHelpEsp",
+      "Line": 233
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 233
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 233
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AllTrim",
+      "Line": 233
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "FieldPut",
+      "Line": 233
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 233
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "MsUnlock",
+      "Line": 235
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 235
+    },
+    {
+      "Op": 6,
+      "Arg": 33,
+      "Arg2": 0,
+      "Str": "lInclui",
+      "Line": 236
+    },
+    {
+      "Op": 27,
+      "Arg": 617,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 236
+    },
+    {
+      "Op": 4,
+      "Arg": 49,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 236
+    },
+    {
+      "Op": 26,
+      "Arg": 618,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 236
+    },
+    {
+      "Op": 4,
+      "Arg": 48,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 236
+    },
+    {
+      "Op": 7,
+      "Arg": 34,
+      "Arg2": 0,
+      "Str": "cMsg",
+      "Line": 236
+    },
+    {
+      "Op": 6,
+      "Arg": 34,
+      "Arg2": 0,
+      "Str": "cMsg",
+      "Line": 237
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 12,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 246
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "aEstrut",
+      "Line": 246
+    },
+    {
+      "Op": 12,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 247
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "aSX3",
+      "Line": 247
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 248
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 248
+    },
+    {
+      "Op": 4,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 250
+    },
+    {
+      "Op": 4,
+      "Arg": 12,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 250
+    },
+    {
+      "Op": 4,
+      "Arg": 13,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 250
+    },
+    {
+      "Op": 4,
+      "Arg": 14,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 250
+    },
+    {
+      "Op": 4,
+      "Arg": 15,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 250
+    },
+    {
+      "Op": 4,
+      "Arg": 16,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 250
+    },
+    {
+      "Op": 4,
+      "Arg": 17,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 251
+    },
+    {
+      "Op": 4,
+      "Arg": 18,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 251
+    },
+    {
+      "Op": 4,
+      "Arg": 19,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 251
+    },
+    {
+      "Op": 4,
+      "Arg": 20,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 251
+    },
+    {
+      "Op": 4,
+      "Arg": 21,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 251
+    },
+    {
+      "Op": 4,
+      "Arg": 22,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 251
+    },
+    {
+      "Op": 4,
+      "Arg": 23,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 252
+    },
+    {
+      "Op": 4,
+      "Arg": 24,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 252
+    },
+    {
+      "Op": 4,
+      "Arg": 25,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 252
+    },
+    {
+      "Op": 4,
+      "Arg": 26,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 252
+    },
+    {
+      "Op": 4,
+      "Arg": 27,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 252
+    },
+    {
+      "Op": 4,
+      "Arg": 28,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 252
+    },
+    {
+      "Op": 4,
+      "Arg": 29,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 253
+    },
+    {
+      "Op": 4,
+      "Arg": 30,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 253
+    },
+    {
+      "Op": 4,
+      "Arg": 31,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 253
+    },
+    {
+      "Op": 4,
+      "Arg": 32,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 253
+    },
+    {
+      "Op": 4,
+      "Arg": 33,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 253
+    },
+    {
+      "Op": 4,
+      "Arg": 34,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 253
+    },
+    {
+      "Op": 4,
+      "Arg": 35,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 254
+    },
+    {
+      "Op": 4,
+      "Arg": 36,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 254
+    },
+    {
+      "Op": 4,
+      "Arg": 37,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 254
+    },
+    {
+      "Op": 4,
+      "Arg": 38,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 254
+    },
+    {
+      "Op": 4,
+      "Arg": 39,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 254
+    },
+    {
+      "Op": 4,
+      "Arg": 40,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 254
+    },
+    {
+      "Op": 4,
+      "Arg": 41,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 255
+    },
+    {
+      "Op": 4,
+      "Arg": 42,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 255
+    },
+    {
+      "Op": 4,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 255
+    },
+    {
+      "Op": 4,
+      "Arg": 44,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 255
+    },
+    {
+      "Op": 4,
+      "Arg": 45,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 255
+    },
+    {
+      "Op": 4,
+      "Arg": 46,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 255
+    },
+    {
+      "Op": 12,
+      "Arg": 36,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 250
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "aEstrut",
+      "Line": 250
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 258
+    },
+    {
+      "Op": 4,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 258
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSelectArea",
+      "Line": 258
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 258
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 259
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 259
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "dbSetOrder",
+      "Line": 259
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 259
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 260
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cArq",
+      "Line": 260
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "MsSeek",
+      "Line": 260
+    },
+    {
+      "Op": 27,
+      "Arg": 694,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 260
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 261
+    },
+    {
+      "Op": 60,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "X3_ARQUIVO",
+      "Line": 261
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Upper",
+      "Line": 261
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 261
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cArq",
+      "Line": 261
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Upper",
+      "Line": 261
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 261
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Eof",
+      "Line": 261
+    },
+    {
+      "Op": 44,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 261
+    },
+    {
+      "Op": 42,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 261
+    },
+    {
+      "Op": 27,
+      "Arg": 693,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 261
+    },
+    {
+      "Op": 60,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "X3_ORDEM",
+      "Line": 262
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 262
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "DbSkip",
+      "Line": 263
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 263
+    },
+    {
+      "Op": 26,
+      "Arg": 677,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 261
+    },
+    {
+      "Op": 26,
+      "Arg": 696,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 260
+    },
+    {
+      "Op": 4,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 266
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 266
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "aEstrut",
+      "Line": 269
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "aSX3",
+      "Line": 269
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 269
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cOrdem",
+      "Line": 269
+    },
+    {
+      "Op": 21,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Soma1",
+      "Line": 269
+    },
+    {
+      "Op": 12,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 269
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    }
+  ],
+  "mainOffset": 0,
+  "numGlobals": 0
+}

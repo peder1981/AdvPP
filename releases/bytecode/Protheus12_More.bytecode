@@ -1,0 +1,1734 @@
+{
+  "version": "1.0",
+  "constants": [
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "ReportDef"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "ReportPrint"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "oModel"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "O"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 1,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 2,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 3,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "aStruct"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "A"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "oView"
+    },
+    {
+      "Type": "number",
+      "Num": 0,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "aArray[i][nCol]"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "N"
+    }
+  ],
+  "functions": {
+    "CommitMdl": {
+      "Name": "CommitMdl",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 161,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "FATPDActive": {
+      "Name": "FATPDActive",
+      "NumParams": 1,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 64,
+      "ParamNames": [
+        "cCod"
+      ],
+      "LocalNames": {
+        "cCod": 0,
+        "lOk": 1
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "FATPDLogUser": {
+      "Name": "FATPDLogUser",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 187,
+      "ParamNames": [
+        "cUser"
+      ],
+      "LocalNames": {
+        "cUser": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "FATPDObfuscate": {
+      "Name": "FATPDObfuscate",
+      "NumParams": 1,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 188,
+      "ParamNames": [
+        "cData"
+      ],
+      "LocalNames": {
+        "cData": 0,
+        "cRet": 1
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "FAtuCont": {
+      "Name": "FAtuCont",
+      "NumParams": 0,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 35,
+      "ParamNames": [],
+      "LocalNames": {
+        "aArea": 0,
+        "cTexto": 1
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "FieldTrigger": {
+      "Name": "FieldTrigger",
+      "NumParams": 3,
+      "NumLocals": 4,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 45,
+      "ParamNames": [
+        "cAlias",
+        "cCampo",
+        "nOper"
+      ],
+      "LocalNames": {
+        "cAlias": 0,
+        "cCampo": 1,
+        "lOk": 3,
+        "nOper": 2
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "GetMain": {
+      "Name": "GetMain",
+      "NumParams": 0,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 168,
+      "ParamNames": [],
+      "LocalNames": {
+        "oRet": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "JsToAdvpl": {
+      "Name": "JsToAdvpl",
+      "NumParams": 1,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 75,
+      "ParamNames": [
+        "cJson"
+      ],
+      "LocalNames": {
+        "aRet": 1,
+        "cJson": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Modeldef": {
+      "Name": "Modeldef",
+      "NumParams": 0,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 1,
+      "ParamNames": [],
+      "LocalNames": {
+        "oModel": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "PosVldMdl": {
+      "Name": "PosVldMdl",
+      "NumParams": 1,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 164,
+      "ParamNames": [
+        "oModel"
+      ],
+      "LocalNames": {
+        "nPos": 1,
+        "oModel": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "PrintReport": {
+      "Name": "PrintReport",
+      "NumParams": 2,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 6,
+      "ParamNames": [
+        "cRelat",
+        "lPreview"
+      ],
+      "LocalNames": {
+        "cRelat": 0,
+        "lOk": 2,
+        "lPreview": 1
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "RunReport": {
+      "Name": "RunReport",
+      "NumParams": 2,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 79,
+      "ParamNames": [
+        "cRelat",
+        "lPreview"
+      ],
+      "LocalNames": {
+        "cRelat": 0,
+        "lOk": 2,
+        "lPreview": 1
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "SaveModel": {
+      "Name": "SaveModel",
+      "NumParams": 1,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 20,
+      "ParamNames": [
+        "oModel"
+      ],
+      "LocalNames": {
+        "lOk": 1,
+        "oModel": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "SetModelStruct": {
+      "Name": "SetModelStruct",
+      "NumParams": 2,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 89,
+      "ParamNames": [
+        "oModel",
+        "aStruct"
+      ],
+      "LocalNames": {
+        "aStruct": 1,
+        "lOk": 2,
+        "oModel": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "SetViewStruct": {
+      "Name": "SetViewStruct",
+      "NumParams": 2,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 107,
+      "ParamNames": [
+        "oView",
+        "aStruct"
+      ],
+      "LocalNames": {
+        "aStruct": 1,
+        "lOk": 2,
+        "oView": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Somalinha": {
+      "Name": "Somalinha",
+      "NumParams": 2,
+      "NumLocals": 5,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 125,
+      "ParamNames": [
+        "aArray",
+        "nCol"
+      ],
+      "LocalNames": {
+        "aArray": 0,
+        "i": 3,
+        "i step": 4,
+        "nCol": 1,
+        "nTotal": 2
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "ValidModel": {
+      "Name": "ValidModel",
+      "NumParams": 1,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 172,
+      "ParamNames": [
+        "oModel"
+      ],
+      "LocalNames": {
+        "lOk": 1,
+        "oModel": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    }
+  },
+  "classes": {},
+  "code": [
+    {
+      "Op": 75,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 20,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "FWFormModel",
+      "Line": 16
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "New",
+      "Line": 16
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oModel",
+      "Line": 16
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oModel",
+      "Line": 18
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 25
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 25
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 4,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "FindFunction",
+      "Line": 28
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 4,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "FindFunction",
+      "Line": 28
+    },
+    {
+      "Op": 42,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 27,
+      "Arg": 18,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 29
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 31
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 38
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 38
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 40
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 40
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Type",
+      "Line": 40
+    },
+    {
+      "Op": 4,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 40
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 40
+    },
+    {
+      "Op": 27,
+      "Arg": 31,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 40
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 41
+    },
+    {
+      "Op": 26,
+      "Arg": 33,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 40
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 43
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 43
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 45
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetArea",
+      "Line": 52
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aArea",
+      "Line": 52
+    },
+    {
+      "Op": 4,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 53
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cTexto",
+      "Line": 53
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 55
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aArea",
+      "Line": 55
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "RestArea",
+      "Line": 55
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 55
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cTexto",
+      "Line": 56
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 63
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 63
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nOper",
+      "Line": 66
+    },
+    {
+      "Op": 3,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 66
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 66
+    },
+    {
+      "Op": 27,
+      "Arg": 52,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 68
+    },
+    {
+      "Op": 26,
+      "Arg": 62,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 68
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nOper",
+      "Line": 68
+    },
+    {
+      "Op": 3,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 68
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 68
+    },
+    {
+      "Op": 27,
+      "Arg": 57,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 70
+    },
+    {
+      "Op": 26,
+      "Arg": 62,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 70
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nOper",
+      "Line": 70
+    },
+    {
+      "Op": 3,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 70
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 70
+    },
+    {
+      "Op": 27,
+      "Arg": 62,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 72
+    },
+    {
+      "Op": 26,
+      "Arg": 62,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 72
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 73
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 80
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 80
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 82
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cCod",
+      "Line": 82
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Empty",
+      "Line": 82
+    },
+    {
+      "Op": 44,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 82
+    },
+    {
+      "Op": 27,
+      "Arg": 73,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 82
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 83
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 83
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 85
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 12,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 92
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "aRet",
+      "Line": 92
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "aRet",
+      "Line": 94
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 101
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 101
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cRelat",
+      "Line": 103
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "FindFunction",
+      "Line": 103
+    },
+    {
+      "Op": 27,
+      "Arg": 87,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 103
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 104
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 106
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 113
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 113
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 115
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 115
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Type",
+      "Line": 115
+    },
+    {
+      "Op": 4,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 115
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 115
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 115
+    },
+    {
+      "Op": 4,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 115
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Type",
+      "Line": 115
+    },
+    {
+      "Op": 4,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 115
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 115
+    },
+    {
+      "Op": 42,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 115
+    },
+    {
+      "Op": 27,
+      "Arg": 105,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 115
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 116
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 116
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 118
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 125
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 125
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 4,
+      "Arg": 10,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Type",
+      "Line": 127
+    },
+    {
+      "Op": 4,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 4,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Type",
+      "Line": 127
+    },
+    {
+      "Op": 4,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 42,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 27,
+      "Arg": 123,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 127
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 128
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 128
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 130
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 3,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 137
+    },
+    {
+      "Op": 3,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 138
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "i",
+      "Line": 138
+    },
+    {
+      "Op": 3,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 139
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "i",
+      "Line": 139
+    },
+    {
+      "Op": 3,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 139
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "i step",
+      "Line": 139
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "i",
+      "Line": 139
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 139
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aArray",
+      "Line": 139
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 139
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "i step",
+      "Line": 139
+    },
+    {
+      "Op": 81,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 139
+    },
+    {
+      "Op": 27,
+      "Arg": 159,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 139
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 140
+    },
+    {
+      "Op": 4,
+      "Arg": 12,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 140
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Type",
+      "Line": 140
+    },
+    {
+      "Op": 4,
+      "Arg": 13,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 140
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 140
+    },
+    {
+      "Op": 27,
+      "Arg": 154,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 140
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 141
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aArray",
+      "Line": 141
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "i",
+      "Line": 141
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 141
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nCol",
+      "Line": 141
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 141
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 141
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 141
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "i",
+      "Line": 139
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "i step",
+      "Line": 139
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 139
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "i",
+      "Line": 139
+    },
+    {
+      "Op": 26,
+      "Arg": 133,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 139
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 144
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "DbCommit",
+      "Line": 151
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 151
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 3,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 159
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nPos",
+      "Line": 159
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nPos",
+      "Line": 161
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 0,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 168
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oRet",
+      "Line": 168
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oRet",
+      "Line": 170
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 177
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 177
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 178
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 178
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Type",
+      "Line": 178
+    },
+    {
+      "Op": 4,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 178
+    },
+    {
+      "Op": 36,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 178
+    },
+    {
+      "Op": 27,
+      "Arg": 183,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 178
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 179
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 179
+    },
+    {
+      "Op": 26,
+      "Arg": 185,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 178
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 181
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 181
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 183
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 4,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 198
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cRet",
+      "Line": 198
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cRet",
+      "Line": 200
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    }
+  ],
+  "mainOffset": 0,
+  "numGlobals": 0
+}

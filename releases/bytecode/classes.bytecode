@@ -1,0 +1,909 @@
+{
+  "version": "1.0",
+  "constants": [
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Calculator test:"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Add(10, 5) = "
+    },
+    {
+      "Type": "number",
+      "Num": 10,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 5,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Sub(10, 5) = "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Mul(10, 5) = "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Result = "
+    },
+    {
+      "Type": "number",
+      "Num": 0,
+      "Str": ""
+    }
+  ],
+  "functions": {
+    "Calculator::Add": {
+      "Name": "Calculator::Add",
+      "NumParams": 3,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 64,
+      "ParamNames": [
+        "self",
+        "nA",
+        "nB"
+      ],
+      "LocalNames": {
+        "nA": 1,
+        "nB": 2,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Calculator::GetResult": {
+      "Name": "Calculator::GetResult",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 88,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Calculator::Mul": {
+      "Name": "Calculator::Mul",
+      "NumParams": 3,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 80,
+      "ParamNames": [
+        "self",
+        "nA",
+        "nB"
+      ],
+      "LocalNames": {
+        "nA": 1,
+        "nB": 2,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Calculator::New": {
+      "Name": "Calculator::New",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 59,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Calculator::Sub": {
+      "Name": "Calculator::Sub",
+      "NumParams": 3,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 72,
+      "ParamNames": [
+        "self",
+        "nA",
+        "nB"
+      ],
+      "LocalNames": {
+        "nA": 1,
+        "nB": 2,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "TestClass": {
+      "Name": "TestClass",
+      "NumParams": 0,
+      "NumLocals": 1,
+      "IsUser": true,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 3,
+      "ParamNames": [],
+      "LocalNames": {
+        "oCalc": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    }
+  },
+  "classes": {
+    "Calculator": {
+      "Name": "Calculator",
+      "Parent": "",
+      "Properties": {
+        "nResult": "numeric"
+      },
+      "Methods": {
+        "Add": {
+          "Name": "Calculator::Add",
+          "NumParams": 3,
+          "NumLocals": 3,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 64,
+          "ParamNames": [
+            "self",
+            "nA",
+            "nB"
+          ],
+          "LocalNames": {
+            "nA": 1,
+            "nB": 2,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "GetResult": {
+          "Name": "Calculator::GetResult",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 88,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "Mul": {
+          "Name": "Calculator::Mul",
+          "NumParams": 3,
+          "NumLocals": 3,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 80,
+          "ParamNames": [
+            "self",
+            "nA",
+            "nB"
+          ],
+          "LocalNames": {
+            "nA": 1,
+            "nB": 2,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "New": {
+          "Name": "Calculator::New",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 59,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "Sub": {
+          "Name": "Calculator::Sub",
+          "NumParams": 3,
+          "NumLocals": 3,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 72,
+          "ParamNames": [
+            "self",
+            "nA",
+            "nB"
+          ],
+          "LocalNames": {
+            "nA": 1,
+            "nB": 2,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        }
+      },
+      "Annotations": null
+    }
+  },
+  "code": [
+    {
+      "Op": 21,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "TestClass",
+      "Line": 25
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 25
+    },
+    {
+      "Op": 75,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 20,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Calculator",
+      "Line": 26
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "New",
+      "Line": 26
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCalc",
+      "Line": 26
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 4,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 28
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 4,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCalc",
+      "Line": 29
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 3,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 3,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "Add",
+      "Line": 29
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 29
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 29
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 30
+    },
+    {
+      "Op": 4,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 30
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 30
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCalc",
+      "Line": 30
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 30
+    },
+    {
+      "Op": 3,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 30
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 30
+    },
+    {
+      "Op": 3,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 30
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "Sub",
+      "Line": 30
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 30
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 30
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 30
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 30
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCalc",
+      "Line": 31
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 3,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 3,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "Mul",
+      "Line": 31
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 31
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 31
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 32
+    },
+    {
+      "Op": 4,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 32
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 32
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCalc",
+      "Line": 32
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetResult",
+      "Line": 32
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 32
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 32
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 32
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 32
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 3,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 7
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 7
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 7
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 8
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nA",
+      "Line": 11
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nB",
+      "Line": 11
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 11
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 12
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nA",
+      "Line": 15
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nB",
+      "Line": 15
+    },
+    {
+      "Op": 30,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 15
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 15
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 15
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 16
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 16
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nA",
+      "Line": 19
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nB",
+      "Line": 19
+    },
+    {
+      "Op": 31,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 19
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 19
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 19
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 20
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 20
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 23
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    }
+  ],
+  "mainOffset": 0,
+  "numGlobals": 0
+}

@@ -1,0 +1,447 @@
+{
+  "version": "1.0",
+  "constants": [
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "POSTGRES"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "127.0.0.1"
+    },
+    {
+      "Type": "number",
+      "Num": 1,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "nodb"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "nouser"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "nopass"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "connect=true"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "connect=false"
+    },
+    {
+      "Type": "number",
+      "Num": 0,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "temerro=true"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "temerro=false"
+    }
+  ],
+  "functions": {
+    "DbConnTest": {
+      "Name": "DbConnTest",
+      "NumParams": 0,
+      "NumLocals": 2,
+      "IsUser": true,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 3,
+      "ParamNames": [],
+      "LocalNames": {
+        "lOk": 1,
+        "oConn": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    }
+  },
+  "classes": {},
+  "code": [
+    {
+      "Op": 21,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "DbConnTest",
+      "Line": 11
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 75,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 20,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "DbConnection",
+      "Line": 12
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 4,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 4,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 3,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 4,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 4,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 6,
+      "Str": "New",
+      "Line": 12
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oConn",
+      "Line": 12
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oConn",
+      "Line": 13
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Connect",
+      "Line": 13
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 13
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "lOk",
+      "Line": 15
+    },
+    {
+      "Op": 27,
+      "Arg": 28,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 15
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 16
+    },
+    {
+      "Op": 4,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 16
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 16
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 16
+    },
+    {
+      "Op": 26,
+      "Arg": 32,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 15
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 4,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 18
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 21
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oConn",
+      "Line": 21
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetError",
+      "Line": 21
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 21
+    },
+    {
+      "Op": 3,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 21
+    },
+    {
+      "Op": 39,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 21
+    },
+    {
+      "Op": 27,
+      "Arg": 44,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 21
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 4,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 22
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 26,
+      "Arg": 48,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 21
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 4,
+      "Arg": 10,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 24
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oConn",
+      "Line": 27
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Close",
+      "Line": 27
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 27
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    }
+  ],
+  "mainOffset": 0,
+  "numGlobals": 0
+}

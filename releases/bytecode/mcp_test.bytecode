@@ -1,0 +1,478 @@
+{
+  "version": "1.0",
+  "constants": [
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "advpp-demo"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "1.0.0"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "soma"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Soma dois números"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"number\"},\"b\":{\"type\":\"number\"}},\"required\":[\"a\",\"b\"]}"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "ToolSoma"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "saudacao"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Cumprimenta alguém pelo nome"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "{\"type\":\"object\",\"properties\":{\"nome\":{\"type\":\"string\"}},\"required\":[\"nome\"]}"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "ToolSaudacao"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Ola, "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "!"
+    }
+  ],
+  "functions": {
+    "McpTst": {
+      "Name": "McpTst",
+      "NumParams": 0,
+      "NumLocals": 1,
+      "IsUser": true,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 3,
+      "ParamNames": [],
+      "LocalNames": {
+        "oMCP": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "ToolSaudacao": {
+      "Name": "ToolSaudacao",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": true,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 44,
+      "ParamNames": [
+        "oArgs"
+      ],
+      "LocalNames": {
+        "oArgs": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "ToolSoma": {
+      "Name": "ToolSoma",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": true,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 36,
+      "ParamNames": [
+        "oArgs"
+      ],
+      "LocalNames": {
+        "oArgs": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    }
+  },
+  "classes": {},
+  "code": [
+    {
+      "Op": 21,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "McpTst",
+      "Line": 6
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 6
+    },
+    {
+      "Op": 75,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 20,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "MCPServer",
+      "Line": 7
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 7
+    },
+    {
+      "Op": 4,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 7
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 7
+    },
+    {
+      "Op": 4,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 7
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "New",
+      "Line": 7
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oMCP",
+      "Line": 7
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oMCP",
+      "Line": 9
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 9
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 9
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 9
+    },
+    {
+      "Op": 4,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 9
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 10
+    },
+    {
+      "Op": 4,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 10
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 4,
+      "Str": "AddTool",
+      "Line": 9
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 9
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oMCP",
+      "Line": 13
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 4,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 4,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 4,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 15
+    },
+    {
+      "Op": 4,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 15
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 4,
+      "Str": "AddTool",
+      "Line": 13
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oMCP",
+      "Line": 17
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Serve",
+      "Line": 17
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 17
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 21
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oArgs",
+      "Line": 21
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "A",
+      "Line": 21
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oArgs",
+      "Line": 21
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "B",
+      "Line": 21
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 21
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "cValToChar",
+      "Line": 21
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 4,
+      "Arg": 10,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oArgs",
+      "Line": 24
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "NOME",
+      "Line": 24
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 4,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    }
+  ],
+  "mainOffset": 0,
+  "numGlobals": 0
+}

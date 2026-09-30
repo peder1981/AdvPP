@@ -1,0 +1,578 @@
+{
+  "version": "1.0",
+  "constants": [
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "CREATE TABLE IF NOT EXISTS WA_TEST (R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT, D_E_L_E_T_ TEXT DEFAULT ' ', R_E_C_D_E_L_ INTEGER DEFAULT 0, WA_CODIGO TEXT, WA_VALOR REAL)"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "DELETE FROM WA_TEST"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "WA_TEST"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "X1"
+    },
+    {
+      "Type": "number",
+      "Num": 42,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "SELECT WA_CODIGO, WA_VALOR FROM WA_TEST"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "qtd="
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "codigo="
+    },
+    {
+      "Type": "number",
+      "Num": 1,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "valor="
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "WA_CODIGO"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "fieldpos="
+    }
+  ],
+  "functions": {
+    "WorkareaTest": {
+      "Name": "WorkareaTest",
+      "NumParams": 0,
+      "NumLocals": 2,
+      "IsUser": true,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 3,
+      "ParamNames": [],
+      "LocalNames": {
+        "aConfere": 0,
+        "nPos": 1
+      },
+      "Annotations": null,
+      "Upvals": null
+    }
+  },
+  "classes": {},
+  "code": [
+    {
+      "Op": 21,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "WorkareaTest",
+      "Line": 6
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 6
+    },
+    {
+      "Op": 75,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 7
+    },
+    {
+      "Op": 4,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 7
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "TCSqlExec",
+      "Line": 7
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 7
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 8
+    },
+    {
+      "Op": 4,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 8
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "TCSqlExec",
+      "Line": 8
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 8
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 10
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 10
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "DbSelectArea",
+      "Line": 10
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 10
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "DbAppend",
+      "Line": 11
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "RecLock",
+      "Line": 12
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 4,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 61,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "WA_CODIGO",
+      "Line": 13
+    },
+    {
+      "Op": 3,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 61,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "WA_VALOR",
+      "Line": 14
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "MsUnlock",
+      "Line": 15
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 15
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 17
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 17
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "TCSqlQuery",
+      "Line": 17
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aConfere",
+      "Line": 17
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 4,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aConfere",
+      "Line": 18
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 18
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 18
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 18
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 19
+    },
+    {
+      "Op": 4,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 19
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aConfere",
+      "Line": 19
+    },
+    {
+      "Op": 3,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 19
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 19
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "WA_CODIGO",
+      "Line": 19
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 19
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 19
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 19
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 20
+    },
+    {
+      "Op": 4,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 20
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aConfere",
+      "Line": 20
+    },
+    {
+      "Op": 3,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 20
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 20
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "WA_VALOR",
+      "Line": 20
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 20
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 20
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 20
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 4,
+      "Arg": 10,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "FieldPos",
+      "Line": 22
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nPos",
+      "Line": 22
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 4,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nPos",
+      "Line": 23
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 23
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 23
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    }
+  ],
+  "mainOffset": 0,
+  "numGlobals": 0
+}

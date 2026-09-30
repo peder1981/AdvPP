@@ -1,0 +1,1460 @@
+{
+  "version": "1.0",
+  "constants": [
+    {
+      "Type": "number",
+      "Num": 0,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "=== Default Initialization ==="
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "nNum (numeric): "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "cStr (character): ["
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "]"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "lBool (logical): "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "aArr (array): len="
+    },
+    {
+      "Type": "number",
+      "Num": 42,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "TOTVS"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "=== Typed with Initializers ==="
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "nVal: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "cName: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "lActive: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "=== Typed Parameters ==="
+    },
+    {
+      "Type": "number",
+      "Num": 10,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 20,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "xAddTyped(10, 20) = "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "=== Typed Properties ==="
+    },
+    {
+      "Type": "number",
+      "Num": 3,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 4,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Point x="
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": " y="
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Distance = "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "All typing tests passed!"
+    }
+  ],
+  "functions": {
+    "Point::Distance": {
+      "Name": "Point::Distance",
+      "NumParams": 1,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 154,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "nSq": 1,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Point::New": {
+      "Name": "Point::New",
+      "NumParams": 3,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 146,
+      "ParamNames": [
+        "self",
+        "nX",
+        "nY"
+      ],
+      "LocalNames": {
+        "nX": 1,
+        "nY": 2,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "TestTyping": {
+      "Name": "TestTyping",
+      "NumParams": 0,
+      "NumLocals": 10,
+      "IsUser": true,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 3,
+      "ParamNames": [],
+      "LocalNames": {
+        "aArr": 4,
+        "cName": 6,
+        "cStr": 1,
+        "dDate": 3,
+        "lActive": 7,
+        "lBool": 2,
+        "nNum": 0,
+        "nResult": 8,
+        "nVal": 5,
+        "oPt": 9
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "xAddTyped": {
+      "Name": "xAddTyped",
+      "NumParams": 2,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 142,
+      "ParamNames": [
+        "nA",
+        "nB"
+      ],
+      "LocalNames": {
+        "nA": 0,
+        "nB": 1
+      },
+      "Annotations": null,
+      "Upvals": null
+    }
+  },
+  "classes": {
+    "Point": {
+      "Name": "Point",
+      "Parent": "",
+      "Properties": {
+        "x": "numeric",
+        "y": "numeric"
+      },
+      "Methods": {
+        "Distance": {
+          "Name": "Point::Distance",
+          "NumParams": 1,
+          "NumLocals": 2,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 154,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "nSq": 1,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "New": {
+          "Name": "Point::New",
+          "NumParams": 3,
+          "NumLocals": 3,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 146,
+          "ParamNames": [
+            "self",
+            "nX",
+            "nY"
+          ],
+          "LocalNames": {
+            "nX": 1,
+            "nY": 2,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        }
+      },
+      "Annotations": null
+    }
+  },
+  "code": [
+    {
+      "Op": 21,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "TestTyping",
+      "Line": 2
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 2
+    },
+    {
+      "Op": 75,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 4
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nNum",
+      "Line": 4
+    },
+    {
+      "Op": 4,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 5
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cStr",
+      "Line": 5
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 6
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lBool",
+      "Line": 6
+    },
+    {
+      "Op": 5,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 7
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "dDate",
+      "Line": 7
+    },
+    {
+      "Op": 12,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 8
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "aArr",
+      "Line": 8
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 10
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 10
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 10
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 10
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 4,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nNum",
+      "Line": 11
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "cValToChar",
+      "Line": 11
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 11
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 11
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 4,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cStr",
+      "Line": 12
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 4,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 12
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 12
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 4,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lBool",
+      "Line": 13
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "cValToChar",
+      "Line": 13
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 13
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 13
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 4,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "aArr",
+      "Line": 14
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 14
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "cValToChar",
+      "Line": 14
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 14
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 14
+    },
+    {
+      "Op": 3,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 17
+    },
+    {
+      "Op": 7,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "nVal",
+      "Line": 17
+    },
+    {
+      "Op": 4,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 7,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "cName",
+      "Line": 18
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 19
+    },
+    {
+      "Op": 7,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "lActive",
+      "Line": 19
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 21
+    },
+    {
+      "Op": 4,
+      "Arg": 10,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 21
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 21
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 21
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 4,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 6,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "nVal",
+      "Line": 22
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "cValToChar",
+      "Line": 22
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 22
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 4,
+      "Arg": 12,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 6,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "cName",
+      "Line": 23
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 23
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 4,
+      "Arg": 13,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 6,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "lActive",
+      "Line": 24
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "cValToChar",
+      "Line": 24
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 24
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 27
+    },
+    {
+      "Op": 4,
+      "Arg": 14,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 27
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 27
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 27
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 3,
+      "Arg": 15,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 3,
+      "Arg": 16,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 21,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "xAddTyped",
+      "Line": 28
+    },
+    {
+      "Op": 7,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 28
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 4,
+      "Arg": 17,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 6,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 29
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "cValToChar",
+      "Line": 29
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 29
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 29
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 32
+    },
+    {
+      "Op": 4,
+      "Arg": 18,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 32
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 32
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 32
+    },
+    {
+      "Op": 20,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Point",
+      "Line": 33
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 3,
+      "Arg": 19,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 3,
+      "Arg": 20,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 33
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "New",
+      "Line": 33
+    },
+    {
+      "Op": 7,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "oPt",
+      "Line": 33
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 4,
+      "Arg": 21,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 6,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "oPt",
+      "Line": 34
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "x",
+      "Line": 34
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "cValToChar",
+      "Line": 34
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 4,
+      "Arg": 22,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 6,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "oPt",
+      "Line": 34
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "y",
+      "Line": 34
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "cValToChar",
+      "Line": 34
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 34
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 35
+    },
+    {
+      "Op": 4,
+      "Arg": 23,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 35
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 35
+    },
+    {
+      "Op": 6,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "oPt",
+      "Line": 35
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Distance",
+      "Line": 35
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "cValToChar",
+      "Line": 35
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 35
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 35
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 35
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 37
+    },
+    {
+      "Op": 4,
+      "Arg": 24,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 37
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 37
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 37
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nA",
+      "Line": 41
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nB",
+      "Line": 41
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nX",
+      "Line": 49
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 49
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "x",
+      "Line": 49
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nY",
+      "Line": 50
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 50
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "y",
+      "Line": 50
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 51
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 54
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "x",
+      "Line": 54
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 54
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "x",
+      "Line": 54
+    },
+    {
+      "Op": 31,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 54
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 54
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "y",
+      "Line": 54
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 54
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "y",
+      "Line": 54
+    },
+    {
+      "Op": 31,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 54
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 54
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nSq",
+      "Line": 54
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 55
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nSq",
+      "Line": 55
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Sqrt",
+      "Line": 55
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    }
+  ],
+  "mainOffset": 0,
+  "numGlobals": 0
+}

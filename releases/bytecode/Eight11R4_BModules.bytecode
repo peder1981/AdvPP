@@ -1,0 +1,360 @@
+{
+  "version": "1.0",
+  "constants": [
+    {
+      "Type": "number",
+      "Num": 2,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 1,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 0,
+      "Str": ""
+    }
+  ],
+  "functions": {
+    "BOLITAU": {
+      "Name": "BOLITAU",
+      "NumParams": 2,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 10,
+      "ParamNames": [
+        "nNum",
+        "nBit"
+      ],
+      "LocalNames": {
+        "lRet": 2,
+        "nBit": 1,
+        "nNum": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "C311Imp": {
+      "Name": "C311Imp",
+      "NumParams": 3,
+      "NumLocals": 3,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 1,
+      "ParamNames": [
+        "cDup",
+        "cNF",
+        "nNuCSC"
+      ],
+      "LocalNames": {
+        "cDup": 0,
+        "cNF": 1,
+        "nNuCSC": 2
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "C370Carrega": {
+      "Name": "C370Carrega",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 2,
+      "ParamNames": [
+        "cTpAmb"
+      ],
+      "LocalNames": {
+        "cTpAmb": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "C370Cons_Cubo": {
+      "Name": "C370Cons_Cubo",
+      "NumParams": 2,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 3,
+      "ParamNames": [
+        "cTpAmb",
+        "cProt"
+      ],
+      "LocalNames": {
+        "cProt": 1,
+        "cTpAmb": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "C370Cores": {
+      "Name": "C370Cores",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 4,
+      "ParamNames": [
+        "nCmCo"
+      ],
+      "LocalNames": {
+        "nCmCo": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "C370ListHistorico": {
+      "Name": "C370ListHistorico",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 5,
+      "ParamNames": [
+        "cProt"
+      ],
+      "LocalNames": {
+        "cProt": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "C370LstBox": {
+      "Name": "C370LstBox",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 6,
+      "ParamNames": [
+        "cMensagem"
+      ],
+      "LocalNames": {
+        "cMensagem": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "C370ProcCons": {
+      "Name": "C370ProcCons",
+      "NumParams": 5,
+      "NumLocals": 5,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 7,
+      "ParamNames": [
+        "cIdLote",
+        "cTpAmb",
+        "cProt",
+        "nNuCSC",
+        "cMod"
+      ],
+      "LocalNames": {
+        "cIdLote": 0,
+        "cMod": 4,
+        "cProt": 2,
+        "cTpAmb": 1,
+        "nNuCSC": 3
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "C851Imp": {
+      "Name": "C851Imp",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 8,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "C902Imp": {
+      "Name": "C902Imp",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 9,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    }
+  },
+  "classes": {},
+  "code": [
+    {
+      "Op": 75,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nNum",
+      "Line": 63
+    },
+    {
+      "Op": 3,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 63
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nBit",
+      "Line": 63
+    },
+    {
+      "Op": 3,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 63
+    },
+    {
+      "Op": 30,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 63
+    },
+    {
+      "Op": 34,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 63
+    },
+    {
+      "Op": 42,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 63
+    },
+    {
+      "Op": 3,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 63
+    },
+    {
+      "Op": 39,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 63
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lRet",
+      "Line": 63
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "lRet",
+      "Line": 64
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    }
+  ],
+  "mainOffset": 0,
+  "numGlobals": 0
+}

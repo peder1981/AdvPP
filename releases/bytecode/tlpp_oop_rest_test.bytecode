@@ -1,0 +1,4973 @@
+{
+  "version": "1.0",
+  "constants": [
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "========================================="
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Teste TLPP - Orientação a Objeto e REST"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "--- Teste 1: Classe Base ---"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "João Silva"
+    },
+    {
+      "Type": "number",
+      "Num": 35,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "joao@email.com"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Pessoa criada: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Nome: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Validação: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "OK"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "FALHOU"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "--- Teste 2: Herança e Polimorfismo ---"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Maria Santos"
+    },
+    {
+      "Type": "number",
+      "Num": 28,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "maria@email.com"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "CLI001"
+    },
+    {
+      "Type": "number",
+      "Num": 5000,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Cliente criado: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Código: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Nome herdado: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "--- Teste 3: Compras e Desconto ---"
+    },
+    {
+      "Type": "number",
+      "Num": 200,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 300,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 600,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Total compras: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "--- Teste 4: Validação ---"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "PROD001"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Notebook Dell"
+    },
+    {
+      "Type": "number",
+      "Num": 3500,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 10,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Produto criado: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "--- Teste 5: JSON Inline ---"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "codigo"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "CLI002"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "nome"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Pedro Costa"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "idade"
+    },
+    {
+      "Type": "number",
+      "Num": 42,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "ativo"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "JSON criado: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Idade: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "--- Teste 6: Try/Catch ---"
+    },
+    {
+      "Type": "number",
+      "Num": 0,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Resultado: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Erro capturado: Divisão por zero"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "--- Teste 7: REST Annotations ---"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "WSRESTFUL ClienteService definido"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Métodos: GET ListarClientes, GET ObterCliente"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Métodos: POST CriarCliente, PUT AtualizarCliente"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Métodos: DELETE ExcluirCliente"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Namespace: http://localhost:8080/api"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Teste TLPP concluído com sucesso!"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Todos os conceitos OOP e REST testados"
+    },
+    {
+      "Type": "number",
+      "Num": 150,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Pessoa: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": ", "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": " anos"
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "@"
+    },
+    {
+      "Type": "number",
+      "Num": 1,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Cliente: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": " - "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": " (Total: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": ")"
+    },
+    {
+      "Type": "number",
+      "Num": 1000,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 0.1,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 500,
+      "Str": ""
+    },
+    {
+      "Type": "number",
+      "Num": 0.05,
+      "Str": ""
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": "Produto: "
+    },
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": " (R$ "
+    }
+  ],
+  "functions": {
+    "Cliente::AdicionarCompra": {
+      "Name": "Cliente::AdicionarCompra",
+      "NumParams": 2,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 386,
+      "ParamNames": [
+        "self",
+        "nValor"
+      ],
+      "LocalNames": {
+        "nValor": 1,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Cliente::CalcularDesconto": {
+      "Name": "Cliente::CalcularDesconto",
+      "NumParams": 1,
+      "NumLocals": 5,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 448,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "nI": 2,
+        "nI step": 4,
+        "nLen": 3,
+        "nTotal": 1,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Cliente::GetCodigo": {
+      "Name": "Cliente::GetCodigo",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 383,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Cliente::GetTotalCompras": {
+      "Name": "Cliente::GetTotalCompras",
+      "NumParams": 1,
+      "NumLocals": 5,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 394,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "nI": 2,
+        "nI step": 4,
+        "nLen": 3,
+        "nTotal": 1,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Cliente::New": {
+      "Name": "Cliente::New",
+      "NumParams": 6,
+      "NumLocals": 6,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 363,
+      "ParamNames": [
+        "self",
+        "cNome",
+        "nIdade",
+        "cEmail",
+        "cCodigo",
+        "nLimite"
+      ],
+      "LocalNames": {
+        "cCodigo": 4,
+        "cEmail": 3,
+        "cNome": 1,
+        "nIdade": 2,
+        "nLimite": 5,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Cliente::ToString": {
+      "Name": "Cliente::ToString",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 429,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Pessoa::GetIdade": {
+      "Name": "Pessoa::GetIdade",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 312,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Pessoa::GetNome": {
+      "Name": "Pessoa::GetNome",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 305,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Pessoa::New": {
+      "Name": "Pessoa::New",
+      "NumParams": 4,
+      "NumLocals": 4,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 294,
+      "ParamNames": [
+        "self",
+        "cNome",
+        "nIdade",
+        "cEmail"
+      ],
+      "LocalNames": {
+        "cEmail": 3,
+        "cNome": 1,
+        "nIdade": 2,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Pessoa::SetNome": {
+      "Name": "Pessoa::SetNome",
+      "NumParams": 2,
+      "NumLocals": 2,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 308,
+      "ParamNames": [
+        "self",
+        "cNome"
+      ],
+      "LocalNames": {
+        "cNome": 1,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Pessoa::ToString": {
+      "Name": "Pessoa::ToString",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 337,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Pessoa::Validar": {
+      "Name": "Pessoa::Validar",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 315,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Pessoa::ValidarEmail": {
+      "Name": "Pessoa::ValidarEmail",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 351,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Produto::New": {
+      "Name": "Produto::New",
+      "NumParams": 5,
+      "NumLocals": 5,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 498,
+      "ParamNames": [
+        "self",
+        "cCodigo",
+        "cDescricao",
+        "nPreco",
+        "nEstoque"
+      ],
+      "LocalNames": {
+        "cCodigo": 1,
+        "cDescricao": 2,
+        "nEstoque": 4,
+        "nPreco": 3,
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Produto::ToString": {
+      "Name": "Produto::ToString",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 542,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "Produto::Validar": {
+      "Name": "Produto::Validar",
+      "NumParams": 1,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 512,
+      "ParamNames": [
+        "self"
+      ],
+      "LocalNames": {
+        "self": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "TLPP_OOP_REST_Test": {
+      "Name": "TLPP_OOP_REST_Test",
+      "NumParams": 0,
+      "NumLocals": 3,
+      "IsUser": true,
+      "IsStatic": false,
+      "IsNative": false,
+      "Offset": 3,
+      "ParamNames": [],
+      "LocalNames": {
+        "eError": 0,
+        "nDiv": 1,
+        "nResult": 2
+      },
+      "Annotations": null,
+      "Upvals": null
+    }
+  },
+  "classes": {
+    "Cliente": {
+      "Name": "Cliente",
+      "Parent": "Pessoa",
+      "Properties": {
+        "aCompras": "",
+        "cCodigo": "",
+        "nLimiteCredito": ""
+      },
+      "Methods": {
+        "AdicionarCompra": {
+          "Name": "Cliente::AdicionarCompra",
+          "NumParams": 2,
+          "NumLocals": 2,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 386,
+          "ParamNames": [
+            "self",
+            "nValor"
+          ],
+          "LocalNames": {
+            "nValor": 1,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "CalcularDesconto": {
+          "Name": "Cliente::CalcularDesconto",
+          "NumParams": 1,
+          "NumLocals": 5,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 448,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "nI": 2,
+            "nI step": 4,
+            "nLen": 3,
+            "nTotal": 1,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "GetCodigo": {
+          "Name": "Cliente::GetCodigo",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 383,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "GetTotalCompras": {
+          "Name": "Cliente::GetTotalCompras",
+          "NumParams": 1,
+          "NumLocals": 5,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 394,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "nI": 2,
+            "nI step": 4,
+            "nLen": 3,
+            "nTotal": 1,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "New": {
+          "Name": "Cliente::New",
+          "NumParams": 6,
+          "NumLocals": 6,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 363,
+          "ParamNames": [
+            "self",
+            "cNome",
+            "nIdade",
+            "cEmail",
+            "cCodigo",
+            "nLimite"
+          ],
+          "LocalNames": {
+            "cCodigo": 4,
+            "cEmail": 3,
+            "cNome": 1,
+            "nIdade": 2,
+            "nLimite": 5,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "ToString": {
+          "Name": "Cliente::ToString",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 429,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        }
+      },
+      "Annotations": null
+    },
+    "ClienteService": {
+      "Name": "ClienteService",
+      "Parent": "",
+      "Properties": {
+        "cCodigo": "String",
+        "cEmail": "String",
+        "cNome": "String",
+        "nIdade": "Integer",
+        "nLimiteCredito": "Decimal"
+      },
+      "Methods": {},
+      "Annotations": null
+    },
+    "Pessoa": {
+      "Name": "Pessoa",
+      "Parent": "BaseObject",
+      "Properties": {
+        "cEmail": "",
+        "cNome": "",
+        "nIdade": ""
+      },
+      "Methods": {
+        "GetIdade": {
+          "Name": "Pessoa::GetIdade",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 312,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "GetNome": {
+          "Name": "Pessoa::GetNome",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 305,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "New": {
+          "Name": "Pessoa::New",
+          "NumParams": 4,
+          "NumLocals": 4,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 294,
+          "ParamNames": [
+            "self",
+            "cNome",
+            "nIdade",
+            "cEmail"
+          ],
+          "LocalNames": {
+            "cEmail": 3,
+            "cNome": 1,
+            "nIdade": 2,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "SetNome": {
+          "Name": "Pessoa::SetNome",
+          "NumParams": 2,
+          "NumLocals": 2,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 308,
+          "ParamNames": [
+            "self",
+            "cNome"
+          ],
+          "LocalNames": {
+            "cNome": 1,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "ToString": {
+          "Name": "Pessoa::ToString",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 337,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "Validar": {
+          "Name": "Pessoa::Validar",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 315,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "ValidarEmail": {
+          "Name": "Pessoa::ValidarEmail",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 351,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        }
+      },
+      "Annotations": null
+    },
+    "Produto": {
+      "Name": "Produto",
+      "Parent": "BaseObject",
+      "Properties": {
+        "cCodigo": "",
+        "cDescricao": "",
+        "nEstoque": "",
+        "nPreco": ""
+      },
+      "Methods": {
+        "New": {
+          "Name": "Produto::New",
+          "NumParams": 5,
+          "NumLocals": 5,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 498,
+          "ParamNames": [
+            "self",
+            "cCodigo",
+            "cDescricao",
+            "nPreco",
+            "nEstoque"
+          ],
+          "LocalNames": {
+            "cCodigo": 1,
+            "cDescricao": 2,
+            "nEstoque": 4,
+            "nPreco": 3,
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "ToString": {
+          "Name": "Produto::ToString",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 542,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        },
+        "Validar": {
+          "Name": "Produto::Validar",
+          "NumParams": 1,
+          "NumLocals": 1,
+          "IsUser": false,
+          "IsStatic": false,
+          "IsNative": false,
+          "Offset": 512,
+          "ParamNames": [
+            "self"
+          ],
+          "LocalNames": {
+            "self": 0
+          },
+          "Annotations": null,
+          "Upvals": null
+        }
+      },
+      "Annotations": null
+    }
+  },
+  "code": [
+    {
+      "Op": 21,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "TLPP_OOP_REST_Test",
+      "Line": 178
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 178
+    },
+    {
+      "Op": 75,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 184
+    },
+    {
+      "Op": 4,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 184
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 184
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 184
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 185
+    },
+    {
+      "Op": 4,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 185
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 185
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 185
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 186
+    },
+    {
+      "Op": 4,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 186
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 186
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 186
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 189
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 189
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 189
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 189
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 190
+    },
+    {
+      "Op": 4,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 190
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 190
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 190
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 191
+    },
+    {
+      "Op": 4,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 191
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 191
+    },
+    {
+      "Op": 3,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 191
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 191
+    },
+    {
+      "Op": 4,
+      "Arg": 6,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 191
+    },
+    {
+      "Op": 20,
+      "Arg": 0,
+      "Arg2": 3,
+      "Str": "Pessoa",
+      "Line": 191
+    },
+    {
+      "Op": 85,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oPessoa",
+      "Line": 191
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 192
+    },
+    {
+      "Op": 4,
+      "Arg": 7,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 192
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oPessoa",
+      "Line": 192
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "ToString",
+      "Line": 192
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 192
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 192
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 192
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 193
+    },
+    {
+      "Op": 4,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 193
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oPessoa",
+      "Line": 193
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetNome",
+      "Line": 193
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 193
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 193
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 193
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 194
+    },
+    {
+      "Op": 4,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 194
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oPessoa",
+      "Line": 194
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Validar",
+      "Line": 194
+    },
+    {
+      "Op": 27,
+      "Arg": 52,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 194
+    },
+    {
+      "Op": 4,
+      "Arg": 10,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 194
+    },
+    {
+      "Op": 26,
+      "Arg": 53,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 194
+    },
+    {
+      "Op": 4,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 194
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 194
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 194
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 194
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 197
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 197
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 197
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 197
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 198
+    },
+    {
+      "Op": 4,
+      "Arg": 12,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 198
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 198
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 198
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 4,
+      "Arg": 13,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 3,
+      "Arg": 14,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 4,
+      "Arg": 15,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 4,
+      "Arg": 16,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 3,
+      "Arg": 17,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 199
+    },
+    {
+      "Op": 20,
+      "Arg": 0,
+      "Arg2": 5,
+      "Str": "Cliente",
+      "Line": 199
+    },
+    {
+      "Op": 85,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCliente",
+      "Line": 199
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 200
+    },
+    {
+      "Op": 4,
+      "Arg": 18,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 200
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCliente",
+      "Line": 200
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "ToString",
+      "Line": 200
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 200
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 200
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 200
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 201
+    },
+    {
+      "Op": 4,
+      "Arg": 19,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 201
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCliente",
+      "Line": 201
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetCodigo",
+      "Line": 201
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 201
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 201
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 201
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 202
+    },
+    {
+      "Op": 4,
+      "Arg": 20,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 202
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCliente",
+      "Line": 202
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetNome",
+      "Line": 202
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 202
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 202
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 202
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 205
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 205
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 205
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 205
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 206
+    },
+    {
+      "Op": 4,
+      "Arg": 21,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 206
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 206
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 206
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCliente",
+      "Line": 207
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 207
+    },
+    {
+      "Op": 3,
+      "Arg": 22,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 207
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AdicionarCompra",
+      "Line": 207
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 207
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCliente",
+      "Line": 208
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 208
+    },
+    {
+      "Op": 3,
+      "Arg": 23,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 208
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AdicionarCompra",
+      "Line": 208
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 208
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCliente",
+      "Line": 209
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 209
+    },
+    {
+      "Op": 3,
+      "Arg": 24,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 209
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "AdicionarCompra",
+      "Line": 209
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 209
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 210
+    },
+    {
+      "Op": 4,
+      "Arg": 25,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 210
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 210
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oCliente",
+      "Line": 210
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetTotalCompras",
+      "Line": 210
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 210
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 210
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 210
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 210
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 213
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 213
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 213
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 213
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 214
+    },
+    {
+      "Op": 4,
+      "Arg": 26,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 214
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 214
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 214
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 215
+    },
+    {
+      "Op": 4,
+      "Arg": 27,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 215
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 215
+    },
+    {
+      "Op": 4,
+      "Arg": 28,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 215
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 215
+    },
+    {
+      "Op": 3,
+      "Arg": 29,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 215
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 215
+    },
+    {
+      "Op": 3,
+      "Arg": 30,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 215
+    },
+    {
+      "Op": 20,
+      "Arg": 0,
+      "Arg2": 4,
+      "Str": "Produto",
+      "Line": 215
+    },
+    {
+      "Op": 85,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oProduto",
+      "Line": 215
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 216
+    },
+    {
+      "Op": 4,
+      "Arg": 31,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 216
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oProduto",
+      "Line": 216
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "ToString",
+      "Line": 216
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 216
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 216
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 216
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 4,
+      "Arg": 9,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "oProduto",
+      "Line": 217
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Validar",
+      "Line": 217
+    },
+    {
+      "Op": 27,
+      "Arg": 161,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 4,
+      "Arg": 10,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 26,
+      "Arg": 162,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 4,
+      "Arg": 11,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 217
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 217
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 220
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 220
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 220
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 220
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 221
+    },
+    {
+      "Op": 4,
+      "Arg": 32,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 221
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 221
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 221
+    },
+    {
+      "Op": 4,
+      "Arg": 33,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 4,
+      "Arg": 34,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 4,
+      "Arg": 35,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 4,
+      "Arg": 36,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 4,
+      "Arg": 37,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 3,
+      "Arg": 38,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 4,
+      "Arg": 39,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 222
+    },
+    {
+      "Op": 16,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "json",
+      "Line": 222
+    },
+    {
+      "Op": 85,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "jDados",
+      "Line": 222
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 223
+    },
+    {
+      "Op": 4,
+      "Arg": 40,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 223
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 223
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "jDados",
+      "Line": 223
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ValType",
+      "Line": 223
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 223
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 223
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 223
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 224
+    },
+    {
+      "Op": 4,
+      "Arg": 19,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 224
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "jDados",
+      "Line": 224
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "codigo",
+      "Line": 224
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 224
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 224
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 224
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 225
+    },
+    {
+      "Op": 4,
+      "Arg": 8,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 225
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "jDados",
+      "Line": 225
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nome",
+      "Line": 225
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 225
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 225
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 225
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 226
+    },
+    {
+      "Op": 4,
+      "Arg": 41,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 226
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 226
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "jDados",
+      "Line": 226
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "idade",
+      "Line": 226
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 226
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 226
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 226
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 226
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 229
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 229
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 229
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 229
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 230
+    },
+    {
+      "Op": 4,
+      "Arg": 42,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 230
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 230
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 230
+    },
+    {
+      "Op": 49,
+      "Arg": 238,
+      "Arg2": 0,
+      "Str": "eError",
+      "Line": 231
+    },
+    {
+      "Op": 3,
+      "Arg": 30,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 232
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nDiv",
+      "Line": 232
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nDiv",
+      "Line": 233
+    },
+    {
+      "Op": 3,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 233
+    },
+    {
+      "Op": 32,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 233
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 233
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 234
+    },
+    {
+      "Op": 4,
+      "Arg": 44,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 234
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 234
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nResult",
+      "Line": 234
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 234
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 234
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 234
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 234
+    },
+    {
+      "Op": 26,
+      "Arg": 244,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 231
+    },
+    {
+      "Op": 50,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 231
+    },
+    {
+      "Op": 52,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "eError",
+      "Line": 231
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 236
+    },
+    {
+      "Op": 4,
+      "Arg": 45,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 236
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 236
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 236
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 240
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 240
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 240
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 240
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 241
+    },
+    {
+      "Op": 4,
+      "Arg": 46,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 241
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 241
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 241
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 242
+    },
+    {
+      "Op": 4,
+      "Arg": 47,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 242
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 242
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 242
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 243
+    },
+    {
+      "Op": 4,
+      "Arg": 48,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 243
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 243
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 243
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 244
+    },
+    {
+      "Op": 4,
+      "Arg": 49,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 244
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 244
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 244
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 245
+    },
+    {
+      "Op": 4,
+      "Arg": 50,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 245
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 245
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 245
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 246
+    },
+    {
+      "Op": 4,
+      "Arg": 51,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 246
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 246
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 246
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 248
+    },
+    {
+      "Op": 4,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 248
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 248
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 248
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 249
+    },
+    {
+      "Op": 4,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 249
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 249
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 249
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 250
+    },
+    {
+      "Op": 4,
+      "Arg": 52,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 250
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 250
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 250
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 251
+    },
+    {
+      "Op": 4,
+      "Arg": 53,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 251
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 251
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 251
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 252
+    },
+    {
+      "Op": 4,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 252
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "ConOut",
+      "Line": 252
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 252
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 254
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cNome",
+      "Line": 22
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 22
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cNome",
+      "Line": 22
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nIdade",
+      "Line": 23
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 23
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nIdade",
+      "Line": 23
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "cEmail",
+      "Line": 24
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 24
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cEmail",
+      "Line": 24
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 25
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 28
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cNome",
+      "Line": 28
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cNome",
+      "Line": 31
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 31
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cNome",
+      "Line": 31
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 35
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nIdade",
+      "Line": 35
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 38
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 38
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cNome",
+      "Line": 38
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Empty",
+      "Line": 38
+    },
+    {
+      "Op": 27,
+      "Arg": 322,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 38
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 39
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 39
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nIdade",
+      "Line": 41
+    },
+    {
+      "Op": 3,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 38,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nIdade",
+      "Line": 41
+    },
+    {
+      "Op": 3,
+      "Arg": 54,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 39,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 43,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 27,
+      "Arg": 334,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 41
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 42
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 42
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 44
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "ValidarEmail",
+      "Line": 44
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 4,
+      "Arg": 55,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cNome",
+      "Line": 47
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 4,
+      "Arg": 56,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nIdade",
+      "Line": 47
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 47
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 4,
+      "Arg": 57,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 47
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 50
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 50
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cEmail",
+      "Line": 50
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Empty",
+      "Line": 50
+    },
+    {
+      "Op": 27,
+      "Arg": 358,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 50
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 51
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 51
+    },
+    {
+      "Op": 4,
+      "Arg": 58,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 53
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 53
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cEmail",
+      "Line": 53
+    },
+    {
+      "Op": 45,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 53
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 84,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "Super",
+      "Line": 72
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 72
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cNome",
+      "Line": 72
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 72
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nIdade",
+      "Line": 72
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 72
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "cEmail",
+      "Line": 72
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 3,
+      "Str": "New",
+      "Line": 72
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 72
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cCodigo",
+      "Line": 73
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 73
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cCodigo",
+      "Line": 73
+    },
+    {
+      "Op": 6,
+      "Arg": 5,
+      "Arg2": 0,
+      "Str": "nLimite",
+      "Line": 74
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 74
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nLimiteCredito",
+      "Line": 74
+    },
+    {
+      "Op": 12,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 75
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 75
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aCompras",
+      "Line": 75
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 76
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 79
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cCodigo",
+      "Line": 79
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 82
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 82
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aCompras",
+      "Line": 82
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 82
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nValor",
+      "Line": 82
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "aAdd",
+      "Line": 82
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 82
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 3,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 86
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 86
+    },
+    {
+      "Op": 3,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 87
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 87
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 88
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 88
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aCompras",
+      "Line": 88
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 88
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "nLen",
+      "Line": 88
+    },
+    {
+      "Op": 3,
+      "Arg": 59,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 90
+    },
+    {
+      "Op": 3,
+      "Arg": 59,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 90
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 90
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "nLen",
+      "Line": 90
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 90
+    },
+    {
+      "Op": 81,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 27,
+      "Arg": 424,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 91
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 91
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aCompras",
+      "Line": 91
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 91
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 91
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 91
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 91
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 90
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 90
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 90
+    },
+    {
+      "Op": 26,
+      "Arg": 407,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 90
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 94
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 94
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "CalcularDesconto",
+      "Line": 94
+    },
+    {
+      "Op": 30,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 94
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 4,
+      "Arg": 60,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cCodigo",
+      "Line": 97
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 4,
+      "Arg": 61,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cNome",
+      "Line": 97
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 4,
+      "Arg": 62,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 19,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetTotalCompras",
+      "Line": 97
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 97
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 4,
+      "Arg": 63,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 97
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 3,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 100
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 100
+    },
+    {
+      "Op": 3,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 101
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 101
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 102
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 102
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aCompras",
+      "Line": 102
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Len",
+      "Line": 102
+    },
+    {
+      "Op": 7,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "nLen",
+      "Line": 102
+    },
+    {
+      "Op": 3,
+      "Arg": 59,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 104
+    },
+    {
+      "Op": 3,
+      "Arg": 59,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 104
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 104
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "nLen",
+      "Line": 104
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 104
+    },
+    {
+      "Op": 81,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 27,
+      "Arg": 478,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 105
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 105
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aCompras",
+      "Line": 105
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 105
+    },
+    {
+      "Op": 13,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 105
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 105
+    },
+    {
+      "Op": 7,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 105
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 104
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nI step",
+      "Line": 104
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 7,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "nI",
+      "Line": 104
+    },
+    {
+      "Op": 26,
+      "Arg": 461,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 104
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 108
+    },
+    {
+      "Op": 3,
+      "Arg": 64,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 108
+    },
+    {
+      "Op": 39,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 108
+    },
+    {
+      "Op": 27,
+      "Arg": 487,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 108
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 109
+    },
+    {
+      "Op": 3,
+      "Arg": 65,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 109
+    },
+    {
+      "Op": 31,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 109
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 109
+    },
+    {
+      "Op": 26,
+      "Arg": 495,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 108
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 110
+    },
+    {
+      "Op": 3,
+      "Arg": 66,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 110
+    },
+    {
+      "Op": 39,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 110
+    },
+    {
+      "Op": 27,
+      "Arg": 496,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 108
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "nTotal",
+      "Line": 111
+    },
+    {
+      "Op": 3,
+      "Arg": 67,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 111
+    },
+    {
+      "Op": 31,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 111
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 111
+    },
+    {
+      "Op": 26,
+      "Arg": 496,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 108
+    },
+    {
+      "Op": 3,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 114
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "cCodigo",
+      "Line": 151
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 151
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cCodigo",
+      "Line": 151
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "cDescricao",
+      "Line": 152
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 152
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cDescricao",
+      "Line": 152
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "nPreco",
+      "Line": 153
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 153
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nPreco",
+      "Line": 153
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "nEstoque",
+      "Line": 154
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 154
+    },
+    {
+      "Op": 18,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nEstoque",
+      "Line": 154
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 155
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 158
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 158
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cCodigo",
+      "Line": 158
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Empty",
+      "Line": 158
+    },
+    {
+      "Op": 27,
+      "Arg": 519,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 158
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 159
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 159
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 161
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 161
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cDescricao",
+      "Line": 161
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Empty",
+      "Line": 161
+    },
+    {
+      "Op": 27,
+      "Arg": 526,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 161
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 162
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 162
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 164
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nPreco",
+      "Line": 164
+    },
+    {
+      "Op": 3,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 164
+    },
+    {
+      "Op": 40,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 164
+    },
+    {
+      "Op": 27,
+      "Arg": 533,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 164
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 165
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 165
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 167
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nEstoque",
+      "Line": 167
+    },
+    {
+      "Op": 3,
+      "Arg": 43,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 167
+    },
+    {
+      "Op": 38,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 167
+    },
+    {
+      "Op": 27,
+      "Arg": 540,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 167
+    },
+    {
+      "Op": 2,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 168
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 168
+    },
+    {
+      "Op": 1,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 170
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 4,
+      "Arg": 68,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cCodigo",
+      "Line": 173
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 4,
+      "Arg": 61,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cDescricao",
+      "Line": 173
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 4,
+      "Arg": 69,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 10,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 17,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "nPreco",
+      "Line": 173
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "Str",
+      "Line": 173
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 4,
+      "Arg": 63,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 173
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    }
+  ],
+  "mainOffset": 0,
+  "numGlobals": 0
+}

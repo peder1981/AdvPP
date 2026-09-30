@@ -1,0 +1,756 @@
+{
+  "version": "1.0",
+  "constants": [
+    {
+      "Type": "string",
+      "Num": 0,
+      "Str": ""
+    }
+  ],
+  "functions": {
+    "A100Aj_Sx3": {
+      "Name": "A100Aj_Sx3",
+      "NumParams": 0,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 1,
+      "ParamNames": [],
+      "LocalNames": {
+        "aArea": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A100ExcTrb": {
+      "Name": "A100ExcTrb",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 8,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A100SX3": {
+      "Name": "A100SX3",
+      "NumParams": 0,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 9,
+      "ParamNames": [],
+      "LocalNames": {
+        "aArea": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A100TreePlan": {
+      "Name": "A100TreePlan",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 16,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A101Caixinha": {
+      "Name": "A101Caixinha",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 17,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A103FRet": {
+      "Name": "A103FRet",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 18,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A103PrCom": {
+      "Name": "A103PrCom",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 19,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A103RetNF": {
+      "Name": "A103RetNF",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 20,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A103TrFil": {
+      "Name": "A103TrFil",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 21,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A115Monta": {
+      "Name": "A115Monta",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 22,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A118Monta": {
+      "Name": "A118Monta",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 23,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A160AjustSX3": {
+      "Name": "A160AjustSX3",
+      "NumParams": 0,
+      "NumLocals": 1,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 24,
+      "ParamNames": [],
+      "LocalNames": {
+        "aArea": 0
+      },
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A200IniMap": {
+      "Name": "A200IniMap",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 31,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A202IniDsc": {
+      "Name": "A202IniDsc",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 32,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A203GDCalcCust": {
+      "Name": "A203GDCalcCust",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 33,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A310ConvUm": {
+      "Name": "A310ConvUm",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 34,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A310Proc": {
+      "Name": "A310Proc",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 35,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A710BrVis": {
+      "Name": "A710BrVis",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 36,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "A710Browse": {
+      "Name": "A710Browse",
+      "NumParams": 0,
+      "NumLocals": 0,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 37,
+      "ParamNames": [],
+      "LocalNames": {},
+      "Annotations": null,
+      "Upvals": null
+    },
+    "GenAllUpdates": {
+      "Name": "GenAllUpdates",
+      "NumParams": 4,
+      "NumLocals": 5,
+      "IsUser": false,
+      "IsStatic": true,
+      "IsNative": false,
+      "Offset": 38,
+      "ParamNames": [
+        "cModulo",
+        "aCampos",
+        "aIndices",
+        "aGatilhos"
+      ],
+      "LocalNames": {
+        "aCampos": 1,
+        "aGatilhos": 3,
+        "aIndices": 2,
+        "cModulo": 0,
+        "cTexto": 4
+      },
+      "Annotations": null,
+      "Upvals": null
+    }
+  },
+  "classes": {},
+  "code": [
+    {
+      "Op": 75,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetArea",
+      "Line": 16
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aArea",
+      "Line": 16
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aArea",
+      "Line": 18
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "RestArea",
+      "Line": 18
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 18
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetArea",
+      "Line": 32
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aArea",
+      "Line": 32
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aArea",
+      "Line": 34
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "RestArea",
+      "Line": 34
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 34
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "GetArea",
+      "Line": 85
+    },
+    {
+      "Op": 7,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aArea",
+      "Line": 85
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 87
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "aArea",
+      "Line": 87
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 1,
+      "Str": "RestArea",
+      "Line": 87
+    },
+    {
+      "Op": 25,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 87
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 23,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    },
+    {
+      "Op": 4,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 134
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cTexto",
+      "Line": 134
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cTexto",
+      "Line": 135
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 135
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cModulo",
+      "Line": 135
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 135
+    },
+    {
+      "Op": 6,
+      "Arg": 1,
+      "Arg2": 0,
+      "Str": "aCampos",
+      "Line": 135
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "GenAtuSX3",
+      "Line": 135
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 135
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cTexto",
+      "Line": 135
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cTexto",
+      "Line": 136
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 136
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cModulo",
+      "Line": 136
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 136
+    },
+    {
+      "Op": 6,
+      "Arg": 2,
+      "Arg2": 0,
+      "Str": "aIndices",
+      "Line": 136
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "GenAtuSIX",
+      "Line": 136
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 136
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cTexto",
+      "Line": 136
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cTexto",
+      "Line": 137
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 6,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "cModulo",
+      "Line": 137
+    },
+    {
+      "Op": 80,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 6,
+      "Arg": 3,
+      "Arg2": 0,
+      "Str": "aGatilhos",
+      "Line": 137
+    },
+    {
+      "Op": 22,
+      "Arg": 0,
+      "Arg2": 2,
+      "Str": "GenAtuSX7",
+      "Line": 137
+    },
+    {
+      "Op": 29,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 137
+    },
+    {
+      "Op": 7,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cTexto",
+      "Line": 137
+    },
+    {
+      "Op": 6,
+      "Arg": 4,
+      "Arg2": 0,
+      "Str": "cTexto",
+      "Line": 138
+    },
+    {
+      "Op": 24,
+      "Arg": 0,
+      "Arg2": 0,
+      "Str": "",
+      "Line": 0
+    }
+  ],
+  "mainOffset": 0,
+  "numGlobals": 0
+}

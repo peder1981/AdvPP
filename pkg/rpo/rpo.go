@@ -167,3 +167,8 @@ func (f *File) Bytes() []byte {
 	buf = append(buf, f.FooterTrail...)
 	return buf
 }
+
+// SelfOffset retorna o self offset do RPO.
+func SelfOffset(data []byte) uint32 {
+	return binary.LittleEndian.Uint32(data[0:4])
+}

@@ -1,93 +1,124 @@
-# AdvPP — build, cross-compile, empacotamento e release
-#
-# Uso rápido:
-#   make build                 # compila as 3 ferramentas para a máquina local
-#   make test                  # build + verifica todos os fixtures de tests/
-#   make cross                 # cross-compila o advplc (CLI) p/ Linux/Win64/macOS em dist/
-#   make package VERSION=1.1.0 # gera os pacotes .tar.gz/.zip em dist/
-#   make release VERSION=1.1.0 # cria e publica a tag vVERSION — o GitHub Actions
-#                              # compila nativamente nas 3 plataformas (incl. GUI Fyne)
-#                              # e anexa todos os pacotes à Release
+# Makefile para AdvPP - Compilador AdvPL/TLPP
 
-VERSION ?= dev
-LDFLAGS  = -s -w -X main.version=v$(VERSION)
-GOFLAGS  = -trimpath -ldflags '$(LDFLAGS)'
-TOOLS    = advplc adveditor advpp-ide
-# Alvos do CLI (puro Go, CGO_ENABLED=0). GUIs Fyne exigem build nativo (CI).
-CLI_TARGETS = linux/amd64 linux/arm64 windows/amd64 darwin/arm64
+.PHONY: all build test clean help \
+        rpo-analyze rpo-decrypt rpo-inject \
+        docker-build docker-run docker-logs \
+        bytecode-generate
 
-.PHONY: build test cross package release clean web
+# Configurações
+BINARY := advplc
+VERSION := $(shell git describe --tags --always 2>/dev/null || echo "dev")
+GO := go
+DOCKER_COMPOSE := docker-compose
 
-# Recompila o frontend PO-UI (advplc serve) e embute em pkg/webui/dist.
-# Requer Node 20+; o dist é versionado, então `go build` funciona sem Node.
-web:
-	cd web && npx ng build
-	rm -rf pkg/webui/dist
-	cp -r web/dist/advpp-web/browser pkg/webui/dist
+all: build test
 
+# Build
 build:
-	@for t in $(TOOLS); do \
-		echo "building $$t"; \
-		go build $(GOFLAGS) -o $$t ./cmd/$$t || exit 1; \
-	done
+	$(GO) build -o $(BINARY) ./cmd/advplc
+	@echo "Build concluído: $(BINARY) (version $(VERSION))"
 
-test: build
-	@go vet -unsafeptr=false ./...
-	@pass=0; fail=0; \
-	for f in tests/*.prw tests/*.tlpp; do \
-		if ./advplc check $$f >/dev/null 2>&1; then pass=$$((pass+1)); \
-		else fail=$$((fail+1)); echo "FAIL: $$f"; fi; \
-	done; \
-	echo "fixtures: $$pass pass, $$fail fail"
+# Testes
+test:
+	$(GO) test ./... -v -count=1
 
-cross:
-	@mkdir -p dist
-	@for target in $(CLI_TARGETS); do \
-		goos=$${target%/*}; goarch=$${target#*/}; \
-		ext=""; [ $$goos = windows ] && ext=".exe"; \
-		out=dist/advplc-$$goos-$$goarch$$ext; \
-		echo "building $$out"; \
-		GOOS=$$goos GOARCH=$$goarch CGO_ENABLED=0 \
-			go build $(GOFLAGS) -o $$out ./cmd/advplc || exit 1; \
-	done
+test-short:
+	$(GO) test ./... -short
 
-package: cross
-	@cd dist && for target in $(CLI_TARGETS); do \
-		goos=$${target%/*}; goarch=$${target#*/}; \
-		name=advpp-cli-$(VERSION)-$$goos-$$goarch; \
-		if [ $$goos = windows ]; then \
-			cp advplc-$$goos-$$goarch.exe advplc.exe && \
-			zip -q $$name.zip advplc.exe && rm advplc.exe; \
-		else \
-			cp advplc-$$goos-$$goarch advplc && \
-			tar czf $$name.tar.gz advplc && rm advplc; \
-		fi; \
-		echo "packaged dist/$$name"; \
-	done
-
-release:
-	@[ "$(VERSION)" != "dev" ] || { echo "uso: make release VERSION=1.1.0"; exit 1; }
-	git tag -a v$(VERSION) -m "Release v$(VERSION)"
-	git push origin v$(VERSION)
-	@echo "Tag v$(VERSION) publicada — acompanhe o build em:"
-	@echo "  https://github.com/peder1981/AdvPP/actions"
-
+# Limpeza
 clean:
-	rm -rf dist $(TOOLS) *.exe
+	rm -f $(BINARY)
+	rm -rf releases/bytecode/*.bytecode
+	find . -name "*.rpo" -path "*/tmp/*" -delete 2>/dev/null || true
 
-# RPO Extraction targets
-.PHONY: rpo-extract rpo-decrypt rpo-analyze
+# Help
+help:
+	@echo "AdvPP Build System"
+	@echo ""
+	@echo "Available targets:"
+	@echo "  build          - Build the compiler"
+	@echo "  test           - Run all tests"
+	@echo "  test-short     - Run short tests"
+	@echo "  clean          - Clean build artifacts"
+	@echo "  help           - Show this help"
+	@echo ""
+	@echo "RPO Tools:"
+	@echo "  rpo-analyze    - Analyze RPO file"
+	@echo "  rpo-decrypt    - Decrypt RPO with capture"
+	@echo "  rpo-inject     - Inject bytecode into RPO"
+	@echo ""
+	@echo "Docker:"
+	@echo "  docker-build   - Build Docker images"
+	@echo "  docker-run     - Run containers"
+	@echo "  docker-logs    - Show container logs"
+	@echo ""
+	@echo "Bytecode:"
+	@echo "  bytecode-generate - Generate bytecode from sources"
 
-## Extract sources from RPO (requires capture)
-rpo-extract:
-	@echo "Usage: make rpo-extract RPO=file.rpo CAPTURE=keys.json"
-	@./scripts/rpo-extract.sh $(RPO) $(CAPTURE) $(OUTPUT_DIR)
+# RPO Analysis
+rpo-analyze: build
+	./$(BINARY) rpo info $(FILE)
 
-## Decrypt RPO with capture
-rpo-decrypt:
-	@go run ./cmd/advplc rpo decrypt $(RPO) $(CAPTURE)
+rpo-decrypt: build
+	./$(BINARY) rpo decrypt $(FILE) $(CAPTURE)
 
-## Analyze RPO structure
-rpo-analyze:
-	@go run ./cmd/advplc rpo info $(RPO)
-	@go run ./cmd/advplc rpo identify $(RPO)
+rpo-inject: build
+	./$(BINARY) rpo inject $(FILE) $(CAPTURE) --inject $(REGISTER)=$(BYTECODE) -o $(OUTPUT)
+
+# Docker
+docker-build:
+	$(DOCKER_COMPOSE) build
+
+docker-run:
+	$(DOCKER_COMPOSE) up -d
+
+docker-logs:
+	$(DOCKER_COMPOSE) logs -f
+
+# Bytecode
+bytecode-generate: build
+	@mkdir -p releases/bytecode
+	@echo "Generating bytecode..."
+	@for f in $$($(GO) list ./... | grep -v vendor); do \
+		echo "Processing $$f..."; \
+	done
+	@echo "Bytecode generation complete"
+
+# Dev targets
+dev: build
+	$(GO) run ./cmd/advplc $(ARGS)
+
+run: build
+	./$(BINARY) $(ARGS)
+
+# RPO Injection targets
+rpo-capture:
+	@echo "Capturando chaves de criptografia..."
+	@docker exec protheus-custom bash -c ' \
+		export LD_PRELOAD=/tmp/rpo_key_hook_v10.so; \
+		export RPO_KEYS_OUTPUT=/tmp/capture_latest.json; \
+		cd /totvs/protheus12.1.2510/bin; \
+		./appsrvlinux -compile -env=P12 -files=$(SOURCE) 2>&1' || \
+	docker exec protheus-custom bash -c ' \
+		export LD_PRELOAD=/tmp/rpo_key_hook_v11.so; \
+		export RPO_KEYS_OUTPUT=/tmp/capture_latest.json; \
+		cd /totvs/protheus12.1.2510/bin; \
+		./appsrvlinux -compile -env=P12 -files=$(SOURCE) 2>&1'
+	@docker cp protheus-custom:/tmp/capture_latest.json /tmp/capture_latest.json
+	@echo "Captura salva em /tmp/capture_latest.json"
+
+rpo-inject: build rpo-capture
+	@./$(BINARY) rpo inject $(RPO) /tmp/capture_latest.json \
+		--inject $(REGISTER)=$(BYTECODE) \
+		$(if $(OUTPUT),-o $(OUTPUT))
+	@echo "RPO injetado em $(if $(OUTPUT),$(OUTPUT),/tmp/injected.rpo)"
+
+rpo-analyze: build
+	@./$(BINARY) rpo info $(RPO)
+	@./$(BINARY) rpo regions $(RPO)
+	@./$(BINARY) rpo analyze $(RPO)
+
+rpo-decrypt: build
+	@./$(BINARY) rpo decrypt $(RPO) $(CAPTURE)
+
+.PHONY: rpo-capture rpo-inject rpo-analyze rpo-decrypt

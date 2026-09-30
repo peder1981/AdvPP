@@ -50,9 +50,17 @@ func cmdRpo(args []string) error {
 		return cmdRpoRegions(args[1:])
 	case "decrypt":
 		return cmdRpoDecrypt(args[1:])
+	case "inject":
+		if err := cmdRpoInject(args[1:]); err != nil {
+			return err
+		}
 	default:
 		return rpoUsageError()
 	}
+		if err := cmdRpoInject(args[1:]); err != nil {
+			return err
+		}
+		return nil
 }
 
 func rpoUsageError() error {
