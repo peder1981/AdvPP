@@ -110,7 +110,9 @@ func (v *VM) callMCPServerMethod(obj *advplrt.ObjectValue, method string, args [
 func jsonMapToAdvplObject(m map[string]any) *advplrt.ObjectValue {
 	obj := advplrt.NewObject("JsonObject", nil)
 	for k, val := range m {
-		obj.Props[strings.ToUpper(k)] = jsonValueToAdvpl(val)
+		// SetProp (nunca escrita direta em Props) para manter Keys em
+		// sincronia — base do GetNames() (issue #3: "missing Keys").
+		obj.SetProp(strings.ToUpper(k), jsonValueToAdvpl(val))
 	}
 	return obj
 }

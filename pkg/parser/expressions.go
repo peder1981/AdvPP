@@ -1247,6 +1247,24 @@ func (p *Parser) advanceEndCase() {
 	}
 }
 
+// isDoCaseOtherwise reconhece o ramo otherwise do Do Case: "OTHERWISE"
+// ou "DEFAULT" sozinho na linha (alias tolerado — ver issue #3). Sem
+// isso, o `Default` era consumido por parseDefault como atribuição
+// `Default <prox-ident> := ...`, engolindo a primeira linha do ramo.
+// `Default x := ...` (algo na MESMA linha) continua sendo statement.
+func (p *Parser) isDoCaseOtherwise() bool {
+	if p.isKeyword(p.peek(), "OTHERWISE") {
+		return true
+	}
+	if p.isKeyword(p.peek(), "DEFAULT") {
+		nxt := p.peekAt(1)
+		if nxt.Type == lexer.TOKEN_EOF || nxt.Line != p.peek().Line {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *Parser) parseDoCase() (ast.Statement, error) {
 	p.advance() // DO
 	p.advance() // CASE
@@ -1262,7 +1280,7 @@ func (p *Parser) parseDoCase() (ast.Statement, error) {
 			return nil, err
 		}
 		clause := &ast.CaseClause{Loc: p.posFromToken(p.peek()), Condition: cond, Body: make([]ast.Statement, 0)}
-		for !p.isKeyword(p.peek(), "CASE") && !p.isKeyword(p.peek(), "OTHERWISE") &&
+		for !p.isKeyword(p.peek(), "CASE") && !p.isDoCaseOtherwise() &&
 			!p.isEndCase() && p.peek().Type != lexer.TOKEN_EOF {
 			if p.isFunctionBoundary(p.peek()) {
 				break
@@ -1278,8 +1296,8 @@ func (p *Parser) parseDoCase() (ast.Statement, error) {
 		doCase.Cases = append(doCase.Cases, clause)
 	}
 
-	if p.isKeyword(p.peek(), "OTHERWISE") {
-		p.advance()
+	if p.isDoCaseOtherwise() {
+		p.advance() // OTHERWISE ou DEFAULT (alias)
 		doCase.Otherwise = make([]ast.Statement, 0)
 		for !p.isEndCase() && p.peek().Type != lexer.TOKEN_EOF {
 			stmt, err := p.parseStatement()
