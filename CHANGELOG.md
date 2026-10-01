@@ -2,6 +2,11 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.3.2] - 2026-10-01
+
+### Fixed
+- `FWMBrowse` funcionava no SQLite e morria no Postgres remoto: `browseItems`/`browseSave`/`browseDelete` (`pkg/vm/browse.go`) endereçavam a linha pelo pseudo-campo `rowid`, que não existe no Postgres (nem no Oracle/MSSQL) — qualquer `Activate()` contra banco remoto abortava a sessão com erro. A coluna-chave agora é resolvida por `browseKeyColumn`: `R_E_C_N_O_` (coluna real nos dois motores — no SQLite ela É o rowid) quando a tabela tem, `rowid` como fallback para tabelas sem `R_E_C_N_O_`. Validado com `go test ./pkg/vm/ -run Browse` (7 PASS, 2 testes novos).
+
 ## [4.3.1] - 2026-09-30
 
 ### Added

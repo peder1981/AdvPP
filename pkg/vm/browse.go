@@ -25,6 +25,19 @@ type SQLEngine interface {
 	Exec(query string, args ...any) error
 }
 
+// browseKeyColumn picks the browse physical key column (the stable row
+// identifier, "recno"). Protheus/AdvPP tables carry R_E_C_N_O_ as a real
+// column on both engines: on SQLite it IS the rowid itself, on Postgres it
+// is GENERATED ... AS IDENTITY. Using a bare rowid breaks Postgres (no
+// such column there); using R_E_C_N_O_ works on both. Tables without
+// R_E_C_N_O_ keep rowid (previous behavior, SQLite only).
+func browseKeyColumn(physSet map[string]bool) string {
+	if physSet["R_E_C_N_O_"] {
+		return "R_E_C_N_O_"
+	}
+	return "rowid"
+}
+
 // browseState é o estado Go da classe FWMBrowse (campo Native do objeto).
 type browseState struct {
 	alias string
@@ -108,7 +121,7 @@ func (v *VM) runBrowse(b *browseState) error {
 		return fmt.Errorf("FWMBrowse: alias inválido %q", b.alias)
 	}
 
-	cols, hasDelete, hasFilial, err := v.browseColumns(sqlEng, b.alias)
+	cols, hasDelete, hasFilial, keyCol, err := v.browseColumns(sqlEng, b.alias)
 	if err != nil {
 		return err
 	}
@@ -119,7 +132,7 @@ func (v *VM) runBrowse(b *browseState) error {
 	}
 
 	for {
-		items, err := browseItems(sqlEng, b.alias, cols, hasDelete, hasFilial, cFilial)
+		items, err := browseItems(sqlEng, b.alias, cols, hasDelete, hasFilial, cFilial, keyCol)
 		if err != nil {
 			return err
 		}
@@ -143,11 +156,11 @@ func (v *VM) runBrowse(b *browseState) error {
 
 		switch act.Action {
 		case "save":
-			if err := browseSave(sqlEng, b.alias, cols, hasDelete, hasFilial, cFilial, act); err != nil {
+			if err := browseSave(sqlEng, b.alias, cols, hasDelete, hasFilial, cFilial, act, keyCol); err != nil {
 				return err
 			}
 		case "delete":
-			if err := browseDelete(sqlEng, b.alias, hasDelete, hasFilial, cFilial, act.Recno); err != nil {
+			if err := browseDelete(sqlEng, b.alias, hasDelete, hasFilial, cFilial, act.Recno, keyCol); err != nil {
 				return err
 			}
 		default: // close
@@ -158,10 +171,10 @@ func (v *VM) runBrowse(b *browseState) error {
 
 // browseColumns monta as colunas a partir do dicionário SX3, limitadas às
 // colunas físicas da tabela. Sem SX3, usa as colunas físicas (fallback).
-func (v *VM) browseColumns(eng SQLEngine, alias string) ([]browseColumn, bool, bool, error) {
+func (v *VM) browseColumns(eng SQLEngine, alias string) ([]browseColumn, bool, bool, string, error) {
 	phys, err := eng.QueryRows(fmt.Sprintf("PRAGMA table_info(%s)", alias))
 	if err != nil || len(phys) == 0 {
-		return nil, false, false, fmt.Errorf("FWMBrowse: tabela %s não encontrada", alias)
+		return nil, false, false, "", fmt.Errorf("FWMBrowse: tabela %s não encontrada", alias)
 	}
 	physSet := map[string]bool{}
 	hasDelete := false
@@ -222,13 +235,13 @@ func (v *VM) browseColumns(eng SQLEngine, alias string) ([]browseColumn, bool, b
 			cols = append(cols, browseColumn{Property: name, Label: name, Type: "C"})
 		}
 	}
-	return cols, hasDelete, hasFilial, nil
+	return cols, hasDelete, hasFilial, browseKeyColumn(physSet), nil
 }
 
 // browseItems reads all records from the table with the selected columns.
 // Uses parameterized queries for field values to prevent SQL injection (CWE-89, OWASP A03:2021).
 // Table names (alias) are validated by caller before invocation.
-func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete, hasFilial bool, cFilial string) ([]map[string]any, error) {
+func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete, hasFilial bool, cFilial, keyCol string) ([]map[string]any, error) {
 	names := make([]string, len(cols))
 	for i, c := range cols {
 		names[i] = c.Property
@@ -240,7 +253,7 @@ func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete, ha
 	// "rowid", which silently broke the lookup below (recno always came
 	// back as 0, turning every edit into a duplicate INSERT instead of an
 	// UPDATE).
-	query := fmt.Sprintf("SELECT rowid AS browse_recno_, %s FROM %s", strings.Join(names, ", "), alias)
+	query := fmt.Sprintf("SELECT %s AS browse_recno_, %s FROM %s", keyCol, strings.Join(names, ", "), alias)
 	var conds []string
 	var qargs []any
 	if hasDelete {
@@ -279,7 +292,7 @@ func browseItems(eng SQLEngine, alias string, cols []browseColumn, hasDelete, ha
 // browseSave inserts or updates a record via parameterized queries.
 // Table names (alias) are validated by caller before invocation.
 // Uses ? placeholders for all field values to prevent SQL injection (CWE-89, OWASP A03:2021).
-func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete, hasFilial bool, cFilial string, act browseAction) error {
+func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete, hasFilial bool, cFilial string, act browseAction, keyCol string) error {
 	names := []string{}
 	vals := []any{}
 	for _, c := range cols {
@@ -315,7 +328,7 @@ func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete, has
 	for i, n := range names {
 		sets[i] = n + " = ?"
 	}
-	where := "rowid = ?"
+	where := keyCol + " = ?"
 	vals = append(vals, act.Recno)
 	if hasFilial {
 		where += " AND FILIAL = ?"
@@ -326,12 +339,12 @@ func browseSave(eng SQLEngine, alias string, cols []browseColumn, hasDelete, has
 
 // browseDelete deletes a record via soft-delete or hard-delete.
 // Table names (alias) are validated by caller before invocation.
-// Uses parameterized queries (rowid = ?) to prevent SQL injection (CWE-89, OWASP A03:2021).
-func browseDelete(eng SQLEngine, alias string, hasDelete, hasFilial bool, cFilial string, recno int64) error {
+// Uses parameterized queries (keyCol = ?) to prevent SQL injection (CWE-89, OWASP A03:2021).
+func browseDelete(eng SQLEngine, alias string, hasDelete, hasFilial bool, cFilial string, recno int64, keyCol string) error {
 	if recno == 0 {
 		return nil
 	}
-	where := "rowid = ?"
+	where := keyCol + " = ?"
 	args := []any{recno}
 	if hasFilial {
 		where += " AND FILIAL = ?"
