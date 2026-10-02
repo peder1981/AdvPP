@@ -77,10 +77,10 @@ func TestDbConnectionCloseRestoresLocalEngine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dbaccessOpenEngine(remote): %v", err)
 	}
-	dbstate.mu.Lock()
-	dbstate.conns[2] = &dbstateConn{id: 2, driver: "POSTGRES", engine: remoteEngine, sqlEng: remoteSQL, remote: true}
-	dbstate.active = 2
-	dbstate.mu.Unlock()
+	// Registrada pela própria VM, como DbConnection:Connect() faz: TOPCONN só
+	// usa a conexão da VM (nunca a "ativa" global de outra sessão).
+	remoteID := v.registerOwnedConn(remoteEngine, "POSTGRES", "", 0)
+	_ = remoteSQL
 
 	s := v.dbGenStateFor()
 	s.defaultRDD = "TOPCONN"
@@ -91,7 +91,7 @@ func TestDbConnectionCloseRestoresLocalEngine(t *testing.T) {
 
 	obj := newDbConnectionObject()
 	st := obj.Native.(*dbConnState)
-	st.connID = 2
+	st.connID = remoteID
 
 	if err := v.callDbConnectionMethod(obj, "CLOSE", nil); err != nil {
 		t.Fatalf("CLOSE: %v", err)

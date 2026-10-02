@@ -69,3 +69,54 @@ func TestChildVMClonesRemote(t *testing.T) {
 		t.Fatal("done() deveria fechar so o clone da filha")
 	}
 }
+
+// VM sem conexão própria nunca pega a conexão de outra VM (falha fechada).
+func TestApplyRDDNoOwnConnDoesNotTakeOthers(t *testing.T) {
+	resetDbaccessState()
+	a := NewVM(&compiler.Bytecode{}, false)
+	b := NewVM(&compiler.Bytecode{}, false)
+	eb := &fakeEngine{}
+	b.registerOwnedConn(eb, "POSTGRES", "h", 1)
+	a.applyRDDEngine("TOPCONN")
+	if a.dbEngine == DBEngine(eb) {
+		t.Fatal("VM sem conexao propria pegou a conexao de outra VM")
+	}
+}
+
+// Avaliação síncrona de bloco (EVAL/AEVAL/MSDIALOG) reaproveita o engine
+// do pai — não abre conexão nova por avaliação.
+func TestSharedChildVMDoesNotClone(t *testing.T) {
+	resetDbaccessState()
+	parentEng := &fakeEngine{}
+	clones := 0
+	old := cloneRemote
+	cloneRemote = func(e DBEngine) (DBEngine, bool, error) { clones++; return &fakeEngine{}, true, nil }
+	defer func() { cloneRemote = old }()
+	parent := NewVM(&compiler.Bytecode{}, false)
+	parent.dbEngine = parentEng
+	child, done := parent.newChildVMShared()
+	done()
+	if clones != 0 || child.dbEngine != DBEngine(parentEng) {
+		t.Fatalf("filha compartilhada deveria usar o engine do pai sem clonar (clones=%d)", clones)
+	}
+	if parentEng.closed {
+		t.Fatal("done() da filha compartilhada nao pode fechar o engine do pai")
+	}
+}
+
+// done() libera o estado DB* da filha (dbGenStates é um mapa global).
+func TestChildVMDoneReleasesState(t *testing.T) {
+	resetDbaccessState()
+	parent := NewVM(&compiler.Bytecode{}, false)
+	child, done, err := parent.newChildVM()
+	if err != nil {
+		t.Fatal(err)
+	}
+	done()
+	dbGenStatesMu.Lock()
+	_, ok := dbGenStates[child]
+	dbGenStatesMu.Unlock()
+	if ok {
+		t.Fatal("estado da filha continua em dbGenStates apos done()")
+	}
+}

@@ -40,8 +40,8 @@ func browseKeyColumn(physSet map[string]bool) string {
 
 // browseState é o estado Go da classe FWMBrowse (campo Native do objeto).
 type browseState struct {
-	alias string
-	title string
+	alias    string
+	title    string
 	readOnly bool // SetMenuDef(""): sem MenuDef, sem ações (convenção Protheus)
 }
 

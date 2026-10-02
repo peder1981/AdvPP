@@ -284,12 +284,10 @@ func (v *VM) applyRDDEngine(cRDD string) {
 		// A conexão da própria VM vence a "ativa" global: com várias sessões
 		// no mesmo processo (advplc serve, REST), a ativa global é a da última
 		// sessão que conectou — usá-la misturava empresas entre sessões.
+		// Sem conexão própria a VM fica no engine local (falha fechada) —
+		// nunca herda a conexão (e a empresa) de outra sessão.
 		dbstate.mu.Lock()
-		id := dbstate.active
-		if v.ownConnID != 0 {
-			id = v.ownConnID
-		}
-		c, ok := dbstate.conns[id]
+		c, ok := dbstate.conns[v.ownConnID]
 		dbstate.mu.Unlock()
 		if ok && c != nil && c.remote && c.engine != nil {
 			v.dbEngine = c.engine
@@ -333,7 +331,28 @@ func (v *VM) newChildVM() (*VM, func(), error) {
 	} else if v.dbFactory != nil {
 		job.dbEngine = v.dbFactory()
 	}
-	return job, job.CloseOwnedConnections, nil
+	return job, job.releaseChild, nil
+}
+
+// newChildVMShared cria a VM de uma avaliação SÍNCRONA (EVAL/AEVAL/ações de
+// MSDIALOG): mesma goroutine do pai, sem concorrência, então reaproveita o
+// engine e a conexão do pai em vez de abrir uma conexão por avaliação.
+func (v *VM) newChildVMShared() (*VM, func()) {
+	job := NewVM(v.bc, false)
+	job.dbFactory = v.dbFactory
+	job.dbGenStateFor().defaultRDD = v.dbGenStateFor().defaultRDD
+	job.dbEngine = v.dbEngine
+	job.ownConnID = v.ownConnID // usa, mas não é dona: done não fecha
+	return job, job.releaseChild
+}
+
+// releaseChild fecha as conexões da filha e solta o estado DB* dela do
+// mapa global dbGenStates (senão cada requisição/job ficava na memória).
+func (v *VM) releaseChild() {
+	v.CloseOwnedConnections()
+	dbGenStatesMu.Lock()
+	delete(dbGenStates, v)
+	dbGenStatesMu.Unlock()
 }
 
 // registerOwnedConn registra uma conexão remota aberta POR ESTA VM: ela

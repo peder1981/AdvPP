@@ -78,13 +78,16 @@ func (v *VM) callDbConnectionMethod(obj *advplrt.ObjectValue, method string, arg
 			}
 		}
 		dbstate.mu.Unlock()
-		if v.ownConnID == st.connID {
-			v.ownConnID = 0
-		}
 		for i, id := range v.ownedConns {
 			if id == st.connID {
 				v.ownedConns = append(v.ownedConns[:i], v.ownedConns[i+1:]...)
 				break
+			}
+		}
+		if v.ownConnID == st.connID {
+			v.ownConnID = 0
+			if n := len(v.ownedConns); n > 0 {
+				v.ownConnID = v.ownedConns[n-1] // volta para a conexão anterior DESTA VM
 			}
 		}
 		// Mesmo motivo do CONNECT acima: Close() só apagava dbstate.active,

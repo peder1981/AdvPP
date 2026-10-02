@@ -67,10 +67,7 @@ func (v *VM) evalBlock(cb advplrt.Value, args ...advplrt.Value) (advplrt.Value, 
 	if !ok {
 		return advplrt.Nil, fmt.Errorf("FWGridProcess: bProcess não é um bloco de código")
 	}
-	job, done, err := v.newGridWorkerVM()
-	if err != nil {
-		return advplrt.Nil, err
-	}
+	job, done := v.newChildVMShared() // síncrono: sem conexão nova por avaliação
 	defer done()
 	// convenção do OP_EVAL_CODEBLOCK: locals[0] = o próprio bloco
 	return job.RunFunction(block.FuncName, append([]advplrt.Value{cb}, args...))
