@@ -154,7 +154,7 @@ func (e *RemoteSQLEngine) SelectArea(alias string) error {
 		}
 		record := make(map[string]advplrt.Value)
 		for i, c := range cols {
-			record[strings.ToUpper(c)] = convertDBValue(values[i])
+			record[strings.ToUpper(c)] = remoteValue(values[i], e.columns[i].sqlType)
 		}
 		e.records = append(e.records, record)
 	}
@@ -530,6 +530,20 @@ func (e *RemoteSQLEngine) Close() error {
 // Oracle (NUMBER/...) para tipos numéricos, e DATE/TIMESTAMP/DATETIME/TIME
 // pros de data — deliberadamente permissivo (substring) em vez de
 // enumerar exaustivamente cada nome exato de cada driver.
+// remoteValue converte o valor escaneado considerando o tipo físico da
+// coluna: o pgx entrega NUMERIC/DECIMAL como texto ("1234567.89"); numa
+// coluna numérica isso tem de virar número na área de trabalho, senão a
+// aritmética AdvPL vira concatenação de texto.
+func remoteValue(raw interface{}, sqlType string) advplrt.Value {
+	v := convertDBValue(raw)
+	if sv, ok := v.(*advplrt.StringValue); ok && isRemoteNumericSQLType(sqlType) {
+		if f, err := strconv.ParseFloat(strings.TrimSpace(sv.Val), 64); err == nil {
+			return advplrt.NewNumber(f)
+		}
+	}
+	return v
+}
+
 func isRemoteNumericSQLType(sqlType string) bool {
 	if sqlType == "" {
 		return false

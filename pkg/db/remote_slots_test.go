@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+
+	advplrt "github.com/advpl/compiler/pkg/runtime"
 	"strings"
 	"testing"
 )
@@ -38,5 +40,21 @@ func TestPinPool(t *testing.T) {
 	pinPool(sqlDB)
 	if got := sqlDB.Stats().MaxOpenConnections; got != 1 {
 		t.Fatalf("MaxOpenConnections = %d, want 1", got)
+	}
+}
+
+// NUMERIC chega do pgx como texto ("1234567.89"); em coluna numérica o
+// valor da área de trabalho tem de ser número (senão AdvPL concatena).
+func TestRemoteValueNumericFromText(t *testing.T) {
+	v := remoteValue("1234567.89", "NUMERIC")
+	n, ok := v.(*advplrt.NumberValue)
+	if !ok || n.Val != 1234567.89 {
+		t.Fatalf("NUMERIC '1234567.89' virou %#v, want numero 1234567.89", v)
+	}
+	if _, ok := remoteValue("abc", "TEXT").(*advplrt.StringValue); !ok {
+		t.Fatal("TEXT deve continuar texto")
+	}
+	if _, ok := remoteValue(nil, "NUMERIC").(*advplrt.NilValue); !ok {
+		t.Fatal("NULL numerico deve continuar Nil")
 	}
 }
