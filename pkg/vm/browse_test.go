@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/advpl/compiler/pkg/db"
@@ -316,5 +317,52 @@ func TestBrowseItemsUsaRecnoComoRecno(t *testing.T) {
 	}
 	if items[0]["recno"] != int64(1) || items[1]["recno"] != int64(2) {
 		t.Errorf("recnos = %v/%v, quer 1/2 (vindos de R_E_C_N_O_)", items[0]["recno"], items[1]["recno"])
+	}
+}
+
+// fakeBrowseUI responde as ações na ordem dada e guarda os specs recebidos.
+type fakeBrowseUI struct {
+	UIProvider
+	replies []string
+	specs   []string
+}
+
+func (f *fakeBrowseUI) Browse(spec []byte) []byte {
+	f.specs = append(f.specs, string(spec))
+	r := `{"action":"close"}`
+	if len(f.replies) > 0 {
+		r, f.replies = f.replies[0], f.replies[1:]
+	}
+	return []byte(r)
+}
+
+// Browse somente leitura (SetMenuDef("")): save/delete forjados pelo
+// cliente são recusados no servidor, e o spec avisa a tela.
+func TestBrowseReadOnlyRejects(t *testing.T) {
+	eng, err := db.NewSQLiteEngine(t.TempDir() + "/ro.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer eng.Close()
+	if err := eng.Exec(`CREATE TABLE T (R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT, D_E_L_E_T_ TEXT DEFAULT ' ', A TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := eng.Exec("INSERT INTO T (A) VALUES ('keep')"); err != nil {
+		t.Fatal(err)
+	}
+	ui := &fakeBrowseUI{replies: []string{
+		`{"action":"save","recno":0,"data":{"A":"novo"}}`,
+		`{"action":"delete","recno":1}`,
+	}}
+	v := &VM{dbEngine: eng, uiProvider: ui}
+	if err := v.runBrowse(&browseState{alias: "T", readOnly: true}); err != nil {
+		t.Fatalf("runBrowse: %v", err)
+	}
+	rows, _ := eng.QueryRows("SELECT A FROM T WHERE D_E_L_E_T_ = ' '")
+	if len(rows) != 1 || rows[0]["A"] != "keep" {
+		t.Fatalf("browse somente leitura alterou a tabela: %v", rows)
+	}
+	if len(ui.specs) == 0 || !strings.Contains(ui.specs[0], `"readOnly":true`) {
+		t.Fatalf("spec deveria avisar readOnly: %v", ui.specs)
 	}
 }

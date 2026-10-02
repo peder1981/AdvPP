@@ -42,6 +42,7 @@ func browseKeyColumn(physSet map[string]bool) string {
 type browseState struct {
 	alias string
 	title string
+	readOnly bool // SetMenuDef(""): sem MenuDef, sem ações (convenção Protheus)
 }
 
 type browseColumn struct {
@@ -57,6 +58,9 @@ type browseSpec struct {
 	Alias   string           `json:"alias"`
 	Columns []browseColumn   `json:"columns"`
 	Items   []map[string]any `json:"items"`
+	// ReadOnly: a tela esconde Incluir/Editar/Excluir; o servidor recusa
+	// save/delete mesmo assim (cliente não é confiável).
+	ReadOnly bool `json:"readOnly,omitempty"`
 }
 
 type browseAction struct {
@@ -85,6 +89,10 @@ func (v *VM) callFormBrowseMethod(obj *advplrt.ObjectValue, method string, args 
 
 	case "SETALIAS":
 		b.alias = strings.ToUpper(strings.TrimSpace(advplrt.ToString(getArg(args, 0))))
+		v.push(advplrt.Nil)
+
+	case "SETMENUDEF":
+		b.readOnly = strings.TrimSpace(advplrt.ToString(getArg(args, 0))) == ""
 		v.push(advplrt.Nil)
 
 	case "SETDESCRIPTION", "SETTITLE":
@@ -140,7 +148,7 @@ func (v *VM) runBrowse(b *browseState) error {
 		if title == "" {
 			title = b.alias
 		}
-		spec, _ := json.Marshal(browseSpec{Title: title, Alias: b.alias, Columns: cols, Items: items})
+		spec, _ := json.Marshal(browseSpec{Title: title, Alias: b.alias, Columns: cols, Items: items, ReadOnly: b.readOnly})
 		if debugVM {
 			fmt.Fprintf(os.Stderr, "[VM] BROWSE SPEC: %s\n", spec)
 		}
@@ -154,6 +162,9 @@ func (v *VM) runBrowse(b *browseState) error {
 			return nil // resposta inválida/sessão encerrada: fecha o browse
 		}
 
+		if b.readOnly && (act.Action == "save" || act.Action == "delete") {
+			continue // somente leitura: ignora e reenvia a grade sem alterar nada
+		}
 		switch act.Action {
 		case "save":
 			if err := browseSave(sqlEng, b.alias, cols, hasDelete, hasFilial, cFilial, act, keyCol); err != nil {
