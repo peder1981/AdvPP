@@ -71,10 +71,34 @@ type RemoteSQLEngine struct {
 	current      int
 	isLocked     bool
 	recordsMutex sync.RWMutex
+	driver       string     // origem, para Clone(); vazio = engine montado à mão
+	cfg          ConnConfig // idem
+	closeOnce    sync.Once
 }
 
 func NewRemoteSQLEngine(sqlDB *sql.DB, dialect Dialect) *RemoteSQLEngine {
 	return &RemoteSQLEngine{db: sqlDB, dialect: dialect, current: -1}
+}
+
+// NewRemoteSQLEngineFrom abre a conexão (OpenRemote) e guarda driver+
+// configuração, para Clone() abrir outra igual (VMs-filhas: REST, jobs).
+func NewRemoteSQLEngineFrom(driver string, cfg ConnConfig) (*RemoteSQLEngine, error) {
+	sqlDB, dialect, err := OpenRemote(driver, cfg)
+	if err != nil {
+		return nil, err
+	}
+	e := NewRemoteSQLEngine(sqlDB, dialect)
+	e.driver, e.cfg = driver, cfg
+	return e, nil
+}
+
+// Clone abre uma conexão NOVA com a mesma configuração: nasce com o
+// search_path padrão do SGBD, nunca herda a empresa selecionada pelo pai.
+func (e *RemoteSQLEngine) Clone() (*RemoteSQLEngine, error) {
+	if e.driver == "" {
+		return nil, fmt.Errorf("RemoteSQLEngine.Clone: engine sem configuração de origem")
+	}
+	return NewRemoteSQLEngineFrom(e.driver, e.cfg)
 }
 
 func (e *RemoteSQLEngine) SelectArea(alias string) error {
@@ -484,11 +508,19 @@ func (e *RemoteSQLEngine) Exec(query string, args ...any) error {
 // já tentava fechar via um type assertion `interface{ Close() error }` — sem
 // este método, RemoteSQLEngine nunca satisfazia essa interface e a conexão
 // vazava (nunca era devolvida ao pool/fechada no SGBD remoto).
+// Idempotente; engines abertos por NewRemoteSQLEngineFrom devolvem a vaga
+// do limite de conexões (ver OpenRemote).
 func (e *RemoteSQLEngine) Close() error {
-	if e.db != nil {
-		return e.db.Close()
-	}
-	return nil
+	var err error
+	e.closeOnce.Do(func() {
+		if e.db != nil {
+			err = e.db.Close()
+		}
+		if e.driver != "" {
+			releaseRemoteSlot()
+		}
+	})
+	return err
 }
 
 // isRemoteNumericSQLType/isRemoteDateSQLType: casamento permissivo por
