@@ -101,6 +101,8 @@ type VM struct {
 	dbEngine              DBEngine
 	localDBEngine         DBEngine // engine local (SQLite) guardado antes de trocar por DBSetDriver("TOPCONN")
 	localDBEngineCaptured bool     // true depois da primeira captura de localDBEngine (evita confundir "não capturado" com "capturado como nil")
+	ownConnID             int      // conexão remota aberta por ESTA VM (0 = nenhuma) — TOPCONN usa esta, não a ativa global
+	ownedConns            []int    // conexões desta VM, fechadas em CloseOwnedConnections
 	currentAlias          string   // último alias passado para DbSelectArea, para GetArea()/RestArea()
 	uiProvider            UIProvider
 	output                strings.Builder
@@ -278,8 +280,15 @@ func (v *VM) applyRDDEngine(cRDD string) {
 		v.localDBEngineCaptured = true
 	}
 	if cRDD == "TOPCONN" {
+		// A conexão da própria VM vence a "ativa" global: com várias sessões
+		// no mesmo processo (advplc serve, REST), a ativa global é a da última
+		// sessão que conectou — usá-la misturava empresas entre sessões.
 		dbstate.mu.Lock()
-		c, ok := dbstate.conns[dbstate.active]
+		id := dbstate.active
+		if v.ownConnID != 0 {
+			id = v.ownConnID
+		}
+		c, ok := dbstate.conns[id]
 		dbstate.mu.Unlock()
 		if ok && c != nil && c.remote && c.engine != nil {
 			v.dbEngine = c.engine
@@ -287,6 +296,40 @@ func (v *VM) applyRDDEngine(cRDD string) {
 		}
 	}
 	v.dbEngine = v.localDBEngine
+}
+
+// registerOwnedConn registra uma conexão remota aberta POR ESTA VM: ela
+// passa a ser a conexão TOPCONN desta VM (ver applyRDDEngine) e é fechada
+// em CloseOwnedConnections.
+func (v *VM) registerOwnedConn(engine DBEngine, driver, host string, port int) int {
+	sqlEng, _ := engine.(SQLEngine)
+	dbstate.mu.Lock()
+	id := dbstate.nextID
+	dbstate.nextID++
+	dbstate.conns[id] = &dbstateConn{id: id, driver: driver, server: host, port: port, engine: engine, sqlEng: sqlEng, remote: true}
+	dbstate.active = id
+	dbstate.mu.Unlock()
+	v.ownConnID = id
+	v.ownedConns = append(v.ownedConns, id)
+	return id
+}
+
+// CloseOwnedConnections fecha as conexões abertas por esta VM — chamada ao
+// fim de cada sessão do advplc serve e de cada VM-filha (REST/jobs).
+func (v *VM) CloseOwnedConnections() {
+	dbstate.mu.Lock()
+	for _, id := range v.ownedConns {
+		if c, ok := dbstate.conns[id]; ok {
+			dbaccessCloseConnLocked(c)
+			delete(dbstate.conns, id)
+			if dbstate.active == id {
+				dbstate.active = -1
+			}
+		}
+	}
+	dbstate.mu.Unlock()
+	v.ownedConns = nil
+	v.ownConnID = 0
 }
 
 // SetDBFactory registra como abrir uma nova conexão de banco. Cada job

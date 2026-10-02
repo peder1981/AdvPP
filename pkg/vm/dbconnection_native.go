@@ -50,28 +50,13 @@ func (v *VM) callDbConnectionMethod(obj *advplrt.ObjectValue, method string, arg
 		v.push(obj)
 	case "CONNECT":
 		cfg := db.ConnConfig{Host: st.host, Port: st.port, Service: st.service, User: st.user, Password: st.password}
-		sqlDB, dialect, err := db.OpenRemote(st.driver, cfg)
+		engine, err := db.NewRemoteSQLEngineFrom(st.driver, cfg)
 		if err != nil {
 			st.lastError = err.Error()
 			v.push(advplrt.False)
 			return nil
 		}
-		engine := db.NewRemoteSQLEngine(sqlDB, dialect)
-
-		dbstate.mu.Lock()
-		id := dbstate.nextID
-		dbstate.nextID++
-		dbstate.conns[id] = &dbstateConn{
-			id:     id,
-			driver: st.driver,
-			server: st.host,
-			port:   st.port,
-			engine: engine,
-			sqlEng: engine,
-			remote: true,
-		}
-		dbstate.active = id
-		dbstate.mu.Unlock()
+		id := v.registerOwnedConn(engine, st.driver, st.host, st.port)
 
 		st.connID = id
 		st.lastError = ""
@@ -93,6 +78,15 @@ func (v *VM) callDbConnectionMethod(obj *advplrt.ObjectValue, method string, arg
 			}
 		}
 		dbstate.mu.Unlock()
+		if v.ownConnID == st.connID {
+			v.ownConnID = 0
+		}
+		for i, id := range v.ownedConns {
+			if id == st.connID {
+				v.ownedConns = append(v.ownedConns[:i], v.ownedConns[i+1:]...)
+				break
+			}
+		}
 		// Mesmo motivo do CONNECT acima: Close() só apagava dbstate.active,
 		// deixando v.dbEngine "pendurado" no RemoteSQLEngine agora fechado
 		// enquanto TOPCONN continuasse ativo — próxima leitura via

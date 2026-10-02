@@ -552,6 +552,7 @@ func serveFile(sourceFile string, opts *Options) error {
 			}
 
 			_, err := v.Run()
+			v.CloseOwnedConnections() // sessão do browser terminou: devolve as conexões remotas dela
 			if release != nil {
 				release(err)
 			}
