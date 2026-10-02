@@ -56,13 +56,8 @@ func newGridObject() *advplrt.ObjectValue {
 
 // newGridWorkerVM cria o VM isolado de uma thread do grid (semântica de
 // work process: memória própria, conexão de banco própria).
-func (v *VM) newGridWorkerVM() *VM {
-	job := NewVM(v.bc, false)
-	job.dbFactory = v.dbFactory
-	if v.dbFactory != nil {
-		job.dbEngine = v.dbFactory()
-	}
-	return job
+func (v *VM) newGridWorkerVM() (*VM, func(), error) {
+	return v.newChildVM()
 }
 
 // evalBlock avalia um codeblock em um VM filho (os codeblocks deste runtime
@@ -72,7 +67,11 @@ func (v *VM) evalBlock(cb advplrt.Value, args ...advplrt.Value) (advplrt.Value, 
 	if !ok {
 		return advplrt.Nil, fmt.Errorf("FWGridProcess: bProcess não é um bloco de código")
 	}
-	job := v.newGridWorkerVM()
+	job, done, err := v.newGridWorkerVM()
+	if err != nil {
+		return advplrt.Nil, err
+	}
+	defer done()
 	// convenção do OP_EVAL_CODEBLOCK: locals[0] = o próprio bloco
 	return job.RunFunction(block.FuncName, append([]advplrt.Value{cb}, args...))
 }
@@ -153,7 +152,10 @@ func (v *VM) callGridProcessMethod(obj *advplrt.ObjectValue, method string, args
 		}
 		params := make([]advplrt.Value, len(args))
 		copy(params, args)
-		worker := v.newGridWorkerVM()
+		worker, done, err := v.newGridWorkerVM()
+		if err != nil {
+			return err
+		}
 		// captura o canal atual: se g.sem for trocado depois, o release
 		// precisa devolver a vaga ao MESMO canal de onde a adquiriu
 		sem := g.sem
@@ -164,6 +166,7 @@ func (v *VM) callGridProcessMethod(obj *advplrt.ObjectValue, method string, args
 			defer g.wg.Done()
 			defer g.pending.Add(-1)
 			defer func() { <-sem }()
+			defer done()
 			if g.stopped.Load() {
 				return
 			}

@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"github.com/advpl/compiler/pkg/db"
 	"bufio"
 	"encoding/json"
 	"fmt"
@@ -298,6 +299,43 @@ func (v *VM) applyRDDEngine(cRDD string) {
 	v.dbEngine = v.localDBEngine
 }
 
+// cloneRemote abre uma conexão nova com a mesma configuração do engine
+// remoto e (nil, false, nil) para engine local. Variável para os testes
+// trocarem por um engine falso (não há Postgres na suíte unitária).
+var cloneRemote = func(e DBEngine) (DBEngine, bool, error) {
+	re, ok := e.(*db.RemoteSQLEngine)
+	if !ok {
+		return nil, false, nil
+	}
+	c, err := re.Clone()
+	if err != nil {
+		return nil, true, err
+	}
+	return c, true, nil
+}
+
+// newChildVM cria a VM isolada de uma requisição/job (semântica de work
+// process). Com banco remoto a filha recebe conexão PRÓPRIA (cloneRemote):
+// nasce no search_path padrão e nunca compartilha a do pai nem a de outra
+// requisição concorrente. O func() devolvido fecha as conexões da filha —
+// chamar sempre ao terminar.
+func (v *VM) newChildVM() (*VM, func(), error) {
+	job := NewVM(v.bc, false)
+	job.dbFactory = v.dbFactory
+	job.dbGenStateFor().defaultRDD = v.dbGenStateFor().defaultRDD
+	clone, remote, err := cloneRemote(v.dbEngine)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	if remote {
+		job.registerOwnedConn(clone, "", "", 0)
+		job.dbEngine = clone
+	} else if v.dbFactory != nil {
+		job.dbEngine = v.dbFactory()
+	}
+	return job, job.CloseOwnedConnections, nil
+}
+
 // registerOwnedConn registra uma conexão remota aberta POR ESTA VM: ela
 // passa a ser a conexão TOPCONN desta VM (ver applyRDDEngine) e é fechada
 // em CloseOwnedConnections.
@@ -555,12 +593,12 @@ func (v *VM) functionExists(name string) bool {
 func (v *VM) StartJob(funcName string, wait bool, args []advplrt.Value) error {
 	if wait {
 		// Synchronous execution: no goroutine spawning
-		job := NewVM(v.bc, false)
-		job.dbFactory = v.dbFactory
-		if v.dbFactory != nil {
-			job.dbEngine = v.dbFactory()
+		job, done, err := v.newChildVM()
+		if err != nil {
+			return err
 		}
-		_, err := job.RunFunction(funcName, args)
+		defer done()
+		_, err = job.RunFunction(funcName, args)
 		return err
 	}
 
@@ -580,16 +618,17 @@ func (v *VM) StartJob(funcName string, wait bool, args []advplrt.Value) error {
 	}
 
 	// Now safe to create VM and spawn goroutine
-	job := NewVM(v.bc, false)
-	job.dbFactory = v.dbFactory
-	if v.dbFactory != nil {
-		job.dbEngine = v.dbFactory()
+	job, done, err := v.newChildVM()
+	if err != nil {
+		atomic.AddInt32(&activeJobsCount, -1)
+		return err
 	}
 
 	v.jobs.Add(1)
 	go func() {
 		defer v.jobs.Done()
 		defer atomic.AddInt32(&activeJobsCount, -1) // Always decrement on exit
+		defer done()
 		if _, err := job.RunFunction(funcName, args); err != nil {
 			fmt.Printf("StartJob(%s) error: %v\n", funcName, err)
 		}

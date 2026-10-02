@@ -44,10 +44,10 @@ func (v *VM) registerAsyncJobNatives(natives map[string]func(args []advplrt.Valu
 			return advplrt.Nil, fmt.Errorf("max concurrent jobs exceeded (%d)", MaxConcurrentJobs)
 		}
 
-		job := NewVM(v.bc, false)
-		job.dbFactory = v.dbFactory
-		if v.dbFactory != nil {
-			job.dbEngine = v.dbFactory()
+		job, done, err := v.newChildVM()
+		if err != nil {
+			atomic.AddInt32(&activeJobsCount, -1)
+			return advplrt.Nil, err
 		}
 
 		// Entrada criada ANTES de disparar a goroutine: assim FWJOBDONE/
@@ -61,6 +61,7 @@ func (v *VM) registerAsyncJobNatives(natives map[string]func(args []advplrt.Valu
 		go func() {
 			defer v.jobs.Done()
 			defer atomic.AddInt32(&activeJobsCount, -1)
+			defer done()
 			result, err := job.RunFunction(funcName, params)
 			if err != nil {
 				fmt.Printf("FWJOBSTART(%s) error: %v\n", funcName, err)

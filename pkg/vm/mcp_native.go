@@ -68,11 +68,11 @@ func (v *VM) callMCPServerMethod(obj *advplrt.ObjectValue, method string, args [
 				// seguro aqui: reentraria no v.frames/v.current compartilhado
 				// da VM que está bloqueada dentro de Serve(), corrompendo a
 				// pilha de chamadas em andamento.
-				job := NewVM(v.bc, false)
-				job.dbFactory = v.dbFactory
-				if v.dbFactory != nil {
-					job.dbEngine = v.dbFactory()
+				job, done, err := v.newChildVM()
+				if err != nil {
+					return "", err
 				}
+				defer done()
 				argObj := jsonMapToAdvplObject(toolArgs)
 				result, err := job.RunFunction(funcName, []advplrt.Value{argObj})
 				if err != nil {
