@@ -2,7 +2,7 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
-## [4.4.0-geban] - 2026-10-02
+## [4.4.0] - 2026-10-03
 
 ### Fixed
 - **Isolamento entre sessões em banco remoto (multiempresa por `search_path`).** Cada conexão aberta por `DbConnection:Connect()` fica presa a uma conexão física (`SetMaxOpenConns(1)`): `SET search_path` passa a valer para todo comando seguinte daquela sessão — antes o pool do `database/sql` espalhava os comandos entre conexões. Conexão reposta pelo driver nasce em `public` (falha fechada: "tabela não existe"). Teste: `TestPinPool`. (073024c)
