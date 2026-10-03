@@ -327,6 +327,21 @@ func (e *RemoteSQLEngine) Append() error {
 	newRecno := maxRecno + 1
 	e.recordsMutex.RUnlock()
 
+	// Postgres: o número vem da sequência IDENTITY da tabela, posicionada
+	// acima do maior R_E_C_N_O_ gravado. Antes era "máximo em memória + 1"
+	// sem avançar a sequência — um INSERT por SQL depois colidia na chave
+	// (e um INSERT por SQL antes deixava a cópia em memória desatualizada).
+	if e.dialect != nil && e.dialect.Name() == "POSTGRES" {
+		var seq sql.NullString
+		if err := e.db.QueryRow("SELECT pg_get_serial_sequence($1, 'r_e_c_n_o_')", strings.ToLower(e.alias)).Scan(&seq); err == nil && seq.Valid {
+			var n int64
+			q := fmt.Sprintf("SELECT setval($1, GREATEST(nextval($1), (SELECT COALESCE(MAX(R_E_C_N_O_), 0) FROM %s) + 1))", e.alias)
+			if err := e.db.QueryRow(q, seq.String).Scan(&n); err == nil {
+				newRecno = float64(n)
+			}
+		}
+	}
+
 	var cols []string
 	var placeholders []string
 	var vals []any
