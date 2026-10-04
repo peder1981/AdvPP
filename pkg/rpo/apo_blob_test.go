@@ -50,3 +50,48 @@ func TestParseApoBlob_KindInvalido(t *testing.T) {
 		t.Error("esperava erro para kind != F/T")
 	}
 }
+
+func TestExtractStrings_ExtXdef(t *testing.T) {
+	blob, err := ParseApoBlob(loadFixture(t, "EXTXDEF.PRW"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	blob.ExtractStrings()
+	if len(blob.Strings) != 1 || blob.Strings[0].Text != "EXTXDEF.PRW" {
+		t.Fatalf("Strings = %+v, esperado único [EXTXDEF.PRW]", blob.Strings)
+	}
+	if blob.FileName != "EXTXDEF.PRW" {
+		t.Errorf("FileName = %q, esperado %q", blob.FileName, "EXTXDEF.PRW")
+	}
+}
+
+func TestExtractStrings_AbsloggerTemTabelaDeNomes(t *testing.T) {
+	blob, err := ParseApoBlob(loadFixture(t, "ABSLOGGER.PRW"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	blob.ExtractStrings()
+	got := map[string]bool{}
+	for _, s := range blob.Strings {
+		got[s.Text] = true
+	}
+	for _, want := range []string{"ABSLOGGER", "CPROCNAME", "LFFACTIVE", "USELF", "ABSLOGGER.PRW"} {
+		if !got[want] {
+			t.Errorf("string %q não encontrada em %+v", want, blob.Strings)
+		}
+	}
+	if blob.FileName != "ABSLOGGER.PRW" {
+		t.Errorf("FileName = %q, esperado ABSLOGGER.PRW", blob.FileName)
+	}
+}
+
+func TestExtractStrings_TLPPFilename(t *testing.T) {
+	blob, err := ParseApoBlob(loadFixture(t, "BACKOFFICE.SV.EST.SOLDPRODUCTS.BRA.TLPP"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	blob.ExtractStrings()
+	if blob.FileName != "BACKOFFICE.SV.EST.SOLDPRODUCTS.BRA.TLPP" {
+		t.Errorf("FileName = %q", blob.FileName)
+	}
+}

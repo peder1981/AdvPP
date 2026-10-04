@@ -2,6 +2,7 @@ package rpo
 
 import (
 	"fmt"
+	"regexp"
 )
 
 // ApoHeaderPrefix é o prefixo observado em TODOS os 3.465 blobs APO
@@ -30,9 +31,51 @@ func (k ApoKind) String() string {
 
 // ApoBlob é a desmontagem de um blob APO extraído via GetApoRes.
 type ApoBlob struct {
-	Raw  []byte
-	Kind ApoKind
-	Size int
+	Raw      []byte
+	Kind     ApoKind
+	Size     int
+	Strings  []ApoString
+	FileName string
+}
+
+// ApoString é uma string imprimível localizada no blob.
+type ApoString struct {
+	Offset int    `json:"offset"`
+	Text   string `json:"text"`
+}
+
+// apoFileExtRe reconhece o nome-do-recurso como string com extensão conhecida.
+var apoFileExtRe = regexp.MustCompile(`^[A-Za-z0-9_.]+\.(PRW|TLPP|PRX|APH|APW|PRG|CH|TRES|TRP)$`)
+
+// ExtractStrings varre o blob por runs imprimíveis (ASCII 32..126, >= 4
+// chars) e deriva FileName = primeira string com extensão de resource
+// conhecida (heurística verificada: filename único em fixtures "vazias"
+// e presente perto do EOF em ABSLOGGER.PRW).
+func (b *ApoBlob) ExtractStrings() {
+	b.Strings = nil
+	b.FileName = ""
+	current := make([]byte, 0, 64)
+	start := 0
+	flush := func() {
+		if len(current) >= 4 {
+			text := string(current)
+			b.Strings = append(b.Strings, ApoString{Offset: start, Text: text})
+			if b.FileName == "" && apoFileExtRe.MatchString(text) {
+				b.FileName = text
+			}
+		}
+		current = current[:0]
+	}
+	for i := 0; i <= len(b.Raw); i++ {
+		if i < len(b.Raw) && b.Raw[i] >= 32 && b.Raw[i] <= 126 {
+			if len(current) == 0 {
+				start = i
+			}
+			current = append(current, b.Raw[i])
+			continue
+		}
+		flush()
+	}
 }
 
 // ParseApoBlob valida o framing mínimo (magic 5 bytes + kind) do blob APO.
