@@ -164,19 +164,14 @@ func normalizeRestPath(path string) string {
 // dentro de Serve(), corrompendo a pilha de chamadas em andamento.
 func (v *VM) restHandlerFor(funcName string) func(map[string]any) (any, error) {
 	return func(params map[string]any) (any, error) {
-		job := NewVM(v.bc, false)
-		// Compartilha o MESMO dbEngine ativo da VM pai (não chama
-		// v.dbFactory() para abrir uma conexão "fresca" nova): dbFactory
-		// só faz sentido pro engine SQLite local (cada job em WAL ganha
-		// sua própria conexão de arquivo); quando a conexão ativa é
-		// remota (TOPCONN/Postgres via pkg/db.RemoteSQLEngine, um pool
-		// database/sql seguro para uso concorrente), chamar dbFactory()
-		// aqui descartava silenciosamente o engine remoto configurado e
-		// a VM do job caía de volta no engine SQLite local vazio/default
-		// — toda rota REST contra um backend remoto quebrava com "no
-		// such table" mesmo com o processo pai plenamente conectado.
-		job.dbFactory = v.dbFactory
-		job.dbEngine = v.dbEngine
+		// Conexão própria por requisição (newChildVM): compartilhar a do pai
+		// fazia requisições concorrentes trocarem a empresa (search_path)
+		// umas das outras.
+		job, done, err := v.newChildVM()
+		if err != nil {
+			return nil, err
+		}
+		defer done()
 		argObj := jsonMapToAdvplObject(params)
 		result, err := job.RunFunction(funcName, []advplrt.Value{argObj})
 		if err != nil {

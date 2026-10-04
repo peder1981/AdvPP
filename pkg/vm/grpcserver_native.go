@@ -153,11 +153,11 @@ func (v *VM) grpcServerHandlerFor(envelopeDesc protoreflect.MessageDescriptor, f
 		}
 		argObj := jsonToAdvplValue(params)
 
-		job := NewVM(v.bc, false)
-		job.dbFactory = v.dbFactory
-		if v.dbFactory != nil {
-			job.dbEngine = v.dbFactory()
+		job, done, err := v.newChildVM()
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "%v", err)
 		}
+		defer done()
 		result, err := job.RunFunction(funcName, []advplrt.Value{argObj})
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "%v", err)

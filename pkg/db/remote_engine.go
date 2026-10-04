@@ -71,10 +71,34 @@ type RemoteSQLEngine struct {
 	current      int
 	isLocked     bool
 	recordsMutex sync.RWMutex
+	driver       string     // origem, para Clone(); vazio = engine montado à mão
+	cfg          ConnConfig // idem
+	closeOnce    sync.Once
 }
 
 func NewRemoteSQLEngine(sqlDB *sql.DB, dialect Dialect) *RemoteSQLEngine {
 	return &RemoteSQLEngine{db: sqlDB, dialect: dialect, current: -1}
+}
+
+// NewRemoteSQLEngineFrom abre a conexão (OpenRemote) e guarda driver+
+// configuração, para Clone() abrir outra igual (VMs-filhas: REST, jobs).
+func NewRemoteSQLEngineFrom(driver string, cfg ConnConfig) (*RemoteSQLEngine, error) {
+	sqlDB, dialect, err := OpenRemote(driver, cfg)
+	if err != nil {
+		return nil, err
+	}
+	e := NewRemoteSQLEngine(sqlDB, dialect)
+	e.driver, e.cfg = driver, cfg
+	return e, nil
+}
+
+// Clone abre uma conexão NOVA com a mesma configuração: nasce com o
+// search_path padrão do SGBD, nunca herda a empresa selecionada pelo pai.
+func (e *RemoteSQLEngine) Clone() (*RemoteSQLEngine, error) {
+	if e.driver == "" {
+		return nil, fmt.Errorf("RemoteSQLEngine.Clone: engine sem configuração de origem")
+	}
+	return NewRemoteSQLEngineFrom(e.driver, e.cfg)
 }
 
 func (e *RemoteSQLEngine) SelectArea(alias string) error {
@@ -130,7 +154,7 @@ func (e *RemoteSQLEngine) SelectArea(alias string) error {
 		}
 		record := make(map[string]advplrt.Value)
 		for i, c := range cols {
-			record[strings.ToUpper(c)] = convertDBValue(values[i])
+			record[strings.ToUpper(c)] = remoteValue(values[i], e.columns[i].sqlType)
 		}
 		e.records = append(e.records, record)
 	}
@@ -302,6 +326,21 @@ func (e *RemoteSQLEngine) Append() error {
 	}
 	newRecno := maxRecno + 1
 	e.recordsMutex.RUnlock()
+
+	// Postgres: o número vem da sequência IDENTITY da tabela, posicionada
+	// acima do maior R_E_C_N_O_ gravado. Antes era "máximo em memória + 1"
+	// sem avançar a sequência — um INSERT por SQL depois colidia na chave
+	// (e um INSERT por SQL antes deixava a cópia em memória desatualizada).
+	if e.dialect != nil && e.dialect.Name() == "POSTGRES" {
+		var seq sql.NullString
+		if err := e.db.QueryRow("SELECT pg_get_serial_sequence($1, 'r_e_c_n_o_')", strings.ToLower(e.alias)).Scan(&seq); err == nil && seq.Valid {
+			var n int64
+			q := fmt.Sprintf("SELECT setval($1, GREATEST(nextval($1), (SELECT COALESCE(MAX(R_E_C_N_O_), 0) FROM %s) + 1))", e.alias)
+			if err := e.db.QueryRow(q, seq.String).Scan(&n); err == nil {
+				newRecno = float64(n)
+			}
+		}
+	}
 
 	var cols []string
 	var placeholders []string
@@ -484,11 +523,19 @@ func (e *RemoteSQLEngine) Exec(query string, args ...any) error {
 // já tentava fechar via um type assertion `interface{ Close() error }` — sem
 // este método, RemoteSQLEngine nunca satisfazia essa interface e a conexão
 // vazava (nunca era devolvida ao pool/fechada no SGBD remoto).
+// Idempotente; engines abertos por NewRemoteSQLEngineFrom devolvem a vaga
+// do limite de conexões (ver OpenRemote).
 func (e *RemoteSQLEngine) Close() error {
-	if e.db != nil {
-		return e.db.Close()
-	}
-	return nil
+	var err error
+	e.closeOnce.Do(func() {
+		if e.db != nil {
+			err = e.db.Close()
+		}
+		if e.driver != "" {
+			releaseRemoteSlot()
+		}
+	})
+	return err
 }
 
 // isRemoteNumericSQLType/isRemoteDateSQLType: casamento permissivo por
@@ -498,6 +545,20 @@ func (e *RemoteSQLEngine) Close() error {
 // Oracle (NUMBER/...) para tipos numéricos, e DATE/TIMESTAMP/DATETIME/TIME
 // pros de data — deliberadamente permissivo (substring) em vez de
 // enumerar exaustivamente cada nome exato de cada driver.
+// remoteValue converte o valor escaneado considerando o tipo físico da
+// coluna: o pgx entrega NUMERIC/DECIMAL como texto ("1234567.89"); numa
+// coluna numérica isso tem de virar número na área de trabalho, senão a
+// aritmética AdvPL vira concatenação de texto.
+func remoteValue(raw interface{}, sqlType string) advplrt.Value {
+	v := convertDBValue(raw)
+	if sv, ok := v.(*advplrt.StringValue); ok && isRemoteNumericSQLType(sqlType) {
+		if f, err := strconv.ParseFloat(strings.TrimSpace(sv.Val), 64); err == nil {
+			return advplrt.NewNumber(f)
+		}
+	}
+	return v
+}
+
 func isRemoteNumericSQLType(sqlType string) bool {
 	if sqlType == "" {
 		return false

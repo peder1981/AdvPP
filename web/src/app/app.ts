@@ -42,7 +42,7 @@ function menuItemLabel(label: string): string {
 
 // Espelho de browseSpec/browseAction do servidor (pkg/vm/browse.go)
 interface BrowseColumn { property: string; label: string; type: string; size: number; decimal: number; }
-interface BrowseSpec { title: string; alias: string; columns: BrowseColumn[]; items: any[]; }
+interface BrowseSpec { title: string; alias: string; columns: BrowseColumn[]; items: any[]; readOnly?: boolean; }
 // Espelho de dialogSpec do servidor (pkg/vm/dialog.go — MSDIALOG legado)
 interface DlgControl { kind: string; x: number; y: number; name?: string; text?: string; value?: string; picture?: string; index: number; }
 interface DialogSpec { title: string; rows: DlgControl[][]; buttons: DlgControl[]; }
@@ -62,12 +62,14 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
         <po-table
           [p-columns]="tableColumns()"
           [p-items]="b.items"
-          [p-actions]="tableActions"
+          [p-actions]="b.readOnly ? [] : tableActions"
           [p-striped]="true"
           [p-sort]="true">
         </po-table>
         <div class="po-mt-2">
-          <po-button p-label="Incluir" p-kind="primary" p-icon="an an-plus" (p-click)="openForm(null)"></po-button>
+          @if (!b.readOnly) {
+            <po-button p-label="Incluir" p-kind="primary" p-icon="an an-plus" (p-click)="openForm(null)"></po-button>
+          }
           <po-button p-label="Voltar ao menu" p-icon="an an-arrow-left" (p-click)="sendAction({ action: 'close' })"></po-button>
         </div>
       }

@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/advpl/compiler/pkg/db"
@@ -29,7 +30,7 @@ func TestBrowseFiltraPorFilial(t *testing.T) {
 		t.Fatalf("seed B: %v", err)
 	}
 
-	cols, hasDelete, hasFilial, err := (&VM{}).browseColumns(eng, "UNI")
+	cols, hasDelete, hasFilial, keyCol, err := (&VM{}).browseColumns(eng, "UNI")
 	if err != nil {
 		t.Fatalf("browseColumns: %v", err)
 	}
@@ -37,7 +38,7 @@ func TestBrowseFiltraPorFilial(t *testing.T) {
 		t.Fatal("hasFilial deveria ser true (tabela tem coluna FILIAL)")
 	}
 
-	items, err := browseItems(eng, "UNI", cols, hasDelete, hasFilial, "010101")
+	items, err := browseItems(eng, "UNI", cols, hasDelete, hasFilial, "010101", keyCol)
 	if err != nil {
 		t.Fatalf("browseItems: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestBrowseFiltraPorFilial(t *testing.T) {
 
 	// Incluir sob filial 010102 -- deve estampar FILIAL sozinho.
 	err = browseSave(eng, "UNI", cols, hasDelete, hasFilial, "010102",
-		browseAction{Action: "save", Recno: 0, Data: map[string]string{"UNI_CODIGO": "202"}})
+		browseAction{Action: "save", Recno: 0, Data: map[string]string{"UNI_CODIGO": "202"}}, keyCol)
 	if err != nil {
 		t.Fatalf("browseSave (incluir): %v", err)
 	}
@@ -60,7 +61,7 @@ func TestBrowseFiltraPorFilial(t *testing.T) {
 	}
 
 	// Sob a filial 010102, browseItems agora deve ver 2 linhas (999 + 202 novo).
-	items2, _ := browseItems(eng, "UNI", cols, hasDelete, hasFilial, "010102")
+	items2, _ := browseItems(eng, "UNI", cols, hasDelete, hasFilial, "010102", keyCol)
 	if len(items2) != 2 {
 		t.Errorf("browseItems sob 010102 devolveu %d itens, quer 2", len(items2))
 	}
@@ -86,7 +87,7 @@ func TestBrowseAlterarRecusaCrossFilial(t *testing.T) {
 		t.Fatalf("seed A: %v", err)
 	}
 
-	cols, hasDelete, hasFilial, err := (&VM{}).browseColumns(eng, "UNI")
+	cols, hasDelete, hasFilial, keyCol, err := (&VM{}).browseColumns(eng, "UNI")
 	if err != nil {
 		t.Fatalf("browseColumns: %v", err)
 	}
@@ -98,7 +99,7 @@ func TestBrowseAlterarRecusaCrossFilial(t *testing.T) {
 	// passando cFilial = 010102 (outra filial) -- deve ser recusado
 	// silenciosamente (0 linhas afetadas, sem erro), preservando os dados.
 	err = browseSave(eng, "UNI", cols, hasDelete, hasFilial, "010102",
-		browseAction{Action: "save", Recno: 1, Data: map[string]string{"UNI_CODIGO": "FORJADO"}})
+		browseAction{Action: "save", Recno: 1, Data: map[string]string{"UNI_CODIGO": "FORJADO"}}, keyCol)
 	if err != nil {
 		t.Fatalf("browseSave (alterar cross-filial): %v", err)
 	}
@@ -138,7 +139,7 @@ func TestBrowseFilialNaoEhColunaEditavel(t *testing.T) {
 		t.Fatalf("seed A: %v", err)
 	}
 
-	cols, hasDelete, hasFilial, err := (&VM{}).browseColumns(eng, "UNI")
+	cols, hasDelete, hasFilial, keyCol, err := (&VM{}).browseColumns(eng, "UNI")
 	if err != nil {
 		t.Fatalf("browseColumns: %v", err)
 	}
@@ -159,7 +160,7 @@ func TestBrowseFilialNaoEhColunaEditavel(t *testing.T) {
 		browseAction{Action: "save", Recno: 0, Data: map[string]string{
 			"UNI_CODIGO": "202",
 			"FILIAL":     "999999", // forjado
-		}})
+		}}, keyCol)
 	if err != nil {
 		t.Fatalf("browseSave (incluir com FILIAL forjado): %v", err)
 	}
@@ -175,7 +176,7 @@ func TestBrowseFilialNaoEhColunaEditavel(t *testing.T) {
 		browseAction{Action: "save", Recno: 1, Data: map[string]string{
 			"UNI_CODIGO": "101-EDITADO",
 			"FILIAL":     "999999", // forjado
-		}})
+		}}, keyCol)
 	if err != nil {
 		t.Fatalf("browseSave (alterar com FILIAL forjado): %v", err)
 	}
@@ -211,7 +212,7 @@ func TestBrowseDeleteRecusaCrossFilial(t *testing.T) {
 		t.Fatalf("seed A: %v", err)
 	}
 
-	cols, hasDelete, hasFilial, err := (&VM{}).browseColumns(eng, "UNI")
+	cols, hasDelete, hasFilial, keyCol, err := (&VM{}).browseColumns(eng, "UNI")
 	if err != nil {
 		t.Fatalf("browseColumns: %v", err)
 	}
@@ -219,7 +220,7 @@ func TestBrowseDeleteRecusaCrossFilial(t *testing.T) {
 
 	// Tenta excluir o recno 1 (filial real 010101) sob cFilial=010102 --
 	// deve ser recusado silenciosamente (0 linhas afetadas, sem erro).
-	if err := browseDelete(eng, "UNI", hasDelete, hasFilial, "010102", 1); err != nil {
+	if err := browseDelete(eng, "UNI", hasDelete, hasFilial, "010102", 1, keyCol); err != nil {
 		t.Fatalf("browseDelete (cross-filial): %v", err)
 	}
 
@@ -254,18 +255,114 @@ func TestBrowseSemColunaFilialComportamentoInalterado(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	cols, hasDelete, hasFilial, err := (&VM{}).browseColumns(eng, "SEM_FILIAL")
+	cols, hasDelete, hasFilial, keyCol, err := (&VM{}).browseColumns(eng, "SEM_FILIAL")
 	if err != nil {
 		t.Fatalf("browseColumns: %v", err)
 	}
 	if hasFilial {
 		t.Fatal("hasFilial deveria ser false (tabela sem coluna FILIAL)")
 	}
-	items, err := browseItems(eng, "SEM_FILIAL", cols, hasDelete, hasFilial, "")
+	items, err := browseItems(eng, "SEM_FILIAL", cols, hasDelete, hasFilial, "", keyCol)
 	if err != nil {
 		t.Fatalf("browseItems: %v", err)
 	}
 	if len(items) != 1 {
 		t.Errorf("tabela sem FILIAL: browseItems devolveu %d itens, quer 1 (sem filtro)", len(items))
+	}
+}
+
+func TestBrowseKeyColumnPrefereRecno(t *testing.T) {
+	if got := browseKeyColumn(map[string]bool{"R_E_C_N_O_": true, "GE2_COD": true}); got != "R_E_C_N_O_" {
+		t.Errorf("com R_E_C_N_O_ = %q, quer R_E_C_N_O_", got)
+	}
+	if got := browseKeyColumn(map[string]bool{"X": true}); got != "rowid" {
+		t.Errorf("sem R_E_C_N_O_ = %q, quer rowid (fallback SQLite)", got)
+	}
+	if got := browseKeyColumn(map[string]bool{}); got != "rowid" {
+		t.Errorf("vazio = %q, quer rowid", got)
+	}
+}
+
+func TestBrowseItemsUsaRecnoComoRecno(t *testing.T) {
+	tmpDir := t.TempDir()
+	eng, err := db.NewSQLiteEngine(tmpDir + "/browse_key_test.db")
+	if err != nil {
+		t.Fatalf("NewSQLiteEngine: %v", err)
+	}
+	defer eng.Close()
+
+	if err := eng.Exec(`CREATE TABLE TKEY (
+		R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT,
+		D_E_L_E_T_ TEXT DEFAULT ' ',
+		T_COD TEXT
+	)`); err != nil {
+		t.Fatalf("create TKEY: %v", err)
+	}
+	if err := eng.Exec("INSERT INTO TKEY (T_COD) VALUES ('A'), ('B')"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	cols, hasDelete, hasFilial, keyCol, err := (&VM{}).browseColumns(eng, "TKEY")
+	if err != nil {
+		t.Fatalf("browseColumns: %v", err)
+	}
+	if keyCol != "R_E_C_N_O_" {
+		t.Fatalf("keyCol = %q, quer R_E_C_N_O_", keyCol)
+	}
+	items, err := browseItems(eng, "TKEY", cols, hasDelete, hasFilial, "", keyCol)
+	if err != nil {
+		t.Fatalf("browseItems: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("browseItems devolveu %d itens, quer 2", len(items))
+	}
+	if items[0]["recno"] != int64(1) || items[1]["recno"] != int64(2) {
+		t.Errorf("recnos = %v/%v, quer 1/2 (vindos de R_E_C_N_O_)", items[0]["recno"], items[1]["recno"])
+	}
+}
+
+// fakeBrowseUI responde as ações na ordem dada e guarda os specs recebidos.
+type fakeBrowseUI struct {
+	UIProvider
+	replies []string
+	specs   []string
+}
+
+func (f *fakeBrowseUI) Browse(spec []byte) []byte {
+	f.specs = append(f.specs, string(spec))
+	r := `{"action":"close"}`
+	if len(f.replies) > 0 {
+		r, f.replies = f.replies[0], f.replies[1:]
+	}
+	return []byte(r)
+}
+
+// Browse somente leitura (SetMenuDef("")): save/delete forjados pelo
+// cliente são recusados no servidor, e o spec avisa a tela.
+func TestBrowseReadOnlyRejects(t *testing.T) {
+	eng, err := db.NewSQLiteEngine(t.TempDir() + "/ro.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer eng.Close()
+	if err := eng.Exec(`CREATE TABLE T (R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT, D_E_L_E_T_ TEXT DEFAULT ' ', A TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := eng.Exec("INSERT INTO T (A) VALUES ('keep')"); err != nil {
+		t.Fatal(err)
+	}
+	ui := &fakeBrowseUI{replies: []string{
+		`{"action":"save","recno":0,"data":{"A":"novo"}}`,
+		`{"action":"delete","recno":1}`,
+	}}
+	v := &VM{dbEngine: eng, uiProvider: ui}
+	if err := v.runBrowse(&browseState{alias: "T", readOnly: true}); err != nil {
+		t.Fatalf("runBrowse: %v", err)
+	}
+	rows, _ := eng.QueryRows("SELECT A FROM T WHERE D_E_L_E_T_ = ' '")
+	if len(rows) != 1 || rows[0]["A"] != "keep" {
+		t.Fatalf("browse somente leitura alterou a tabela: %v", rows)
+	}
+	if len(ui.specs) == 0 || !strings.Contains(ui.specs[0], `"readOnly":true`) {
+		t.Fatalf("spec deveria avisar readOnly: %v", ui.specs)
 	}
 }

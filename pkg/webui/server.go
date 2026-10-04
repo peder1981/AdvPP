@@ -19,9 +19,12 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // dist é o app PO-UI/Angular compilado (fase 2) — regenerar com `make web`.
@@ -49,12 +52,60 @@ type session struct {
 	// ou se precisa ficar viva esperando uma reconexão retomar (ver New
 	// no handler de /events).
 	done atomic.Bool
+	// quit fecha quando a sessão é abandonada (browser sumiu e não voltou
+	// dentro de abandonAfter): diálogos pendentes encerram a goroutine do
+	// programa (runtime.Goexit roda os defers, ex.: fechar as conexões de
+	// banco da sessão) em vez de ela ficar presa para sempre.
+	quit     chan struct{}
+	quitOnce sync.Once
+	conns    atomic.Int32 // conexões SSE abertas nesta sessão
 }
 
 func newSession() *session {
 	return &session{
 		events:  make(chan event, 64),
 		waiting: make(map[int]chan string),
+		quit:    make(chan struct{}),
+	}
+}
+
+// abandonAfter: quanto tempo uma sessão sem nenhum browser conectado
+// espera uma reconexão antes de ser encerrada. ADVPP_WEBUI_ABANDON_SECONDS.
+var abandonAfter = func() time.Duration {
+	if n, err := strconv.Atoi(os.Getenv("ADVPP_WEBUI_ABANDON_SECONDS")); err == nil && n > 0 {
+		return time.Duration(n) * time.Second
+	}
+	return 5 * time.Minute
+}()
+
+func (s *session) abandon() { s.quitOnce.Do(func() { close(s.quit) }) }
+
+// send enfileira um evento; numa sessão abandonada encerra a goroutine.
+func (s *session) send(ev event) {
+	select {
+	case s.events <- ev:
+	case <-s.quit:
+		runtime.Goexit()
+	}
+}
+
+// post enfileira um evento; numa sessão abandonada só descarta.
+func (s *session) post(ev event) {
+	select {
+	case s.events <- ev:
+	case <-s.quit:
+	}
+}
+
+// wait bloqueia até a resposta do browser; numa sessão abandonada encerra
+// a goroutine (Goexit não é capturável por recover/ErrorBlock da VM).
+func (s *session) wait(ch chan string) string {
+	select {
+	case r := <-ch:
+		return r
+	case <-s.quit:
+		runtime.Goexit()
+		return ""
 	}
 }
 
@@ -67,8 +118,8 @@ func (s *session) ask(kind, msg, title string) string {
 	s.waiting[id] = ch
 	s.mu.Unlock()
 
-	s.events <- event{Type: "dialog", ID: id, Kind: kind, Title: title, Text: msg}
-	return <-ch
+	s.send(event{Type: "dialog", ID: id, Kind: kind, Title: title, Text: msg})
+	return s.wait(ch)
 }
 
 // askData envia um evento com payload estruturado (ex.: browse) e bloqueia
@@ -81,8 +132,8 @@ func (s *session) askData(eventType string, data json.RawMessage) string {
 	s.waiting[id] = ch
 	s.mu.Unlock()
 
-	s.events <- event{Type: eventType, ID: id, Data: data}
-	return <-ch
+	s.send(event{Type: eventType, ID: id, Data: data})
+	return s.wait(ch)
 }
 
 func (s *session) reply(id int, result string) {
@@ -162,7 +213,10 @@ func (w *OutWriter) Write(b []byte) (int, error) {
 	if len(text) > 0 && text[len(text)-1] == '\n' {
 		text = text[:len(text)-1]
 	}
-	w.s.events <- event{Type: "output", Text: text}
+	select {
+	case w.s.events <- event{Type: "output", Text: text}:
+	case <-w.s.quit: // ninguém mais lê: descarta
+	}
 	return len(b), nil
 }
 
@@ -242,6 +296,7 @@ func (srv *Server) Serve(addr string) error {
 			sessions[sid] = s
 		}
 		mu.Unlock()
+		s.conns.Add(1)
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -262,11 +317,11 @@ func (srv *Server) Serve(addr string) error {
 		if !resumed {
 			// Executa o programa em goroutine própria; eventos fluem pelo canal
 			go func() {
-				s.events <- event{Type: "output", Text: "── executando " + sourceName + " ──"}
+				s.post(event{Type: "output", Text: "── executando " + sourceName + " ──"})
 				if err := run(&Provider{s}, &OutWriter{s}); err != nil {
-					s.events <- event{Type: "error", Text: err.Error()}
+					s.post(event{Type: "error", Text: err.Error()})
 				}
-				s.events <- event{Type: "done"}
+				s.post(event{Type: "done"})
 				s.done.Store(true)
 			}()
 		}
@@ -287,10 +342,25 @@ func (srv *Server) Serve(addr string) error {
 				// diálogo, ela fica no mapa pra uma eventual reconexão
 				// retomar (ver comentário acima) — o goroutine dela segue
 				// vivo, com o canal de eventos aberto, esperando o /reply.
-				if s.done.Load() {
-					mu.Lock()
-					delete(sessions, sid)
-					mu.Unlock()
+				if s.conns.Add(-1) == 0 {
+					if s.done.Load() {
+						mu.Lock()
+						delete(sessions, sid)
+						mu.Unlock()
+					} else {
+						// Programa ainda rodando e nenhum browser: espera
+						// uma reconexão por abandonAfter; sem ela, encerra.
+						time.AfterFunc(abandonAfter, func() {
+							if s.conns.Load() == 0 && !s.done.Load() {
+								mu.Lock()
+								if sessions[sid] == s {
+									delete(sessions, sid)
+								}
+								mu.Unlock()
+								s.abandon()
+							}
+						})
+					}
 				}
 				return
 			}

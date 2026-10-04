@@ -1304,10 +1304,10 @@ func TestDBSetDriverTopconnSwapsEngine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dbaccessOpenEngine: %v", err)
 	}
-	dbstate.mu.Lock()
-	dbstate.conns[2] = &dbstateConn{id: 2, driver: "POSTGRES", engine: remoteEngine, sqlEng: remoteSQL, remote: true}
-	dbstate.active = 2
-	dbstate.mu.Unlock()
+	// Registrada pela própria VM, como DbConnection:Connect() faz: TOPCONN só
+	// usa a conexão da VM (nunca a "ativa" global de outra sessão).
+	_ = v.registerOwnedConn(remoteEngine, "POSTGRES", "", 0)
+	_ = remoteSQL
 
 	natives := map[string]func(args []advplrt.Value) (advplrt.Value, error){}
 	v.registerDbgenericasNatives(natives)
@@ -1343,10 +1343,10 @@ func TestDBUseAreaUnderTopconnUsesRemoteEngine(t *testing.T) {
 	remoteEngine, remoteSQL, _, _ := dbaccessOpenEngine(2)
 	remoteSQL.Exec("CREATE TABLE CLIENTES (R_E_C_N_O_ INTEGER, D_E_L_E_T_ TEXT, NOME TEXT)")
 	remoteSQL.Exec("INSERT INTO CLIENTES VALUES (1, ' ', 'REMOTO')")
-	dbstate.mu.Lock()
-	dbstate.conns[2] = &dbstateConn{id: 2, driver: "POSTGRES", engine: remoteEngine, sqlEng: remoteSQL, remote: true}
-	dbstate.active = 2
-	dbstate.mu.Unlock()
+	// Registrada pela própria VM, como DbConnection:Connect() faz: TOPCONN só
+	// usa a conexão da VM (nunca a "ativa" global de outra sessão).
+	_ = v.registerOwnedConn(remoteEngine, "POSTGRES", "", 0)
+	_ = remoteSQL
 
 	genNatives := map[string]func(args []advplrt.Value) (advplrt.Value, error){}
 	v.registerDbgenericasNatives(genNatives)
@@ -1379,10 +1379,10 @@ func TestDBSetDriverTopconnNilLocalEngineRestoresNil(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dbaccessOpenEngine: %v", err)
 	}
-	dbstate.mu.Lock()
-	dbstate.conns[2] = &dbstateConn{id: 2, driver: "POSTGRES", engine: remoteEngine, sqlEng: remoteSQL, remote: true}
-	dbstate.active = 2
-	dbstate.mu.Unlock()
+	// Registrada pela própria VM, como DbConnection:Connect() faz: TOPCONN só
+	// usa a conexão da VM (nunca a "ativa" global de outra sessão).
+	_ = v.registerOwnedConn(remoteEngine, "POSTGRES", "", 0)
+	_ = remoteSQL
 
 	natives := map[string]func(args []advplrt.Value) (advplrt.Value, error){}
 	v.registerDbgenericasNatives(natives)

@@ -551,6 +551,9 @@ func serveFile(sourceFile string, opts *Options) error {
 				v.SetOutputWriter(console)
 			}
 
+			// defer: roda também quando a sessão é abandonada (webui encerra a
+			// goroutine com runtime.Goexit num diálogo pendente).
+			defer v.CloseOwnedConnections()
 			_, err := v.Run()
 			if release != nil {
 				release(err)

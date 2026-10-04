@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"github.com/advpl/compiler/pkg/db"
 	"bufio"
 	"encoding/json"
 	"fmt"
@@ -101,6 +102,8 @@ type VM struct {
 	dbEngine              DBEngine
 	localDBEngine         DBEngine // engine local (SQLite) guardado antes de trocar por DBSetDriver("TOPCONN")
 	localDBEngineCaptured bool     // true depois da primeira captura de localDBEngine (evita confundir "não capturado" com "capturado como nil")
+	ownConnID             int      // conexão remota aberta por ESTA VM (0 = nenhuma) — TOPCONN usa esta, não a ativa global
+	ownedConns            []int    // conexões desta VM, fechadas em CloseOwnedConnections
 	currentAlias          string   // último alias passado para DbSelectArea, para GetArea()/RestArea()
 	uiProvider            UIProvider
 	output                strings.Builder
@@ -278,8 +281,13 @@ func (v *VM) applyRDDEngine(cRDD string) {
 		v.localDBEngineCaptured = true
 	}
 	if cRDD == "TOPCONN" {
+		// A conexão da própria VM vence a "ativa" global: com várias sessões
+		// no mesmo processo (advplc serve, REST), a ativa global é a da última
+		// sessão que conectou — usá-la misturava empresas entre sessões.
+		// Sem conexão própria a VM fica no engine local (falha fechada) —
+		// nunca herda a conexão (e a empresa) de outra sessão.
 		dbstate.mu.Lock()
-		c, ok := dbstate.conns[dbstate.active]
+		c, ok := dbstate.conns[v.ownConnID]
 		dbstate.mu.Unlock()
 		if ok && c != nil && c.remote && c.engine != nil {
 			v.dbEngine = c.engine
@@ -287,6 +295,98 @@ func (v *VM) applyRDDEngine(cRDD string) {
 		}
 	}
 	v.dbEngine = v.localDBEngine
+}
+
+// cloneRemote abre uma conexão nova com a mesma configuração do engine
+// remoto e (nil, false, nil) para engine local. Variável para os testes
+// trocarem por um engine falso (não há Postgres na suíte unitária).
+var cloneRemote = func(e DBEngine) (DBEngine, bool, error) {
+	re, ok := e.(*db.RemoteSQLEngine)
+	if !ok {
+		return nil, false, nil
+	}
+	c, err := re.Clone()
+	if err != nil {
+		return nil, true, err
+	}
+	return c, true, nil
+}
+
+// newChildVM cria a VM isolada de uma requisição/job (semântica de work
+// process). Com banco remoto a filha recebe conexão PRÓPRIA (cloneRemote):
+// nasce no search_path padrão e nunca compartilha a do pai nem a de outra
+// requisição concorrente. O func() devolvido fecha as conexões da filha —
+// chamar sempre ao terminar.
+func (v *VM) newChildVM() (*VM, func(), error) {
+	job := NewVM(v.bc, false)
+	job.dbFactory = v.dbFactory
+	job.dbGenStateFor().defaultRDD = v.dbGenStateFor().defaultRDD
+	clone, remote, err := cloneRemote(v.dbEngine)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	if remote {
+		job.registerOwnedConn(clone, "", "", 0)
+		job.dbEngine = clone
+	} else if v.dbFactory != nil {
+		job.dbEngine = v.dbFactory()
+	}
+	return job, job.releaseChild, nil
+}
+
+// newChildVMShared cria a VM de uma avaliação SÍNCRONA (EVAL/AEVAL/ações de
+// MSDIALOG): mesma goroutine do pai, sem concorrência, então reaproveita o
+// engine e a conexão do pai em vez de abrir uma conexão por avaliação.
+func (v *VM) newChildVMShared() (*VM, func()) {
+	job := NewVM(v.bc, false)
+	job.dbFactory = v.dbFactory
+	job.dbGenStateFor().defaultRDD = v.dbGenStateFor().defaultRDD
+	job.dbEngine = v.dbEngine
+	job.ownConnID = v.ownConnID // usa, mas não é dona: done não fecha
+	return job, job.releaseChild
+}
+
+// releaseChild fecha as conexões da filha e solta o estado DB* dela do
+// mapa global dbGenStates (senão cada requisição/job ficava na memória).
+func (v *VM) releaseChild() {
+	v.CloseOwnedConnections()
+	dbGenStatesMu.Lock()
+	delete(dbGenStates, v)
+	dbGenStatesMu.Unlock()
+}
+
+// registerOwnedConn registra uma conexão remota aberta POR ESTA VM: ela
+// passa a ser a conexão TOPCONN desta VM (ver applyRDDEngine) e é fechada
+// em CloseOwnedConnections.
+func (v *VM) registerOwnedConn(engine DBEngine, driver, host string, port int) int {
+	sqlEng, _ := engine.(SQLEngine)
+	dbstate.mu.Lock()
+	id := dbstate.nextID
+	dbstate.nextID++
+	dbstate.conns[id] = &dbstateConn{id: id, driver: driver, server: host, port: port, engine: engine, sqlEng: sqlEng, remote: true}
+	dbstate.active = id
+	dbstate.mu.Unlock()
+	v.ownConnID = id
+	v.ownedConns = append(v.ownedConns, id)
+	return id
+}
+
+// CloseOwnedConnections fecha as conexões abertas por esta VM — chamada ao
+// fim de cada sessão do advplc serve e de cada VM-filha (REST/jobs).
+func (v *VM) CloseOwnedConnections() {
+	dbstate.mu.Lock()
+	for _, id := range v.ownedConns {
+		if c, ok := dbstate.conns[id]; ok {
+			dbaccessCloseConnLocked(c)
+			delete(dbstate.conns, id)
+			if dbstate.active == id {
+				dbstate.active = -1
+			}
+		}
+	}
+	dbstate.mu.Unlock()
+	v.ownedConns = nil
+	v.ownConnID = 0
 }
 
 // SetDBFactory registra como abrir uma nova conexão de banco. Cada job
@@ -512,12 +612,12 @@ func (v *VM) functionExists(name string) bool {
 func (v *VM) StartJob(funcName string, wait bool, args []advplrt.Value) error {
 	if wait {
 		// Synchronous execution: no goroutine spawning
-		job := NewVM(v.bc, false)
-		job.dbFactory = v.dbFactory
-		if v.dbFactory != nil {
-			job.dbEngine = v.dbFactory()
+		job, done, err := v.newChildVM()
+		if err != nil {
+			return err
 		}
-		_, err := job.RunFunction(funcName, args)
+		defer done()
+		_, err = job.RunFunction(funcName, args)
 		return err
 	}
 
@@ -537,16 +637,17 @@ func (v *VM) StartJob(funcName string, wait bool, args []advplrt.Value) error {
 	}
 
 	// Now safe to create VM and spawn goroutine
-	job := NewVM(v.bc, false)
-	job.dbFactory = v.dbFactory
-	if v.dbFactory != nil {
-		job.dbEngine = v.dbFactory()
+	job, done, err := v.newChildVM()
+	if err != nil {
+		atomic.AddInt32(&activeJobsCount, -1)
+		return err
 	}
 
 	v.jobs.Add(1)
 	go func() {
 		defer v.jobs.Done()
 		defer atomic.AddInt32(&activeJobsCount, -1) // Always decrement on exit
+		defer done()
 		if _, err := job.RunFunction(funcName, args); err != nil {
 			fmt.Printf("StartJob(%s) error: %v\n", funcName, err)
 		}
