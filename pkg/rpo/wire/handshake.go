@@ -56,7 +56,6 @@ func Handshake(ctx context.Context, conn net.Conn, cfg HandshakeConfig) (*Handsh
 	_ = conn.SetReadDeadline(time.Now().Add(1500 * time.Millisecond))
 	ack := make([]byte, 4096)
 	_, _ = conn.Read(ack)
-	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
 
 	env := cfg.Env
 	steps := []hsStep{
@@ -71,6 +70,9 @@ func Handshake(ctx context.Context, conn net.Conn, cfg HandshakeConfig) (*Handsh
 		if _, err := conn.Write(EncodeFrame(st.msgID, st.body)); err != nil {
 			return nil, fmt.Errorf("handshake passo %d: %w", i+1, err)
 		}
+		// deadline por passo (RTT via proxy + login do appserver pode
+		// passar de 1s; o bound externo continua sendo o ctx)
+		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		frame, err := readOneFrame(conn)
 		if err != nil {
 			return nil, fmt.Errorf("handshake passo %d: %w", i+1, err)
