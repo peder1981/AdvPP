@@ -30,7 +30,7 @@
 - Consumes: nada (primeira task).
 - Produces: `type ApoKind byte` com `ApoKindAdvPL='F'`, `ApoKindTLPP='T'`; `func ParseApoBlob(data []byte) (*ApoBlob, error)`; `type ApoBlob struct { Raw []byte; Kind ApoKind; Size int }` — tasks futuras acrescentam campos ao MESMO struct.
 
-- [ ] **Step 1: Copiar fixtures reais**
+- [x] **Step 1: Copiar fixtures reais**
 
 ```bash
 mkdir -p pkg/rpo/testdata/apo
@@ -44,7 +44,7 @@ ls -la pkg/rpo/testdata/apo/
 ```
 Expected: 4 arquivos (39, 40, 292, 67 bytes).
 
-- [ ] **Step 2: Escrever o teste falhando**
+- [x] **Step 2: Escrever o teste falhando**
 
 `pkg/rpo/apo_blob_test.go`:
 ```go
@@ -102,12 +102,12 @@ func TestParseApoBlob_KindInvalido(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: Rodar e confirmar falha**
+- [x] **Step 3: Rodar e confirmar falha**
 
 Run: `go test ./pkg/rpo/ -run TestParseApoBlob -v`
 Expected: FAIL (`undefined: ParseApoBlob`, `undefined: ApoKindAdvPL`)
 
-- [ ] **Step 4: Implementar**
+- [x] **Step 4: Implementar**
 
 `pkg/rpo/apo_blob.go`:
 ```go
@@ -169,12 +169,12 @@ func ParseApoBlob(data []byte) (*ApoBlob, error) {
 }
 ```
 
-- [ ] **Step 5: Rodar e confirmar pass**
+- [x] **Step 5: Rodar e confirmar pass**
 
 Run: `go test ./pkg/rpo/ -run TestParseApoBlob -v`
 Expected: PASS (4 testes)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add pkg/rpo/apo_blob.go pkg/rpo/apo_blob_test.go pkg/rpo/testdata/apo/
@@ -193,7 +193,7 @@ git commit -m "FEAT — parser de framing APO (magic 75 00 00 46 46 + kind F/T) 
 - Consumes: `ParseApoBlob` da Task 1.
 - Produces: `type ApoString struct { Offset int; Text string }`; campos `ApoBlob.Strings []ApoString`, `ApoBlob.FileName string`; `func (b *ApoBlob) ExtractStrings()` — Task 3 usa `b.Strings`.
 
-- [ ] **Step 1: Teste falhando**
+- [x] **Step 1: Teste falhando**
 
 Acrescentar em `pkg/rpo/apo_blob_test.go`:
 ```go
@@ -243,12 +243,12 @@ func TestExtractStrings_TLPPFilename(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Rodar e confirmar falha**
+- [x] **Step 2: Rodar e confirmar falha**
 
 Run: `go test ./pkg/rpo/ -run TestExtractStrings -v`
 Expected: FAIL (`blob.Strings undefined`)
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Acrescentar em `pkg/rpo/apo_blob.go` (imports: `regexp`, `strings`):
 ```go
@@ -303,12 +303,12 @@ type ApoBlob struct {
 }
 ```
 
-- [ ] **Step 4: Rodar e confirmar pass**
+- [x] **Step 4: Rodar e confirmar pass**
 
 Run: `go test ./pkg/rpo/ -run "TestParseApoBlob|TestExtractStrings" -v`
 Expected: PASS (7 testes; Task 1 continua verde)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add pkg/rpo/apo_blob.go pkg/rpo/apo_blob_test.go
@@ -328,7 +328,7 @@ git commit -m "FEAT — extração de strings APO e derivação de FileName por 
 - Consumes: `ApoBlob.Strings`, `FileName` (Task 2).
 - Produces: `type CallCandidate struct { Name string; InCatalog bool; Confidence string }`; campos `ApoBlob.Identifiers/Literals/Snippets/CallCandidates []…`; `func (b *ApoBlob) Classify(catalog map[string]bool)`; `func LoadApoCatalog(path string) (map[string]bool, error)` — Task 4 (CLI) consome as duas.
 
-- [ ] **Step 1: Fixture de catálogo minúsculo + teste falhando**
+- [x] **Step 1: Fixture de catálogo minúsculo + teste falhando**
 
 `pkg/rpo/testdata/catalog_tiny.txt`:
 ```
@@ -395,12 +395,12 @@ func TestLoadApoCatalog(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Rodar e confirmar falha**
+- [x] **Step 2: Rodar e confirmar falha**
 
 Run: `go test ./pkg/rpo/ -run "TestClassify|TestLoadApoCatalog" -v`
 Expected: FAIL (`blob.Classify undefined`, `LoadApoCatalog undefined`)
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 `pkg/rpo/apo_blob.go` (imports novos: `bufio`, `os`, `strings` já presentes/sumar):
 ```go
@@ -485,12 +485,12 @@ Acrescentar os 4 campos ao struct `ApoBlob`:
 	CallCandidates []CallCandidate
 ```
 
-- [ ] **Step 4: Rodar e confirmar pass**
+- [x] **Step 4: Rodar e confirmar pass**
 
 Run: `go test ./pkg/rpo/ -v -count=1`
 Expected: PASS (todos, incluindo regressões Tasks 1–2)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add pkg/rpo/apo_blob.go pkg/rpo/apo_blob_test.go pkg/rpo/testdata/catalog_tiny.txt
@@ -510,7 +510,7 @@ git commit -m "FEAT — classificação APO (identificador/literal/snippet) e ca
 - Consumes: `rpo.ParseApoBlob`, `(*ApoBlob).ExtractStrings`, `(*ApoBlob).Classify`, `rpo.LoadApoCatalog` (Tasks 1–3).
 - Produces: `func cmdRpoApo(args []string) error` — registrada em `cmdRpo` como `case "apo"`; formato JSON {`file`,`kind`,`size`,`identifiers`,`literals`,`snippets`,`call_candidates`}.
 
-- [ ] **Step 1: Teste falhando (package main)**
+- [x] **Step 1: Teste falhando (package main)**
 
 `cmd/advplc/cmd_rpo_apo_test.go`:
 ```go
@@ -587,12 +587,12 @@ func TestCmdRpoApo_DirGeraJSON(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Rodar e confirmar falha**
+- [x] **Step 2: Rodar e confirmar falha**
 
 Run: `go test ./cmd/advplc/ -run TestCmdRpoApo -v --timeout 300s`
 Expected: FAIL (`undefined: cmdRpoApo`)
 
-- [ ] **Step 3: Implementar o CLI**
+- [x] **Step 3: Implementar o CLI**
 
 `cmd/advplc/cmd_rpo_apo.go`:
 ```go
@@ -754,7 +754,7 @@ func apoRenderMD(reports []apoJSON, catalogName string) []byte {
 }
 ```
 
-- [ ] **Step 4: Registrar no switch e usage**
+- [x] **Step 4: Registrar no switch e usage**
 
 Em `cmd/advplc/cmd_rpo.go`, após `case "inject":` (blocos da Task 5 ainda não tocados):
 ```go
@@ -767,12 +767,12 @@ No `rpoUsageError()` (string de usage), acrescentar a linha:
                                         desmonta blobs APO (identificadores, literais, snippets, call-graph)
 ```
 
-- [ ] **Step 5: Rodar e confirmar pass**
+- [x] **Step 5: Rodar e confirmar pass**
 
 Run: `go test ./cmd/advplc/ -run TestCmdRpoApo -v --timeout 300s`
 Expected: PASS
 
-- [ ] **Step 6: Smoke test no dataset real**
+- [x] **Step 6: Smoke test no dataset real**
 
 ```bash
 go run ./cmd/advplc rpo apo \
@@ -783,7 +783,7 @@ head -20 /tmp/opencode/apo-report/apo_report.json
 ```
 Expected: `Relatório: … (3465 blobs)` e JSON com entradas (pode ter AVISO para blobs com framing inesperado — acceptable, reportar contagem no final).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add cmd/advplc/cmd_rpo_apo.go cmd/advplc/cmd_rpo_apo_test.go cmd/advplc/cmd_rpo.go
@@ -802,7 +802,7 @@ git commit -m "FEAT — subcomando advplc rpo apo (relatório JSON/MD de desmont
 - Consumes: estrutura do `switch` existente.
 - Produces: `var rpoInjectFn = cmdRpoInject` (indirection para teste); `case "inject": return rpoInjectFn(args[1:])` — sem bloco pós-switch.
 
-- [ ] **Step 1: Teste falhando**
+- [x] **Step 1: Teste falhando**
 
 Acrescentar em `cmd/advplc/cmd_rpo_test.go`:
 ```go
@@ -826,12 +826,12 @@ func TestCmdRpo_InjectExecutaUmaVez(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Rodar e confirmar falha**
+- [x] **Step 2: Rodar e confirmar falha**
 
 Run: `go test ./cmd/advplc/ -run TestCmdRpo_InjectExecutaUmaVez -v --timeout 300s`
 Expected: FAIL (`undefined: rpoInjectFn`) — e, após criar a var sem o fix, falharia com `chamado 2 vezes`.
 
-- [ ] **Step 3: Implementar o fix**
+- [x] **Step 3: Implementar o fix**
 
 Em `cmd/advplc/cmd_rpo.go`:
 1. Acima de `func cmdRpo`, acrescentar:
@@ -852,12 +852,12 @@ var rpoInjectFn = cmdRpoInject
 		return nil
 ```
 
-- [ ] **Step 4: Rodar e confirmar pass**
+- [x] **Step 4: Rodar e confirmar pass**
 
 Run: `go test ./cmd/advplc/ -run TestCmdRpo_InjectExecutaUmaVez -v --timeout 300s`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/advplc/cmd_rpo.go cmd/advplc/cmd_rpo_test.go
@@ -875,7 +875,7 @@ git commit -m "FIX — cmdRpo inject executava duas vezes (bloco órfão pós-sw
 **Interfaces:**
 - Consumes: tudo das Tasks 1–5.
 
-- [ ] **Step 1: Teste do formato MD (falha → pass)**
+- [x] **Step 1: Teste do formato MD (falha → pass)**
 
 ```go
 func TestCmdRpoApo_FormatoMD(t *testing.T) {
@@ -903,7 +903,7 @@ func TestCmdRpoApo_FormatoMD(t *testing.T) {
 Run: `go test ./cmd/advplc/ -run TestCmdRpoApo_FormatoMD -v --timeout 300s` → FAIL se `strings` não importado/`apoRenderMD` com bug → corrigir → PASS.
 (Lembrar: `import "strings"` no arquivo de teste.)
 
-- [ ] **Step 2: Build + suíte completa**
+- [x] **Step 2: Build + suíte completa**
 
 ```bash
 go build ./... && go vet ./pkg/rpo/ ./cmd/advplc/ && \
@@ -912,7 +912,7 @@ go test ./cmd/advplc/ -count=1 --timeout 300s
 ```
 Expected: build ok, vet limpo, todos PASS.
 
-- [ ] **Step 3: Smoke MD nos 3.465 blobs + coleta de números da gap analysis**
+- [x] **Step 3: Smoke MD nos 3.465 blobs + coleta de números da gap analysis**
 
 ```bash
 go run ./cmd/advplc rpo apo /tmp/opencode/advpls-test/mass/apo \
@@ -923,13 +923,13 @@ grep -c '| TLPP |' /tmp/opencode/apo-report/apo_report.md
 ```
 Expected: contagens ≈ 2073+35+4+1+5 (AdvPL) e 1347 (TLPP); registrar números reais para o relatório ao operador (gap analysis: blobs com framing inválido = avisos do stderr).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add cmd/advplc/cmd_rpo_apo_test.go
 git commit -m "TEST — cobertura do formato MD no advplc rpo apo"
 ```
 
-- [ ] **Step 5: Reportar gap analysis ao operador**
+- [x] **Step 5: Reportar gap analysis ao operador**
 
 Apresentar: total processado vs. 3.465, avisos de framing, contagem de snippets/candidatos do relatório MD — e só então propor escrita do Plano 2 (`advplc rpo pull`).
