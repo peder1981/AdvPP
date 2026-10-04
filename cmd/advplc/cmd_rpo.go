@@ -10,6 +10,9 @@ import (
 	"github.com/advpl/compiler/pkg/rpo"
 )
 
+// rpoInjectFn permite testar a contagem de chamadas do case "inject".
+var rpoInjectFn = cmdRpoInject
+
 // cmdRpo implementA "advplc rpo <subcomando>" — inspeção e decomposição de
 // arquivos RPO do Protheus. Ver docs/rpo-format.md para o que é confirmado
 // e o que continua opaco (a maior parte do conteúdo compilado não é
@@ -51,18 +54,12 @@ func cmdRpo(args []string) error {
 	case "decrypt":
 		return cmdRpoDecrypt(args[1:])
 	case "inject":
-		if err := cmdRpoInject(args[1:]); err != nil {
-			return err
-		}
+		return rpoInjectFn(args[1:])
 	case "apo":
 		return cmdRpoApo(args[1:])
 	default:
 		return rpoUsageError()
 	}
-		if err := cmdRpoInject(args[1:]); err != nil {
-			return err
-		}
-		return nil
 }
 
 func rpoUsageError() error {
