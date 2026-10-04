@@ -1,0 +1,71 @@
+{
+  "origem": "advplc rpo apo (Plan 1 — 2026-10-04)",
+  "catalogo": "/tmp/opencode/advpls-test/wire/catalog_sec2.txt",
+  "json_completo": {
+    "caminho_scratchpad": "/tmp/opencode/apo-report/apo_report.json",
+    "bytes": 44568620,
+    "sha256": "060826d8615ca86029855fe9b7e2682968fb3195a2702bf05d987cac9a9da779",
+    "commitado": false,
+    "motivo": "44 MB — agregados aqui; tabela completa no apo_report.md"
+  },
+  "blobs": 3465,
+  "totais": {
+    "identificadores": 977618,
+    "literais": 496903,
+    "snippets": 28567,
+    "candidatos": 124944
+  },
+  "por_extensao": {
+    "prw": {
+      "total": 2070,
+      "com_identificador": 2045,
+      "com_literais": 1794,
+      "com_snippet": 779,
+      "com_candidato": 1518
+    },
+    "tlpp": {
+      "total": 1345,
+      "com_identificador": 1344,
+      "com_literais": 1339,
+      "com_snippet": 721,
+      "com_candidato": 1112
+    },
+    "prx": {
+      "total": 35,
+      "com_identificador": 35,
+      "com_literais": 33,
+      "com_snippet": 22,
+      "com_candidato": 33
+    },
+    "apw": {
+      "total": 5,
+      "com_identificador": 5,
+      "com_literais": 5,
+      "com_snippet": 3,
+      "com_candidato": 5
+    },
+    "aph": {
+      "total": 5,
+      "com_identificador": 0,
+      "com_literais": 0,
+      "com_snippet": 0,
+      "com_candidato": 0
+    },
+    "prg": {
+      "total": 4,
+      "com_identificador": 4,
+      "com_literais": 4,
+      "com_snippet": 1,
+      "com_candidato": 4
+    },
+    "tres": {
+      "total": 1,
+      "com_identificador": 1,
+      "com_literais": 1,
+      "com_snippet": 0,
+      "com_candidato": 1
+    }
+  },
+  "definicao_com_X": "arquivos com ao menos 1 item em X / total da extensão",
+  "gerado_em": "2026-10-04"
+}
