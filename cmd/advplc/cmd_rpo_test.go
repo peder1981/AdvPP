@@ -57,3 +57,22 @@ func TestRpoDecomposeBuildRoundTrip(t *testing.T) {
 		t.Fatalf("round-trip não é byte-idêntico: len(want)=%d len(got)=%d", len(want), len(got))
 	}
 }
+
+// TestCmdRpo_InjectExecutaUmaVez regresse o bug de 2026-10-04: o case
+// "inject" não retornava e o bloco após o switch reexecutava cmdRpoInject
+// (2 chamadas por invocação).
+func TestCmdRpo_InjectExecutaUmaVez(t *testing.T) {
+	orig := rpoInjectFn
+	defer func() { rpoInjectFn = orig }()
+	calls := 0
+	rpoInjectFn = func([]string) error {
+		calls++
+		return nil
+	}
+	if err := cmdRpo([]string{"inject", "x.rpo", "cap.json"}); err != nil {
+		t.Fatalf("cmdRpo: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("cmdRpoInject chamado %d vezes, esperado 1", calls)
+	}
+}

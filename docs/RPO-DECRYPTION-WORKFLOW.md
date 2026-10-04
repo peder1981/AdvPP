@@ -16,7 +16,7 @@
 > assumir AES-128-CBC fixo.
 >
 > A afirmação abaixo de que a "Index Section" é "RSA-4096 encrypted" com
-> senha `"manezinho"` também está errada quanto à FUNÇÃO dessa chave: a
+> senha `"[REDACTED]"` também está errada quanto à FUNÇÃO dessa chave: a
 > senha/chave RSA são reais (confirmadas, ver `docs/rpo-format.md` Fase
 > 14.1), mas busca exaustiva em todo byte-offset de `AdminSection`/`Body`
 > não encontrou nenhum bloco RSA-PKCS1v1.5/OAEP válido sob ela (Fase
@@ -70,7 +70,7 @@ gdb -q -batch -x capture_keys.gdb \
 # Usar CLI AdvPP
 advplc rpo decrypt \
   build/custom.rpo \
-  -k b55ee224347ac34c85cb05983b48bb41 \
+  -k [REDACTED-KEY] \
   -o decrypted_body.bin
 
 # Verificar output
@@ -106,7 +106,7 @@ for i, r in enumerate(records):
 ├─────────────────────────────────────────┤
 │ Index Section (variável)                │
 │  - RSA-4096 encrypted metadata          │
-│  - Password: "manezinho"                │
+│  - Password: "[REDACTED]"                │
 ├─────────────────────────────────────────┤
 │ Body Section (variável)                 │
 │  - AES-128-CBC encrypted                │

@@ -10,6 +10,9 @@ import (
 	"github.com/advpl/compiler/pkg/rpo"
 )
 
+// rpoInjectFn permite testar a contagem de chamadas do case "inject".
+var rpoInjectFn = cmdRpoInject
+
 // cmdRpo implementA "advplc rpo <subcomando>" — inspeção e decomposição de
 // arquivos RPO do Protheus. Ver docs/rpo-format.md para o que é confirmado
 // e o que continua opaco (a maior parte do conteúdo compilado não é
@@ -51,16 +54,14 @@ func cmdRpo(args []string) error {
 	case "decrypt":
 		return cmdRpoDecrypt(args[1:])
 	case "inject":
-		if err := cmdRpoInject(args[1:]); err != nil {
-			return err
-		}
+		return rpoInjectFn(args[1:])
+	case "apo":
+		return cmdRpoApo(args[1:])
+	case "pull":
+		return cmdRpoPull(args[1:])
 	default:
 		return rpoUsageError()
 	}
-		if err := cmdRpoInject(args[1:]); err != nil {
-			return err
-		}
-		return nil
 }
 
 func rpoUsageError() error {
@@ -75,6 +76,11 @@ Subcomandos:
   decrypt <arquivo.rpo> <captura.json>      decodifica segmentos usando captura ao vivo prévia
   analyze <arquivo.rpo> [--verbose]         análise estrutural (entropia, bytes, strings)
   regions <arquivo.rpo> [--window N]        classifica conteúdo em zero/cifra/plaintext
+  apo <arquivo|dir> [--catalog f] [--out dir] [--format json|md]
+                                            desmonta blobs APO (identificadores, literais, snippets, call-graph)
+  pull --out dir [--manifest f|--res padrao] [--host h] [--port n] [--user u]
+       [--env e] [--da bin] [--ls bin] [--workspace dir] [--smartclient bin]
+                                            baixa recursos/APOs via GetApoRes (sessão DAP ao vivo)
 
 AVISO: o compilador lê/escreve a estrutura de CONTAINER do RPO (cabeçalho,
 ponteiro de auto-referência, footer) de forma segura e verificada. O conteúdo

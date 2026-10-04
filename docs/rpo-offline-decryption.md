@@ -57,8 +57,8 @@ EVP_aes_128_cfb8  (também presente no binário)
 
 | Componente | Key (hex) | Cipher ID |
 |------------|-----------|-----------|
-| **Index** | `442d578020fe4e276d68f86416cae5df` | `f88d9c41572007db` |
-| **Body** | `b55ee224347ac34c85cb05983b48bb41` | `7d41cf2390a14506` |
+| **Index** | `[REDACTED-KEY]` | `f88d9c41572007db` |
+| **Body** | `[REDACTED-KEY]` | `7d41cf2390a14506` |
 
 **Importante:** Chaves são geradas aleatoriamente a cada sessão de compilação.
 Um novo `advplc build` gera novas chaves.
@@ -113,7 +113,7 @@ if body[:2] in [b'\x78\x01', b'\x78\x9c', b'\x78\xda']:
 ```python
 from Crypto.Cipher import AES
 
-key = bytes.fromhex("b55ee224347ac34c85cb05983b48bb41")
+key = bytes.fromhex("[REDACTED-KEY]")
 cipher = AES.new(key, AES.MODE_CBC, iv=b'\x00' * 16)
 plaintext = cipher.decrypt(body)
 ```

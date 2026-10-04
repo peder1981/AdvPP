@@ -26,7 +26,7 @@ Após intensa investigação (4+ horas), a infraestrutura completa para extraç�
 ### Principais Descobertas
 1. ✅ **Novo tttm120.rpo identificado** - Patch contém versão de 16MB (vs 362MB original)
 2. ✅ **Protocolo mapeado** - Magic bytes, validação SHA-1, fluxo de carregamento
-3. ✅ **Chaves RSA capturadas** - Password: `manezinho`
+3. ✅ **Chaves RSA capturadas** - Password: `[REDACTED]`
 4. 🔴 **Chaves AES efêmeras** - Impossíveis de reproduzir offline
 5. 🔴 **Version mismatch** - RPO espera 20.3.0.0_ts30, binário tem 24.3.1.1
 
@@ -48,7 +48,7 @@ Após intensa investigação (4+ horas), a infraestrutura completa para extraç�
 // Captura:
 - tCryptoEVP::SetKey (chave + IV)
 - EVP_EncryptUpdate (plaintext)
-- tCryptoRSA::SetKey (password: "manezinho")
+- tCryptoRSA::SetKey (password: "[REDACTED]")
 // Saída: /tmp/rpo_keys_export.json
 ```
 
@@ -231,7 +231,7 @@ callq *_ZN10tCryptoEVP7EncryptEiiiPciR9tAutoCharRi@plt
 
 ### Chaves RSA
 ```
-Password: manezinho
+Password: [REDACTED]
 Private Key: -----BEGIN RSA PRIVATE KEY-----
 (4096 bits, criptografado DES-EDE3-CBC)
 ```

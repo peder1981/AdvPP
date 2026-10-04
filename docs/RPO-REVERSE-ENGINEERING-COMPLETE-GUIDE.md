@@ -53,7 +53,7 @@ Extrair código fonte (incluindo `GetSx3Cache`) dos RPOs Protheus 12.x (custom.r
 - ✅ CLI integrada ao advplc
 - ✅ **Novo tttm120.rpo identificado** (16MB vs 362MB original)
 - ✅ Protocolo completo mapeado
-- ✅ Chave RSA capturada: `manezinho`
+- ✅ Chave RSA capturada: `[REDACTED]`
 
 ---
 
@@ -209,7 +209,7 @@ RAND_bytes(iv, 8) → IV único
 
 ```json
 {
-  "rsa_password": "manezinho",
+  "rsa_password": "[REDACTED]",
   "aes_key": "d1cc3a30b3fa23d7eb6626cf6b00a600",
   "aes_iv": "28c0f7a9532b4a44d6555d3796e135fe",
   "aes_key_alternate": "1df9f48645c8ffc1794af170b910659c",
@@ -256,7 +256,7 @@ LD_PRELOAD=./rpo_key_hook.so \
   {
     "n": 276,
     "type": "rsakey",
-    "password": "manezinho",
+    "password": "[REDACTED]",
     "private_pem": "-----BEGIN RSA PRIVATE KEY-----...",
     "public_pem": "-----BEGIN PUBLIC KEY-----..."
   }
@@ -638,7 +638,7 @@ Em vez de patchear o binário, tentar:
 
 1. **NÃO é AES fixo** - É uma tabela rotativa de cifras legadas
 2. **Chaves são efêmeras** - Geradas e descartadas imediatamente
-3. ** RSA é usado para proteger chaves privadas** - Senha "manezinho"
+3. ** RSA é usado para proteger chaves privadas** - Senha "[REDACTED]"
 4. **SHA-1 valida integridade** - Trailer no footer
 
 ### B.2 Sobre Engenharia Reversa

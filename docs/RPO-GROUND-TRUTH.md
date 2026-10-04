@@ -8,7 +8,7 @@ este prevalece. Cada afirmação abaixo é marcada com o nível de evidência:
 - 🔴 **REFUTADO** — foi testado e mostrou-se falso.
 - ⚪ **DESCONHECIDO** — sem evidência suficiente.
 
-**Versão:** 4.3.1 (unstable) · **Data:** 2026-09-20
+**Versão:** 4.3.1 (unstable) · **Data:** 2026-10-04 (base 2026-09-20)
 
 ---
 
@@ -39,6 +39,10 @@ arquivo em disco é **falso positivo de ruído**.
 | C10 | O **diretório interno** (após decifrar+inflar) contém entradas nomeadas, ex.: `RPORC5_TRIGGER.PRW`, `SIGA.MAP`, `SIGAANNOT.MAP`, `SIGABAD.MAP`, `SIGACLS.MAP`, `SIGAEXIT.MAP`, `SIGAFC.MAP`, `SIGAINIT.MAP`, `SIGAPCLS.MAP`. | Saída real de `advplc rpo decrypt pkg/rpo/testdata/live_capture.rpo ...` |
 | C11 | `tlpp.rpo` é **idêntico** entre 12.1.2310 e 12.1.2510. | MD5 `1755a366c890999d665b040992a470de` em ambos |
 | C12 | `tttm120.rpo` é **idêntico** entre 12.1.2310 e 12.1.2510. | MD5 `f35f1ec791e4985ff7d2690f8e94bbeb` em ambos |
+| C13 | Os **blobs APO em disco** têm framing estável (`75 00 00 46 46` + kind `F`/`T` na posição 5) e são parseáveis em 3.465/3.465 arquivos do catálogo de teste. | `pkg/rpo/apo_blob.go`; fixtures `pkg/rpo/testdata/apo/`; `advplc rpo apo` |
+| C14 | O **handshake de 5 mensagens** do AppServer é reprodutível ao vivo e autentica contra o servidor real (build `7.00.210324P`, ambiente `TOTVSTEC`). | `pkg/rpo/wire/handshake.go`; `TestHandshakeLive` (onda 44) |
+| C15 | **`GetApoRes` via sessão DAP** devolve o recurso **byte-a-byte idêntico** à fonte (PNG, md5 `dcfdf6a6b39af58d6f0de5af25125420`). | `docs/rpo-evidence/rpo-pull-smoke.log`; smoke `advplc rpo pull` (onda 44) |
+| C16 | **Eval ao vivo** exige sessão DAP com debuggee; com `frameId` retorna valores reais (`GetApoRes`, `ProcName`, ...). | `pkg/rpo/dap/session.go`; ondas 20–39 |
 
 ---
 
@@ -53,6 +57,7 @@ arquivo em disco é **falso positivo de ruído**.
 | R5 | "Trailer de 24 bytes é **SHA-1**." | Nunca foi verificado que seja SHA-1; é apenas 24 bytes opacos. | `rpo.go` (comentário original já dizia "opaco") |
 | R6 | "**10/15 segmentos** decodificados ⇒ extração de RPOs reais funciona." | A captura com sucesso é de um **fixture sintético** (contém a string-teste `"verify rc5 implementation real data test string here"`), não de um RPO de produção. | inspeção de `live_capture.json`; saída do `decrypt` |
 | R7 | "Tabela de **~12 cifras**" como se todas fossem implementadas. | 10 de 12 confirmadas; **IDEA não tem implementação validada** (retorna erro explícito, nunca decodifica errado). | `pkg/rpo/idea.go`; `TestIDEA_KnownBroken` |
+| R8 | "Eval cru `0x8149` permite avaliação em qualquer conexão." | Em conexão fresh, **sem debuggee**, a resposta é `U\0` (NIL) — não há evaluator ativo. Avaliação real só via sessão DAP (C16). | `probe8149.out` (onda 44); amenda no plano `2026-10-04-rpo-pull.md` |
 
 ---
 
@@ -182,7 +187,7 @@ apresenta comportamento diferente da versão usada nos testes originais:
 - Hook LD_PRELOAD capturou 725 eventos (184 SetKey, 539 Encrypt, 2 RSA)
 - Key: `fbe6abe761b3abbb1bd4f639bf46dde2`
 - IV: `b146c7c66bfe6b7d6e6e2dfbf24f9f6f`
-- RSA password: `manezinho`
+- RSA password: `[REDACTED]`
 
 ### Resultado
 - ❌ Decodificação automática **FALHOU**
@@ -200,3 +205,8 @@ apresenta comportamento diferente da versão usada nos testes originais:
 1. Usar appserver 12.1.2310 (onde EVP funciona)
 2. GDB manual para break em `tCryptoEVP::Encrypt`
 3. Buscar por outras formas de extração (memória, arquivos temporários)
+
+---
+
+**Ver também:** `docs/RPO-EXTRACTION-METHODOLOGY.md` — metodologia operacional
+(protocolo wire/DAP, tabela completa de técnicas, métricas APO, gotchas) — rev. 2026-10-04.

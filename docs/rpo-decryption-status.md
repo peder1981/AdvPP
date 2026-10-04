@@ -12,7 +12,7 @@
 > RSA-PKCS1v1.5, com a chave privada real da Fase 14.1, não encontrou
 > **nenhum** bloco de 512 bytes que seja um ciphertext RSA válido sob
 > nenhum dos dois esquemas, em nenhum offset (Fase 15.2). A chave RSA/
-> senha `"manezinho"` em si é real (duplamente confirmada,
+> senha `"[REDACTED]"` em si é real (duplamente confirmada,
 > independentemente, por duas investigações — Fase 14.1), mas não há
 > evidência de que ela envelope o material de `AdminSection` ou `Body`
 > da forma descrita abaixo.
@@ -31,7 +31,7 @@ O RPO usa um sistema híbrido de duas camadas:
 ### Camada 1: RSA-4096 (AdminSection / Index)
 - **Método**: RSA-OAEP com hash SHA-256
 - **Chave**: RSA 4096-bit privada, protegida por senha
-- **Senha**: `"manezinho"` (capturada via gdb do `tCryptoRSA::SetKey`)
+- **Senha**: `"[REDACTED]"` (capturada via gdb do `tCryptoRSA::SetKey`)
 - **Cipher PEM**: DES-EDE3-CBC (IV: `9E4D4CE2BCA7EB92`)
 - **Output**: 512 bytes de alta entropia (7.63 bits/byte)
 - **Local**: Primeiros 512 bytes do body do RPO
@@ -47,8 +47,8 @@ O RPO usa um sistema híbrido de duas camadas:
 
 | Componente | Key (hex) | Cipher ID | Contexto |
 |------------|-----------|-----------|----------|
-| **Index** | `442d578020fe4e276d68f86416cae5df` | `f88d9c41572007db` | `tApoFile::ReadIndex` |
-| **Body** | `b55ee224347ac34c85cb05983b48bb41` | `7d41cf2390a14506` | `tApoFile::ReadApo` |
+| **Index** | `[REDACTED-KEY]` | `f88d9c41572007db` | `tApoFile::ReadIndex` |
+| **Body** | `[REDACTED-KEY]` | `7d41cf2390a14506` | `tApoFile::ReadApo` |
 
 **Importante**: Estas chaves são **válidas apenas para esta sessão de compilação**.
 Um novo build gerará chaves diferentes.
@@ -143,7 +143,7 @@ Script: `tools/rpo-live-inspect/extract_rpo.py`
 
 - `/tmp/body_key_*.bin` — Chaves AES-128 capturadas
 - `/tmp/rpo_*.log` — Traces completos de execução
-- `/tmp/rsa_decrypted_openssl.pem` — Chave RSA privada (senha: manezinho)
+- `/tmp/rsa_decrypted_openssl.pem` — Chave RSA privada (senha: [REDACTED])
 - `tools/rpo-live-inspect/extract_rpo.py` — Script de extração ao vivo
 - `pkg/rpo/` — Parser de container RPO (Go)
 

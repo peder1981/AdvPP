@@ -142,7 +142,7 @@ workflow do compilador). `.vsix` não é versionado no git (gitignored).
 
 ## 10. Deploy nas máquinas reais (só se o usuário pedir)
 
-Ordem já usada: `laptop-peder` (local) → `homelab` (Proxmox) →
+Ordem já usada: `lab-local` (local) → `homelab` (Proxmox) →
 `lxc101`. Por máquina: backup do binário anterior
 (`cp advplc advplc.bak-<data>`), copiar o novo, validar com execução
 real (`advplc run <algo>.prw`, nunca só `--version`).

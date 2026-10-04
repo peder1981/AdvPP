@@ -29,7 +29,7 @@
 - **Chaves capturadas:**
   - Key 1: `4c58980b6cebcd9c5eaa07836806fd23` (14 ocorrências)
   - Key 2: `05e677fe954895cb458417da7dbb9039` (15 ocorrências)
-  - RSA Password: `manezinho`
+  - RSA Password: `[REDACTED]`
 
 ❌ **BLOQUEIO:** Chaves não correspondem ao RPO alvo (captura é do LOAD, não da compilação)
 
@@ -73,7 +73,7 @@ Key 2: 05e677fe954895cb458417da7dbb9039
 IV 2:  78389e079bb46f5681bdc5e93f305392
 Ocorrências: 15
 
-RSA Password: manezinho
+RSA Password: [REDACTED]
 ```
 
 ### Problema Identificado

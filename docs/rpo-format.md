@@ -1192,7 +1192,7 @@ do fonte sendo compilado:
            keylen=16 key=836931c48176d574bdeac08b62607e0  (fase Encrypt)
            ivlen=16  iv =ecf35c9b4659d53c1e210eb9793dd498
 
-12.1.2310: keylen=16 key=b55ee224347ac34c85cb05983b48bb41 (fase Decrypt)
+12.1.2310: keylen=16 key=[REDACTED-KEY] (fase Decrypt)
            ivlen=8   iv =7d41cf2390a14506  (nota: 8 bytes aqui, não 16 —
                           possível diferença de ABI/overload entre builds,
                           não investigado a fundo)
@@ -1527,8 +1527,8 @@ resultante (**do mesmo processo/sessão**, não um arquivo antigo) com
 AES-128-CBC:
 
 ```
-key=442d578020fe4e276d68f86416cae5df (recorrente nos hits #1-14, #29-43)
-key=b55ee224347ac34c85cb05983b48bb41 (recorrente nos hits #15-28)
+key=[REDACTED-KEY] (recorrente nos hits #1-14, #29-43)
+key=[REDACTED-KEY] (recorrente nos hits #15-28)
 iv capturado com 8 bytes (mesma anomalia já notada na Fase 8.3) — testado
 com 3 hipóteses de expansão pra 16 bytes: zero-pad, duplicado, repetido+truncado
 ```
@@ -1540,7 +1540,7 @@ plaintext. 🔴 **Resultado negativo**: ou a hipótese de expansão do IV de
 um pode ter seu próprio par chave/IV), ou realmente não há relação direta
 recuperável desta forma. Não investigado further por escopo.
 
-**Achado curioso, não explicado**: a chave `b55ee224347ac34c85cb05983b48bb41`
+**Achado curioso, não explicado**: a chave `[REDACTED-KEY]`
 é **byte-a-byte idêntica** a uma chave de "fase Decrypt" documentada na
 Fase 8.3 (capturada em uma sessão de investigação **anterior e
 completamente separada**, mesmo container). Isso é chamativo — um valor
@@ -1593,7 +1593,7 @@ severo e falhou em ~5 consultas).
 ### 13.1 Resultado — negativo, com certeza (não suposição)
 
 ```
-grep -rIi "manezinho" .                    → 0 ocorrências
+grep -rIi "[REDACTED]" .                    → 0 ocorrências
 grep -rIl "DEK-Info\|BEGIN RSA PRIVATE KEY\|BEGIN PUBLIC KEY" . → 0 ocorrências
 find . -iname "*.crt" -o -iname "*.pem" -o -iname "*.key"       → 0 arquivos
 grep -rIl "zlib\|inflate\|deflate" .        → só src/loggerCapture/logger.ts
@@ -1653,10 +1653,10 @@ arg1 ($rsi): -----BEGIN RSA PRIVATE KEY-----
              DEK-Info: DES-EDE3-CBC,9E4D4CE2BCA7EB92
              ... (chave real, 4096 bits)
 arg2 ($rdx): -----BEGIN PUBLIC KEY----- (par correspondente)
-arg3 ($rcx): "manezinho"   ← a senha, em texto puro
+arg3 ($rcx): "[REDACTED]"   ← a senha, em texto puro
 ```
 
-`openssl rsa -in captura.pem -passin pass:manezinho` decodifica a chave
+`openssl rsa -in captura.pem -passin pass:[REDACTED]` decodifica a chave
 com sucesso: RSA 4096 bits, modulus começando em `f7:00:e4:60:70:d4:44:
 3e:34:40:ae:...` — **byte a byte idêntico** ao modulus citado
 independentemente em `docs/rpo-final-report.md` (`F700E460...`) e ao
@@ -1740,7 +1740,7 @@ independente.
 ### 14.6 Conclusão da Fase 14
 
 O que sobrevive à verificação: existe de fato uma chave RSA-4096 real,
-protegida por uma senha real e simples (`"manezinho"`), extraível ao vivo
+protegida por uma senha real e simples (`"[REDACTED]"`), extraível ao vivo
 via `gdb` — confirmado por **duas investigações independentes** com o
 mesmo resultado exato. O que não sobrevive: a hipótese de que essa chave
 decodifica `AdminSection` como um envelope RSA-PKCS1v1.5 simples e
@@ -1821,7 +1821,7 @@ diretamente (em qualquer um dos dois esquemas de padding padrão, em
 qualquer offset, de forma simples e contígua) uma chave AES para o
 conteúdo do RPO.
 
-Consequência prática: a chave RSA-4096/`"manezinho"` é um achado real e
+Consequência prática: a chave RSA-4096/`"[REDACTED]"` é um achado real e
 reproduzido, mas **não é o mecanismo de proteção do conteúdo do RPO**
 nesta forma. Hipóteses restantes, nenhuma delas testada ainda:
 - Usa um esquema de padding não-padrão (não PKCS1v1.5 nem OAEP) —

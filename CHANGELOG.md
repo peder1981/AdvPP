@@ -2,6 +2,21 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.4.5] - 2026-10-04
+
+### Added
+- **`advplc rpo apo`** — desmontagem de blobs APO extraídos do RPO: identificadores, literais, snippets de código e call-graph candidato, com relatório JSON/Markdown (`--catalog`, `--out`, `--format`). Parser do framing APO (magic `75 00 00 46 46` + kind `F`/`T`) validado contra 4 fixtures reais — 3.465/3.465 blobs do catálogo de teste (977.618 identificadores, 124.944 candidatos). Testes: `pkg/rpo/apo_blob_test.go`, `cmd/advplc/cmd_rpo_apo_test.go`.
+- **`advplc rpo pull`** — extração ao vivo de recursos do RPO via sessão DAP (`GetApoRes`): lista por manifesto (`--manifest`) ou listing `--res`, saída em `--out`, senha via prompt ou `ADVPP_RPO_PASS` (nunca hardcoded). Smoke comprovado: recurso real baixado byte-a-byte idêntico (md5 conferido, evidência em `docs/rpo-evidence/rpo-pull-smoke.log`). Testes: `pkg/rpo/wire/*_test.go`, `pkg/rpo/dap/*_test.go`, `cmd/advplc/cmd_rpo_pull_test.go`.
+- **Pacotes `pkg/rpo/wire` e `pkg/rpo/dap`** — codec de frames do protocolo do AppServer (`<IHIIHH>`, magic `0xab21`, zlib opcional), handshake autenticado de 5 mensagens (validado ao vivo contra build `7.00.210324P`), banner de identificação, decode de resultado DAP (aspas/base64/`NIL`); RPC stdio LSP/DAP com framing `Content-Length`, obtenção de token via Language Server e sessão de depuração (launch → breakpoints → stop → evaluate).
+- **`docs/RPO-EXTRACTION-METHODOLOGY.md`** — documentação canônica das técnicas de extração RPO (T1–T14 com status de evidência, protocolo wire/DAP, métricas, gotchas e análise de gaps) + evidências curadas em `docs/rpo-evidence/`.
+
+### Fixed
+- `advplc rpo inject` executava o bloco duas vezes (bloco órfão pós-switch removido). (2a3996a)
+- Handshake do AppServer com deadline por passo (um deadline único de 1s estourava o RTT via proxy de captura). (a407683)
+
+### Security
+- Credenciais do operador redigidas em documentos e comentários do repositório (`[REDACTED]`); senha do AppServer nunca presente em log ou artefato. (d7cc702)
+
 ## [4.4.0] - 2026-10-03
 
 ### Fixed

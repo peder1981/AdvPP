@@ -560,7 +560,7 @@ git commit -m "feat(compiler): comandos TDN restantes"
 Depois que a Task 39 fechar com `go build ./... && go test ./...` limpo em
 toda a árvore, a série está completa. **Não iniciar release automaticamente
 — pare aqui e reporte ao usuário.** A release grande (versão nova,
-CHANGELOG consolidado, build+empacotamento+deploy laptop-peder/homelab+vsix
+CHANGELOG consolidado, build+empacotamento+deploy lab-local/homelab+vsix
 +Marketplace) é um passo manual disparado pelo usuário quando ele confirmar
 que quer publicar, seguindo o mesmo processo já usado em releases
 anteriores (v2.0.20, v2.0.22).

@@ -6,7 +6,7 @@
 
 > [!] **Nota de verificação cruzada (2026-09-19)**: ver `docs/rpo-format.md`,
 > Fase 14, para verificação independente ponto a ponto deste relatório.
-> Resumo: a chave RSA-4096 + senha `"manezinho"` (§2.1-2.2 aqui) foram
+> Resumo: a chave RSA-4096 + senha `"[REDACTED]"` (§2.1-2.2 aqui) foram
 > **reproduzidas e confirmadas** por uma segunda investigação
 > independente, no mesmo dia — dado sólido. Já "875 apois, 33 funções"
 > (linha da tabela em §1) é um número **reciclado** da Fase 7
@@ -17,7 +17,7 @@
 > plaintext válido foi refutada com controle estatístico (Fase 14.2) e
 > depois fechada em definitivo por busca exaustiva em TODO byte-offset
 > de `AdminSection`/`Body` (Fase 15, não apenas amostra): zero blocos
-> RSA-PKCS1v1.5 ou RSA-OAEP válidos sob a chave "manezinho". A chave
+> RSA-PKCS1v1.5 ou RSA-OAEP válidos sob a chave "[REDACTED]". A chave
 > RSA é real; ela não envelopa o conteúdo do RPO.
 
 ---
@@ -31,20 +31,20 @@ Investigação completa da criptografia RPO do TOTVS Protheus realizada com suce
 | Format identification | ✅ | 3 tipos mapeados (custom/tttm120/tlpp) |
 | Function extraction | ✅ | 875 apois, 33 funções |
 | RSA key extraction | ✅ | Chave 4096-bit obtida via gdb |
-| RSA password | ✅ | `"manezinho"` descoberta |
+| RSA password | ✅ | `"[REDACTED]"` descoberta |
 | AES scheme | 🔴 | Parcial (52% printable max) |
 
 ---
 
 ## 2. Descobertas Técnicas
 
-### 2.1 Senha RSA: `"manezinho"`
+### 2.1 Senha RSA: `"[REDACTED]"`
 
 **Método:** Captura do parâmetro `$rcx` em `tCryptoRSA::SetKey()` via gdb.
 
 ```
 Password pointer: 0x66ba060
-Password value: 'manezinho'
+Password value: '[REDACTED]'
 ```
 
 **Importância:** Esta senha protege a chave RSA privada que, por sua vez, protege todo o RPO.
@@ -67,7 +67,7 @@ Password value: 'manezinho'
 | Arquivo | `totvs_certificate.crt` | Dinâmica (memória) |
 | Tamanho | 2048-bit | 4096-bit |
 | Uso | TLS localhost | Criptografia RPO |
-| Senha | Nenhuma | `"manezinho"` |
+| Senha | Nenhuma | `"[REDACTED]"` |
 | Modulus | `C9328862...` | `F700E460...` |
 
 ### 2.4 Esquema de Criptografia Híbrido
@@ -246,7 +246,7 @@ U_BLUMVC01, U_BLUMVC02, U_LOGMONITOR, U_TSTLOGMONITOR
 ```
 /tmp/
 ├── rsa_decrypted_openssl.pem   (3,272 bytes) - Chave RSA 4096-bit
-├── rsa_password.txt            (12 bytes)    - Senha: "manezinho"
+├── rsa_password.txt            (12 bytes)    - Senha: "[REDACTED]"
 ├── rsa_public_key_from_gdb.pem (201 bytes)   - Chave pública
 └── rpo_raw_decrypt.bin         (512 bytes)   - Output RSA raw
 ```
@@ -266,7 +266,7 @@ docker exec protheus-compile bash -c '
 '
 
 # Descriptografar
-echo "manezinho" | openssl rsa \
+echo "[REDACTED]" | openssl rsa \
   -in /tmp/rsa_encrypted_key.pem \
   -out /tmp/rsa_decrypted_openssl.pem \
   -passin stdin
@@ -288,7 +288,7 @@ go run ./cmd/advplc rpo extract /caminho/para/arquivo.rpo --auto
 
 A investigação atingiu seus principais objetivos:
 
-✅ **Senha RSA descoberta:** `"manezinho"`  
+✅ **Senha RSA descoberta:** `"[REDACTED]"`  
 ✅ **Chave RSA extraída:** 4096-bit, funcional  
 ✅ **CLI implementado:** identify, extract, decompose, build  
 ✅ **Documentação completa:** 122KB em 4 documentos  

@@ -39,7 +39,7 @@ IncludePath=/totvs/protheus12.1.2510/apo/includes
 
 ### 3. Hook LD_PRELOAD ✅
 - Captura `tCryptoEVP::SetKey` (chave mestra)
-- Captura `tCryptoRSA::SetKey` (senha RSA: **"manezinho"**)
+- Captura `tCryptoRSA::SetKey` (senha RSA: **"[REDACTED]"**)
 - Captura eventos `EVP_EncryptUpdate` (dados encriptados)
 
 ### 4. Comando `advplc rpo inject` ✅
