@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -67,5 +68,27 @@ func TestCmdRpoApo_DirGeraJSON(t *testing.T) {
 		if c.Name == "ABSLOGGER" && c.Confidence != "INFERIDO" {
 			t.Errorf("confidence = %q, esperado INFERIDO", c.Confidence)
 		}
+	}
+}
+
+func TestCmdRpoApo_FormatoMD(t *testing.T) {
+	dir := t.TempDir()
+	data, err := os.ReadFile(filepath.Join("..", "..", "pkg", "rpo", "testdata", "apo", "EXTXDEF.PRW"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "EXTXDEF.PRW"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	if err := cmdRpoApo([]string{"--format", "md", "--out", out, dir}); err != nil {
+		t.Fatalf("cmdRpoApo: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(out, "apo_report.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "| EXTXDEF.PRW | AdvPL | 39 |") {
+		t.Errorf("tabela MD não contém linha esperada:\n%s", raw)
 	}
 }
