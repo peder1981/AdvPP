@@ -54,6 +54,8 @@ func cmdRpo(args []string) error {
 		if err := cmdRpoInject(args[1:]); err != nil {
 			return err
 		}
+	case "apo":
+		return cmdRpoApo(args[1:])
 	default:
 		return rpoUsageError()
 	}
@@ -75,6 +77,8 @@ Subcomandos:
   decrypt <arquivo.rpo> <captura.json>      decodifica segmentos usando captura ao vivo prévia
   analyze <arquivo.rpo> [--verbose]         análise estrutural (entropia, bytes, strings)
   regions <arquivo.rpo> [--window N]        classifica conteúdo em zero/cifra/plaintext
+  apo <arquivo|dir> [--catalog f] [--out dir] [--format json|md]
+                                            desmonta blobs APO (identificadores, literais, snippets, call-graph)
 
 AVISO: o compilador lê/escreve a estrutura de CONTAINER do RPO (cabeçalho,
 ponteiro de auto-referência, footer) de forma segura e verificada. O conteúdo

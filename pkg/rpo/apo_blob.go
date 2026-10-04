@@ -126,7 +126,7 @@ type ApoString struct {
 }
 
 // apoFileExtRe reconhece o nome-do-recurso como string com extensão conhecida.
-var apoFileExtRe = regexp.MustCompile(`^[A-Za-z0-9_.]+\.(PRW|TLPP|PRX|APH|APW|PRG|CH|TRES|TRP)$`)
+var apoFileExtRe = regexp.MustCompile(`(?i)^[A-Za-z0-9_.# -]+\.(PRW|TLPP|PRX|APH|APW|PRG|CH|TRES|TRP)$`)
 
 // ExtractStrings varre o blob por runs imprimíveis (ASCII 32..126, >= 4
 // chars) e deriva FileName = primeira string com extensão de resource
