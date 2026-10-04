@@ -95,3 +95,58 @@ func TestExtractStrings_TLPPFilename(t *testing.T) {
 		t.Errorf("FileName = %q", blob.FileName)
 	}
 }
+
+func TestClassify_IdentifierLiteralSnippet(t *testing.T) {
+	blob := &ApoBlob{
+		Raw:  []byte{},
+		Kind: ApoKindAdvPL,
+		Strings: []ApoString{
+			{Offset: 0, Text: "CPROCNAME"},
+			{Offset: 10, Text: "AND D_E_L_E_T_ = ' '"},
+			{Offset: 30, Text: "ABSLOGGER.PRW"},
+		},
+		FileName: "ABSLOGGER.PRW",
+	}
+	blob.Classify(nil)
+	if len(blob.Identifiers) != 1 || blob.Identifiers[0] != "CPROCNAME" {
+		t.Errorf("Identifiers = %+v", blob.Identifiers)
+	}
+	if len(blob.Snippets) != 1 || blob.Snippets[0] != "AND D_E_L_E_T_ = ' '" {
+		t.Errorf("Snippets = %+v", blob.Snippets)
+	}
+	if len(blob.Literals) != 0 {
+		t.Errorf("Literals = %+v, esperado vazio (filename e snippet excluídos)", blob.Literals)
+	}
+}
+
+func TestClassify_CallCandidateInferido(t *testing.T) {
+	catalog, err := LoadApoCatalog(filepath.Join("testdata", "catalog_tiny.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	blob := &ApoBlob{
+		Kind: ApoKindAdvPL,
+		Strings: []ApoString{
+			{Offset: 0, Text: "ABSLOGGER"},
+			{Offset: 10, Text: "NAOEXISTE"},
+		},
+	}
+	blob.Classify(catalog)
+	if len(blob.CallCandidates) != 1 {
+		t.Fatalf("CallCandidates = %+v, esperado só o nome em catálogo", blob.CallCandidates)
+	}
+	c := blob.CallCandidates[0]
+	if c.Name != "ABSLOGGER" || !c.InCatalog || c.Confidence != "INFERIDO" {
+		t.Errorf("candidate = %+v, esperado {ABSLOGGER true INFERIDO}", c)
+	}
+}
+
+func TestLoadApoCatalog(t *testing.T) {
+	catalog, err := LoadApoCatalog(filepath.Join("testdata", "catalog_tiny.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !catalog["GETAREA"] || len(catalog) != 3 {
+		t.Errorf("catalog = %+v", catalog)
+	}
+}

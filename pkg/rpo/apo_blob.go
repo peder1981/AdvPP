@@ -1,8 +1,11 @@
 package rpo
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"regexp"
+	"strings"
 )
 
 // ApoHeaderPrefix é o prefixo observado em TODOS os 3.465 blobs APO
@@ -36,6 +39,84 @@ type ApoBlob struct {
 	Size     int
 	Strings  []ApoString
 	FileName string
+
+	Identifiers    []string
+	Literals       []string
+	Snippets       []string
+	CallCandidates []CallCandidate
+}
+
+// CallCandidate é um candidato a chamada derivado por cruzamento com
+// catálogo de nomes. InCatalog é FATO (consta no catálogo);
+// Confidence é a relação de chamada — sempre INFERIDO (🟡), porque o
+// blob APO não distingue uso de definição sem o layout completo.
+type CallCandidate struct {
+	Name       string `json:"name"`
+	InCatalog  bool   `json:"in_catalog"`
+	Confidence string `json:"confidence"`
+}
+
+// apoIdentRe: identificador AdvPL/TLPP clássico.
+var apoIdentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{1,63}$`)
+
+// apoSnippetRe: conteúdo característico de código AdvPL/TLPP dentro de
+// string literal (padrões validados empiricamente contra os 3.465 blobs:
+// 788 PRW / 723 TLPP / 22 PRX / 1 PRG contêm match — 2026-10-04).
+var apoSnippetRe = regexp.MustCompile(`(?i):=|->|%notdel%|%xfilial|%exp:` +
+	`|beginsql|endsql|select .* from |where |d_e_l_e_t_` +
+	`|function |return |if\(|endif|while |for |dbselectarea` +
+	`|reclock|msunlock|fwlogmsg|fwexecstatement`)
+
+// Classify separa Strings em Identifiers / Literals / Snippets e cruza
+// identificadores com o catálogo (oráculo) para gerar CallCandidates.
+// Prioridade: snippet > identificador > literal; FileName é sempre
+// excluído (é o próprio resource, não conteúdo).
+func (b *ApoBlob) Classify(catalog map[string]bool) {
+	b.Identifiers = nil
+	b.Literals = nil
+	b.Snippets = nil
+	b.CallCandidates = nil
+	for _, s := range b.Strings {
+		if b.FileName != "" && s.Text == b.FileName {
+			continue
+		}
+		switch {
+		case apoSnippetRe.MatchString(s.Text):
+			b.Snippets = append(b.Snippets, s.Text)
+		case apoIdentRe.MatchString(s.Text):
+			b.Identifiers = append(b.Identifiers, s.Text)
+			if catalog != nil && catalog[strings.ToUpper(s.Text)] {
+				b.CallCandidates = append(b.CallCandidates, CallCandidate{
+					Name: s.Text, InCatalog: true, Confidence: "INFERIDO",
+				})
+			}
+		default:
+			b.Literals = append(b.Literals, s.Text)
+		}
+	}
+}
+
+// LoadApoCatalog carrega um arquivo com um nome por linha (ex.:
+// wire/catalog_sec2.txt, 113.431 nomes) em map uppercase→true.
+func LoadApoCatalog(path string) (map[string]bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	catalog := make(map[string]bool, 128*1024)
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for sc.Scan() {
+		name := strings.TrimSpace(sc.Text())
+		if name != "" {
+			catalog[strings.ToUpper(name)] = true
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	return catalog, nil
 }
 
 // ApoString é uma string imprimível localizada no blob.
