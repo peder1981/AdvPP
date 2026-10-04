@@ -57,6 +57,8 @@ func cmdRpo(args []string) error {
 		return rpoInjectFn(args[1:])
 	case "apo":
 		return cmdRpoApo(args[1:])
+	case "pull":
+		return cmdRpoPull(args[1:])
 	default:
 		return rpoUsageError()
 	}
@@ -76,6 +78,9 @@ Subcomandos:
   regions <arquivo.rpo> [--window N]        classifica conteúdo em zero/cifra/plaintext
   apo <arquivo|dir> [--catalog f] [--out dir] [--format json|md]
                                             desmonta blobs APO (identificadores, literais, snippets, call-graph)
+  pull --out dir [--manifest f|--res padrao] [--host h] [--port n] [--user u]
+       [--env e] [--da bin] [--ls bin] [--workspace dir] [--smartclient bin]
+                                            baixa recursos/APOs via GetApoRes (sessão DAP ao vivo)
 
 AVISO: o compilador lê/escreve a estrutura de CONTAINER do RPO (cabeçalho,
 ponteiro de auto-referência, footer) de forma segura e verificada. O conteúdo
