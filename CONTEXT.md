@@ -38,7 +38,7 @@
 
 ### ✅ Concluído
 - **Algoritmo identificado:** AES-128-CBC (OpenSSL standard), NÃO proprietário
-- **Chaves capturadas:** RSA password `"manezinho"`, AES keys session-ephemeral
+- **Chaves capturadas:** RSA password `"[REDACTED]"`, AES keys session-ephemeral
 - **Implementações Go:**
   - `pkg/rpo/rpo.go` — Parser container (169 lines)
   - `pkg/rpo/decrypt.go` — Decryptor AES (191 lines)
@@ -60,9 +60,9 @@ docs/advpls-protocol-investigation.md    — Investigação protocolo advpls
 
 ### 🔑 Chaves Capturadas (Sessão Anterior)
 ```
-RSA Password: manezinho
-Index AES:    442d578020fe4e276d68f86416cae5df (16 bytes)
-Body AES:     b55ee224347ac34c85cb05983b48bb41 (16 bytes)
+RSA Password: [REDACTED]
+Index AES:    [REDACTED-KEY] (16 bytes)
+Body AES:     [REDACTED-KEY] (16 bytes)
 Cipher IDs:   f88d9c41572007db (index), 7d41cf2390a14506 (body)
 ```
 

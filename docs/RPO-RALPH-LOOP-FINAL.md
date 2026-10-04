@@ -17,7 +17,7 @@ auto-corretivas**.
 - ✅ 725 eventos capturados (184 SetKey, 539 Encrypt, 2 RSA)
 - ✅ Key extraída: `fbe6abe761b3abbb1bd4f639bf46dde2`
 - ✅ IV extraído: `b146c7c66bfe6b7d6e6e2dfbf24f9f6f`
-- ✅ RSA password: `manezinho`
+- ✅ RSA password: `[REDACTED]`
 
 ### Bloqueios
 - ⚠️ AppServer 24.3.1.1 não chama `EVP_EncryptInit_ex`

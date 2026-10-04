@@ -182,7 +182,7 @@ apresenta comportamento diferente da versão usada nos testes originais:
 - Hook LD_PRELOAD capturou 725 eventos (184 SetKey, 539 Encrypt, 2 RSA)
 - Key: `fbe6abe761b3abbb1bd4f639bf46dde2`
 - IV: `b146c7c66bfe6b7d6e6e2dfbf24f9f6f`
-- RSA password: `manezinho`
+- RSA password: `[REDACTED]`
 
 ### Resultado
 - ❌ Decodificação automática **FALHOU**

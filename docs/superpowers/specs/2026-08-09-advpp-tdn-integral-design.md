@@ -118,7 +118,7 @@ acumulam num branch/série de commits até a última fase fechar. Ao final,
 um único bump de versão "grande" (minor ou major, a decidir no momento —
 ex. `v2.1.0` ou `v3.0.0`) com CHANGELOG consolidado de tudo que entrou,
 seguindo o mesmo processo de release já usado (compilar, empacotar, vsix,
-deploy laptop-peder + homelab, publicar no Marketplace — só que ao final da
+deploy lab-local + homelab, publicar no Marketplace — só que ao final da
 série inteira, não a cada fase).
 
 ## Fora de escopo

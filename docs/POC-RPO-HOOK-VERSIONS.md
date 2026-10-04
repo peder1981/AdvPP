@@ -67,7 +67,7 @@ print(f'Eventos: {len(data)}')
 - ✅ 725 eventos capturados
 - ✅ Key: `fbe6abe761b3abbb1bd4f639bf46dde2` (16 bytes)
 - ✅ IV: `b146c7c66bfe6b7d6e6e2dfbf24f9f6f` (16 bytes)
-- ✅ RSA password: `manezinho`
+- ✅ RSA password: `[REDACTED]`
 - ❌ Sem cipher name
 
 ---

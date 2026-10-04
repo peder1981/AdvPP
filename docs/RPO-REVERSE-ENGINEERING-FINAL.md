@@ -24,7 +24,7 @@
 > contra RPO real. Mantido por transparência, não apagado.
 >
 > Este documento também descreve (Seção "Index Section") um "RSA-4096"
-> com senha `"manezinho"` como parte do esquema de cifra do
+> com senha `"[REDACTED]"` como parte do esquema de cifra do
 > `AdminSection`. A chave/senha em si são reais e confirmadas
 > independentemente (`docs/rpo-format.md`, Fase 14.1), mas a FUNÇÃO
 > descrita — envelopar o `AdminSection`/Índice — foi testada por busca
@@ -53,7 +53,7 @@ Descoberta fundamental: O cipher do RPO **NÃO é personalizado** — é **AES-1
 ├─────────────────────────────────────────────────────────────┤
 │ Index Section (RSA-4096)                                    │
 │   ├─ Cipher: DES-EDE3-CBC (OpenSSL EVP)                    │
-│   ├─ Password: "manezinho"                                  │
+│   ├─ Password: "[REDACTED]"                                  │
 │   ├─ IV: 9E4D4CE2BCA7EB92                                  │
 │   └─ Contém: Metadados, ponteiros, tabela de funções        │
 ├─────────────────────────────────────────────────────────────┤
@@ -74,9 +74,9 @@ Descoberta fundamental: O cipher do RPO **NÃO é personalizado** — é **AES-1
 
 | Componente | Chave (hex) | Tamanho |
 |------------|-------------|---------|
-| **RSA Password** | `"manezinho"` | 10 chars |
-| **Index AES** | `442d578020fe4e276d68f86416cae5df` | 16 bytes |
-| **Body AES** | `b55ee224347ac34c85cb05983b48bb41` | 16 bytes |
+| **RSA Password** | `"[REDACTED]"` | 10 chars |
+| **Index AES** | `[REDACTED-KEY]` | 16 bytes |
+| **Body AES** | `[REDACTED-KEY]` | 16 bytes |
 
 **Nota:** Chaves AES são **session-ephemeral** — geradas randomicamente a cada compilação.
 
@@ -107,7 +107,7 @@ gdb -q -batch \
   -ex "end" \
   /protheus12/bin/appserver/appsrvlinux
 
-# Resultado: senha "manezinho"
+# Resultado: senha "[REDACTED]"
 # PEM exportado: /tmp/rsa_decrypted_openssl.pem
 ```
 

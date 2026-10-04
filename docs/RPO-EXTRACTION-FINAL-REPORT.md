@@ -134,7 +134,7 @@ APNSRM0421 = tttm120.rpo
 ## Chaves Capturadas
 
 ```
-RSA Password: manezinho
+RSA Password: [REDACTED]
 Chave padrão: d1cc3a30b3fa23d7eb6626cf6b00a600
 Chave alternate: 1df9f48645c8ffc1794af170b910659c
 IV: 28c0f7a9532b4a44d6555d3796e135fe

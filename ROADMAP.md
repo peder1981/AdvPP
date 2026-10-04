@@ -219,7 +219,7 @@ pacotes OK, nenhuma fixture quebrada), cross-compile limpo pros 3 SOs
 binário compilado (`advplc run tests/autograd_edge_test.prw` → `OK:
 2/2`).
 
-**Toolchain do Go na máquina (laptop-peder) — o que foi atualizado e o
+**Toolchain do Go na máquina (lab-local) — o que foi atualizado e o
 que ficou pendente de root:**
 - `~/.local/go-sdks/go1.27.1` — instalação nova, tarball oficial com
   SHA-256 validado contra `go.dev/dl/?mode=json`.
@@ -244,7 +244,7 @@ que ficou pendente de root:**
   repositórios padrão. Não está no caminho ativo do `go` (PATH
   resolve por `~/.local/bin/go` primeiro) e não afeta o AdvPP.
 
-**Status:** concluído em todos os locais da máquina (`laptop-peder`)
+**Status:** concluído em todos os locais da máquina (`lab-local`)
 que fazem sentido atualizar sem quebrar gerenciamento de pacote do SO
 — `~/.local/go-sdks/go1.27.1`, `~/.local/bin/go`, `~/.bashrc`/
 `~/.profile`, `~/.local/go-1.27.1` (ex-`go-1.26`) e `/usr/local/go`

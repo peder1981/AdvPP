@@ -71,7 +71,7 @@
 > **Sobre as Seções 11-18** (adicionadas a este arquivo depois deste
 > aviso original, por outro processo — note até um título em chinês na
 > Seção 11, sinal de origem automatizada não revisada): a extração da
-> chave RSA-4096 + senha **"manezinho"** ali descrita é REAL — eu
+> chave RSA-4096 + senha **"[REDACTED]"** ali descrita é REAL — eu
 > mesmo reproduzi de forma independente (`docs/rpo-format.md`, Fase
 > 14.1: mesmo modulus, mesmo DEK-Info, capturado numa sessão separada).
 > Mas o "Próximo Passo" que a Seção 15.3 propõe ("testar decryptação
@@ -80,7 +80,7 @@
 > RSA-OAEP-SHA256 válidos sob essa chave em **todo byte-offset possível**
 > de `AdminSection` E `Body` de um RPO real, com controle estatístico
 > contra dados aleatórios — zero hits (`docs/rpo-format.md`, Fase 15).
-> Ou seja: a chave RSA/"manezinho" é real, mas **não envelopa** o
+> Ou seja: a chave RSA/"[REDACTED]" é real, mas **não envelopa** o
 > conteúdo do RPO da forma que as Seções 1/6/11-18 presumem ou propõem
 > testar. Tratar qualquer afirmação nessas seções de que "AdminSection é
 > RSA-encrypted" ou "Body usa chave derivada do AdminSection" (ex.:
@@ -832,7 +832,7 @@ d/jS8G4lFBr4W5JGUJbwLBexiC+F28wWF8KoIyyP16y...
 
 A chave privada está protegida por senha. A senha fornecida foi:
 ```
-b55ee224347ac34c85cb05983b48bb41
+[REDACTED-KEY]
 ```
 
 ### 12.4 Próximos Passos
@@ -911,7 +911,7 @@ DEK-Info: DES-EDE3-CBC,9E4D4CE2BCA7EB92
 
 ### 13.5 Tentativa de descriptografia
 
-Senha fornecida: `b55ee224347ac34c85cb05983b48bb41`
+Senha fornecida: `[REDACTED-KEY]`
 
 **Resultado:** ❌ Falhou
 
@@ -986,10 +986,10 @@ Durante a investigação via gdb, conseguimos capturar o parâmetro `password` p
 
 ```
 password_ptr = 0x66ba060
-PASSWORD: 'manezinho'
+PASSWORD: '[REDACTED]'
 ```
 
-**A senha é literalmente `"manezinho"`** — uma palavra comum em português brasileiro.
+**A senha é literalmente `"[REDACTED]"`** — uma palavra comum em português brasileiro.
 
 ### 14.2 Descriptografia da Chave RSA
 
@@ -997,7 +997,7 @@ Com a senha correta, a chave RSA privada foi descriptografada com sucesso:
 
 ```bash
 Python + PyCryptodome:
-  - Password: "manezinho"
+  - Password: "[REDACTED]"
   - KDF: OpenSSL EVP_BytesToKey (MD5-based)
   - Cipher: DES-EDE3-CBC
   - IV: 9E4D4CE2BCA7EB92
@@ -1058,7 +1058,7 @@ O script captura o parâmetro `password` em `tCryptoRSA::SetKey()`.
 | Encontrar certificado SSL em disco | ✅ | `totvs_certificate.crt` (2048-bit, localhost) |
 | Identificar que NÃO é o cert RPO | ✅ | Propósito diferente (SSL vs RPO) |
 | Extrair chave RSA via gdb | ✅ | `tCryptoRSA::SetKey` captura key PEM |
-| Descobrir senha | ✅ | `"manezinho"` (capturada do parâmetro $rcx) |
+| Descobrir senha | ✅ | `"[REDACTED]"` (capturada do parâmetro $rcx) |
 | Descriptografar chave RSA | ✅ | `openssl rsa -passin stdin` |
 | **Tamanho da chave** | ⚠️ | **4096-bit** (não 2048-bit como esperado) |
 | Diferencia da chave SSL | ✅ | Moduli diferentes |
@@ -1070,7 +1070,7 @@ Tipo: RSA Private Key
 Tamanho: 4096 bits
 Criptografia: DES-EDE3-CBC
 IV: 9E4D4CE2BCA7EB92
-Senha: "manezinho"
+Senha: "[REDACTED]"
 Formato: PKCS#1 (tradicional)
 ```
 
@@ -1086,7 +1086,7 @@ Formato: PKCS#1 (tradicional)
 | Arquivo | Descrição |
 |---------|-----------|
 | `/tmp/rsa_decrypted_openssl.pem` | Chave RSA 4096-bit descriptografada |
-| `/tmp/rsa_password.txt` | Senha extraída: "manezinho" |
+| `/tmp/rsa_password.txt` | Senha extraída: "[REDACTED]" |
 | `/tmp/rsa_public_key.pem` | Chave pública correspondente |
 | `/tmp/encrypted_key.pem` | Chave criptografada original |
 
@@ -1101,7 +1101,7 @@ docker exec protheus-compile bash -c '
 '
 
 # Descriptografar chave
-echo "manezinho" | openssl rsa -in /tmp/encrypted_key.pem \
+echo "[REDACTED]" | openssl rsa -in /tmp/encrypted_key.pem \
   -out /tmp/rsa_decrypted_openssl.pem -passin stdin
 
 # Usar chave para decryptar RPO
@@ -1151,7 +1151,7 @@ key = RSA.import_key(open('/tmp/rsa_decrypted_openssl.pem').read())
 ### 16.3 Senha Descoberta
 
 ```
-Senha: "manezinho"
+Senha: "[REDACTED]"
 Local: Parâmetro $rcx em tCryptoRSA::SetKey()
 ```
 
@@ -1162,7 +1162,7 @@ Local: Parâmetro $rcx em tCryptoRSA::SetKey()
    ↓
 2. tCryptoRSA::SetKey(modulus, exponent, password)
    - modulus: "-----BEGIN RSA PRIVATE KEY-----" (criptografado)
-   - password: "manezinho"
+   - password: "[REDACTED]"
    ↓
 3. tApoFile::ReadIndex() → descriptografa AdminSection
    - RSA decrypt → obtém chave AES
@@ -1185,7 +1185,7 @@ Local: Parâmetro $rcx em tCryptoRSA::SetKey()
 | Arquivo | Conteúdo |
 |---------|----------|
 | `/tmp/rsa_decrypted_openssl.pem` | Chave RSA 4096-bit descriptografada |
-| `/tmp/rsa_password.txt` | Senha: "manezinho" |
+| `/tmp/rsa_password.txt` | Senha: "[REDACTED]" |
 | `/tmp/rpo_raw_decrypt.bin` | Raw RSA decrypt (512 bytes) |
 | `/tmp/rsa_public_key.pem` | Chave pública correspondente |
 
@@ -1199,11 +1199,11 @@ Local: Parâmetro $rcx em tCryptoRSA::SetKey()
 
 ---
 
-## 17. DESCOBERTA FINAL — Senha RSA: "manezinho" (2026-09-19)
+## 17. DESCOBERTA FINAL — Senha RSA: "[REDACTED]" (2026-09-19)
 
 ### 17.1 Breakthrough
 
-**A senha da chave RSA privada é `"manezinho"`**
+**A senha da chave RSA privada é `"[REDACTED]"`**
 
 Descoberta feita capturando o parâmetro `$rcx` em `tCryptoRSA::SetKey()` via gdb.
 
@@ -1225,7 +1225,7 @@ decrypted, err := decryptor.DecryptRPO(rpoData)
 ```
 AdminSection:
   └─ RSA-4096 encryptado
-     └─ Senha: "manezinho"
+     └─ Senha: "[REDACTED]"
      └─ Contém: chave AES + metadados
 
 Body:
@@ -1248,7 +1248,7 @@ Body:
 | `pkg/rpo/decrypt.go` | Decrypor RSA+AES |
 | `pkg/rpo/decrypt_test.go` | Testes unitários |
 | `/tmp/rsa_decrypted_openssl.pem` | Chave RSA extraída |
-| `/tmp/rsa_password.txt` | Senha: "manezinho" |
+| `/tmp/rsa_password.txt` | Senha: "[REDACTED]" |
 
 ---
 
@@ -1261,7 +1261,7 @@ Body:
 | Identificação de RPOs | ✅ Funcionando |
 | Extração de funções (gdb) | ✅ Funcionando |
 | Extração de chave RSA | ✅ Funcionando |
-| Senha RSA descoberta | ✅ `"manezinho"` |
+| Senha RSA descoberta | ✅ `"[REDACTED]"` |
 | Descriptografia RSA | ⚠️ Requer investigação |
 | Descriptografia AES | ⏳ Pendente |
 

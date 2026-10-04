@@ -44,7 +44,7 @@ Antes desta sessão, já existia:
 
 ### Status prévio de criptografia:
 - RSA private key extraído via gdb breakpoint em `tCryptoRSA::SetKey`
-- Senha capturada: `"manezinho"` (parâmetro `$rcx`)
+- Senha capturada: `"[REDACTED]"` (parâmetro `$rcx`)
 - 512-byte RSA output: alta entropia (7.63 bits/byte), estrutura desconhecida
 - AES scheme: tentativo sem sucesso (melhor resultado 52% printable com AES-256-CTR)
 
@@ -79,20 +79,20 @@ Antes desta sessão, já existia:
 - **Padding**: OAEP (observado via estrutura PEM)
 - **Cipher PEM**: DES-EDE3-CBC (encriptação da chave privada PEM)
 - **IV do PEM**: `9E4D4CE2BCA7EB92`
-- **Senha do PEM**: `"manezinho"`
+- **Senha do PEM**: `"[REDACTED]"`
 
 **Procedimento de captura:**
 ```bash
 gdb breakpoint: tCryptoRSA::SetKey(char const*, char const*, char const*)
   $rdi = modulus ptr
   $rsi = exponent ptr  
-  $rcx = password ptr → "manezinho"
+  $rcx = password ptr → "[REDACTED]"
 ```
 
 **Resultado:**
 - Chave RSA privada extraída para `/tmp/rsa_decrypted_openssl.pem`
 - Format: PKCS#8 / PEM (3272 bytes)
-- Decritpografia bem-sucedida com OpenSSL: `openssl rsa -in key.enc -out key.pem -passin pass:manezinho`
+- Decritpografia bem-sucedida com OpenSSL: `openssl rsa -in key.enc -out key.pem -passin pass:[REDACTED]`
 
 ### 3.3 Camada 2: AES-128 Custom (Body) — A GRANDE DESCOBERTA
 
@@ -117,8 +117,8 @@ gdb breakpoint: tCryptoEVP::SetKey(char const*, int, char const*, int, char cons
 
 | Componente | Key (hex) | Cipher ID (hex) | Função Calls |
 |------------|-----------|-----------------|---------------|
-| **Index** | `442d578020fe4e276d68f86416cae5df` | `f88d9c41572007db` | ReadIndex, GetPrgInfo |
-| **Body** | `b55ee224347ac34c85cb05983b48bb41` | `7d41cf2390a14506` | ReadApo, Decrypt(tApoReg) |
+| **Index** | `[REDACTED-KEY]` | `f88d9c41572007db` | ReadIndex, GetPrgInfo |
+| **Body** | `[REDACTED-KEY]` | `7d41cf2390a14506` | ReadApo, Decrypt(tApoReg) |
 
 **Importante**: Estas chaves são **SESSION-EPHEMERAL**. Um novo build gera novas chaves.
 
@@ -129,12 +129,12 @@ Durante a execução, foram observados DOIS cipher IDs distintos:
 ```
 Cipher ID: f88d9c41572007db
   - Usado para: Index decryption (tApoFile::ReadIndex)
-  - Key associada: 442d578020fe4e276d68f86416cae5df
+  - Key associada: [REDACTED-KEY]
   - Contexto: tCryptoEVP::SetKey chamados ~14x para index
 
 Cipher ID: 7d41cf2390a14506  
   - Usado para: Body decryption (tApoFile::ReadApo/Decrypt)
-  - Key associada: b55ee224347ac34c85cb05983b48bb41
+  - Key associada: [REDACTED-KEY]
   - Contexto: tCryptoEVP::SetKey chamados ~12x para body
 ```
 
@@ -229,7 +229,7 @@ O output da descriptografia RSA (512 bytes) tem:
 
 | Função | Parâmetros Capturados | Resultado |
 |--------|----------------------|-----------|
-| `tCryptoRSA::SetKey` | `$rcx` = password | `"manezinho"` |
+| `tCryptoRSA::SetKey` | `$rcx` = password | `"[REDACTED]"` |
 | `tCryptoEVP::SetKey` | `$rsi`=key, `$rdx`=16, `$rcx`=cipher, `$r9`=0 | Keys AES-128 + cipher IDs |
 | `tApoFile::Decrypt` | `this`, `apo_reg` | Estrutura do objeto |
 | `EVP_DecryptInit_ex` | cipher name, IV | Confirmação: cipher não-EVP |

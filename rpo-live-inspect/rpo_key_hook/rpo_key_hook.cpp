@@ -101,7 +101,7 @@ struct Event {
     std::string type;   // "setkey" | "evpinit" | "encrypt" | "rsakey"
     std::string cipher; // só em "evpinit"
     std::string key, iv, plaintext;
-    std::string password;    // só em "rsakey" — ex.: "manezinho"
+    std::string password;    // só em "rsakey" — ex.: "[REDACTED]"
     std::string private_pem; // só em "rsakey" — PEM criptografado (DES-EDE3-CBC), texto com \n reais
     std::string public_pem;  // só em "rsakey"
 };
@@ -196,7 +196,7 @@ void hooked_SetKey(void* self, const char* key, int keylen,
 // parâmetros char*, this em rdi: rsi=chave privada PEM (criptografada
 // DES-EDE3-CBC), rdx=chave pública PEM correspondente, rcx=SENHA da
 // chave privada em texto puro (ver docs/rpo-format.md, Fase 14 — a
-// senha real observada em todas as capturas até hoje é "manezinho").
+// senha real observada em todas as capturas até hoje é "[REDACTED]").
 // Esta chave RSA-4096 é real, mas busca exaustiva (Fase 15) não achou
 // nenhuma relação dela com a cifra do conteúdo do RPO — capturamos
 // aqui por completude/registro, não porque ela decodifique o RPO.

@@ -144,7 +144,7 @@ como sucesso.
 Em TODAS as capturas onde um `custom.rpo` PRÉ-EXISTENTE precisou ser
 lido (não apagado antes), o objeto `tCryptoEVP` usado para short-circuit
 de LEITURA do índice antigo mostrou sempre a MESMA chave
-`b55ee224347ac34c85cb05983b48bb41` / iv `7d41cf2390a14506` — em pelo
+`[REDACTED-KEY]` / iv `7d41cf2390a14506` — em pelo
 menos 4 capturas independentes, em momentos diferentes desta sessão.
 Isso é **diferente** da chave de ESCRITA (sempre nova a cada compile).
 🟡 Hipótese não testada ainda: pode ser uma chave "sentinela"/constante
@@ -190,7 +190,7 @@ tempo, correlacionados por `this`, pode revelar a peça que falta.
    diferentes, reforçando o "efêmero por sessão".
 3. 🟢 **Achado lateral reforçado, agora com 5ª ocorrência**: o objeto de
    LEITURA (`this=0x35e16ea8` aqui) mostra outra vez, byte a byte, a
-   mesma chave `b55ee224347ac34c85cb05983b48bb41` já vista em pelo menos
+   mesma chave `[REDACTED-KEY]` já vista em pelo menos
    4 capturas anteriores desta sessão (Fase 12.3/14 do documento
    principal, e a Captura 1 deste arquivo). Cinco capturas
    independentes, mesmo valor exato — não é mais coincidência
