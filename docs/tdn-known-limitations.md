@@ -848,3 +848,18 @@ inicialmente usava `jsonMapToAdvplObject` por reaproveitar o padrão de
 `jsonMapToAdvplObject` continua correta e intocada para `MCPServer`.
 
 **Afetada:** `GRPCServer` (pkg/vm/grpcserver_native.go).
+
+## `GetEnv` sem default devolve a string `"Nil"` (não `""`)
+
+`GetEnv(cVar)` com variável ausente e sem segundo argumento retorna a string
+de 3 chars `"Nil"` (de `ToString(nil)` em `getEnvOrDefault` com default
+derivado de arg ausente) — e `Empty("Nil")` é `.F.`, então o teste idiomático
+`If Empty(GetEnv("X"))` nunca detecta ausência. Descoberto ao implementar o
+fallback de PATH do `ToolCheck` do pig-advpp (o `PROCRUN` recebia `"Nil"`
+como binário e falhava com `-1`).
+
+Forma suportada: `GetEnv("VAR", "")` (segundo argumento vazio explícito) —
+aí `Empty()` funciona e o fallback aciona. Prova: `advplc run` com
+`ADVPLC_BIN` unset resolve `advplc` do PATH após o fix.
+
+**Afetada:** `GetEnv` (pkg/vm/natives.go).

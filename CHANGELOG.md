@@ -2,6 +2,22 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.4.6] - 2026-10-07
+
+### Added
+- **`advplc check --format json` (M1).** Um objeto JSON por linha (`{"file":…,"ok":true|false,"error"?…}`), ordem estável de entrada, erros no próprio JSON via stdout, exit 0/1 igual ao humano, formato desconhecido falha alto. Pensado para agentes (PiG/pig-advpp) e CI parseável; modo humano inalterado. Testes: `TestRunCheckJSONMixed`, `TestRunCheckJSONAllOK`, `TestParseOptionsFormat` (`cmd/advplc/check_format_test.go`).
+- **Botão "Perguntar ao PiG" no advpp-ide (Passo 3).** Menu Tools → diálogo → `pig -p --mode json --no-session` em goroutine com o arquivo em contexto (teto 12k chars), resposta final extraída do JSONL (`message_end` autoritativo, `turn_end` fallback) no console. Config por `ADVPP_PIG_BIN/MODEL/TIMEOUT_SECS`; sem `-a` automático (trust é do usuário). `OutputConsole.Append` com mutex (fyne 2.4.4 não tem `fyne.Do`). Testes: parser (incl. contra saída real do pig), prompt-truncate (`cmd/advpp-ide/agent_test.go`).
+- **Teto de geração do LLM configurável.** Não havia watchdog nenhum (a tabela 2.0.3 citava 5 min inexistentes): deadline no prefill e por token, default moderno de 30 min, `ADVPP_LLM_TIMEOUT_SECS` sobrescreve (`0` = sem teto), erro capturável via `Try/Catch`. Teste: `TestLlmTimeoutSeconds`.
+- **Supressão de pensamento (técnicas do PiG em inferência crua).** `pkg/llm/thinking.go`: fechar `<think>` no prefill + remover blocos da saída; método `LLM:SuprimePensamento([lAtivo])`, default desligado. Testes: `TestCloseThinkingPrefill`, `TestStripThinking`.
+- **Leitura de linha Q6_K, clamp de RoPE, HeadDim do tensor, atenção larga, fallback tied-embeddings, default `eps=1e-6`, `TensorNames()`, tokens especiais no Encode, flag `ComBOS`, infra QK-norm (qwen2/qwen3).** Robustez do motor para arquivos reais fora do par validado (ex.: MiniCPM5-1B, Llama-3.2-3B). Suite `pkg/llm` verde.
+
+### Fixed
+- **Tabela de limites de recursos modernizada** (era 2.0.3): timeout do LLM agora real e configurável (ver acima).
+- **`GetEnv` sem default retornava a string `"Nil"`** (de `ToString(nil)`), que `Empty()` não pega — fallback de PATH nunca acionava. Forma suportada: `GetEnv("VAR", "")`.
+
+### Em investigação
+- **Qwen3 gera degenerado no motor nativo** (distribuição flat; referência dá Paris no mesmo prompt). Carrega sem crash; isolado com harness de logits, ablação de QK-norm, sweep de escala e leitura do graph no fonte do llama.cpp — dossiê em notas Joplin (`Qwen3 divergencia comprovada`). Llama-3.2-3B e MiniCPM íntegros e sem regressão.
+
 ## [4.4.5] - 2026-10-04
 
 ### Added
@@ -16,7 +32,6 @@ Todas as mudanças relevantes no projeto AdvPP.
 
 ### Security
 - Credenciais do operador redigidas em documentos e comentários do repositório (`[REDACTED]`); senha do AppServer nunca presente em log ou artefato. (d7cc702)
-
 ## [4.4.0] - 2026-10-03
 
 ### Fixed

@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"sort"
 )
 
 const ggufMagic = 0x46554747 // "GGUF" little-endian
@@ -176,6 +177,17 @@ func Open(path string) (*File, error) {
 func (g *File) Close() error { return g.f.Close() }
 
 // Tensor busca um tensor pelo nome.
+// TensorNames lista os nomes de todos os tensores em ordem alfabética
+// (introspecção: descobrir layout de arquivos de terceiros sem adivinhar).
+func (g *File) TensorNames() []string {
+	names := make([]string, 0, len(g.tensorByName))
+	for n := range g.tensorByName {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
+}
+
 func (g *File) Tensor(name string) (*Tensor, bool) {
 	t, ok := g.tensorByName[name]
 	return t, ok

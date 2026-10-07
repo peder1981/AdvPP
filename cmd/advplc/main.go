@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -120,6 +121,13 @@ func main() {
 			os.Exit(1)
 		}
 		opts := parseOptions(rest[i:])
+		if opts.format == "json" {
+			os.Exit(runCheckJSON(files, opts, os.Stdout))
+		}
+		if opts.format != "" {
+			fmt.Fprintf(os.Stderr, "Error: unknown --format %q (use \"json\")\n", opts.format)
+			os.Exit(1)
+		}
 		if len(files) == 1 {
 			if err := checkFile(files[0], opts); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -216,6 +224,7 @@ type Options struct {
 	watch     bool
 	gui       bool // advplc build --gui: app desktop (janela sempre, subsistema GUI no Windows)
 	debugPort string // advplc serve --debug-port: liga um listener DAP TCP (attach)
+	format    string // check --format: "" (humano) ou "json" (um objeto por linha)
 }
 
 func parseOptions(args []string) *Options {
@@ -225,6 +234,10 @@ func parseOptions(args []string) *Options {
 		dbBackend: "sqlite",
 	}
 	for i := 0; i < len(args); i++ {
+		if v, ok := strings.CutPrefix(args[i], "--format="); ok {
+			opts.format = v
+			continue
+		}
 		switch args[i] {
 		case "--include", "-I":
 			if i+1 < len(args) {
@@ -239,6 +252,11 @@ func parseOptions(args []string) *Options {
 				} else {
 					opts.defines[parts[0]] = "1"
 				}
+				i++
+			}
+		case "--format":
+			if i+1 < len(args) {
+				opts.format = args[i+1]
 				i++
 			}
 		case "--ui":
@@ -655,6 +673,40 @@ func runDebugAdapter(opts *Options) error {
 	return srv.Run()
 }
 
+// checkJSONResult é uma linha do `check --format json` (JSONL: um objeto
+// por linha, ordem estável de entrada para consumo determinístico).
+type checkJSONResult struct {
+	File  string `json:"file"`
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
+// runCheckJSON valida cada arquivo em sequência (ordem de saída == ordem de
+// entrada) e escreve um objeto JSON por linha em w. Erros vão para o próprio
+// JSON (stdout), nunca stderr, para o consumidor parsear sem adivinhar.
+// Retorna 0 se todos passaram, 1 caso contrário (mesmo contrato do modo
+// humano). Formato pensado para agentes (PiG/pig-advpp) e CI parseável.
+func runCheckJSON(files []string, opts *Options, w *os.File) int {
+	enc := json.NewEncoder(w)
+	failed := false
+	for _, f := range files {
+		r := checkJSONResult{File: f, OK: true}
+		if err := checkFile(f, opts); err != nil {
+			r.OK = false
+			r.Error = err.Error()
+			failed = true
+		}
+		if err := enc.Encode(r); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+	}
+	if failed {
+		return 1
+	}
+	return 0
+}
+
 // checkFilesParallel verifica N arquivos com um pool de workers (1 por CPU).
 // Cada arquivo é compilado de forma independente — o pipeline
 // preprocessador→lexer→parser→codegen não compartilha estado entre arquivos.
@@ -860,6 +912,8 @@ Options:
                                 (default: $ADVPP_DB, or the shared AdvPP
                                 database configured in ~/.advpp — the same
                                 database used by adveditor/advpp-ide)
+  --format <fmt>                check: "json" emits one JSON object per
+                                line instead of human text
   -o <file>                     Output file for compile command
   --port <n>                    Web mode port (default: webui_port in
                                 ~/.advpp/advpp_config.json, or 8080)
@@ -878,9 +932,9 @@ Examples:
   advplc compile hello.prw -o hello.bytecode
   advplc exec hello.bytecode
   advplc check program.prw --include ./includes
+  advplc check a.prw b.prw --format json
   advplc serve program.prw --port 9000 --watch
   advplc build program.prw -o myapp --db-path ./data.db
   advplc build app.prw -o MyApp --gui
   advplc bytecode program.prw`)
 }
-

@@ -180,11 +180,19 @@ Métodos da classe `LLM`:
 | `Decode(aTokens)` | Converte token ids de volta em texto |
 | `Close()` | Libera o modelo |
 
+Teto de geração: `Generate()` respeita deadline (default 30 min,
+`ADVPP_LLM_TIMEOUT_SECS` sobrescreve em segundos, `0` = sem teto); estouro
+retorna erro capturável via `Try/Catch`.
+| `SuprimePensamento([lAtivo])` | Liga/desliga a supressão de blocos `<think>` (default desligado; sem arg = liga) |
+| `ComBOS([lAtivo])` | Prefixa o BOS do tokenizer ao prefill (instrutivos sensíveis; default desligado) |
+
 Validado **token a token** contra o `llama.cpp` de referência para o
 caminho I2_S (ver `pkg/llm/validate_test.go`), e validado end-to-end
 (geração real via `advplc run`, resposta batendo com o `llama.cpp` de
 referência) contra um MiniCPM5-2B-Q4_K_M real para o caminho Q4_K/Q6_K.
-Limitações: arquitetura GGUF `"llama"` ou `"minicpm"` apenas; sem
+Limitações: o portão aceita arquiteturas `"llama"`, `"minicpm"`, `"qwen2"`
+e `"qwen3"`; geração coerente validada em `"llama"` (Falcon3, Llama-3.2-3B)
+e `"minicpm"` (MiniCPM5) — Qwen em investigação (ver CHANGELOG). Sem
 streaming (ver CHANGELOG para a lista completa).
 
 ## Conectividade real multi-provider
@@ -987,12 +995,24 @@ advplc build meu_app.prw -o meu_app --gui   # GUI fixa no binário (build-time);
 **Status:** Classe `LLM` carrega modelos GGUF quantizados em **I2_S** (ternário: -1/0/+1, estilo BitNet/Falcon3-1.58bit), **F16** ou, desde v4.0.0, **Q4_K/Q6_K** (ex.: conversões `Q4_K_M` como MiniCPM).
 
 **Limitações:**
-- Quantização: I2_S, F16, Q4_K e Q6_K suportados; F32 e outros k-quants (Q2_K/Q3_K/Q5_K/Q8_K etc.) ainda não
+- Quantização: I2_S, F16, Q4_K e Q6_K suportados (incl. leitura de linha Q6_K p/ embeddings desde 4.4.x); F32 e outros k-quants (Q2_K/Q3_K/Q5_K/Q8_K etc.) ainda não
+- Robustez de dims (4.4.x): HeadDim derivado do tensor `blk.0.attn_q` (metadados de merges podem mentir) e `rope.dimension_count` limitado à cabeça; sem isso MiniCPM5-1B quebrava (RoPE OOB, atenção larga)
 - Streaming: Não há suporte a streaming de token; `Generate()` **bloqueia** até terminar
 - Tokenizer: Pré-built na .gguf; não há suporte a tokenizers dinâmicos
-- Modelos: Arquitetura deve ser `llama` ou `minicpm` — outras arquiteturas (Qwen, Mistral, modelos com sliding-window attention, etc.) causam erro
+- Modelos: o portão aceita `llama`, `minicpm`, `qwen2` e `qwen3`; coerência validada em `llama`/`minicpm` — Qwen (Qwen3 degenera; Qwen2 não testado a fundo) e demais (Mistral, sliding-window etc.) seguem sem suporte
 
 **Alternativa:** Para F32 ou streaming, use uma API externa (ex.: Ollama local com `FWHttpPost`).
+
+## Supressão de pensamento (`SuprimePensamento`)
+
+Técnicas adaptadas do PiG (`ai/llama_cpp_classify.go`, `renderPrompt`), que
+opera sem parâmetros de API — só manipulação de prompt/prefill, portável à
+inferência crua: (1) prompt terminado em `<think>` aberto ganha o fechamento
+imediato (bloco vazio = próximo token já é a resposta); (2) blocos
+`<think>…</think>` são removidos da saída (bloco nunca fechado trunca dali).
+Modelos não-pensantes (MiniCPM5, Falcon3) nunca emitem esses blocos: é no-op
+para eles. Pensantes típicos: QwQ, DeepSeek-R1 e destilados, Qwen3, Granite
+com thinking (quando a arquitetura entrar no motor).
 
 ### Tensor: Precisão Float32 vs Float64
 
@@ -1084,7 +1104,7 @@ Consulte `./docs/GUIA_DO_DESENVOLVEDOR_PARA_ADVPP.md` para tabela detalhada e ex
 | Call frames | 5000 | `len(callStack)` |
 | Goroutines via `StartJob` | 1000 concurrent | `activeJobsCount` |
 | Tamanho de array | 1M elementos | `len(a) > 1M` → erro |
-| Timeout LLM `Generate()` | 5 minutos | `context.WithTimeout` |
+| Timeout LLM `Generate()` | 30 minutos (padrão), configurável, 0 = sem teto | deadline no loop + `ADVPP_LLM_TIMEOUT_SECS` (erro capturável via `Try/Catch`) |
 | Timeout I/O (arquivos) | 30 segundos | `context.WithTimeout` |
 | Timeout HTTP | 30 segundos | `http.Client.Timeout` |
 
