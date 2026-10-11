@@ -1,0 +1,38 @@
+{
+  "investigation_status": "COMPLETA",
+  "algorithm_recovered": true,
+  "validation_status": "MATCH_PERFEITO",
+  "confidence": 90,
+  "template": {
+    "value": "Uauauauval!123132,m. 123k1p23i1=23-09=1239 12312=-3123 ",
+    "offset": 58538728,
+    "size": 58
+  },
+  "timestamp_format": {
+    "pattern": "DDMMM SS YYYYHH:MM:SSms",
+    "example": "19Sep  2 202414:31:59167",
+    "mystery_formula": "(year % 100) // 12"
+  },
+  "crypto": {
+    "algorithm": "AES-128-CBC",
+    "rand_seed_offset": 4037597,
+    "aes_functions": {
+      "set_encrypt_key": 4885068,
+      "set_decrypt_key": 4885621,
+      "cbc_encrypt": 4885653,
+      "encrypt": 4885088,
+      "decrypt": 4885641
+    }
+  },
+  "source": {
+    "file": "lib/security.cpp",
+    "build": "TP11-OF2431X-APPSRVLIN64",
+    "ci_cd": "Atlassian Bamboo",
+    "access": "interno_TOTVS"
+  },
+  "validated_seed": {
+    "date": "2024-09-19T14:31:59.167000",
+    "sha256": "c3668278ad1ccd6a8b73f4ea642ec22abdec9f8807c8a3788a0a330309cf1794",
+    "match": true
+  }
+}
