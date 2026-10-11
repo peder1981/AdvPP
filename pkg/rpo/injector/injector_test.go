@@ -179,8 +179,8 @@ func TestSave_ReconstróiRPO(t *testing.T) {
 	}
 }
 
-// TestReplaceAPO_MesmoTamanho testa substituição de mesmo tamanho.
-func TestReplaceAPO_MesmoTamanho(t *testing.T) {
+// TestReplaceFunction_MesmoTamanho testa substituição de mesmo tamanho.
+func TestReplaceFunction_MesmoTamanho(t *testing.T) {
 	data, err := os.ReadFile("../testdata/live_capture.rpo")
 	if err != nil {
 		t.Skip("RPO de teste não encontrado")
@@ -203,9 +203,9 @@ func TestReplaceAPO_MesmoTamanho(t *testing.T) {
 		newCode[i] = 0xFF
 	}
 
-	err = inj.ReplaceAPO(0, newCode)
+	err = inj.ReplaceFunction("RPORC5_TRIGGER.PRW", newCode)
 	if err != nil {
-		t.Fatalf("ReplaceAPO falhou: %v", err)
+		t.Fatalf("ReplaceFunction falhou: %v", err)
 	}
 }
 
