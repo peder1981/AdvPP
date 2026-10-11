@@ -2,6 +2,10 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [Não lançado] — 4.7.0 (unstable)
+
+Sequência de desenvolvimento a partir da release 4.6.0. Itens entram aqui até o lançamento.
+
 ## [4.6.0] - 2026-10-11
 
 ### Added
