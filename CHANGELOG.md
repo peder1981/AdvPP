@@ -2,6 +2,17 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.6.0] - 2026-10-11
+
+### Added
+- **Injeção de bytecode RPO (`advplc rpo inject`).** Parser de framing APO, injetor (`pkg/rpo/injector`: `injector.go`, `reencrypt.go`, `admin_index.go`), handshake e codec do AppServer (`pkg/rpo/wire`) e sessão DAP (`pkg/rpo/dap`). Testes em `pkg/rpo/...`.
+- **Scripts de apoio ao RPO:** `tools/deploy-rpo.sh`, `tools/build-integration/auto-inject.sh`, `tools/build-integration/inject-bytecode.sh`, `tools/rpo-live-inspect/capture_and_inject.sh`.
+- **Suítes TIR de SA1 e SC5** e setup do TIR (`tests/tir/`).
+- **Documentação da injeção RPO** em `docs/RPO-*.md` e `docs/rpo-seeds/`.
+
+### Changed
+- `tools/vscode-advpl/package.json` acompanha a versão 4.6.0.
+
 ## [4.4.6] - 2026-10-07
 
 ### Added
