@@ -67,3 +67,36 @@ examples/chat/chat-peer-*
 # rpo_key_hook.so é gerado por `make` a partir do .cpp — nunca versionar
 # o binário compilado (arquitetura/ambiente-específico).
 tools/rpo-live-inspect/rpo_key_hook/*.so
+
+# --- Artefatos locais de build e teste (nunca versionar) ---
+/advplc-linux-amd64
+/advplc-linux-arm64
+/advplc-windows-amd64.exe
+/advplc-darwin-arm64
+/cmd/advplc/advplc
+/SimpleTest.prw
+/SimpleTest.bytecode
+/console_error.log
+/install
+__pycache__/
+*.pyc
+
+# --- Material TOTVS: fontes, dicionários, containers RPO e mapeamentos ---
+# GetSx3Cache.prw é o único fonte de src/functions que está versionado.
+/src/functions/*
+!/src/functions/GetSx3Cache.prw
+/pkg/rpo/testdata/*
+!/pkg/rpo/testdata/apo/
+!/pkg/rpo/testdata/catalog_tiny.txt
+!/pkg/rpo/testdata/live_capture.json
+!/pkg/rpo/testdata/live_capture.rpo
+/docs/*MAPPING.csv
+/docs/DIFF-*.csv
+
+# --- Credenciais e configuração de ambiente local ---
+/tests/tir/config.json
+/tools/build-integration/generate_compile_token
+
+# --- Resultados de execução do TIR e worktrees locais ---
+/tests/tir/[0-9]*.json
+/.claude/worktrees/
