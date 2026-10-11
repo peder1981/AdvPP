@@ -85,6 +85,14 @@ implementados** (mesma situação do Edit — placeholders `// TODO`).
 dicionário, processo separado) — procura o binário ao lado do próprio
 `advpp-ide` e cai para o `PATH` se não achar.
 
+**Perguntar ao PiG...**: pergunta ao agente PiG com o arquivo atual em
+contexto (diálogo, depois resposta no console de saída). Executa
+`pig -p --mode json --no-session` em segundo plano (a UI não trava);
+config por `ADVPP_PIG_BIN` (default: `pig` ao lado do IDE ou no `PATH`),
+`ADVPP_PIG_MODEL` (opcional) e `ADVPP_PIG_TIMEOUT_SECS` (default 300).
+Não aprova o projeto sozinho (`-a`): o trust continua sendo decisão do
+usuário. Requer o binário `pig` instalado; sem ele, erro claro no console.
+
 ## Menu Help
 
 **About**: mostra informações de versão.

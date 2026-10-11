@@ -139,6 +139,10 @@ func (ide *IDE) makeMainMenu() *fyne.MainMenu {
 		fyne.NewMenuItem("Open AdvEditor (database)", func() {
 			ide.openAdvEditor()
 		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Perguntar ao PiG...", func() {
+			ide.askPigDialog()
+		}),
 	)
 
 	helpMenu := fyne.NewMenu("Help",

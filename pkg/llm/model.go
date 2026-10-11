@@ -15,11 +15,15 @@ type Layer struct {
 	Wq, Wk, Wv, Wo    LayerWeights
 	FFNNorm           []float32
 	Wgate, Wup, Wdown LayerWeights
+	// QKNormQ/QKNormK: QK-Norm por cabeça (Qwen3: attn_q/k_norm.weight,
+	// F32 [headDim]). Nil quando o arquivo não tem (llama/minicpm/qwen2)
+	// e o forward as ignora — byte-a-byte idêntico ao de antes.
+	QKNormQ, QKNormK []float32
 }
 
 // Model contém os hiperparâmetros e pesos carregados de um GGUF de
-// arquitetura "llama" (Falcon3-3B-1.58bit, pesos I2_S) ou "minicpm"
-// (MiniCPM-2B, pesos F16 — ver LoadWeight). ScaleEmbed/ScaleResidual/
+// arquitetura "llama" (Falcon3-3B-1.58bit, Llama-3.2), "minicpm", "qwen2"
+// ou "qwen3" (QK-Norm opcional; ver Layer). ScaleEmbed/ScaleResidual/
 // ScaleLogit são os três multiplicadores muP específicos do MiniCPM;
 // ficam em 1.0 (no-op) para "llama", preservando o forward pass do
 // Falcon3 byte-a-byte.
@@ -67,9 +71,9 @@ func LoadModel(path string) (*Model, error) {
 	}
 
 	arch, _ := g.String("general.architecture")
-	if arch != "llama" && arch != "minicpm" {
+	if arch != "llama" && arch != "minicpm" && arch != "qwen2" && arch != "qwen3" {
 		g.Close()
-		return nil, fmt.Errorf("llm: arquitetura %q não suportada (só \"llama\" ou \"minicpm\" por enquanto)", arch)
+		return nil, fmt.Errorf("llm: arquitetura %q não suportada (llama, minicpm, qwen2 ou qwen3 por enquanto)", arch)
 	}
 
 	m := &Model{g: g, Arch: arch, tokEmbdName: "token_embd.weight"}
@@ -116,10 +120,38 @@ func LoadModel(path string) (*Model, error) {
 		return nil, fmt.Errorf("llm: attention.head_count ausente ou zero")
 	}
 	m.HeadDim = m.NEmbd / m.NHead
+	// Verdade de chão: blk.0.attn_q ne1 / NHead (pesos mandam; metadados de
+	// merges/conversões podem mentir — ex.: MiniCPM5-1B "uncensored" declara
+	// head_count=16 p/ n_embd=1536 (=96) mas o q real é [1536,2048], ou
+	// seja, 16 heads de 128). Só lê o header, não os pesos.
+	if m.NHead > 0 {
+		if tq, ok := g.Tensor("blk.0.attn_q.weight"); ok && len(tq.Shape) >= 2 {
+			if ne1 := int(tq.Shape[1]); ne1 > 0 && ne1%m.NHead == 0 {
+				m.HeadDim = ne1 / m.NHead
+			}
+		}
+	}
 	m.NFF = int(nFF)
+	// n_rot efetivo: padrão llama.cpp é head_dim quando a chave ausenta;
+	// nunca rotacionar além da cabeça (ex.: MiniCPM5-1B declara
+	// rope.dimension_count=128 com HeadDim=96 — sem o clamp, RoPE estoura
+	// o slice). Modelos já validados (2B: 128/128) não mudam.
+	if ropeDims == 0 {
+		ropeDims = uint32(m.HeadDim)
+	}
+	if int(ropeDims) > m.HeadDim {
+		ropeDims = uint32(m.HeadDim)
+	}
 	m.RopeDims = int(ropeDims)
 	m.FreqBase = freqBase
+	// eps=0 no arquivo significa "não declarado": o llama.cpp de referência
+	// roda com o default 1e-6 (print_info confirma f_norm_rms_eps=1.0e-06
+	// mesmo com a chave em 0). Espelhar aqui — eps 0 real não existe em
+	// nenhum modelo e distorce a norma.
 	m.RMSEps = rmsEps
+	if m.RMSEps == 0 {
+		m.RMSEps = 1e-6
+	}
 	m.VocabSize = int(vocabSize)
 
 	loadNorm := func(name string) ([]float32, error) {
@@ -174,6 +206,20 @@ func LoadModel(path string) (*Model, error) {
 			g.Close()
 			return nil, err
 		}
+		// QK-Norm é opcional: só existe em arquivos Qwen3 (e variantes).
+		// Ausente => nil => forward ignora (ver attention path).
+		if qn, err := loadQKNorm(g, fmt.Sprintf("blk.%d.attn_q_norm.weight", il), m.HeadDim); err != nil {
+			g.Close()
+			return nil, err
+		} else {
+			l.QKNormQ = qn
+		}
+		if kn, err := loadQKNorm(g, fmt.Sprintf("blk.%d.attn_k_norm.weight", il), m.HeadDim); err != nil {
+			g.Close()
+			return nil, err
+		} else {
+			l.QKNormK = kn
+		}
 		m.Layers[il] = l
 	}
 
@@ -181,12 +227,41 @@ func LoadModel(path string) (*Model, error) {
 		g.Close()
 		return nil, err
 	}
-	if m.Output, err = LoadWeight(g, "output.weight"); err != nil {
-		g.Close()
-		return nil, err
+	m.Output, err = LoadWeight(g, "output.weight")
+	if err != nil {
+		// Embeddings amarrados (ex.: Llama-3.2-3B): sem output.weight, a
+		// projeção de saída reaproveita token_embd.weight (matemática
+		// idêntica: logits = dot com cada linha do vocabulário).
+		if m.Output, err = LoadWeight(g, "token_embd.weight"); err != nil {
+			g.Close()
+			return nil, fmt.Errorf("llm: nem output.weight nem token_embd.weight: %w", err)
+		}
 	}
 
 	return m, nil
+}
+
+// loadQKNorm lê um vetor de norma F32 [headDim] ou devolve (nil, nil)
+// quando o tensor não existe (modelos sem QK-Norm). Erro só em formato
+// inesperado — falhar alto aqui evita gerar lixo silencioso depois.
+func loadQKNorm(g *File, name string, headDim int) ([]float32, error) {
+	t, ok := g.Tensor(name)
+	if !ok {
+		return nil, nil
+	}
+	raw, err := g.TensorData(name)
+	if err != nil {
+		return nil, err
+	}
+	_ = t
+	out := make([]float32, len(raw)/4)
+	for i := range out {
+		out[i] = math.Float32frombits(binary.LittleEndian.Uint32(raw[i*4:]))
+	}
+	if len(out) != headDim {
+		return nil, fmt.Errorf("llm: tensor %q tem %d elementos, esperado headDim=%d", name, len(out), headDim)
+	}
+	return out, nil
 }
 
 func (m *Model) Close() error { return m.g.Close() }
@@ -228,6 +303,21 @@ func (c *Context) Forward(token int32) ([]float32, error) {
 		q := layer.Wq.MatMul(cur)
 		k := layer.Wk.MatMul(cur)
 		v := layer.Wv.MatMul(cur)
+
+		// QK-Norm (Qwen3): normaliza cada cabeça de q/k antes do RoPE.
+		// Nil em modelos sem os tensores => no-op exato.
+		if layer.QKNormQ != nil {
+			for h := 0; h < m.NHead; h++ {
+				seg := q[h*m.HeadDim : (h+1)*m.HeadDim]
+				copy(seg, RMSNorm(seg, layer.QKNormQ, m.RMSEps))
+			}
+		}
+		if layer.QKNormK != nil {
+			for h := 0; h < m.NHeadKV; h++ {
+				seg := k[h*m.HeadDim : (h+1)*m.HeadDim]
+				copy(seg, RMSNorm(seg, layer.QKNormK, m.RMSEps))
+			}
+		}
 
 		for h := 0; h < m.NHead; h++ {
 			RoPE(q[h*m.HeadDim:(h+1)*m.HeadDim], m.HeadDim, c.pos, m.RopeDims, m.FreqBase)
@@ -285,7 +375,10 @@ func scaleInPlace(x []float32, s float32) {
 func attention(m *Model, il int, c *Context, q []float32, groupSize int) []float32 {
 	nPos := len(c.kCache[il])
 	scale := float32(1.0 / math.Sqrt(float64(m.HeadDim)))
-	out := make([]float32, m.NEmbd)
+	// Largura de saída = NHead*HeadDim (dimensão de q), não NEmbd: modelos
+	// com q "largo" (ex.: 16 heads de 128 p/ n_embd 1536) têm Wo [2048,1536].
+	// Nos validados (2B: 16*128 == NEmbd) é idêntico ao de antes.
+	out := make([]float32, m.NHead*m.HeadDim)
 
 	parallelRows(m.NHead, func(h0, h1 int) {
 		scores := make([]float32, nPos)

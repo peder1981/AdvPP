@@ -1077,7 +1077,7 @@ Arquivo: `pkg/llm/model.go` + `tokenizer.go` + `gguf.go` + `i2s.go` + `q4k.go` +
 
 | Função | Parâmetros | Retorno | Descrição |
 |--------|-----------|---------|-----------|
-| `LoadModel(path)` | GGUF path | `(*Model, error)` | Loads arch=llama ou minicpm; pesos por camada em I2_S, F16 ou Q4_K/Q6_K (decidido pelo tipo real do tensor, ver `LoadWeight`); ~file-size RAM |
+| `LoadModel(path)` | GGUF path | `(*Model, error)` | Loads arch=llama, minicpm, qwen2 ou qwen3 (QK-norm opcional p/ qwen3); pesos por camada em I2_S, F16 ou Q4_K/Q6_K (decidido pelo tipo real do tensor, ver `LoadWeight`); ~file-size RAM. Coerência validada em llama/minicpm; qwen em investigação |
 | `Close()` | — | error | Closes underlying GGUF file |
 
 #### Weight Dispatch (multi-formato, desde v4.0.0)
@@ -1089,7 +1089,8 @@ Arquivo: `pkg/llm/model.go` + `tokenizer.go` + `gguf.go` + `i2s.go` + `q4k.go` +
 | `F16Weight.MatMul` | generaliza `MatMulF16` (antes só usado pela saída) pra qualquer camada |
 | `Q4KWeight.MatMul` / `dequantQ4KBlock` | dequant Q4_K (super-blocos de 256, escala+mín de 6 bits), verificado contra `ggml-quants.c` |
 | `Q6KWeight.MatMul` / `dequantQ6KBlock` | dequant Q6_K (super-blocos de 256, escala int8 de 8 bits), verificado contra `ggml-quants.c` |
-| `EmbedRowGeneric(g, name, row, dim)` | `EmbedRow` generalizado — lê 1 linha de token_embd/output em F16 ou Q4_K sem materializar a tabela inteira |
+| `EmbedRowGeneric(g, name, row, dim)` | `EmbedRow` generalizado — lê 1 linha de token_embd/output em F16, Q4_K ou Q6_K sem materializar a tabela inteira |
+| `TensorNames()` | — | `[]string` | Nomes de todos os tensores, ordem alfabética (introspecção de layout) |
 
 #### Context / Inference
 
@@ -1105,7 +1106,7 @@ Arquivo: `pkg/llm/model.go` + `tokenizer.go` + `gguf.go` + `i2s.go` + `q4k.go` +
 | `NewTokenizer(g)` | *File | `(*Tokenizer, error)` | Parses GPT-2 BPE vocab from GGUF |
 | `BOS()` | — | int32 | Beginning of sequence ID |
 | `EOS()` | — | int32 | End of sequence ID |
-| `Encode(text)` | string | []int32 | Text → token IDs (BPE) |
+| `Encode(text)` | string | []int32 | Text → token IDs (BPE + tokens especiais via `tokenizer.ggml.token_type`, longest-match, UTF-8-safe) |
 | `Decode(ids)` | []int32 | string | Token IDs → text (BPE) |
 
 #### Sampling
@@ -1114,6 +1115,13 @@ Arquivo: `pkg/llm/model.go` + `tokenizer.go` + `gguf.go` + `i2s.go` + `q4k.go` +
 |--------|-----------|---------|-----------|
 | `Greedy(logits)` | []float32 | int32 | Argmax (best token) |
 | `Sample(logits, cfg, rng)` | logits, config, rand | int32 | Nucleus sampling; temp≤0 → greedy |
+
+#### Thinking suppression (técnicas do PiG p/ inferência crua)
+
+| Função | Descrição |
+|--------|-----------|
+| `CloseThinkingPrefill(prompt)` | Se termina em `<think>` aberto, completa na hora (bloco vazio) |
+| `StripThinking(text)` | Remove blocos `<think>…</think>` (não-guloso; aberto-sem-fechar trunca) |
 
 #### Kernel Functions (internal)
 

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Tokenizer implementa BPE byte-level no estilo GPT-2, usando o vocabulário
@@ -24,6 +25,12 @@ type Tokenizer struct {
 	byteToRune [256]rune
 	runeToByte map[rune]byte
 	bos, eos   int32
+	// specials mapeia textos de tokens especiais/de controle (ex.:
+	// "<|im_start|>", "<|im_end|>") ao id — vindos de
+	// tokenizer.ggml.token_type (3=control, 4=user-defined). specialList
+	// guarda as chaves por tamanho decrescente p/ longest-match.
+	specials    map[string]int32
+	specialList []string
 }
 
 // NewTokenizer carrega o vocabulário e as regras de merge de um GGUF gpt2/BPE.
@@ -54,6 +61,18 @@ func NewTokenizer(g *File) (*Tokenizer, error) {
 		t.mergeRank[m] = i
 	}
 	t.byteToRune, t.runeToByte = buildByteUnicodeTable()
+	t.specials = map[string]int32{}
+	if types, ok := g.Int32Array("tokenizer.ggml.token_type"); ok && len(types) == len(tokens) {
+		for i, typ := range types {
+			if typ == 3 || typ == 4 {
+				t.specials[tokens[i]] = int32(i)
+			}
+		}
+		for s := range t.specials {
+			t.specialList = append(t.specialList, s)
+		}
+		sort.Slice(t.specialList, func(a, b int) bool { return len(t.specialList[a]) > len(t.specialList[b]) })
+	}
 
 	if bos, ok := g.Uint32("tokenizer.ggml.bos_token_id"); ok {
 		t.bos = int32(bos)
@@ -179,15 +198,64 @@ func allSpaceFrom(runes []rune, i int) bool {
 	return true
 }
 
+// splitSpecials divide o texto em spans comuns e tokens especiais
+// (longest-match). Spans especiais viram um único id; o resto segue BPE.
+func (t *Tokenizer) splitSpecials(text string) []any {
+	if len(t.specialList) == 0 {
+		return []any{text}
+	}
+	var out []any
+	for len(text) > 0 {
+		best := ""
+		for _, sp := range t.specialList {
+			if strings.HasPrefix(text, sp) && len(sp) > len(best) {
+				best = sp
+			}
+		}
+		if best != "" {
+			out = append(out, t.specials[best])
+			text = text[len(best):]
+			continue
+		}
+		// Avança 1 byte (não quebra UTF-8 no meio p/ o BPE seguinte?
+		// avança por rune para manter spans válidos).
+		r, size := utf8.DecodeRuneInString(text)
+		_ = r
+		next := 1 << 30
+		for _, sp := range t.specialList {
+			if i := strings.Index(text[size:], sp); i >= 0 && size+i < next {
+				next = size + i
+			}
+		}
+		if next == 1<<30 {
+			out = append(out, text)
+			break
+		}
+		out = append(out, text[:next])
+		text = text[next:]
+	}
+	return out
+}
+
 // Encode converte texto em uma sequência de token ids via BPE byte-level.
 func (t *Tokenizer) Encode(text string) []int32 {
 	var ids []int32
-	for _, piece := range pretokenize(text) {
+	encodePiece := func(piece string) {
 		symbols := t.byteEncodeSymbols(piece)
 		symbols = t.applyBPE(symbols)
 		for _, s := range symbols {
 			if id, ok := t.tokenToID[s]; ok {
 				ids = append(ids, id)
+			}
+		}
+	}
+	for _, span := range t.splitSpecials(text) {
+		switch v := span.(type) {
+		case int32:
+			ids = append(ids, v)
+		case string:
+			for _, piece := range pretokenize(v) {
+				encodePiece(piece)
 			}
 		}
 	}

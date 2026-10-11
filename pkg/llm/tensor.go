@@ -104,9 +104,30 @@ func EmbedRowGeneric(g *File, tensorName string, row, rowDim int) ([]float32, er
 		return EmbedRow(g, tensorName, row, rowDim)
 	case GGMLTypeQ4_K:
 		return embedRowQ4K(g, tensorName, row, rowDim)
+	case GGMLTypeQ6_K:
+		return embedRowQ6K(g, tensorName, row, rowDim)
 	default:
-		return nil, fmt.Errorf("llm: tensor %q em formato %v não suportado para leitura de linha (só F16 e Q4_K)", tensorName, t.Type)
+		return nil, fmt.Errorf("llm: tensor %q em formato %v não suportado para leitura de linha (só F16, Q4_K e Q6_K)", tensorName, t.Type)
 	}
+}
+
+// embedRowQ6K é embedRowQ4K para Q6_K: super-blocos de 256 valores em 210
+// bytes (dequantQ6KBlock), lendo só a linha pedida via TensorRange.
+func embedRowQ6K(g *File, tensorName string, row, rowDim int) ([]float32, error) {
+	if rowDim%q4kSuperBlock != 0 {
+		return nil, fmt.Errorf("llm: tensor %q: rowDim=%d não é múltiplo de %d", tensorName, rowDim, q4kSuperBlock)
+	}
+	blocksPerRow := rowDim / q4kSuperBlock
+	rowBytes := uint64(blocksPerRow * q6kBlockBytes)
+	raw, err := g.TensorRange(tensorName, uint64(row)*rowBytes, rowBytes)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]float32, rowDim)
+	for b := 0; b < blocksPerRow; b++ {
+		dequantQ6KBlock(raw[b*q6kBlockBytes:(b+1)*q6kBlockBytes], out[b*q4kSuperBlock:(b+1)*q4kSuperBlock])
+	}
+	return out, nil
 }
 
 func embedRowQ4K(g *File, tensorName string, row, rowDim int) ([]float32, error) {

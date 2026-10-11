@@ -3,30 +3,53 @@
 # plataformas suportadas (linux-x64, linux-arm64, win32-x64, darwin-arm64).
 #
 # Uso: tools/vscode-advpl/build-vsix.sh [VERSION]
-# (VERSION só entra no ldflags -X main.version do binário embutido; a
-# versão da extensão em si é a de package.json.)
+# Sem VERSION, usa a versão do package.json. O advplc é compilado AQUI, do
+# fonte atual, com as mesmas opções do workflow de release — antes o script
+# copiava de dist/, que o alvo "make cross" deixou de atualizar, e o .vsix
+# saía com um compilador antigo dentro.
 set -e
 
 cd "$(dirname "$0")"
 ROOT="$(cd ../.. && pwd)"
-# O Makefile ja monta -X main.version=v$(VERSION), entao um "v" no argumento
-# vira "vv2.0.7" no --version. Tira o prefixo se vier.
-VERSION="${1:-dev}"
+PKGVER="$(sed -n 's/^[[:space:]]*"version": "\([^"]*\)".*/\1/p' package.json | head -1)"
+VERSION="${1:-$PKGVER}"
 VERSION="${VERSION#v}"
+if [ "$VERSION" != "$PKGVER" ]; then
+    echo "ERRO: versão pedida ($VERSION) difere do package.json ($PKGVER). Ajuste o package.json primeiro." >&2
+    exit 1
+fi
 
-echo "Cross-compilando advplc ($VERSION) para as 4 plataformas..."
-(cd "$ROOT" && make cross VERSION="$VERSION")
+LDFLAGS="-s -w -X main.version=v$VERSION"
+build() { # build GOOS GOARCH destino
+    echo "  advplc $1/$2 -> $3"
+    (cd "$ROOT" && CGO_ENABLED=0 GOOS="$1" GOARCH="$2" go build -trimpath -ldflags "$LDFLAGS" \
+        -o "$ROOT/tools/vscode-advpl/$3" ./cmd/advplc)
+}
 
+echo "Compilando advplc v$VERSION para as 4 plataformas..."
 mkdir -p bin/linux-x64 bin/linux-arm64 bin/win32-x64 bin/darwin-arm64
-cp "$ROOT/dist/advplc-linux-amd64" bin/linux-x64/advplc
-cp "$ROOT/dist/advplc-linux-arm64" bin/linux-arm64/advplc
-cp "$ROOT/dist/advplc-windows-amd64.exe" bin/win32-x64/advplc.exe
-cp "$ROOT/dist/advplc-darwin-arm64" bin/darwin-arm64/advplc
+build linux amd64 bin/linux-x64/advplc
+build linux arm64 bin/linux-arm64/advplc
+build windows amd64 bin/win32-x64/advplc.exe
+build darwin arm64 bin/darwin-arm64/advplc
 chmod +x bin/linux-x64/advplc bin/linux-arm64/advplc bin/darwin-arm64/advplc
 
-echo "Empacotando .vsix..."
-vsce package
+# Cada binário tem de carregar a versão certa (vale para os 4, inclusive os
+# que não rodam nesta máquina).
+for f in bin/linux-x64/advplc bin/linux-arm64/advplc bin/win32-x64/advplc.exe bin/darwin-arm64/advplc; do
+    if ! grep -aq "v$VERSION" "$f"; then
+        echo "ERRO: $f não contém a versão v$VERSION" >&2
+        exit 1
+    fi
+done
 
-# -t (mais recente primeiro) e nao ordem alfabetica: "2.0.8" vem depois de
-# "2.0.14" numa comparacao de texto, entao a linha anunciava o .vsix errado.
-echo "Pronto: $(ls -t *.vsix | head -1)"
+echo "Empacotando .vsix..."
+if command -v vsce >/dev/null 2>&1; then
+    vsce package
+else
+    npx --yes @vscode/vsce package
+fi
+
+VSIX="advpl-tlpp-advpp-$VERSION.vsix"
+[ -f "$VSIX" ] || { echo "ERRO: $VSIX não foi gerado" >&2; exit 1; }
+echo "Pronto: $VSIX (advplc v$VERSION nas 4 plataformas)"

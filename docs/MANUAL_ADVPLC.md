@@ -110,6 +110,18 @@ Saída do modo múltiplo: `OK`/`FAIL` por arquivo e um resumo
 (`checked N files: X ok, Y failed (W workers)`). Código de saída 1 se
 qualquer arquivo falhar.
 
+Para consumo por máquina (agentes, CI), `--format json` emite um objeto
+JSON por linha (JSONL, ordem estável de entrada) com erros dentro do
+próprio JSON via stdout:
+
+```bash
+advplc check a.prw b.prw --format json
+# {"file":"a.prw","ok":true}
+# {"file":"b.prw","ok":false,"error":"parser error: ..."}
+```
+
+`--format` desconhecido falha alto. Modo humano inalterado.
+
 ### Executável standalone
 
 ```bash
