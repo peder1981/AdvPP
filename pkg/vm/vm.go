@@ -297,6 +297,27 @@ func (v *VM) applyRDDEngine(cRDD string) {
 	v.dbEngine = v.localDBEngine
 }
 
+// tcSQLEngine devolve o engine SQL usado por TCSQLEXEC/TCSQLQUERY. Diferente de
+// v.dbEngine (que segue a RDD corrente e so' muda com DBSetDriver), TCSQL* sempre
+// fala com a conexao remota aberta por ESTA VM (ownConnID) quando ela existe: o
+// SQL direto do AdvPL e' por definicao SQL do banco conectado. Sem conexao propria
+// viva cai no engine local. Nunca usa a conexao "ativa" global (de outra sessao).
+func (v *VM) tcSQLEngine() (SQLEngine, bool) {
+	dbstate.mu.Lock()
+	c, ok := dbstate.conns[v.ownConnID]
+	dbstate.mu.Unlock()
+	if ok && c != nil && c.remote && !c.closed {
+		if c.sqlEng != nil {
+			return c.sqlEng, true
+		}
+		if s, isSQL := c.engine.(SQLEngine); isSQL && s != nil {
+			return s, true
+		}
+	}
+	s, isSQL := v.dbEngine.(SQLEngine)
+	return s, isSQL && s != nil
+}
+
 // cloneRemote abre uma conexão nova com a mesma configuração do engine
 // remoto e (nil, false, nil) para engine local. Variável para os testes
 // trocarem por um engine falso (não há Postgres na suíte unitária).
