@@ -1189,18 +1189,16 @@ func (v *VM) registerNatives() {
 		// Reaproveita a mesma interface SQLEngine (Exec/QueryRows) que o
 		// FWMBrowse já usa internamente, só que exposta ao AdvPL.
 		//
-		// IMPORTANTE (achado #8 da revisão final da branch multidb): estas
-		// duas natives leem `v.dbEngine` DIRETO — não `dbstateConn.sqlEng`
-		// como a família TC* elaborada de dbaccess_native.go (TCLINK/
-		// TCGENQRY/TCSQLTOARR/...), que passa por dbaccessActiveConn(). Um
-		// DbConnection:Connect() bem-sucedido, por si só, NÃO faz
-		// TCSQLEXEC/TCSQLQUERY baterem no banco externo — só depois que
-		// DBSetDriver("TOPCONN") troca v.dbEngine (Task 9 do plano multidb)
-		// é que estas duas passam a ler a conexão real.
+		// Roteamento: estas duas usam v.tcSQLEngine(), que prefere a conexão
+		// remota aberta por ESTA VM (ownConnID) e só então o engine local. Antes
+		// liam v.dbEngine, que segue a RDD corrente: um DbConnection:Connect()
+		// bem-sucedido não fazia TCSQLQUERY bater no banco externo sem um
+		// DBSetDriver("TOPCONN") explícito, e a consulta caía no SQLite local
+		// (erro "no such table: pg_tables" no GEBAN, 07/11/2026).
 		"TCSQLEXEC": func(args []advplrt.Value) (advplrt.Value, error) {
 			query := advplrt.ToString(getArg(args, 0))
-			sqlEng, ok := v.dbEngine.(SQLEngine)
-			if !ok || sqlEng == nil {
+			sqlEng, ok := v.tcSQLEngine()
+			if !ok {
 				return advplrt.False, fmt.Errorf("TCSqlExec: nenhum banco de dados conectado")
 			}
 			if err := sqlEng.Exec(query); err != nil {
@@ -1210,8 +1208,8 @@ func (v *VM) registerNatives() {
 		},
 		"TCSQLQUERY": func(args []advplrt.Value) (advplrt.Value, error) {
 			query := advplrt.ToString(getArg(args, 0))
-			sqlEng, ok := v.dbEngine.(SQLEngine)
-			if !ok || sqlEng == nil {
+			sqlEng, ok := v.tcSQLEngine()
+			if !ok {
 				return advplrt.NewArray([]advplrt.Value{}), fmt.Errorf("TCSqlQuery: nenhum banco de dados conectado")
 			}
 			rows, err := sqlEng.QueryRows(query)
