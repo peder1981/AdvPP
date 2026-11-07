@@ -2,6 +2,16 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.6.1] - 2026-11-07
+
+### Fixed
+- **`TCSQLEXEC` e `TCSQLQUERY` falavam com o engine local (SQLite) mesmo com
+  `DbConnection:Connect()` bem-sucedido.** Os dois natives liam `v.dbEngine`, que
+  só muda com `DBSetDriver`. Agora usam o helper `tcSQLEngine()`, que prefere a
+  conexão remota aberta pela própria VM (`ownConnID`) e só então o engine local.
+  Nunca usa a conexão ativa global de outra sessão. Conexão própria fechada cai no
+  engine local. Testes em `pkg/vm/tcsql_routing_test.go`.
+
 ## [4.6.0] - 2026-10-11
 
 ### Added
