@@ -1115,3 +1115,8 @@ Ultrapassar esses limites retorna erro capturável via `Try/Catch` ou falha grac
 **Status:** Extensão AdvPL/TLPP (marketplace + `.vsix` em Releases) segue a mesma versão do compilador — confira `tools/vscode-advpl/package.json` para o número exato publicado no momento (atualizado a cada release do `advplc`, não é reafirmado aqui para não ficar desatualizado).
 
 **Incluída:** Compilador AdvPP embutido (linux-x64, linux-arm64, win32-x64, darwin-arm64); F5 e F9 para run/debug.
+
+## Licença
+
+[Apache License 2.0](LICENSE) — uso comercial livre, com atribuição.
+Copyright 2026 Peder Munksgaard.
