@@ -588,7 +588,11 @@ func serveFile(sourceFile string, opts *Options) error {
 	}
 
 	port := shared.ResolveWebUIPort(opts.port)
-	return srv.Serve("localhost:" + port)
+	host := os.Getenv("ADVPL_SERVE_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	return srv.Serve(host + ":" + port)
 }
 
 // serveDebugAttach escuta conexões DAP (attach) numa porta TCP separada da
