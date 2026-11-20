@@ -1,9 +1,11 @@
 import { Component, ViewChild, computed, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import {
   PoButtonModule, PoDialogService, PoDynamicFormField, PoDynamicModule,
   PoModalAction, PoModalComponent, PoModalModule, PoPageModule,
   PoTableAction, PoTableColumn, PoTableModule, PoTagModule,
 } from '@po-ui/ng-components';
+import { UiHostComponent, UiNode } from './ui-host';
 
 // Heurística de ícone pra item de menu (FWMenuSelect não carrega nenhuma
 // informação de ícone — só o texto do item) — genérico o bastante pra
@@ -53,8 +55,14 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
 
 @Component({
   selector: 'app-root',
-  imports: [PoPageModule, PoTableModule, PoButtonModule, PoModalModule, PoDynamicModule, PoTagModule],
+  imports: [PoPageModule, PoTableModule, PoButtonModule, PoModalModule, PoDynamicModule, PoTagModule,
+            UiHostComponent, NgTemplateOutlet],
   template: `
+    <!-- Componentes Po* (PoApp:Activate): tela montada pelo programa -->
+    @if (uiTree(); as t) {
+      <adv-ui-host [node]="t" [post]="postUI"></adv-ui-host>
+      <div class="po-ml-2 po-mr-2"><ng-container [ngTemplateOutlet]="consoleTpl"></ng-container></div>
+    } @else {
     <po-page-default [p-title]="pageTitle()" [p-subtitle]="pageSubtitle()">
       <po-tag [p-value]="status()" [p-color]="statusColor()" [p-icon]="statusIcon()"></po-tag>
 
@@ -78,6 +86,11 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
         <po-button class="po-mt-2" p-label="Executar novamente" p-icon="an an-arrow-clockwise" (p-click)="reload()"></po-button>
       }
 
+      <ng-container [ngTemplateOutlet]="consoleTpl"></ng-container>
+    </po-page-default>
+    }
+
+    <ng-template #consoleTpl>
       <div class="advpp-console-toggle" (click)="consoleOpen.set(!consoleOpen())">
         <i class="an" [class.an-caret-right]="!consoleOpen()" [class.an-caret-down]="consoleOpen()"></i>
         Log técnico ({{ lines().length }} linha{{ lines().length === 1 ? '' : 's' }})
@@ -86,7 +99,7 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
         <div class="advpp-console">@for (line of lines(); track $index) {{{ line }}
 }</div>
       }
-    </po-page-default>
+    </ng-template>
 
     <po-modal #formModal [p-title]="formTitle()" [p-primary-action]="saveAction" [p-secondary-action]="cancelAction" p-size="lg">
       @if (formFields().length) {
@@ -170,6 +183,8 @@ export class App {
   protected inputSpec = signal<InputSpec | null>(null);
   protected inputFormValue: any = {};
   protected consoleOpen = signal(false);
+  protected uiTree = signal<UiNode | null>(null);
+  private uiNodes = new Map<number, UiNode>();
   protected menuIcon = menuItemIcon;
   protected menuLabel = menuItemLabel;
 
@@ -258,12 +273,46 @@ export class App {
         this.status.set('finalizado');
         this.finished.set(true);
         this.browse.set(null);
+        this.uiTree.set(null);
+        break;
+      case 'ui':
+        this.onUi(ev.data);
         break;
       case 'reload': // hot reload do --watch: fonte recompilado no servidor
         location.reload();
         break;
     }
   }
+
+  // Operações dos componentes Po* (pkg/vm/poui.go): mount monta a árvore,
+  // batch aplica patches de propriedades, close desmonta.
+  private onUi(op: any) {
+    switch (op?.op) {
+      case 'mount': {
+        this.uiNodes.clear();
+        const indexa = (n: UiNode) => { this.uiNodes.set(n.id, n); n.children.forEach(indexa); };
+        if (op.tree) { indexa(op.tree); }
+        document.title = op.title || 'AdvPP Web';
+        this.uiTree.set(op.tree ?? null);
+        break;
+      }
+      case 'batch':
+        for (const p of op.ops ?? []) {
+          const n = this.uiNodes.get(p.id);
+          if (p.op === 'patch' && n) { n.props = { ...n.props, ...p.props }; }
+        }
+        break;
+      case 'close':
+        this.uiTree.set(null);
+        this.uiNodes.clear();
+        break;
+    }
+  }
+
+  // Evento de componente -> laço de PoApp:Activate (POST /ui).
+  protected postUI = (id: number, event: string, value: unknown) => {
+    fetch('/ui?s=' + this.sid, { method: 'POST', body: JSON.stringify({ id, event, value }) });
+  };
 
   private showDialog(ev: ServerEvent) {
     const title = ev.title || 'Atenção';

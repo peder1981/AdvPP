@@ -117,6 +117,7 @@ type VM struct {
 	jobs                  sync.WaitGroup                // jobs em background pendentes
 	outWriter             io.Writer                     // espelho opcional da saída de console (modo web)
 	curDialog             *webDialog                    // MSDIALOG em construção (fase 4 do renderer web)
+	poApp                 *poAppState                   // PoApp corrente (componentes PO-UI, poui*.go)
 	debugger              *Debugger                     // hook opcional (advplc debug); nil em execução normal
 	fileHandles           map[int]*os.File              // handles abertos por FOpen/FCreate
 	nextFH                int                           // próximo handle a distribuir
@@ -1738,6 +1739,8 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callFormBrowseMethod(obj, upperMethod, args)
 	case "MsDialog":
 		return v.callMsDialogMethod(obj, upperMethod, args)
+	case "PoApp", "PoPage", "PoButton", "PoInput", "PoTable", "PoTag":
+		return v.callPoMethod(obj, upperMethod, args)
 	case "LLM":
 		return v.callLLMMethod(obj, upperMethod, args)
 	case "MCPServer":
@@ -1998,6 +2001,9 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "TRUNDLL":
 			v.push(newDllObject())
+			return nil
+		case "POAPP", "POPAGE", "POBUTTON", "POINPUT", "POTABLE", "POTAG":
+			v.push(newPoObject(upperName))
 			return nil
 		case "TPBKDF2":
 			v.push(newPBKDF2Object())

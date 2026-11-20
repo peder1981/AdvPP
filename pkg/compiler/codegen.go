@@ -1070,7 +1070,7 @@ func (c *Compiler) compileCallExpr(e *ast.CallExpr) error {
 		return nil
 	}
 	// Check known built-in classes
-	if isBuiltinClass(e.Name) {
+	if isBuiltinClass(e.Name) || (isPoClassName(e.Name) && !c.hasFunction(e.Name)) {
 		c.compileArgs(e.Args)
 		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), e.Name, e.Loc.Line)
 		return nil
@@ -1142,6 +1142,29 @@ var builtinClasses = map[string]bool{
 
 func isBuiltinClass(name string) bool {
 	return builtinClasses[strings.ToUpper(name)]
+}
+
+// poClassNames: componentes PO-UI nativos (pkg/vm/poui*.go). Ficam fora de
+// builtinClasses porque cedem a uma função do próprio programa com o mesmo
+// nome: programas que já tinham, por exemplo, uma Static Function PoTag()
+// continuam chamando a sua função.
+var poClassNames = map[string]bool{
+	"POAPP": true, "POPAGE": true, "POBUTTON": true, "POINPUT": true, "POTABLE": true, "POTAG": true,
+}
+
+func isPoClassName(name string) bool {
+	return poClassNames[strings.ToUpper(name)]
+}
+
+// hasFunction diz se o programa declara uma função com esse nome (as
+// funções são todas registradas antes da geração de código).
+func (c *Compiler) hasFunction(name string) bool {
+	for fn := range c.bc.Functions {
+		if strings.EqualFold(fn, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Compiler) compileCodeBlock(e *ast.CodeBlock) error {

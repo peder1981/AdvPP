@@ -1,5 +1,19 @@
 # Relatório de Status dos Componentes
 
+## Componentes PO-UI orientados a eventos — fase 1 (atualizado 2026-11-20)
+
+### Status Atual: Funcional e testado ponta a ponta (HTTP real + captura no Chromium)
+
+- ✅ **`PoApp`/`PoPage`/`PoButton`/`PoInput`/`PoTable`/`PoTag`**: classes nativas
+  (`pkg/vm/poui*.go`), árvore de componentes por VM.
+- ✅ **Laço de eventos `PoApp:Activate()`**: handlers em codeblocks na VM da sessão,
+  patches em lote, erro em handler não derruba o laço, evento sem destino é ignorado.
+- ✅ **Timers `PoApp:SetTimer/KillTimer`**: param ao fechar a sessão (sem vazar goroutine).
+- ✅ **Transporte**: evento SSE `ui` + `POST /ui` (`pkg/webui/ui.go`), origem e limite iguais a `/reply`.
+- ✅ **Frontend**: `web/src/app/ui-host.ts` (renderer recursivo genérico).
+- ⏳ **Fases seguintes** (design aprovado): demais componentes PO-UI, `Spawn`,
+  `Notify`/`Confirm`, `advplc serve --apps`, `AdvCodeEditor` e `AdvTerminal`.
+
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 
 ### Status Atual: Funcional e testado ponta a ponta (cliente e servidor reais)

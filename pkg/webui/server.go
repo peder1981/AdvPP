@@ -62,6 +62,9 @@ type session struct {
 	quit     chan struct{}
 	quitOnce sync.Once
 	conns    atomic.Int32 // conexões SSE abertas nesta sessão
+	// ui recebe os eventos de componentes (POST /ui e timers) consumidos
+	// pelo laço de PoApp:Activate (ver ui.go).
+	ui chan uiEvent
 }
 
 func newSession() *session {
@@ -69,6 +72,7 @@ func newSession() *session {
 		events:  make(chan event, 64),
 		waiting: make(map[int]chan string),
 		quit:    make(chan struct{}),
+		ui:      make(chan uiEvent, uiBuffer),
 	}
 }
 
@@ -261,6 +265,19 @@ func (srv *Server) Broadcast(kind, text string) {
 
 // Serve sobe o servidor HTTP e bloqueia.
 func (srv *Server) Serve(addr string) error {
+	fmt.Printf("AdvPP web: http://%s  (fonte: %s)\n", addr, srv.sourceName)
+	hs := &http.Server{
+		Addr:              addr,
+		Handler:           srv.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+	return hs.ListenAndServe()
+}
+
+// Handler monta as rotas do modo web (com a checagem de origem); Serve o
+// usa, e testes podem montá-lo num httptest.Server.
+func (srv *Server) Handler() http.Handler {
 	mu := &srv.mu
 	sessions := srv.sessions
 	sourceName := srv.sourceName
@@ -270,7 +287,7 @@ func (srv *Server) Serve(addr string) error {
 
 	staticFS, err := fs.Sub(distFS, "dist")
 	if err != nil {
-		return err
+		panic(err) // "dist" é embutido no binário: só falha com build quebrado
 	}
 	mux.Handle("/", http.FileServerFS(staticFS))
 
@@ -397,14 +414,14 @@ func (srv *Server) Serve(addr string) error {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	fmt.Printf("AdvPP web: http://%s  (fonte: %s)\n", addr, sourceName)
-	hs := &http.Server{
-		Addr:              addr,
-		Handler:           sameOrigin(mux),
-		ReadHeaderTimeout: 10 * time.Second,
-		MaxHeaderBytes:    1 << 20,
-	}
-	return hs.ListenAndServe()
+	mux.HandleFunc("POST /ui", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		s := sessions[r.URL.Query().Get("s")]
+		mu.Unlock()
+		handleUIPost(s, w, r)
+	})
+
+	return sameOrigin(mux)
 }
 
 // Limites do modo web: sessões simultâneas (cada uma é uma VM rodando o
