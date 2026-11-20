@@ -74,10 +74,13 @@ assistente**, por instrução permanente do operador. Se estiver na
 ## 6. Tag + release automática
 
 ```bash
-make release VERSION=X.Y.Z
+git tag -a vX.Y.Z -m "AdvPP X.Y.Z: <resumo>" <commit-do-master>
+git push origin vX.Y.Z
 ```
 
-Cria a tag `vX.Y.Z` e dá push. Dispara
+(Não existe alvo `make release`.) Desde a v4.7.0 o `master` é protegido:
+tudo entra por PR com a matriz `Test` verde (4 SOs + `determinism`) —
+inclusive o bump da extensão do passo 9. Dispara
 `.github/workflows/release.yml`: cross-compile CLI (3 plataformas) +
 build nativo das GUIs Fyne (runners Linux/Windows/macOS) +
 `gh release create --generate-notes`.
@@ -126,7 +129,11 @@ gh release view vX.Y.Z
 ```
 
 Confirmar que os binários das 3 plataformas + instaladores foram
-anexados de verdade, não só que o workflow terminou verde.
+anexados de verdade, não só que o workflow terminou verde. **Baixar e
+abrir** pelo menos um pacote (`gh release download vX.Y.Z -p
+'advpp-cli-*linux-amd64*'` + `tar xzf` + `./advplc --version`) e rodar o
+`install.sh` com `ADVPP_INSTALL_DIR` apontando pra um diretório temporário
+— até a v4.7.0 a release saiu verde com tar.gz corrompido.
 
 ## 9. Extensão VS Code (se o compilador embutido nela mudou)
 

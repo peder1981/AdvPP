@@ -31,8 +31,8 @@ jobs:
         with:
           name: cli-packages
           path: |
-            dist/*.tar.gz
-            dist/*.zip
+            dist/advpp-cli-*.tar.gz
+            dist/advpp-cli-*.zip
 
   # Suite completa (inclui GUIs Fyne): build nativo em cada plataforma
   native:
@@ -146,27 +146,36 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
-      - name: Delete existing release and tag (if any)
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Integridade dos pacotes
+        # Nomes repetidos entre jobs viravam um arquivo só, com os bytes
+        # misturados (merge-multiple) — o workflow ficava verde e a release
+        # saía com tar.gz/zip corrompido. Agora falha aqui.
         run: |
-          gh release delete "$GITHUB_REF_NAME" --cleanup-tag --yes 2>/dev/null || true
-          gh api "repos/${{ github.repository }}/git/refs/tags/$GITHUB_REF_NAME" -X DELETE 2>/dev/null || true
+          shopt -s nullglob
+          ls -la artifacts
+          # gzip -t também pega "trailing garbage" (sai 2), sintoma já presente na v4.6.1
+          for f in artifacts/*.tar.gz; do { gzip -t "$f" && tar tzf "$f" >/dev/null; } || { echo "CORROMPIDO: $f"; exit 1; }; echo "ok $f"; done
+          for f in artifacts/*.zip; do unzip -tq "$f" || { echo "CORROMPIDO: $f"; exit 1; }; echo "ok $f"; done
+          for f in artifacts/*.deb; do dpkg-deb --info "$f" >/dev/null || { echo "CORROMPIDO: $f"; exit 1; }; echo "ok $f"; done
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-           # Recria a release com retry: a exclusão do release anterior pode não
-           # propagar imediatamente na API do GitHub (eventual consistency).
-           # Retry até 3x com sleep de 5s entre tentativas.
-           for i in 1 2 3; do
-             if gh release create "$GITHUB_REF_NAME" \
-               --repo "$GITHUB_REPOSITORY" \
-               --title "AdvPP $GITHUB_REF_NAME" \
-               --generate-notes \
-               artifacts/* 2>/dev/null; then
-               break
-             fi
-             echo "Tentativa $i/3 falhou (release provavelmente ainda não removida). Aguardando 5s..."
-             sleep 5
-           done
+          # Re-run de uma tag: substitui só a release, NUNCA a tag (antes a
+          # tag era apagada e recriada a partir do HEAD do master, podendo
+          # apontar para outro commit). --verify-tag exige a tag existente.
+          gh release delete "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --yes || true
+          for i in 1 2 3; do
+            if gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "AdvPP $GITHUB_REF_NAME" \
+              --generate-notes \
+              artifacts/*; then
+              exit 0
+            fi
+            echo "Tentativa $i/3 falhou. Aguardando 5s..."
+            sleep 5
+          done
+          echo "Falha ao criar a release" >&2
+          exit 1

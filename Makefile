@@ -82,20 +82,27 @@ dev: build
 run: build
 	./$(BINARY) $(ARGS)
 
-# Package (usado pelo workflow de release)
+# Package (usado pelo workflow de release): só o CLI, nomes advpp-cli-* —
+# os pacotes advpp-<versão>-<plataforma> (suíte completa com as GUIs) vêm
+# do job `native`. Mesmo nome nos dois jobs fazia o merge dos artifacts
+# misturar os bytes dos dois arquivos (tar.gz corrompido até a v4.7.0).
+# Build em diretório próprio: não toca o ./advplc da raiz do repositório.
+# Nome de arquivo fixo `advplc`/`advplc.exe` na raiz do pacote — é o que o
+# install.sh extrai.
+CLI_TARGETS = linux/amd64 linux/arm64 darwin/arm64 windows/amd64
 package:
-	@echo "Packaging for release $(VERSION)..."
+	@echo "Packaging CLI for release $(VERSION)..."
 	mkdir -p dist
-	# CLI Linux
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v$(VERSION)" -o advplc ./cmd/advplc
-	tar czf "dist/advpp-$(VERSION)-linux-amd64.tar.gz" advplc
-	# CLI Windows
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v$(VERSION)" -o advplc.exe ./cmd/advplc
-	zip "dist/advpp-$(VERSION)-windows-amd64.zip" advplc.exe
-	# CLI macOS
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v$(VERSION)" -o advplc-darwin ./cmd/advplc
-	tar czf "dist/advpp-$(VERSION)-darwin-arm64.tar.gz" advplc-darwin
-	# Limpar
-	rm -f advplc advplc.exe advplc-darwin*
-	@echo "Packages created in dist/"
+	@set -e; for t in $(CLI_TARGETS); do \
+		os=$${t%/*}; arch=$${t#*/}; dir=dist/cli-$$os-$$arch; ext=""; \
+		[ "$$os" = windows ] && ext=".exe"; \
+		mkdir -p $$dir; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v$(VERSION)" -o $$dir/advplc$$ext ./cmd/advplc; \
+		if [ "$$os" = windows ]; then \
+			(cd $$dir && zip -q "../advpp-cli-$(VERSION)-$$os-$$arch.zip" advplc.exe); \
+		else \
+			tar czf "dist/advpp-cli-$(VERSION)-$$os-$$arch.tar.gz" -C $$dir advplc; \
+		fi; \
+		rm -rf $$dir; \
+	done
 	@ls -lh dist/
