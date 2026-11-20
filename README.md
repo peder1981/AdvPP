@@ -747,7 +747,15 @@ FClose(nH)
 
 | Função | Descrição |
 |--------|-----------|
-| `WaitRun(cCmd)` | Executa `cCmd` no shell do SO (cross-platform `sh -c` / `cmd /c`), herda stdio, espera e retorna o *exit code* (`0` = sucesso) |
+| `WaitRun(cCmd)` | Executa `cCmd` **sem shell**, herda stdio, espera e retorna o *exit code* (`0` = sucesso; `-1` = não iniciou ou linha inválida). Aspas agrupam argumentos (`"meu arquivo.txt"`) |
+| `ProcRun(cPath, aArgs, bLinha[, bLinhaErr])` | Executa `cPath` com `aArgs` (sem shell) e chama `bLinha` para cada linha de stdout — captura direta, sem arquivo intermediário |
+
+O `WaitRun` trata em Go, sem shell, os redirecionamentos `>`, `>>`, `<`, `2>`, `2>>` e
+`2>&1` (este sempre manda o stderr para onde o stdout for). Os demais operadores de
+shell (`;`, `&&`, `||`, `|`, `$VAR`, `*`, `` `...` ``) **não** são interpretados: viram
+texto dos argumentos. Isso impede injeção de comando (CWE-78) quando parte da linha
+vem do usuário. Para usar shell de verdade, chame-o de forma explícita:
+`WaitRun('sh -c "ls | wc -l > total.txt"')`.
 
 Para **capturar** a saída de um comando, use o padrão AdvPL de redirecionar para
 arquivo e ler — com a API de handle isso funciona para saída arbitrariamente

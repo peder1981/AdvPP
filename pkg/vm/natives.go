@@ -998,8 +998,15 @@ func (v *VM) registerNatives() {
 			return getArg(args, 1), nil
 		},
 		"GETENV": func(args []advplrt.Value) (advplrt.Value, error) {
+			// Variável inexistente devolve "" (como no Protheus), ou o 2º
+			// argumento se informado. Antes, ToString(NIL) virava "Nil" e
+			// !Empty(GetEnv("X")) era verdadeiro para X não definida.
 			name := advplrt.ToString(getArg(args, 0))
-			return advplrt.NewString(getEnvOrDefault(name, advplrt.ToString(getArg(args, 1)))), nil
+			def := ""
+			if d := getArg(args, 1); !advplrt.IsNil(d) {
+				def = advplrt.ToString(d)
+			}
+			return advplrt.NewString(getEnvOrDefault(name, def)), nil
 		},
 		// FWHash(cTexto) As Character: SHA-256 em hexadecimal, stdlib do
 		// Go (sem CGO, sem dependência externa). Não existe em Protheus
@@ -1800,19 +1807,51 @@ func (v *VM) registerNatives() {
 		},
 
 		// --- Chamada de sistema ---
-		// WaitRun(cCmd): executa o comando sem shell, herda stdio, espera e
-		// retorna o exit code (0 = sucesso). Redirecione para arquivo + MemoRead
-		// para capturar a saida.
-		// Uses exec.Command without shell interpretation to prevent command injection (CWE-78, OWASP A03:2021).
-		// Note: Shell operators (|, >, <, &&, ||) are NOT supported.
+		// WaitRun(cCmd): executa o comando SEM shell, herda stdio, espera e
+		// retorna o exit code (0 = sucesso; -1 = não iniciou ou linha inválida).
+		// Argumentos respeitam aspas ("meu arq.txt"). Redirecionamentos de E/S
+		// são feitos aqui, em Go: > >> < 2> 2>> 2>&1 — é o jeito AdvPL de
+		// capturar a saída (WaitRun("cmd > saida.txt") + MemoRead). Demais
+		// operadores de shell (; && || | $VAR * `...`) NÃO são interpretados:
+		// viram texto dos argumentos (CWE-78, OWASP A03:2021). Para shell de
+		// verdade, chame-o explicitamente: WaitRun('sh -c "a | b"').
 		"WAITRUN": func(args []advplrt.Value) (advplrt.Value, error) {
-			cmdStr := getArgString(args, 0, "")
-			parts := strings.Fields(cmdStr)
-			if len(parts) == 0 {
+			cl, err := parseCommandLine(getArgString(args, 0, ""))
+			if err != nil {
+				return advplrt.NewNumber(-1), nil
+			}
+			if len(cl.argv) == 0 {
 				return advplrt.NewNumber(1), nil
 			}
-			cmd := exec.Command(parts[0], parts[1:]...)
+			cmd := exec.Command(cl.argv[0], cl.argv[1:]...)
 			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+			if cl.stdin != "" {
+				f, err := os.Open(cl.stdin)
+				if err != nil {
+					return advplrt.NewNumber(-1), nil
+				}
+				defer f.Close()
+				cmd.Stdin = f
+			}
+			if cl.stdout != "" {
+				f, err := openRedirect(cl.stdout, cl.appendOut)
+				if err != nil {
+					return advplrt.NewNumber(-1), nil
+				}
+				defer f.Close()
+				cmd.Stdout = f
+			}
+			if cl.stderr != "" {
+				f, err := openRedirect(cl.stderr, cl.appendErr)
+				if err != nil {
+					return advplrt.NewNumber(-1), nil
+				}
+				defer f.Close()
+				cmd.Stderr = f
+			}
+			if cl.errToOut {
+				cmd.Stderr = cmd.Stdout
+			}
 			if err := cmd.Run(); err != nil {
 				if ee, ok := err.(*exec.ExitError); ok {
 					return advplrt.NewNumber(float64(ee.ExitCode())), nil

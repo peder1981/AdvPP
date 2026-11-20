@@ -730,7 +730,7 @@ existindo para diálogos tradicionais).
 | `FWHASACCMODE()` | — | bool | .T. stub |
 | `USRRETNAME()` | — | string | Username stub |
 | `MSRETPATH()` | — | string | "./" stub |
-| `WAITRUN(cmd)` | string | number | Executa shell command, retorna exit code |
+| `WAITRUN(cmd)` | string | number | Executa o comando sem shell (aspas agrupam argumentos; redirecionamentos `>` `>>` `<` `2>` `2>>` `2>&1`), retorna exit code |
 | `PROCRUN(cPath, aArgs, bOnStdoutLine, [bOnStderrLine])` | string, array, codeblock×2 | number | Executa `cPath` com `aArgs` (sem shell, stdin fechado). Para cada linha de stdout chama `bOnStdoutLine(cLinha)` **sincronamente** — o AdvPL pode desenhar direto na tela, ideal pra TUIs consumindo NDJSON de um processo filho em streaming (ex.: CLI de um LLM). `bOnStderrLine` opcional (stderr descartado se omitido). Bloqueia até o processo terminar; retorna o exit code, ou -1 se não iniciou |
 
 #### Funções Database (Workarea)

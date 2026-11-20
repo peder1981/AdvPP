@@ -2,6 +2,25 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [Não lançado]
+
+### Fixed
+- **`#include` de fonte em CP-1252 chegava cru ao lexer.** Só o arquivo raiz era convertido
+  para UTF-8; o conteúdo incluído não, então um `"ã"` vindo de um include nunca era igual ao
+  `"ã"` do arquivo principal. A conversão saiu de `cmd/advplc` para
+  `preprocessor.SourceToUTF8` e passou a valer para todo `#include` e também para o
+  `advplc ast`, que tinha o mesmo problema.
+- **`WaitRun` voltou a capturar saída com `> arquivo`.** Desde a correção de injeção de
+  comando (CWE-78) ele executava sem shell, mas o `>` virava argumento e o padrão documentado
+  `WaitRun("cmd > saida.txt")` parou de gravar o arquivo, sem nenhum erro. Agora os
+  redirecionamentos `>`, `>>`, `<`, `2>`, `2>>` e `2>&1` são feitos em Go, e as aspas agrupam
+  argumentos (antes `strings.Fields` quebrava `"meu arquivo.txt"`). Continua sem shell:
+  `;`, `&&`, `|`, `$VAR` etc. viram texto dos argumentos. O `WinExec` usa a mesma divisão
+  com aspas. A documentação, que ainda falava em `sh -c`, foi corrigida.
+- **`GetEnv` de variável inexistente devolvia `"Nil"`** em vez de `""`: o default ausente
+  passava por `ToString(NIL)`. Com isso `!Empty(GetEnv("X"))` era verdadeiro para `X` não
+  definida.
+
 ## [4.7.1] - 2026-11-20
 
 ### Fixed

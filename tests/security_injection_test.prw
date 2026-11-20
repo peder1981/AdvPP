@@ -28,7 +28,7 @@ User Function SecurityInjectionTst()
 
     // Should safely handle semicolon as data, not command separator
     // With shell invocation (vulnerable): "sh -c" would execute both echo and rm
-    // With exec.Command (fixed): only "echo" runs with args "test;" as a single argument
+    // With exec.Command (fixed): only "echo" runs, "test;" is just an argument
     nRet := WaitRun("echo test")
 
     // If we got here without executing arbitrary commands, injection is prevented
