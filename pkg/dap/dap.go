@@ -44,6 +44,10 @@ func NewConn(r io.Reader, w io.Writer) *Conn {
 	return &Conn{r: bufio.NewReader(r), w: w}
 }
 
+// maxMessageBytes: teto do corpo de uma mensagem DAP (o Content-Length vem
+// do cliente; sem teto, um valor enorme vira make() gigante → OOM).
+const maxMessageBytes = 16 << 20
+
 // ReadMessage bloqueia até a próxima mensagem completa chegar, ou retorna
 // io.EOF quando o stdin fecha (cliente desconectou).
 func (c *Conn) ReadMessage() (*Envelope, error) {
@@ -57,14 +61,26 @@ func (c *Conn) ReadMessage() (*Envelope, error) {
 		if line == "" {
 			break // linha em branco separa headers do corpo
 		}
-		if strings.HasPrefix(line, "Content-Length:") {
-			v := strings.TrimSpace(strings.TrimPrefix(line, "Content-Length:"))
+		// Só os headers do protocolo DAP/LSP. Qualquer outra linha (ex.: a
+		// request line "POST / HTTP/1.1" ou "Origin:" de um browser) aborta:
+		// sem isso, uma página web qualquer conseguia injetar comandos DAP
+		// na porta TCP do --debug-port via fetch() cross-protocol.
+		name, val, ok := strings.Cut(line, ":")
+		switch {
+		case ok && strings.EqualFold(name, "Content-Length"):
+			v := strings.TrimSpace(val)
 			n, err := strconv.Atoi(v)
 			if err != nil {
 				return nil, fmt.Errorf("dap: Content-Length inválido: %q", v)
 			}
 			contentLength = n
+		case ok && strings.EqualFold(name, "Content-Type"):
+		default:
+			return nil, fmt.Errorf("dap: header inesperado: %q", line)
 		}
+	}
+	if contentLength > maxMessageBytes {
+		return nil, fmt.Errorf("dap: mensagem de %d bytes excede o limite (%d)", contentLength, maxMessageBytes)
 	}
 	if contentLength <= 0 {
 		return nil, fmt.Errorf("dap: mensagem sem Content-Length")
