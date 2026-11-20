@@ -102,6 +102,12 @@ breakpoints, then (re)load the page in the browser — each browser
 tab/reload creates a fresh VM session server-side, and the debugger attaches
 to the *next* one that starts after `configurationDone`.
 
+Security (since 4.7.0): `advplc serve` only answers requests whose `Host` is
+`localhost`/an IP literal (or a name listed in `ADVPL_SERVE_HOST` /
+`ADVPP_WEBUI_ALLOWED_HOSTS`) and whose `Origin`, if sent, matches — this blocks
+CSRF and DNS rebinding from other sites open in the browser. The debug port
+only accepts raw DAP frames, so a web page cannot drive the debugger.
+
 This is architecturally different from launch mode: `advplc serve` is a
 long-lived process that can have multiple concurrent browser sessions (one
 VM each). Only **one session is debugged at a time** — if a second tab

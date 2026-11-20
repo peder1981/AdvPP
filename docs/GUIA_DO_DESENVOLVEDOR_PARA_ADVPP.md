@@ -136,9 +136,9 @@
 | `--headless` | Desabilita interface (padrão) |
 | `--db <backend>` | Aceito mas sem efeito hoje — só `sqlite` está implementado |
 | `--db-path <caminho>` | Path do arquivo SQLite |
-| `--port <n>` | Porta do servidor web (modo serve) |
+| `--port <n>` | Porta do servidor web (modo serve). Host: `ADVPL_SERVE_HOST` (padrão `localhost`); nomes extras aceitos no header `Host`: `ADVPP_WEBUI_ALLOWED_HOSTS` |
 | `--watch`, `-w` | Hot reload: recompila ao detectar mudança no fonte |
-| `--debug-port <n>` | Abre listener TCP DAP para attach debugging |
+| `--debug-port <n>` | Abre listener TCP DAP (só `localhost`) para attach debugging; aceita apenas frames DAP (`Content-Length`/`Content-Type`, corpo ≤ 16 MB) — requisição HTTP de browser é recusada |
 | `-o <arquivo>` | Arquivo de saída (para `compile` e `build`) |
 | `--gui` | `build`: fixa o binário como app desktop — janela Fyne sempre, sem tentar console; no Windows linka no subsistema GUI (`-H=windowsgui`, ldflags, ver `goBuildArgs` em `pkg/compiler/standalone.go`), sem flash de console. Obrigatório para programas com `MSDIALOG`. Sem essa flag, o binário standalone decide sozinho em runtime (console se TTY + nada de UI detectado no bytecode; Fyne caso contrário) — ver `pkg/compiler/stub_template.go`. `ADVPP_FORCE_GUI=1` é o equivalente em runtime, mais fraco (não muda o subsistema Windows). |
 

@@ -17,15 +17,18 @@ Alternativas:
 
 ### Compilando do fonte
 
-Requer Go 1.24+:
+Requer Go 1.27+:
 
 ```bash
 git clone https://github.com/peder1981/AdvPP && cd AdvPP
 make build   # gera advplc, adveditor, advpp-ide na raiz do repo
 ```
 
-CI roda a suite completa em Linux, Windows e macOS a cada push
-(`.github/workflows/test.yml`). Ao escrever código ou testes
+CI roda a suite completa em Linux (amd64 e arm64), Windows e macOS a cada
+push (`.github/workflows/test.yml`), cross-compila os 6 alvos do CLI e
+exige **bytecode idêntico nos 4 runners** (job `determinism`: todo fonte de
+`examples/` e `tests/` tem que gerar o mesmo sha256 em todo SO). O `master`
+é protegido: só recebe mudança com a matriz inteira verde. Ao escrever código ou testes
 platform-specific (FFI, `unsafe`, arquivos temporários, etc.), leia
 [`docs/testing-cross-platform.md`](docs/testing-cross-platform.md) antes —
 documenta o padrão e os bugs reais já encontrados nessa categoria.
@@ -269,6 +272,17 @@ embutido no binário (`embed.FS`): nenhuma dependência extra em produção.
 
 Para alterar o frontend: `make web` (requer Node 20+; o resultado
 compilado é versionado, então `go build` funciona sem Node).
+
+**Segurança do modo web.** Por padrão o servidor escuta só em `localhost`
+(`ADVPL_SERVE_HOST=0.0.0.0` libera a rede). Toda requisição passa por uma
+checagem de origem que bloqueia CSRF e DNS rebinding: o `Host` precisa ser
+`localhost`/IP literal (ou um nome listado em `ADVPL_SERVE_HOST` /
+`ADVPP_WEBUI_ALLOWED_HOSTS`, separados por vírgula) e o `Origin`, quando
+presente, o mesmo host:porta. Acessando pela LAN por **nome** de máquina,
+inclua-o: `ADVPP_WEBUI_ALLOWED_HOSTS=meu-servidor advplc serve x.prw`.
+Limites: 64 sessões simultâneas, `/reply` só POST com até 8 MB. A porta
+`--debug-port` (DAP) aceita só frames DAP puros — requisição HTTP vinda de
+browser é recusada.
 
 ## Framework MVC
 

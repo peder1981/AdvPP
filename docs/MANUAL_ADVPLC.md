@@ -166,6 +166,17 @@ TOTVS), embutida no próprio binário — não precisa de Node, npm ou
 SmartClient. Cada aba/recarga do browser cria uma sessão com VM isolada
 e conexão própria ao banco.
 
+**Segurança do modo web.** Por padrão o servidor escuta só em `localhost`
+(`ADVPL_SERVE_HOST=0.0.0.0` libera a rede). Toda requisição passa por uma
+checagem de origem que bloqueia CSRF e DNS rebinding: o `Host` precisa ser
+`localhost`/IP literal (ou um nome listado em `ADVPL_SERVE_HOST` /
+`ADVPP_WEBUI_ALLOWED_HOSTS`, separados por vírgula) e o `Origin`, quando
+presente, o mesmo host:porta. Acessando pela LAN por **nome** de máquina,
+inclua-o: `ADVPP_WEBUI_ALLOWED_HOSTS=meu-servidor advplc serve x.prw`.
+Limites: 64 sessões simultâneas, `/reply` só POST com até 8 MB. A porta
+`--debug-port` (DAP) aceita só frames DAP puros — requisição HTTP vinda de
+browser é recusada.
+
 O que é renderizado:
 
 | Recurso AdvPL | No browser |

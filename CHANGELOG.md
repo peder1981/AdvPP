@@ -2,6 +2,55 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.7.0] - 2026-11-20
+
+### Added
+- **Garantia de compatibilidade Linux/Windows/macOS na CI** (`.github/workflows/test.yml`):
+  matriz ganha `ubuntu-24.04-arm` (linux-arm64 já era embutido na extensão VS Code sem
+  ser testado); cross-compile (`vet` + `build`) dos 6 alvos do CLI; job `determinism`
+  exige sha256 idêntico do bytecode de todo fonte de `examples/` e `tests/` nos 4 runners
+  (`TestBytecodeDeterminism`, `cmd/advplc/bytecode_determinism_test.go`).
+- **`ADVPL_SERVE_HOST`**: host do `advplc serve` configurável (padrão `localhost`).
+- **`ADVPP_WEBUI_ALLOWED_HOSTS`**: nomes extras aceitos no `Host` do `advplc serve`.
+- Fuzz tests: `FuzzPipeline` (`pkg/parser`) e `FuzzParse` (`pkg/rpo`).
+- Relatório `docs/security/SECURITY_AUDIT_2026_11_20.md`.
+
+### Changed
+- `.gitattributes`: fontes AdvPL/TLPP (`*.prw`, `*.tlpp`, `*.ch`, `*.th`, `*.prx`,
+  `*.prg`) como `-text` — checkout no Windows não converte mais LF→CRLF (o fim de linha
+  entra no bytecode via string `[colchetes]` multi-linha).
+- `ci.yml` removido: duplicava o `test.yml` e o lint tinha `continue-on-error` (nunca
+  falhava). `test.yml` é o workflow único de validação.
+- **Comportamento:** `advplc serve` acessado pela rede por **nome** de máquina precisa
+  desse nome em `ADVPP_WEBUI_ALLOWED_HOSTS` (IP literal e `localhost` seguem aceitos).
+
+### Security
+- **`advplc serve`: bloqueio de CSRF e DNS rebinding.** Qualquer página aberta no
+  browser podia disparar `GET /events` (o programa executa a cada requisição) e, via
+  DNS rebinding, ler eventos e responder diálogos. Agora o `Host` precisa ser
+  loopback/IP literal (ou `ADVPL_SERVE_HOST` / `ADVPP_WEBUI_ALLOWED_HOSTS`, separados
+  por vírgula) e o `Origin`, quando presente, o mesmo host:porta. Também: `/reply` só
+  aceita POST com corpo ≤ 8 MB, teto de 64 sessões simultâneas, `ReadHeaderTimeout`.
+  Teste: `pkg/webui/origin_test.go`.
+- **DAP (`--debug-port`): requisição HTTP cross-protocol rejeitada.** O leitor de
+  frames ignorava linhas desconhecidas, então um `fetch()` de página web para a porta
+  TCP virava comando DAP (inclusive `launch`). Agora só `Content-Length`/`Content-Type`
+  são aceitos e o corpo tem teto de 16 MB (antes, `make()` sem limite → OOM).
+- **GGUF malformado não derruba mais o processo.** Contagens/tamanhos do header
+  limitados ao tamanho do arquivo, `nDims ≤ 4`, arrays aninhados ≤ 8,
+  `general.alignment = 0` vira erro, tensores fora do arquivo checados antes de alocar.
+- **`advplc exec` valida o `.bc`.** `numGlobals`/`NumLocals`/offsets negativos ou
+  gigantes causavam pânico ou OOM fatal; agora viram erro de carga.
+
+### Fixed
+- **`advplc compile` falhava com `json: unsupported value: +Inf`** quando um literal
+  estoura `float64` (ex.: `1.8e308` em `tests/stability_edge_case_matrix_test.prw`).
+  `Constant` serializa ±Inf/NaN como string; `.bc` antigos continuam carregando.
+  Achado pelo job de determinismo. Teste: `TestBytecodeNonFiniteConstants`.
+- **Preprocessor: `#command` com `[` sem `]` causava pânico** (slice out of range em
+  `compilePattern`). Achado por fuzzing; fuzz tests novos em `pkg/parser/fuzz_test.go`
+  (preprocessor→lexer→parser) e `pkg/rpo/fuzz_test.go` (RPO/APO).
+
 ## [4.6.1] - 2026-11-07
 
 ### Fixed
