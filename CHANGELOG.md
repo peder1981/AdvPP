@@ -2,6 +2,26 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.7.1] - 2026-11-20
+
+### Fixed
+- **Pacotes da release corrompidos.** Os jobs `cli-cross` e `native` do
+  `.github/workflows/release.yml` publicavam arquivos com o mesmo nome
+  (`advpp-<versão>-linux-amd64.tar.gz`, `-windows-amd64.zip`, `-darwin-arm64.tar.gz`) e o
+  `download-artifact` com `merge-multiple` gravava os dois no mesmo caminho, misturando os
+  bytes: a v4.6.1 saiu com "trailing garbage", a v4.7.0 com tar.gz ilegível — com o
+  workflow verde. Os pacotes só-CLI agora se chamam `advpp-cli-<versão>-<so>-<arch>`
+  (linux-amd64, linux-arm64, darwin-arm64, windows-amd64), como já documentado em
+  `docs/MANUAL_ADVPLC.md`; os pacotes `advpp-<versão>-<plataforma>` são a suíte completa.
+- **`install.sh` não funcionava:** baixava `advpp-cli-<versão>-…tar.gz`, nome que nenhuma
+  release publicava; no macOS o binário dentro do pacote ainda se chamava `advplc-darwin`.
+- **`make package` apagava o `./advplc` da raiz do repositório** (build e `rm -f` no
+  diretório raiz). Agora compila em `dist/cli-<so>-<arch>/`.
+- **Release:** novo passo "Integridade dos pacotes" (`gzip -t`/`tar`/`unzip -t`/`dpkg-deb`)
+  falha o workflow em pacote corrompido; criação da release não engole mais erro (antes,
+  `2>/dev/null` + loop terminando em `sleep` deixava o passo verde mesmo falhando); a tag
+  não é mais apagada e recriada a partir do HEAD do `master` (`--verify-tag`).
+
 ## [4.7.0] - 2026-11-20
 
 ### Added
