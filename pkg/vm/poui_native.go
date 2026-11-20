@@ -15,6 +15,13 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POINPUT":  {"PoInput", "input"},
 	"POTABLE":  {"PoTable", "table"},
 	"POTAG":    {"PoTag", "tag"},
+	// fase 2: estrutura
+	"POMENU":      {"PoMenu", "menu"},
+	"POCONTAINER": {"PoContainer", "container"},
+	"POWIDGET":    {"PoWidget", "widget"},
+	"PODIVIDER":   {"PoDivider", "divider"},
+	"POTABS":      {"PoTabs", "tabs"},
+	"POTAB":       {"PoTab", "tab"},
 }
 
 // isPoClass diz se a ClassName é de um componente Po* (despacho de métodos).
@@ -75,6 +82,15 @@ func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []adv
 		return nil
 	case "KILLTIMER":
 		a.killTimer(int(advplrt.ToFloat(getArg(args, 0))))
+	case "NAVIGATE":
+		pg, ok := paiNative[*poComp](asObj(getArg(args, 0)))
+		if !ok || pg.typ != "page" || pg.app != a {
+			return fmt.Errorf("PoApp:Navigate: página de outra aplicação")
+		}
+		a.cur = pg
+		a.remount = a.active
+	case "NOTIFY":
+		a.addOp(map[string]any{"op": "notify", "text": advplrt.ToString(getArg(args, 0)), "type": argTexto(args, 1, "information")})
 	default:
 		return fmt.Errorf("unknown method %s on PoApp", method)
 	}
@@ -87,25 +103,44 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 	info := poClasses[strings.ToUpper(obj.ClassName)]
 	pai, _ := getArg(args, 0).(*advplrt.ObjectValue)
 	var c *poComp
-	if info.typ == "page" {
+	switch info.typ {
+	case "page", "menu":
 		a, ok := paiNative[*poAppState](pai)
 		if !ok {
 			return fmt.Errorf("%s: pai inválido (esperado PoApp)", obj.ClassName)
 		}
-		if a.page != nil {
-			return fmt.Errorf("PoApp: só uma PoPage por aplicação nesta versão")
+		if info.typ == "menu" {
+			if a.menu != nil {
+				return fmt.Errorf("PoApp: só um PoMenu por aplicação")
+			}
+			c = a.add("menu", obj)
+			a.menu = c
+			c.props["items"] = []map[string]any{}
+			break
 		}
 		c = a.add("page", obj)
-		a.page = c
+		a.pages = append(a.pages, c)
+		if a.cur == nil {
+			a.cur = c
+		}
 		c.props["title"] = advplrt.ToString(getArg(args, 1))
 		c.props["actions"] = []map[string]any{}
-	} else {
-		pg, ok := paiNative[*poComp](pai)
-		if !ok || pg.typ != "page" {
-			return fmt.Errorf("%s: pai inválido (esperado PoPage)", obj.ClassName)
+	default:
+		p, ok := paiNative[*poComp](pai)
+		if info.typ == "tab" {
+			ok = ok && p.typ == "tabs"
+		} else {
+			ok = ok && p.app.isContainer(p)
 		}
-		c = pg.app.add(info.typ, obj)
-		pg.children = append(pg.children, c)
+		if !ok {
+			return fmt.Errorf("%s: pai inválido", obj.ClassName)
+		}
+		c = p.app.add(info.typ, obj)
+		if info.typ == "tab" {
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["active"] = len(p.children) == 0
+		}
+		p.children = append(p.children, c)
 		switch info.typ {
 		case "button":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
@@ -121,11 +156,21 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		case "tag":
 			c.props["value"] = advplrt.ToString(getArg(args, 1))
 			c.props["type"] = argTexto(args, 2, "neutral")
+		case "container", "widget":
+			c.props["title"] = argTexto(args, 1, "")
+		case "divider":
+			c.props["label"] = argTexto(args, 1, "")
 		}
 	}
 	obj.Native = c
 	v.push(obj)
 	return nil
+}
+
+// asObj: o valor como objeto, ou nil.
+func asObj(x advplrt.Value) *advplrt.ObjectValue {
+	o, _ := x.(*advplrt.ObjectValue)
+	return o
 }
 
 func paiNative[T any](pai *advplrt.ObjectValue) (T, bool) {
@@ -171,6 +216,20 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		c.handlers["change"] = getArg(args, 0)
 	case "ONSELECT":
 		c.handlers["select"] = getArg(args, 0)
+	case "SETCOLS":
+		n := int(advplrt.ToFloat(getArg(args, 0)))
+		if n < 1 || n > 12 {
+			return fmt.Errorf("SetCols: use de 1 a 12")
+		}
+		a.setProp(c, "cols", n)
+	case "ADDITEM":
+		if c.typ != "menu" {
+			return fmt.Errorf("AddItem: só em PoMenu")
+		}
+		items := c.props["items"].([]map[string]any)
+		n := len(items)
+		c.handlers[fmt.Sprintf("action:%d", n)] = getArg(args, 2)
+		a.setProp(c, "items", append(items, map[string]any{"label": advplrt.ToString(getArg(args, 0)), "icon": argTexto(args, 1, ""), "index": n}))
 	case "ADDACTION":
 		if c.typ != "page" {
 			return fmt.Errorf("AddAction: só em PoPage")

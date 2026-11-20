@@ -1150,6 +1150,7 @@ func isBuiltinClass(name string) bool {
 // continuam chamando a sua função.
 var poClassNames = map[string]bool{
 	"POAPP": true, "POPAGE": true, "POBUTTON": true, "POINPUT": true, "POTABLE": true, "POTAG": true,
+	"POMENU": true, "POCONTAINER": true, "POWIDGET": true, "PODIVIDER": true, "POTABS": true, "POTAB": true,
 }
 
 func isPoClassName(name string) bool {

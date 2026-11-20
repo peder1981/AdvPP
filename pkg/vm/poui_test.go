@@ -177,16 +177,22 @@ Return
 	}
 }
 
-func TestPoSegundaPaginaRecusada(t *testing.T) {
-	_, _, err := rodaPrg(t, `
+func TestPoVariasPaginas(t *testing.T) {
+	v, _, err := rodaPrg(t, `
 User Function Main()
 	Local oApp := PoApp():New("T")
-	Local oP1  := PoPage():New(oApp, "1")
-	Local oP2  := PoPage():New(oApp, "2")
+	Local oP1  := PoPage():New(oApp, "Um")
+	Local oP2  := PoPage():New(oApp, "Dois")
 Return
 `)
-	if err == nil || !strings.Contains(err.Error(), "só uma PoPage") {
-		t.Errorf("erro = %v", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v.poApp.pages) != 2 {
+		t.Fatalf("páginas = %d", len(v.poApp.pages))
+	}
+	if !strings.Contains(string(v.poApp.mountJSON()), `"title":"Um"`) || strings.Contains(string(v.poApp.mountJSON()), `"Dois"`) {
+		t.Errorf("mount deveria trazer só a página corrente: %s", v.poApp.mountJSON())
 	}
 }
 

@@ -19,7 +19,7 @@ type ComponentUI interface {
 // poComp é um componente da árvore (página, botão, campo...).
 type poComp struct {
 	id       int
-	typ      string // page | button | input | table | tag
+	typ      string // page | menu | container | widget | divider | tabs | tab | button | input | table | tag
 	props    map[string]any
 	children []*poComp
 	handlers map[string]advplrt.Value // "click", "change", "select", "action:<n>"
@@ -32,7 +32,10 @@ type poComp struct {
 // poAppState é o estado de um PoApp (uma por VM ativa por vez).
 type poAppState struct {
 	title     string
-	page      *poComp
+	pages     []*poComp
+	cur       *poComp // página corrente (a que vai no mount)
+	menu      *poComp
+	remount   bool // Navigate durante um handler: reenvia o mount ao fim dele
 	byID      map[int]*poComp
 	nextID    int
 	active    bool
@@ -79,19 +82,39 @@ func (c *poComp) node() poNode {
 	return n
 }
 
-// mountJSON é a operação "mount" com a página corrente.
+// mountJSON é a operação "mount" com o menu e a página corrente.
 func (a *poAppState) mountJSON() []byte {
 	op := struct {
 		Op    string  `json:"op"`
 		Title string  `json:"title"`
+		Menu  *poNode `json:"menu"`
 		Tree  *poNode `json:"tree"`
 	}{Op: "mount", Title: a.title}
-	if a.page != nil {
-		n := a.page.node()
+	if a.menu != nil {
+		n := a.menu.node()
+		op.Menu = &n
+	}
+	if a.cur != nil {
+		n := a.cur.node()
 		op.Tree = &n
 	}
 	data, _ := json.Marshal(op)
 	return data
+}
+
+// addOp acrescenta uma operação não-patch (notify, confirm, loading) ao lote,
+// na ordem em que o programa a gerou. Antes do Activate, sai logo após o mount.
+func (a *poAppState) addOp(op map[string]any) {
+	a.batch = append(a.batch, op)
+}
+
+// isContainer: tipos que aceitam componentes de conteúdo como filhos.
+func (a *poAppState) isContainer(c *poComp) bool {
+	switch c.typ {
+	case "page", "container", "widget", "tab":
+		return true
+	}
+	return false
 }
 
 // poToJSON converte um valor AdvPL para o JSON do protocolo.

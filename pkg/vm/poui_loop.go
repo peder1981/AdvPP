@@ -78,9 +78,10 @@ func (a *poAppState) stopTimers() {
 func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
 	a.ui = ui
 	a.closed = false
-	a.batch = nil
+	a.remount = false
 	ui.UISend(a.mountJSON())
 	a.active = true
+	a.flush() // ops geradas antes do Activate (ex.: Notify de boas-vindas)
 	defer func() {
 		a.stopTimers()
 		a.active = false
@@ -92,14 +93,33 @@ func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
 	for !a.closed {
 		id, ev, val := ui.UINext()
 		v.poDispatch(a, id, ev, val)
-		if len(a.batch) > 0 {
-			data, _ := json.Marshal(map[string]any{"op": "batch", "ops": a.batch})
-			a.batch = nil
-			ui.UISend(data)
+		if a.remount {
+			// Navigate: a página nova vai inteira; patches perdem o sentido,
+			// as demais ops (notify...) seguem depois do mount.
+			a.remount = false
+			ui.UISend(a.mountJSON())
+			resto := a.batch[:0]
+			for _, op := range a.batch {
+				if op["op"] != "patch" {
+					resto = append(resto, op)
+				}
+			}
+			a.batch = resto
 		}
+		a.flush()
 	}
 	ui.UISend([]byte(`{"op":"close"}`))
 	return nil
+}
+
+// flush envia o lote acumulado, se houver.
+func (a *poAppState) flush() {
+	if len(a.batch) == 0 {
+		return
+	}
+	data, _ := json.Marshal(map[string]any{"op": "batch", "ops": a.batch})
+	a.batch = nil
+	a.ui.UISend(data)
 }
 
 // poDispatch executa o handler do evento. Evento sem destino ou sem handler
