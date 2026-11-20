@@ -1,1 +1,14 @@
 installer/*.bat text eol=crlf
+
+# Fontes AdvPL/TLPP: bytes exatamente como commitados em todo SO (sem
+# conversão LF<->CRLF no checkout do Windows). São CP-1252 e o fim de linha
+# entra no bytecode (ex.: string [colchetes] que continua na linha seguinte),
+# então converter mudaria o resultado da compilação conforme o SO.
+*.prw  -text
+*.PRW  -text
+*.prx  -text
+*.prg  -text
+*.tlpp -text
+*.ch   -text
+*.CH   -text
+*.th   -text
