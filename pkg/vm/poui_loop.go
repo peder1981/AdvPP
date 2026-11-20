@@ -144,7 +144,11 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 	if _, ok := h.(*advplrt.CodeBlockValue); !ok {
 		return
 	}
+	pilha := len(v.stack)
 	if _, err := v.callBlockSync(h, args...); err != nil {
+		// callBlockSync desfaz os frames mas não a pilha de operandos: sem
+		// isto, um handler que falha a cada timer cresce a pilha sem limite.
+		v.stack = v.stack[:pilha]
 		v.writeOut(fmt.Sprintf("PoApp: erro no evento %s do componente %d: %v", ev, id, err))
 	}
 }

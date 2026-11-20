@@ -26,6 +26,7 @@ type fakeUI struct {
 	quit     chan struct{}
 	postToIn bool // UIPost (timers) entra na fila de eventos
 	posts    atomic.Int32
+	onNext   func() // chamado a cada UINext (inspeção da VM no teste)
 }
 
 func newFakeUI(evs ...fakeEv) *fakeUI {
@@ -65,6 +66,9 @@ func (f *fakeUI) UIPost(id int, ev string, val []byte) {
 }
 
 func (f *fakeUI) UINext() (int, string, []byte) {
+	if f.onNext != nil {
+		f.onNext()
+	}
 	select {
 	case e := <-f.in:
 		return e.id, e.ev, e.val
@@ -334,5 +338,39 @@ Return
 `)
 	if err == nil || !strings.Contains(err.Error(), "mínimo 100 ms") {
 		t.Errorf("erro = %v", err)
+	}
+}
+
+// Handler com erro repetido (ex.: timer quebrado num app que fica dias
+// aberto) não pode deixar lixo na pilha de operandos da VM a cada evento.
+func TestHandlerErroNaoAcumulaPilha(t *testing.T) {
+	var evs []fakeEv
+	for i := 0; i < 50; i++ {
+		evs = append(evs, fakeEv{2, "click", nil})
+	}
+	evs = append(evs, fakeEv{3, "click", nil})
+	f := newFakeUI(evs...)
+	v := NewVM(compilarPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oB1  := PoButton():New(oPg, "Erro", {|| 1 + FuncaoQueNaoExiste(2, 3)})
+	Local oB2  := PoButton():New(oPg, "Sair", {|| oApp:Close()})
+	oApp:Activate()
+Return
+`), true)
+	v.SetUIProvider(f)
+	v.SetOutputWriter(&syncBuf{})
+	var maxPilha int
+	f.onNext = func() {
+		if n := len(v.stack); n > maxPilha {
+			maxPilha = n
+		}
+	}
+	if _, err := v.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if maxPilha > 20 {
+		t.Errorf("pilha cresceu para %d itens após 50 erros em handler", maxPilha)
 	}
 }
