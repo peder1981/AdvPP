@@ -14,7 +14,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # ubuntu-24.04-arm: linux-arm64 é embutido na extensão VS Code
+        # (tools/vscode-advpl/build-vsix.sh) — precisa ser testado nativo.
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +42,28 @@ jobs:
         # versionado) ou do binário llama-cli de referência pulam sozinhos
         # via os.Stat — não é preciso -short para eles rodarem em CI.
         run: go test ./...
+      - name: Bytecode hashes (determinismo entre SOs)
+        # Grava sha256 do bytecode de todo fonte em examples/ e tests/; o
+        # job `determinism` abaixo exige que os 4 runners gerem o mesmo.
+        shell: bash
+        env:
+          ADVPP_BYTECODE_HASHES: ${{ github.workspace }}/bytecode-hashes.txt
+        run: go test ./cmd/advplc -run TestBytecodeDeterminism -count=1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bytecode-hashes-${{ matrix.os }}
+          path: bytecode-hashes.txt
+      - name: Cross-compile (alvos publicados)
+        # CLI é Go puro (CGO_ENABLED=0): os alvos da release e da extensão
+        # VS Code têm que compilar a partir de qualquer SO.
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          for t in linux/amd64 linux/arm64 windows/amd64 windows/arm64 darwin/arm64 darwin/amd64; do
+            echo "== $t"
+            GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go vet -unsafeptr=false ./pkg/... ./cmd/advplc
+            GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go build -o /dev/null ./cmd/advplc
+          done
       - name: Standalone executable smoke test (Windows)
         # Só builda e RODA (não só "builda") um executável standalone
         # gerado por `advplc build` num runner Windows nativo de verdade —
@@ -81,3 +105,24 @@ jobs:
           # that's the actual bug under test, so it must fail the step even
           # though the expected output made it into out.log before the kill.
           test "$hung" -eq 0
+
+  determinism:
+    # A mesma revisão precisa gerar bytecode idêntico em Linux (amd64/arm64),
+    # Windows e macOS. Diferença aqui = compilação dependente de SO (fim de
+    # linha, separador de caminho, ordem de map, float...) — bug, não flake.
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bytecode-hashes-*
+      - name: Comparar hashes
+        shell: bash
+        run: |
+          ref=bytecode-hashes-ubuntu-latest/bytecode-hashes.txt
+          echo "$(wc -l < "$ref") fontes"
+          fail=0
+          for f in bytecode-hashes-*/bytecode-hashes.txt; do
+            if ! diff -u "$ref" "$f"; then echo "DIVERGE: $f"; fail=1; fi
+          done
+          exit $fail

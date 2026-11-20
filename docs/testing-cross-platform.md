@@ -9,6 +9,27 @@ e nunca localmente — documentado aqui para não repetir a mesma investigação
 do zero na próxima feature nessa categoria (drivers nativos, threads de SO,
 qualquer coisa que toque API de plataforma).
 
+## Garantias automáticas da CI (desde v4.7.0)
+
+`.github/workflows/test.yml`, a cada push e PR:
+
+| Gate | O que prova |
+|------|-------------|
+| Matriz `ubuntu-latest`, `ubuntu-24.04-arm`, `windows-latest`, `macos-latest` | `go vet -unsafeptr=false` + `go test ./...` nativos nos 4 alvos com runner (linux-arm64 entra porque é embutido na extensão VS Code) |
+| Cross-compile (no runner Linux) | `vet` + `build` do CLI para linux/{amd64,arm64}, windows/{amd64,arm64}, darwin/{arm64,amd64} |
+| Job `determinism` | Cada runner grava o sha256 do bytecode de todo `.prw`/`.tlpp` em `examples/` e `tests/` (`TestBytecodeDeterminism`, `cmd/advplc/bytecode_determinism_test.go`, com `ADVPP_BYTECODE_HASHES=<arquivo>`); o job falha se qualquer SO divergir |
+| Proteção do `master` | Push/merge só com todos os jobs acima verdes |
+
+`.gitattributes` marca os fontes AdvPL/TLPP (`*.prw`, `*.tlpp`, `*.ch`,
+`*.th`, `*.prx`, `*.prg`) como `-text`: o checkout no Windows não converte
+LF→CRLF. Isso importa porque o fim de linha entra no bytecode — uma string
+`[colchetes]` que continua na linha seguinte guarda a quebra crua (ver
+`tests/parser_gaps2_test.prw:151`), então a conversão fazia a mesma
+revisão compilar diferente por SO. O compilador em si é determinístico
+por bytes de entrada.
+
+Rodar localmente: `ADVPP_BYTECODE_HASHES=/tmp/h.txt go test ./cmd/advplc -run TestBytecodeDeterminism`.
+
 ## Regra central
 
 **Build e teste locais (Linux, aqui) nunca são suficientes para código

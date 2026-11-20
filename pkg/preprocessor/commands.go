@@ -102,7 +102,11 @@ func compilePattern(s string) []patToken {
 				}
 				j++
 			}
-			inner := s[i+1 : j-1]
+			end := j // "[" sem "]" (fonte malformado): grupo vai até o fim
+			if depth == 0 {
+				end = j - 1
+			}
+			inner := s[i+1 : end]
 			i = j
 			toks = append(toks, compileOptional(inner))
 		default:

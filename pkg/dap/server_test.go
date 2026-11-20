@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -222,4 +224,23 @@ func TestDebugSessionBreakpointStepVariables(t *testing.T) {
 	}
 
 	clientW.Close()
+}
+
+// Requisição HTTP de um browser (fetch cross-protocol para a porta do
+// --debug-port) não pode ser aceita como mensagem DAP.
+func TestReadMessageRejectsHTTP(t *testing.T) {
+	body := `{"seq":1,"type":"request","command":"disconnect"}`
+	req := "POST / HTTP/1.1\r\nHost: localhost:4711\r\nContent-Type: text/plain\r\nContent-Length: " +
+		strconv.Itoa(len(body)) + "\r\n\r\n" + body
+	if _, err := dap.NewConn(strings.NewReader(req), io.Discard).ReadMessage(); err == nil {
+		t.Fatal("esperava erro para request HTTP")
+	}
+	huge := "Content-Length: 99999999999\r\n\r\n"
+	if _, err := dap.NewConn(strings.NewReader(huge), io.Discard).ReadMessage(); err == nil {
+		t.Fatal("esperava erro para Content-Length gigante")
+	}
+	ok := "Content-Length: " + strconv.Itoa(len(body)) + "\r\n\r\n" + body
+	if _, err := dap.NewConn(strings.NewReader(ok), io.Discard).ReadMessage(); err != nil {
+		t.Fatalf("mensagem DAP válida rejeitada: %v", err)
+	}
 }

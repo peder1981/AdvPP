@@ -18,10 +18,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -291,6 +294,11 @@ func (srv *Server) Serve(addr string) error {
 		// mesma sessão em vez de criar uma nova.
 		mu.Lock()
 		s, resumed := sessions[sid]
+		if !resumed && len(sessions) >= maxSessions {
+			mu.Unlock()
+			http.Error(w, "too many sessions", http.StatusServiceUnavailable)
+			return
+		}
 		if !resumed {
 			s = newSession()
 			sessions[sid] = s
@@ -367,7 +375,8 @@ func (srv *Server) Serve(addr string) error {
 		}
 	})
 
-	mux.HandleFunc("/reply", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /reply", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxReplyBytes)
 		sid := r.URL.Query().Get("s")
 		mu.Lock()
 		s := sessions[sid]
@@ -389,5 +398,63 @@ func (srv *Server) Serve(addr string) error {
 	})
 
 	fmt.Printf("AdvPP web: http://%s  (fonte: %s)\n", addr, sourceName)
-	return http.ListenAndServe(addr, mux)
+	hs := &http.Server{
+		Addr:              addr,
+		Handler:           sameOrigin(mux),
+		ReadHeaderTimeout: 10 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+	return hs.ListenAndServe()
+}
+
+// Limites do modo web: sessões simultâneas (cada uma é uma VM rodando o
+// programa) e corpo do /reply (resposta de diálogo/browse).
+const (
+	maxSessions   = 64
+	maxReplyBytes = 8 << 20
+)
+
+// sameOrigin barra requisições vindas de outro site. Sem isso, qualquer
+// página aberta no browser do usuário podia disparar GET /events (o
+// programa executa a cada requisição — EventSource/img não precisam de
+// CORS para *enviar*) e, via DNS rebinding (attacker.com resolvendo para
+// 127.0.0.1), ler os eventos e responder diálogos pelo /reply.
+//   - Host precisa ser loopback/IP literal ou o host de ADVPL_SERVE_HOST
+//     (rebinding sempre chega com o nome de domínio do atacante);
+//   - Origin, quando presente, precisa ter o mesmo host:porta da requisição.
+func sameOrigin(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !allowedHost(r.Host) {
+			http.Error(w, "host não permitido", http.StatusForbidden)
+			return
+		}
+		if o := r.Header.Get("Origin"); o != "" {
+			u, err := url.Parse(o)
+			if err != nil || u.Host != r.Host {
+				http.Error(w, "origem não permitida", http.StatusForbidden)
+				return
+			}
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+func allowedHost(hostport string) bool {
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") || net.ParseIP(host) != nil {
+		return true
+	}
+	// Nomes extras (ex.: hostname da máquina na LAN):
+	// ADVPL_SERVE_HOST e ADVPP_WEBUI_ALLOWED_HOSTS (separados por vírgula).
+	extra := os.Getenv("ADVPL_SERVE_HOST") + "," + os.Getenv("ADVPP_WEBUI_ALLOWED_HOSTS")
+	for _, a := range strings.Split(extra, ",") {
+		if a = strings.TrimSpace(a); a != "" && strings.EqualFold(a, host) {
+			return true
+		}
+	}
+	return false
 }

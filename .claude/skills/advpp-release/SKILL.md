@@ -99,7 +99,7 @@ gh run watch "$run_id" --exit-status
 
 Se precisar de um loop manual (ex.: esperar vários workflows
 disparados pelo mesmo push), usar o **nome do arquivo em minúsculo**
-em `--workflow` (`release.yml`/`test.yml`/`ci.yml` — o nome de
+em `--workflow` (`release.yml`/`test.yml` — o nome de
 exibição capitalizado, tipo `Release.yml`, dá `HTTP 404` silencioso se
 tiver `2>/dev/null` no comando, e o loop nunca sai). **Nunca** silenciar
 stderr num loop de polling — é assim que um 404 vira loop infinito sem

@@ -110,7 +110,15 @@ func Open(path string) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &reader{br: bufio.NewReaderSize(f, 64*1024)}
+	st, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	// limit: toda contagem/tamanho lido do header ocupa ao menos 1 byte no
+	// arquivo, então nunca pode passar do tamanho dele — barra alocações
+	// gigantes (OOM/pânico) vindas de um GGUF malformado.
+	r := &reader{br: bufio.NewReaderSize(f, 64*1024), limit: uint64(st.Size())}
 
 	var magic uint32
 	r.read(&magic)
@@ -125,20 +133,30 @@ func Open(path string) (*File, error) {
 	var nTensors, nKV uint64
 	r.read(&nTensors)
 	r.read(&nKV)
+	r.check(nTensors, "nTensors")
+	r.check(nKV, "nKV")
+	if r.err != nil {
+		f.Close()
+		return nil, fmt.Errorf("gguf: %w", r.err)
+	}
 
-	g.KV = make(map[string]any, nKV)
+	g.KV = make(map[string]any, min(nKV, prealloc))
 	for i := uint64(0); i < nKV && r.err == nil; i++ {
 		key := r.readString()
 		val := r.readValue()
 		g.KV[key] = val
 	}
 
-	g.Tensors = make([]Tensor, nTensors)
+	g.Tensors = make([]Tensor, 0, min(nTensors, prealloc))
 	for i := uint64(0); i < nTensors && r.err == nil; i++ {
 		var t Tensor
 		t.Name = r.readString()
 		var nDims uint32
 		r.read(&nDims)
+		if nDims > maxDims {
+			r.err = fmt.Errorf("nDims %d > %d no tensor %q", nDims, maxDims, t.Name)
+			break
+		}
 		t.Shape = make([]uint64, nDims)
 		for d := range t.Shape {
 			r.read(&t.Shape[d])
@@ -147,7 +165,7 @@ func Open(path string) (*File, error) {
 		r.read(&ttype)
 		t.Type = GGMLType(ttype)
 		r.read(&t.Offset)
-		g.Tensors[i] = t
+		g.Tensors = append(g.Tensors, t)
 	}
 
 	if r.err != nil {
@@ -158,6 +176,10 @@ func Open(path string) (*File, error) {
 	align := uint64(32)
 	if a, ok := g.Uint32("general.alignment"); ok {
 		align = uint64(a)
+	}
+	if align == 0 {
+		f.Close()
+		return nil, fmt.Errorf("gguf: general.alignment = 0")
 	}
 	dataStart := uint64(r.pos)
 	if rem := dataStart % align; rem != 0 {
@@ -201,8 +223,11 @@ func (g *File) TensorRange(name string, byteOffset, length uint64) ([]byte, erro
 	if !ok {
 		return nil, fmt.Errorf("gguf: tensor %q não encontrado", name)
 	}
-	if byteOffset+length > t.Size {
+	if byteOffset > t.Size || length > t.Size-byteOffset {
 		return nil, fmt.Errorf("gguf: intervalo fora dos limites do tensor %q", name)
+	}
+	if err := g.checkBounds(t); err != nil {
+		return nil, err
 	}
 	buf := make([]byte, length)
 	if _, err := g.f.ReadAt(buf, g.dataStart+int64(t.Offset)+int64(byteOffset)); err != nil {
@@ -217,11 +242,29 @@ func (g *File) TensorData(name string) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("gguf: tensor %q não encontrado", name)
 	}
+	if err := g.checkBounds(t); err != nil {
+		return nil, err
+	}
 	buf := make([]byte, t.Size)
 	if _, err := g.f.ReadAt(buf, g.dataStart+int64(t.Offset)); err != nil {
 		return nil, fmt.Errorf("gguf: lendo tensor %q: %w", name, err)
 	}
 	return buf, nil
+}
+
+// checkBounds garante que o tensor inteiro cabe no arquivo antes de alocar
+// t.Size bytes (offset/shape vêm do header, não confiável).
+func (g *File) checkBounds(t *Tensor) error {
+	st, err := g.f.Stat()
+	if err != nil {
+		return err
+	}
+	size := uint64(st.Size())
+	start := uint64(g.dataStart)
+	if start > size || t.Offset > size-start || t.Size > size-start-t.Offset {
+		return fmt.Errorf("gguf: tensor %q excede o tamanho do arquivo", t.Name)
+	}
+	return nil
 }
 
 // tensorByteSize replica ggml_nbytes para os tipos que o AdvPP suporta.
@@ -346,9 +389,26 @@ func numericKV(v any) (float64, bool) {
 // porque dataStart (onde a seção de dados de tensores começa) é calculado a
 // partir dele depois que o header acaba.
 type reader struct {
-	br  *bufio.Reader
-	pos int64
-	err error
+	br    *bufio.Reader
+	pos   int64
+	err   error
+	limit uint64 // tamanho do arquivo: teto para qualquer contagem lida
+	depth int    // aninhamento atual de arrays
+}
+
+// maxDims: GGML_MAX_DIMS. maxArrayDepth: teto de arrays aninhados (o
+// formato real usa 1 nível; sem teto, um arquivo hostil estoura a pilha).
+const (
+	maxDims       = 4
+	maxArrayDepth = 8
+	prealloc      = 1 << 16
+)
+
+// check marca erro se n (contagem/tamanho lido do arquivo) excede o arquivo.
+func (r *reader) check(n uint64, what string) {
+	if r.err == nil && n > r.limit {
+		r.err = fmt.Errorf("%s = %d excede o tamanho do arquivo (%d)", what, n, r.limit)
+	}
 }
 
 func (r *reader) read(v any) {
@@ -406,6 +466,7 @@ func (r *reader) readString() string {
 	}
 	var n uint64
 	r.read(&n)
+	r.check(n, "tamanho de string")
 	if r.err != nil {
 		return ""
 	}
@@ -482,9 +543,20 @@ func (r *reader) readValueOfType(vt ggufValueType) any {
 		r.read(&atype)
 		var alen uint64
 		r.read(&alen)
-		out := make([]any, alen)
-		for i := range out {
-			out[i] = r.readValueOfType(ggufValueType(atype))
+		r.check(alen, "tamanho de array")
+		if r.err == nil && r.depth >= maxArrayDepth {
+			r.err = fmt.Errorf("arrays aninhados demais (> %d)", maxArrayDepth)
+		}
+		if r.err != nil {
+			return nil
+		}
+		r.depth++
+		defer func() { r.depth-- }()
+		// cresce conforme lê (alen vem do arquivo): memória proporcional ao
+		// que existe de fato, não ao que o header alega.
+		out := make([]any, 0, min(alen, prealloc))
+		for i := uint64(0); i < alen && r.err == nil; i++ {
+			out = append(out, r.readValueOfType(ggufValueType(atype)))
 		}
 		return out
 	default:
