@@ -22,7 +22,23 @@ var poClasses = map[string]struct{ class, typ string }{
 	"PODIVIDER":   {"PoDivider", "divider"},
 	"POTABS":      {"PoTabs", "tabs"},
 	"POTAB":       {"PoTab", "tab"},
+	// fase 2: dados e entradas
+	"POTREE":     {"PoTree", "tree"},
+	"POLIST":     {"PoList", "list"},
+	"POINFO":     {"PoInfo", "info"},
+	"POPROGRESS": {"PoProgress", "progress"},
+	"POGAUGE":    {"PoGauge", "gauge"},
+	"POCHART":    {"PoChart", "chart"},
+	"POPASSWORD": {"PoPassword", "password"},
+	"POTEXTAREA": {"PoTextarea", "textarea"},
+	"PONUMBER":   {"PoNumber", "number"},
+	"POSELECT":   {"PoSelect", "select"},
+	"POCHECKBOX": {"PoCheckbox", "checkbox"},
+	"POSWITCH":   {"PoSwitch", "switch"},
 }
+
+// poChartTypes: tipos aceitos por PoChart (PoChartType do PO-UI).
+var poChartTypes = map[string]bool{"line": true, "column": true, "bar": true, "pie": true, "donut": true, "area": true}
 
 // isPoClass diz se a ClassName é de um componente Po* (despacho de métodos).
 func isPoClass(className string) bool {
@@ -160,11 +176,98 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c.props["title"] = argTexto(args, 1, "")
 		case "divider":
 			c.props["label"] = argTexto(args, 1, "")
+		case "tree", "list":
+			c.props["items"] = []map[string]any{}
+		case "info":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = poToJSON(getArg(args, 2))
+		case "progress":
+			c.props["value"] = 0.0
+			c.props["text"] = argTexto(args, 1, "")
+		case "gauge":
+			c.props["title"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = 0.0
+			c.props["description"] = ""
+		case "chart":
+			tipo := argTexto(args, 2, "line")
+			if !poChartTypes[tipo] {
+				return fmt.Errorf("PoChart: tipo inválido %q (line, column, bar, pie, donut, area)", tipo)
+			}
+			c.props["title"] = advplrt.ToString(getArg(args, 1))
+			c.props["type"] = tipo
+			c.props["categories"] = []any{}
+			c.props["series"] = []map[string]any{}
+		case "password", "textarea":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = argTexto(args, 2, "")
+		case "number":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = poToJSON(getArg(args, 2))
+		case "select":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["options"] = poOpcoes(getArg(args, 2))
+			c.props["value"] = argTexto(args, 3, "")
+		case "checkbox", "switch":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = advplrt.ToBool(getArg(args, 2))
 		}
 	}
 	obj.Native = c
 	v.push(obj)
 	return nil
+}
+
+// poOpcoes: opções de PoSelect — texto, ou {cRotulo, cValor}.
+func poOpcoes(x advplrt.Value) []map[string]any {
+	out := []map[string]any{}
+	arr, _ := x.(*advplrt.ArrayValue)
+	if arr == nil {
+		return out
+	}
+	for _, el := range arr.Elements {
+		if par, ok := el.(*advplrt.ArrayValue); ok && len(par.Elements) >= 2 {
+			out = append(out, map[string]any{"label": advplrt.ToString(par.Elements[0]), "value": advplrt.ToString(par.Elements[1])})
+		} else {
+			t := advplrt.ToString(el)
+			out = append(out, map[string]any{"label": t, "value": t})
+		}
+	}
+	return out
+}
+
+// poArvore: itens de PoTree, recursivo — {cRotulo, cValor[, aFilhos]}.
+func poArvore(x advplrt.Value) []map[string]any {
+	out := []map[string]any{}
+	arr, _ := x.(*advplrt.ArrayValue)
+	if arr == nil {
+		return out
+	}
+	for _, el := range arr.Elements {
+		it, ok := el.(*advplrt.ArrayValue)
+		if !ok || len(it.Elements) < 2 {
+			continue
+		}
+		n := map[string]any{"label": advplrt.ToString(it.Elements[0]), "value": advplrt.ToString(it.Elements[1])}
+		if len(it.Elements) > 2 {
+			if filhos := poArvore(it.Elements[2]); len(filhos) > 0 {
+				n["subItems"] = filhos
+			}
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+// poLimita: valor de progresso/gauge entre 0 e 100.
+func poLimita(x advplrt.Value) float64 {
+	f := advplrt.ToFloat(x)
+	if f < 0 {
+		return 0
+	}
+	if f > 100 {
+		return 100
+	}
+	return f
 }
 
 // asObj: o valor como objeto, ou nil.
@@ -199,7 +302,18 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 	case "GET":
 		ret = poFromJSON(c.props[advplrt.ToString(getArg(args, 0))])
 	case "SETVALUE":
-		a.setProp(c, "value", poToJSON(getArg(args, 0)))
+		if c.typ == "progress" || c.typ == "gauge" {
+			a.setProp(c, "value", poLimita(getArg(args, 0)))
+		} else {
+			a.setProp(c, "value", poToJSON(getArg(args, 0)))
+		}
+	case "SETDESCRIPTION":
+		a.setProp(c, "description", advplrt.ToString(getArg(args, 0)))
+	case "SETCATEGORIES", "SETSERIES", "SETMAXPOINTS", "ADDPOINT":
+		if c.typ != "chart" {
+			return fmt.Errorf("%s: só em PoChart", method)
+		}
+		v.poChartMethod(c, method, args)
 	case "GETVALUE":
 		ret = poFromJSON(c.props["value"])
 	case "SETLABEL":
@@ -257,8 +371,32 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		}
 		a.setProp(c, "columns", cols)
 	case "SETITEMS":
+		if c.typ == "tree" {
+			a.setProp(c, "items", poArvore(getArg(args, 0)))
+			break
+		}
+		if c.typ == "list" {
+			items := []map[string]any{}
+			c.rows = nil
+			if arr, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
+				for _, el := range arr.Elements {
+					linha, _ := el.(*advplrt.ArrayValue)
+					it := map[string]any{"title": "", "detail": ""}
+					if linha != nil && len(linha.Elements) > 0 {
+						it["title"] = advplrt.ToString(linha.Elements[0])
+					}
+					if linha != nil && len(linha.Elements) > 1 {
+						it["detail"] = advplrt.ToString(linha.Elements[1])
+					}
+					items = append(items, it)
+					c.rows = append(c.rows, el)
+				}
+			}
+			a.setProp(c, "items", items)
+			break
+		}
 		if c.typ != "table" {
-			return fmt.Errorf("SetItems: só em PoTable")
+			return fmt.Errorf("SetItems: só em PoTable, PoTree e PoList")
 		}
 		items := []map[string]any{}
 		c.rows = nil
@@ -281,4 +419,58 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 	}
 	v.push(ret)
 	return nil
+}
+
+// poChartMethod: SetCategories, SetSeries, SetMaxPoints e AddPoint.
+func (v *VM) poChartMethod(c *poComp, method string, args []advplrt.Value) {
+	a := c.app
+	switch method {
+	case "SETCATEGORIES":
+		cats, _ := poToJSON(getArg(args, 0)).([]any)
+		a.setProp(c, "categories", poJanela(cats, c.maxPts))
+	case "SETSERIES":
+		series := []map[string]any{}
+		if arr, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
+			for _, el := range arr.Elements {
+				s, ok := el.(*advplrt.ArrayValue)
+				if !ok || len(s.Elements) < 1 {
+					continue
+				}
+				dados := []any{}
+				if len(s.Elements) > 1 {
+					dados, _ = poToJSON(s.Elements[1]).([]any)
+				}
+				series = append(series, map[string]any{"label": advplrt.ToString(s.Elements[0]), "data": poJanela(dados, c.maxPts)})
+			}
+		}
+		a.setProp(c, "series", series)
+	case "SETMAXPOINTS":
+		c.maxPts = int(advplrt.ToFloat(getArg(args, 0)))
+	case "ADDPOINT":
+		cats := append(c.props["categories"].([]any), poToJSON(getArg(args, 0)))
+		vals, _ := poToJSON(getArg(args, 1)).([]any)
+		old := c.props["series"].([]map[string]any)
+		series := make([]map[string]any, len(old))
+		for i, s := range old {
+			var val any
+			if i < len(vals) {
+				val = vals[i]
+			}
+			series[i] = map[string]any{"label": s["label"], "data": poJanela(append(s["data"].([]any), val), c.maxPts)}
+		}
+		a.setProps(c, map[string]any{"categories": poJanela(cats, c.maxPts), "series": series})
+	}
+	// sem push: callPoCompMethod empilha o retorno (Nil) uma única vez
+}
+
+// poJanela mantém só os últimos max itens (max <= 0: todos). Copia, para
+// não compartilhar o array com um patch já enviado.
+func poJanela(xs []any, max int) []any {
+	if xs == nil {
+		xs = []any{}
+	}
+	if max > 0 && len(xs) > max {
+		xs = xs[len(xs)-max:]
+	}
+	return append([]any{}, xs...)
 }

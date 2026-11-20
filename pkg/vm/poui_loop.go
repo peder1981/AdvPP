@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
@@ -142,10 +143,14 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		case "click":
 			h, args = c.handlers["click"], []advplrt.Value{c.obj}
 		case "change":
-			txt := poJSONTexto(val)
-			c.props["value"] = txt // veio do browser: não gera patch
-			h, args = c.handlers["change"], []advplrt.Value{c.obj, advplrt.NewString(txt)}
+			novo := poValorDoBrowser(c.typ, val)
+			c.props["value"] = poToJSON(novo) // veio do browser: não gera patch
+			h, args = c.handlers["change"], []advplrt.Value{c.obj, novo}
 		case "select":
+			if c.typ == "tree" {
+				h, args = c.handlers["select"], []advplrt.Value{c.obj, advplrt.NewString(poJSONTexto(val))}
+				break
+			}
 			i, ok := poJSONIndice(val)
 			if !ok || i >= len(c.rows) {
 				return
@@ -171,6 +176,20 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		v.stack = v.stack[:pilha]
 		v.writeOut(fmt.Sprintf("PoApp: erro no evento %s do componente %d: %v", ev, id, err))
 	}
+}
+
+// poValorDoBrowser converte o valor de um "change" conforme o componente:
+// number -> N, checkbox/switch -> L, demais -> C.
+func poValorDoBrowser(typ string, val []byte) advplrt.Value {
+	txt := poJSONTexto(val)
+	switch typ {
+	case "number":
+		f, _ := strconv.ParseFloat(strings.TrimSpace(txt), 64)
+		return advplrt.NewNumber(f)
+	case "checkbox", "switch":
+		return advplrt.NewBool(txt == "true")
+	}
+	return advplrt.NewString(txt)
 }
 
 // poJSONTexto: valor JSON do browser como texto ("abc" -> abc, 42 -> 42).

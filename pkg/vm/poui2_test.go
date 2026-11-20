@@ -179,3 +179,222 @@ Return
 		t.Errorf("batch = %s", f.sent[1])
 	}
 }
+
+func TestPoTreeItensRecursivos(t *testing.T) {
+	v, _, err := rodaPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oTr  := PoTree():New(oPg)
+	oTr:SetItems({{"Raiz", "r", {{"Filho 1", "f1"}, {"Filho 2", "f2"}}}, {"Solto", "s"}})
+Return
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(v.poApp.mountJSON())
+	want := `"items":[{"label":"Raiz","subItems":[{"label":"Filho 1","value":"f1"},{"label":"Filho 2","value":"f2"}],"value":"r"},{"label":"Solto","value":"s"}]`
+	if !strings.Contains(s, want) {
+		t.Errorf("mount = %s", s)
+	}
+}
+
+func TestPoChartAddPointJanela(t *testing.T) {
+	v, _, err := rodaPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oCh  := PoChart():New(oPg, "CPU", "line")
+	Local nI
+	oCh:SetSeries({{"cpu", {}}, {"mem", {}}})
+	oCh:SetMaxPoints(3)
+	For nI := 1 To 5
+		oCh:AddPoint("t" + cValToChar(nI), {nI, nI * 10})
+	Next nI
+Return
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(v.poApp.mountJSON())
+	for _, frag := range []string{`"categories":["t3","t4","t5"]`, `{"data":[3,4,5],"label":"cpu"}`, `{"data":[30,40,50],"label":"mem"}`, `"type":"line"`, `"title":"CPU"`} {
+		if !strings.Contains(s, frag) {
+			t.Errorf("mount sem %s: %s", frag, s)
+		}
+	}
+}
+
+func TestPoChartTipoInvalido(t *testing.T) {
+	_, _, err := rodaPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oCh  := PoChart():New(oPg, "X", "pizza")
+Return
+`)
+	if err == nil || !strings.Contains(err.Error(), "tipo inválido") {
+		t.Errorf("erro = %v", err)
+	}
+}
+
+func TestPoProgressLimites(t *testing.T) {
+	_, out, err := rodaPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oPr  := PoProgress():New(oPg, "x")
+	Local oGa  := PoGauge():New(oPg, "g")
+	oPr:SetValue(150)
+	oGa:SetValue(-5)
+	ConOut("p=" + cValToChar(oPr:GetValue()) + " g=" + cValToChar(oGa:GetValue()))
+Return
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "p=100 g=0") {
+		t.Errorf("saída = %q", out)
+	}
+}
+
+func TestPoEntradasTipadasNoMount(t *testing.T) {
+	v, _, err := rodaPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oA := PoPassword():New(oPg, "Senha")
+	Local oB := PoTextarea():New(oPg, "Obs", "linha")
+	Local oC := PoNumber():New(oPg, "Qtd", 3)
+	Local oD := PoSelect():New(oPg, "Cor", {"azul", {"Verde", "g"}}, "g")
+	Local oE := PoCheckbox():New(oPg, "Aceito", .T.)
+	Local oF := PoSwitch():New(oPg, "Wi-Fi")
+	Local oG := PoInfo():New(oPg, "Kernel", "6.12")
+	Local oH := PoList():New(oPg)
+	oH:SetItems({{"Um", "det 1"}, {"Dois"}})
+Return
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(v.poApp.mountJSON())
+	for _, frag := range []string{
+		`"type":"password"`, `"value":"linha"`, `"type":"number"`, `"value":3`,
+		`"options":[{"label":"azul","value":"azul"},{"label":"Verde","value":"g"}]`, `"value":"g"`,
+		`"type":"checkbox"`, `"value":true`, `"type":"switch"`, `"value":false`,
+		`"label":"Kernel"`, `"value":"6.12"`,
+		`"items":[{"detail":"det 1","title":"Um"},{"detail":"","title":"Dois"}]`,
+	} {
+		if !strings.Contains(s, frag) {
+			t.Errorf("mount sem %s", frag)
+		}
+	}
+}
+
+func TestPoChartAddPointPatch(t *testing.T) {
+	// ids: página 1, chart 2, botão 3
+	f := newFakeUI(fakeEv{3, "click", nil})
+	_, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oCh  := PoChart():New(oPg, "C", "column")
+	Local oB   := PoButton():New(oPg, "x", {|| oCh:AddPoint("a", {1}), oApp:Close()})
+	oCh:SetSeries({{"s", {}}})
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	if len(f.sent) < 2 || strings.Count(string(f.sent[1]), `"op":"patch"`) != 1 {
+		t.Fatalf("esperado um patch: %q", f.sent)
+	}
+	if !strings.Contains(string(f.sent[1]), `"categories":["a"]`) || !strings.Contains(string(f.sent[1]), `"series":[{"data":[1],"label":"s"}]`) {
+		t.Errorf("patch = %s", f.sent[1])
+	}
+}
+
+func TestChangeTipado(t *testing.T) {
+	// ids: página 1, number 2, switch 3, select 4
+	f := newFakeUI(fakeEv{2, "change", []byte(`"7.5"`)}, fakeEv{3, "change", []byte(`true`)}, fakeEv{4, "change", []byte(`"b"`)})
+	out, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oN   := PoNumber():New(oPg, "N")
+	Local oS   := PoSwitch():New(oPg, "S")
+	Local oSel := PoSelect():New(oPg, "C", {"a", "b"})
+	oN:OnChange({|o, n| ConOut("n=" + ValType(n) + cValToChar(n * 2) + ValType(o:GetValue()))})
+	oS:OnChange({|o, l| ConOut("s=" + ValType(l) + cValToChar(l))})
+	oSel:OnChange({|o, c| ConOut("c=" + c), oApp:Close()})
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	for _, frag := range []string{"n=N15N", "s=L.T.", "c=b"} {
+		if !strings.Contains(out.String(), frag) {
+			t.Errorf("saída sem %s: %q", frag, out.String())
+		}
+	}
+}
+
+func TestSelectTreeEList(t *testing.T) {
+	// ids: página 1, tree 2, list 3
+	f := newFakeUI(fakeEv{2, "select", []byte(`"x2"`)}, fakeEv{3, "select", []byte(`1`)})
+	out, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oTr  := PoTree():New(oPg)
+	Local oLs  := PoList():New(oPg)
+	oTr:SetItems({{"X1", "x1"}, {"X2", "x2"}})
+	oLs:SetItems({{"Um"}, {"Dois", "d"}})
+	oTr:OnSelect({|o, c| ConOut("tree=" + c)})
+	oLs:OnSelect({|o, a| ConOut("list=" + a[1]), oApp:Close()})
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	if !strings.Contains(out.String(), "tree=x2") || !strings.Contains(out.String(), "list=Dois") {
+		t.Errorf("saída = %q", out.String())
+	}
+}
+
+// Métodos de componente não podem deixar valores sobrando na pilha da VM
+// (um gráfico atualizado por timer faria a pilha crescer sem limite).
+func TestPoMetodosNaoVazamPilha(t *testing.T) {
+	var evs []fakeEv
+	for i := 0; i < 60; i++ {
+		evs = append(evs, fakeEv{3, "click", nil}) // ids: página 1, chart 2, botão 3
+	}
+	evs = append(evs, fakeEv{4, "click", nil})
+	f := newFakeUI(evs...)
+	v := NewVM(compilarPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oCh  := PoChart():New(oPg, "C", "line")
+	Local oB   := PoButton():New(oPg, "x", {|| oCh:AddPoint("t", {1}), oCh:SetCategories({"a"}), oCh:SetMaxPoints(5)})
+	Local oS   := PoButton():New(oPg, "sair", {|| oApp:Close()})
+	Local nI
+	oCh:SetSeries({{"s", {}}})
+	For nI := 1 To 200 // laço longo na mesma função: o vazamento não some no retorno
+		oCh:AddPoint("t", {nI})
+		oCh:SetMaxPoints(5)
+	Next nI
+	oApp:Activate()
+Return
+`), true)
+	v.SetUIProvider(f)
+	v.SetOutputWriter(&syncBuf{})
+	var maxPilha int
+	f.onNext = func() {
+		if n := len(v.stack); n > maxPilha {
+			maxPilha = n
+		}
+	}
+	if _, err := v.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if maxPilha > 20 {
+		t.Errorf("pilha chegou a %d itens após 180 chamadas de método do gráfico", maxPilha)
+	}
+}

@@ -27,6 +27,7 @@ type poComp struct {
 	app      *poAppState
 	columns  []string // PoTable: propriedades na ordem das colunas
 	rows     []advplrt.Value
+	maxPts   int // PoChart: pontos mantidos (0 = sem limite)
 }
 
 // poAppState é o estado de um PoApp (uma por VM ativa por vez).
@@ -64,6 +65,16 @@ func (a *poAppState) setProp(c *poComp, prop string, val any) {
 	c.props[prop] = val
 	if a.active {
 		a.batch = append(a.batch, map[string]any{"op": "patch", "id": c.id, "props": map[string]any{prop: val}})
+	}
+}
+
+// setProps grava várias propriedades num único patch (ex.: PoChart:AddPoint).
+func (a *poAppState) setProps(c *poComp, props map[string]any) {
+	for k, v := range props {
+		c.props[k] = v
+	}
+	if a.active {
+		a.batch = append(a.batch, map[string]any{"op": "patch", "id": c.id, "props": props})
 	}
 }
 
