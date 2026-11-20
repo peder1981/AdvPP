@@ -268,15 +268,16 @@ func (srv *Server) Serve(addr string) error {
 	fmt.Printf("AdvPP web: http://%s  (fonte: %s)\n", addr, srv.sourceName)
 	hs := &http.Server{
 		Addr:              addr,
-		Handler:           srv.handler(),
+		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
 	return hs.ListenAndServe()
 }
 
-// handler monta as rotas do modo web (com a checagem de origem).
-func (srv *Server) handler() http.Handler {
+// Handler monta as rotas do modo web (com a checagem de origem); Serve o
+// usa, e testes podem montá-lo num httptest.Server.
+func (srv *Server) Handler() http.Handler {
 	mu := &srv.mu
 	sessions := srv.sessions
 	sourceName := srv.sourceName

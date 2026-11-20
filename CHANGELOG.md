@@ -4,6 +4,17 @@ Todas as mudanças relevantes no projeto AdvPP.
 
 ## [Não lançado]
 
+### Added
+- **Componentes PO-UI orientados a eventos (fase 1)** no `advplc serve`: classes nativas
+  `PoApp`, `PoPage`, `PoButton`, `PoInput`, `PoTable` e `PoTag`. O programa monta a tela
+  como objetos, `PoApp:Activate()` entra num laço de eventos não bloqueante (handlers em
+  codeblocks, patches de propriedade enviados em lote) e `PoApp:SetTimer` atualiza a
+  tela sozinho. Protocolo: evento SSE `ui` (mount/batch/close) e rota `POST /ui`, com a
+  mesma checagem de origem e limite de corpo de `/reply`. Os diálogos bloqueantes, o
+  MSDIALOG e o FWMBrowse seguem iguais. Nomes `Po*` cedem a funções do próprio programa
+  com o mesmo nome. Exemplo em `examples/poui/fase1.prw`; design em
+  `docs/superpowers/specs/2026-11-20-poui-componentes-design.md`.
+
 ### Fixed
 - **`#include` de fonte em CP-1252 chegava cru ao lexer.** Só o arquivo raiz era convertido
   para UTF-8; o conteúdo incluído não, então um `"ã"` vindo de um include nunca era igual ao

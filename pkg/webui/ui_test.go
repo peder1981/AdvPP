@@ -19,7 +19,7 @@ type uiRecebido struct {
 // canal com as linhas "data: ..." do SSE.
 func abreSessao(t *testing.T, run RunFunc, sid string) (*httptest.Server, <-chan string) {
 	t.Helper()
-	ts := httptest.NewServer(New("t.prw", run).handler())
+	ts := httptest.NewServer(New("t.prw", run).Handler())
 	t.Cleanup(ts.Close)
 	resp, err := http.Get(ts.URL + "/events?s=" + sid)
 	if err != nil {

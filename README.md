@@ -270,6 +270,47 @@ embutido no binário (`embed.FS`): nenhuma dependência extra em produção.
   valores digitados voltam para as variáveis do programa
 - `--watch`: salvar o fonte recompila e recarrega o browser
 
+### Componentes PO-UI (`PoApp`)
+
+Além dos diálogos bloqueantes, um programa pode montar a tela como objetos e
+tratar os eventos em codeblocks, sem travar: `oApp:Activate()` envia a tela ao
+browser e fica num laço de eventos até `oApp:Close()` ou a janela fechar.
+Alterar uma propriedade (`oTag:SetValue(...)`) atualiza o browser na hora, e
+timers (`oApp:SetTimer`) atualizam a tela sozinhos.
+
+```advpl
+User Function Main()
+	Local oApp  := PoApp():New("Contatos")
+	Local oPg   := PoPage():New(oApp, "Contatos")
+	Local oHora := PoTag():New(oPg, Time(), "info")
+	Local oNome := PoInput():New(oPg, "Nome")
+	Local oTab  := PoTable():New(oPg)
+	Local oBtn  := PoButton():New(oPg, "Adicionar", {|| oTab:SetItems({{oNome:GetValue()}})})
+
+	oTab:SetColumns({{"nome", "Nome"}})
+	oTab:OnSelect({|o, aLinha| oHora:SetValue("Selecionado: " + aLinha[1])})
+	oPg:AddAction("Sair", {|| oApp:Close()})
+	oApp:SetTimer(1000, {|| oHora:SetValue(Time())})
+	oApp:Activate()
+Return
+```
+
+| Classe | Criação | Específicos |
+|--------|---------|-------------|
+| `PoApp` | `New(cTitulo)` | `Activate()`, `Close()`, `SetTimer(nMs, bBloco) -> nId` (mín. 100 ms), `KillTimer(nId)` |
+| `PoPage` | `New(oApp, cTitulo)` | `AddAction(cRotulo, bBloco)` — uma página por aplicação nesta versão |
+| `PoButton` | `New(oPage, cRotulo[, bAcao])` | `OnClick(bBloco)` |
+| `PoInput` | `New(oPage, cRotulo[, cValor])` | `OnChange({\|o, cValor\| ...})` |
+| `PoTable` | `New(oPage)` | `SetColumns({{cProp, cRotulo[, cTipo]}, ...})`, `SetItems(aLinhas)`, `OnSelect({\|o, aLinha\| ...})` |
+| `PoTag` | `New(oPage, cTexto[, cTipo])` | tipos `success`, `warning`, `danger`, `info`, `neutral` |
+
+Comuns a todos os componentes: `Set(cProp, xValor)`, `Get(cProp)`,
+`SetValue`/`GetValue`, `SetLabel`, `SetVisible`, `SetDisabled`, `Id()`. Erro
+dentro de um handler aparece no log técnico da página e o laço continua.
+Funciona só no modo web (`advplc serve`); fora dele, `Activate()` devolve erro.
+Um programa que já declare uma função chamada `PoApp`, `PoTag` etc. continua
+chamando a própria função. Exemplo completo: `examples/poui/fase1.prw`.
+
 Para alterar o frontend: `make web` (requer Node 20+; o resultado
 compilado é versionado, então `go build` funciona sem Node).
 
