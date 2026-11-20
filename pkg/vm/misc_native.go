@@ -112,11 +112,12 @@ func (v *VM) registerMiscNatives(natives map[string]func(args []advplrt.Value) (
 	// WINEXEC(cExec) -> cRet — executa aplicação externa na estação, sem
 	// aguardar. Retorna 0 em sucesso, ou número != 0 indicando erro de OS
 	// (2 = arquivo não encontrado, 5 = acesso negado). Mesmo parsing sem
-	// shell do WAITRUN (operadores do shell não são suportados).
+	// shell do WAITRUN (aspas agrupam argumentos; operadores de shell não são
+	// interpretados; redirecionamentos não se aplicam: o processo não é aguardado).
 	natives["WINEXEC"] = func(args []advplrt.Value) (advplrt.Value, error) {
-		cmdStr := getArgString(args, 0, "")
-		parts := strings.Fields(cmdStr)
-		if len(parts) == 0 {
+		cl, err := parseCommandLine(getArgString(args, 0, ""))
+		parts := cl.argv
+		if err != nil || len(parts) == 0 {
 			return advplrt.NewNumber(2), nil
 		}
 		cmd := exec.Command(parts[0], parts[1:]...)

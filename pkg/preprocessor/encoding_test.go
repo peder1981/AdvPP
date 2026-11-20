@@ -1,8 +1,11 @@
-package main
+package preprocessor
 
 import (
 	"bytes"
 	"math/rand"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -73,5 +76,30 @@ func TestConvertWithGoEncodingVsPerByteReference(t *testing.T) {
 				t.Fatalf("n=%d p=%v: convertWithGoEncoding = %q, want %q", n, p, got, want.String())
 			}
 		}
+	}
+}
+
+// TestIncludeCP1252ConvertidoComoORaiz: um #include em CP-1252 tem que chegar
+// ao lexer em UTF-8, igual ao arquivo raiz. Antes, loadInclude devolvia os
+// bytes crus: "ã" (0xE3) do include nunca era igual ao "ã" do raiz.
+func TestIncludeCP1252ConvertidoComoORaiz(t *testing.T) {
+	dir := t.TempDir()
+	// 'Return "ã"' em CP-1252
+	if err := os.WriteFile(filepath.Join(dir, "inc.prw"), []byte("Static Function F()\nReturn \"\xe3\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, nome := range []string{"inc.prw", "INC.PRW"} { // caminho exato e case-insensitive
+		pp := NewPreprocessor([]string{dir})
+		out, err := pp.Process("#include \""+nome+"\"\n", filepath.Join(dir, "main.prw"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out, "Return \"ã\"") {
+			t.Errorf("%s: include não convertido para UTF-8: %q", nome, out)
+		}
+	}
+	// Include que já é UTF-8 continua intacto
+	if got := SourceToUTF8([]byte("ã€")); got != "ã€" {
+		t.Errorf("SourceToUTF8(UTF-8) = %q", got)
 	}
 }

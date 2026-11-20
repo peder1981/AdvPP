@@ -520,12 +520,12 @@ func (p *Preprocessor) loadInclude(fileName string) (string, error) {
 			path := filepath.Join(base, fileName)
 			data, err := os.ReadFile(path)
 			if err == nil && !isBinary(data) {
-				return string(data), nil
+				return SourceToUTF8(data), nil
 			}
 			if found := findFileFold(base, fileName); found != "" {
 				data, err := os.ReadFile(found)
 				if err == nil && !isBinary(data) {
-					return string(data), nil
+					return SourceToUTF8(data), nil
 				}
 			}
 		}
@@ -533,7 +533,7 @@ func (p *Preprocessor) loadInclude(fileName string) (string, error) {
 
 	data, err := os.ReadFile(fileName)
 	if err == nil && !isBinary(data) {
-		return string(data), nil
+		return SourceToUTF8(data), nil
 	}
 
 	return "", nil
