@@ -34,6 +34,17 @@ func (p *Provider) UIPost(id int, ev string, value []byte) {
 	}
 }
 
+// UIPostWait injeta um evento esperando vaga na fila (saída de processo
+// filho: nenhuma linha pode se perder). Sessão encerrada: devolve false.
+func (p *Provider) UIPostWait(id int, ev string, value []byte) bool {
+	select {
+	case p.s.ui <- uiEvent{ID: id, Event: ev, Value: value}:
+		return true
+	case <-p.s.quit:
+		return false
+	}
+}
+
 // UINext bloqueia até o próximo evento de componente. Sessão abandonada:
 // encerra a goroutine do programa (mesmo contrato de wait).
 func (p *Provider) UINext() (int, string, []byte) {

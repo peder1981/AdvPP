@@ -13,6 +13,8 @@ import (
 type ComponentUI interface {
 	UISend(op []byte)
 	UIPost(id int, event string, value []byte)
+	// UIPostWait espera vaga na fila (saída de processo); false = sessão encerrada.
+	UIPostWait(id int, event string, value []byte) bool
 	UINext() (id int, event string, value []byte)
 }
 
@@ -44,12 +46,16 @@ type poAppState struct {
 	batch     []map[string]any
 	timers    map[int]*poTimer
 	nextTimer int
-	obj       *advplrt.ObjectValue // o próprio PoApp (argumento dos timers)
-	ui        ComponentUI          // ligado durante o Activate
+	spawns    map[int]*poSpawn
+	nextSpawn int
+	confirms  map[int][2]advplrt.Value // id -> {bSim, bNao}; apagado na 1ª resposta
+	obj       *advplrt.ObjectValue     // o próprio PoApp (argumento dos timers)
+	ui        ComponentUI              // ligado durante o Activate
 }
 
 func newPoAppState(title string) *poAppState {
-	return &poAppState{title: title, byID: map[int]*poComp{}, timers: map[int]*poTimer{}}
+	return &poAppState{title: title, byID: map[int]*poComp{}, timers: map[int]*poTimer{},
+		spawns: map[int]*poSpawn{}, confirms: map[int][2]advplrt.Value{}}
 }
 
 // add registra um componente novo com o próximo id.

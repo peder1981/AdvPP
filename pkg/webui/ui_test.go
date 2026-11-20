@@ -162,3 +162,27 @@ func TestUIPostNaoBloqueiaAposAbandono(t *testing.T) {
 		t.Fatal("UIPost bloqueou numa sessão abandonada")
 	}
 }
+
+func TestUIPostWaitBloqueiaEDesbloqueia(t *testing.T) {
+	s := newSession()
+	p := &Provider{s}
+	for i := 0; i < uiBuffer; i++ {
+		p.UIPost(1, "x", nil) // enche a fila
+	}
+	ret := make(chan bool, 1)
+	go func() { ret <- p.UIPostWait(1, "line", nil) }()
+	select {
+	case <-ret:
+		t.Fatal("UIPostWait não bloqueou com a fila cheia")
+	case <-time.After(100 * time.Millisecond):
+	}
+	s.abandon()
+	select {
+	case ok := <-ret:
+		if ok {
+			t.Error("UIPostWait devolveu true numa sessão encerrada")
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("UIPostWait continuou bloqueado após abandon()")
+	}
+}

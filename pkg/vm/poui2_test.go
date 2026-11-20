@@ -398,3 +398,58 @@ Return
 		t.Errorf("pilha chegou a %d itens após 180 chamadas de método do gráfico", maxPilha)
 	}
 }
+
+func TestConfirmRespostaUnica(t *testing.T) {
+	// ids: página 1, botão confirma 2, botão sair 3, confirm 4
+	f := newFakeUI(fakeEv{2, "click", nil}, fakeEv{4, "confirm", []byte(`true`)}, fakeEv{4, "confirm", []byte(`true`)},
+		fakeEv{999, "confirm", []byte(`true`)}, fakeEv{3, "click", nil})
+	out, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oB   := PoButton():New(oPg, "x", {|| oApp:Confirm("Apagar?", {|| ConOut("sim")}, {|| ConOut("nao")}, "Atenção")})
+	Local oS   := PoButton():New(oPg, "sair", {|| oApp:Close()})
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	if n := strings.Count(out.String(), "sim"); n != 1 || strings.Contains(out.String(), "nao") {
+		t.Errorf("saída = %q", out.String())
+	}
+	if string(f.sent[1]) != `{"op":"batch","ops":[{"id":4,"op":"confirm","text":"Apagar?","title":"Atenção"}]}` {
+		t.Errorf("batch = %s", f.sent[1])
+	}
+}
+
+func TestConfirmNao(t *testing.T) {
+	f := newFakeUI(fakeEv{2, "click", nil}, fakeEv{3, "confirm", []byte(`false`)})
+	out, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oB   := PoButton():New(oPg, "x", {|| oApp:Confirm("?", {|| ConOut("sim")}, {|| ConOut("nao"), oApp:Close()})})
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	if !strings.Contains(out.String(), "nao") || strings.Contains(out.String(), "sim") {
+		t.Errorf("saída = %q", out.String())
+	}
+}
+
+func TestLoadingOp(t *testing.T) {
+	f := newFakeUI(fakeEv{2, "click", nil})
+	_, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oB   := PoButton():New(oPg, "x", {|| oApp:Close()})
+	oApp:Loading(.T., "aguarde")
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	if string(f.sent[1]) != `{"op":"batch","ops":[{"on":true,"op":"loading","text":"aguarde"}]}` {
+		t.Errorf("batch = %s", f.sent[1])
+	}
+}

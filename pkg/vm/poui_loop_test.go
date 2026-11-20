@@ -65,6 +65,15 @@ func (f *fakeUI) UIPost(id int, ev string, val []byte) {
 	}
 }
 
+func (f *fakeUI) UIPostWait(id int, ev string, val []byte) bool {
+	select {
+	case f.in <- fakeEv{id, ev, val}:
+		return true
+	case <-f.quit:
+		return false
+	}
+}
+
 func (f *fakeUI) UINext() (int, string, []byte) {
 	if f.onNext != nil {
 		f.onNext()

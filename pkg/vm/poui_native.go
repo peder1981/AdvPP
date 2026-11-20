@@ -105,6 +105,24 @@ func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []adv
 		}
 		a.cur = pg
 		a.remount = a.active
+	case "SPAWN":
+		var argv []string
+		if arr, ok := getArg(args, 1).(*advplrt.ArrayValue); ok {
+			for _, el := range arr.Elements {
+				argv = append(argv, advplrt.ToString(el))
+			}
+		}
+		id := a.spawn(advplrt.ToString(getArg(args, 0)), argv, getArg(args, 2), getArg(args, 3))
+		v.push(advplrt.NewNumber(float64(id)))
+		return nil
+	case "KILLSPAWN":
+		a.killSpawn(int(advplrt.ToFloat(getArg(args, 0))))
+	case "CONFIRM":
+		a.nextID++
+		a.confirms[a.nextID] = [2]advplrt.Value{getArg(args, 1), getArg(args, 2)}
+		a.addOp(map[string]any{"op": "confirm", "id": a.nextID, "text": advplrt.ToString(getArg(args, 0)), "title": argTexto(args, 3, "Confirmação")})
+	case "LOADING":
+		a.addOp(map[string]any{"op": "loading", "on": advplrt.ToBool(getArg(args, 0)), "text": argTexto(args, 1, "")})
 	case "NOTIFY":
 		a.addOp(map[string]any{"op": "notify", "text": advplrt.ToString(getArg(args, 0)), "type": argTexto(args, 1, "information")})
 	default:

@@ -84,12 +84,16 @@ func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
 	a.active = true
 	a.flush() // ops geradas antes do Activate (ex.: Notify de boas-vindas)
 	defer func() {
+		a.killSpawns()
 		a.stopTimers()
 		a.active = false
 		a.batch = nil
 	}()
 	for id, t := range a.timers {
 		a.startTimer(id, t)
+	}
+	for id, sp := range a.spawns {
+		a.startSpawn(id, sp)
 	}
 	for !a.closed {
 		id, ev, val := ui.UINext()
@@ -128,13 +132,26 @@ func (a *poAppState) flush() {
 func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 	var h advplrt.Value
 	var args []advplrt.Value
-	if ev == "timer" {
+	switch ev {
+	case "timer":
 		t, ok := a.timers[id]
 		if !ok {
 			return
 		}
 		h, args = t.block, []advplrt.Value{a.obj}
-	} else {
+	case "line", "exit":
+		h, args = a.poSpawnEvento(id, ev, val)
+	case "confirm":
+		cb, ok := a.confirms[id]
+		if !ok {
+			return // resposta repetida ou id desconhecido
+		}
+		delete(a.confirms, id)
+		h, args = cb[1], []advplrt.Value{a.obj}
+		if poJSONTexto(val) == "true" {
+			h = cb[0]
+		}
+	default:
 		c, ok := a.byID[id]
 		if !ok {
 			return
