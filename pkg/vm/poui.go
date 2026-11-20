@@ -38,12 +38,14 @@ type poAppState struct {
 	active    bool
 	closed    bool
 	batch     []map[string]any
-	timers    map[int]chan struct{}
+	timers    map[int]*poTimer
 	nextTimer int
+	obj       *advplrt.ObjectValue // o próprio PoApp (argumento dos timers)
+	ui        ComponentUI          // ligado durante o Activate
 }
 
 func newPoAppState(title string) *poAppState {
-	return &poAppState{title: title, byID: map[int]*poComp{}, timers: map[int]chan struct{}{}}
+	return &poAppState{title: title, byID: map[int]*poComp{}, timers: map[int]*poTimer{}}
 }
 
 // add registra um componente novo com o próximo id.
@@ -139,9 +141,4 @@ func poFromJSON(x any) advplrt.Value {
 	default:
 		return advplrt.Nil
 	}
-}
-
-// poActivate: laço de eventos (Task 3).
-func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
-	return nil
 }

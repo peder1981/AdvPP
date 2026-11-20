@@ -45,6 +45,7 @@ func (v *VM) callPoMethod(obj *advplrt.ObjectValue, method string, args []advplr
 func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
 	if method == "NEW" {
 		a := newPoAppState(advplrt.ToString(getArg(args, 0)))
+		a.obj = obj
 		obj.Native = a
 		v.poApp = a
 		v.push(obj)
@@ -63,6 +64,17 @@ func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []adv
 		if err := v.poActivate(a, ui); err != nil {
 			return err
 		}
+	case "CLOSE":
+		a.closed = true
+	case "SETTIMER":
+		id, err := a.setTimer(int(advplrt.ToFloat(getArg(args, 0))), getArg(args, 1))
+		if err != nil {
+			return err
+		}
+		v.push(advplrt.NewNumber(float64(id)))
+		return nil
+	case "KILLTIMER":
+		a.killTimer(int(advplrt.ToFloat(getArg(args, 0))))
 	default:
 		return fmt.Errorf("unknown method %s on PoApp", method)
 	}
