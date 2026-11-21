@@ -45,6 +45,12 @@ func (a *poAppState) startTerm(c *poComp) {
 	t.proc = proc
 	a.setProp(c, "running", true)
 	go func() {
+		// Recolhe o processo e avisa o fim num defer: se a sessão encerrar
+		// no meio de um UISend (Goexit), o defer ainda roda — sem zumbi.
+		defer func() {
+			code := espera()
+			ui.UIPostWait(id, "termexit", []byte(strconv.Itoa(code)), parar)
+		}()
 		buf := make([]byte, 32*1024)
 		for {
 			n, err := saida.Read(buf)
@@ -60,8 +66,6 @@ func (a *poAppState) startTerm(c *poComp) {
 				break
 			}
 		}
-		code := espera()
-		ui.UIPostWait(id, "termexit", []byte(strconv.Itoa(code)), parar)
 	}()
 }
 

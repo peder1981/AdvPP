@@ -5,6 +5,7 @@ package vm
 import (
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"strconv"
 	"strings"
 	"syscall"
@@ -111,6 +112,28 @@ func TestTerminalMortoAoFecharSessao(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("programa não saiu")
 	}
+	// Morto E recolhido: um zumbi ainda responde a kill(pid, 0); o estado
+	// "Z" em /proc também conta como não recolhido.
+	for i := 0; i < 200; i++ {
+		if syscall.Kill(pid, 0) != nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	estado, _ := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	syscall.Kill(pid, syscall.SIGKILL)
+	t.Fatalf("processo %d do terminal não foi encerrado e recolhido (stat: %s)", pid, estado)
+}
+
+// Mesmo com saída chegando enquanto a sessão fecha, o processo é recolhido.
+func TestTerminalRecolhidoComSaidaContinua(t *testing.T) {
+	f := newFakeUI()
+	_, _, done := rodaComUI(t, prgTerm(`"sh", {"-c", "echo PID:$$; while :; do echo x; sleep 0.01; done"}`), f)
+	esperaSaida(t, f, "PID:")
+	s := saidaTerm(f)
+	pid, _ := strconv.Atoi(strings.TrimSpace(strings.SplitN(s[strings.Index(s, "PID:")+4:], "\n", 2)[0]))
+	close(f.quit)
+	<-done
 	for i := 0; i < 200; i++ {
 		if syscall.Kill(pid, 0) != nil {
 			return
@@ -118,5 +141,5 @@ func TestTerminalMortoAoFecharSessao(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	syscall.Kill(pid, syscall.SIGKILL)
-	t.Fatalf("processo %d do terminal continuou vivo", pid)
+	t.Fatalf("processo %d virou zumbi ou continuou vivo", pid)
 }
