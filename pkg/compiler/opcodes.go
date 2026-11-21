@@ -1,5 +1,7 @@
 package compiler
 
+import "strings"
+
 // Opcode enumerates all bytecode operations that the VM can execute.
 type Opcode int
 
@@ -231,4 +233,29 @@ type Bytecode struct {
 	Code       []Instruction
 	MainOffset int
 	NumGlobals int
+}
+
+// ResolveFunc acha a função do programa chamada por `name`, como o Protheus:
+// "U_X" é a User Function X (uma User Function declarada como U_X só é
+// alcançada por "U_U_X"); sem prefixo, casa o nome sem diferenciar
+// maiúsculas. Devolve a chave em Functions.
+func (bc *Bytecode) ResolveFunc(name string) (string, bool) {
+	upper := strings.ToUpper(name)
+	if strings.HasPrefix(upper, "U_") {
+		trimmed := upper[2:]
+		for k, fi := range bc.Functions {
+			if fi.IsUser && strings.ToUpper(k) == trimmed {
+				return k, true
+			}
+		}
+	}
+	if _, ok := bc.Functions[name]; ok {
+		return name, true
+	}
+	for k := range bc.Functions {
+		if strings.ToUpper(k) == upper {
+			return k, true
+		}
+	}
+	return "", false
 }

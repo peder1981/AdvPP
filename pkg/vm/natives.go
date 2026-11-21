@@ -951,14 +951,8 @@ func (v *VM) registerNatives() {
 			if _, ok := v.natives[name]; ok {
 				return advplrt.True, nil
 			}
-			trimmed := strings.TrimPrefix(name, "U_")
-			for fname := range v.bc.Functions {
-				fupper := strings.ToUpper(fname)
-				if fupper == name || fupper == trimmed {
-					return advplrt.True, nil
-				}
-			}
-			return advplrt.False, nil
+			_, ok := v.bc.ResolveFunc(name)
+			return advplrt.NewBool(ok), nil
 		},
 		// StartJob(cFunc, cEnv, lWait, params...) — executa a função em um
 		// VM isolado (semântica de work process do Protheus). cEnv é aceito

@@ -1140,8 +1140,8 @@ func (c *Compiler) compileCallExpr(e *ast.CallExpr) error {
 		c.emit(OP_EVAL_CODEBLOCK, 0, len(e.Args)-1, "", e.Loc.Line)
 		return nil
 	}
-	if _, ok := c.bc.Functions[e.Name]; ok {
-		c.emit(OP_CALL_FUNC, 0, len(e.Args), e.Name, e.Loc.Line)
+	if k, ok := c.bc.ResolveFunc(e.Name); ok {
+		c.emit(OP_CALL_FUNC, 0, len(e.Args), k, e.Loc.Line)
 	} else {
 		c.emit(OP_CALL_NATIVE, 0, len(e.Args), e.Name, e.Loc.Line)
 	}

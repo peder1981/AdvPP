@@ -587,19 +587,10 @@ func (v *VM) Run() (advplrt.Value, error) {
 // RunFunction executa uma função específica do bytecode (busca
 // case-insensitive) num VM já inicializado. Usada por StartJob.
 func (v *VM) RunFunction(name string, args []advplrt.Value) (advplrt.Value, error) {
-	info, ok := v.bc.Functions[name]
-	if !ok {
-		// Busca case-insensitive; o prefixo U_ de User Function é aceito
-		// (o bytecode guarda o nome declarado, sem o prefixo)
-		upper := strings.ToUpper(name)
-		trimmed := strings.TrimPrefix(upper, "U_")
-		for fname, finfo := range v.bc.Functions {
-			fupper := strings.ToUpper(fname)
-			if fupper == upper || fupper == trimmed {
-				info, ok = finfo, true
-				break
-			}
-		}
+	var info *compiler.FunctionInfo
+	k, ok := v.bc.ResolveFunc(name)
+	if ok {
+		info = v.bc.Functions[k]
 	}
 	if !ok {
 		return advplrt.Nil, fmt.Errorf("function %s not found", name)

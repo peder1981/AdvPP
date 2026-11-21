@@ -2,6 +2,8 @@ package vm
 
 import (
 	"strings"
+
+	advplrt "github.com/advpl/compiler/pkg/runtime"
 	"testing"
 )
 
@@ -70,5 +72,34 @@ Return
 		if !strings.Contains(out, esp) {
 			t.Errorf("esperava %q na saída:\n%s", esp, out)
 		}
+	}
+}
+
+// "U_X" chama a User Function X (convenção do Protheus); uma User Function
+// declarada como U_X só é alcançada por "U_U_X". Antes U_X() de uma User
+// Function X dava "unknown function" e, com as duas declaradas, U_X caía na
+// errada (inclusive em rota REST e StartJob, via RunFunction).
+func TestResolucaoUserFunction(t *testing.T) {
+	src := `
+User Function Main()
+	ConOut("r=" + U_XPTO("a") + "|" + U_U_XPTO("b") + "|" + u_xpto("c") + "|" + Outra() + "|" + cValToChar(FindFunction("U_XPTO")) + cValToChar(FindFunction("U_NADA")))
+Return
+User Function XPTO(c)
+Return "N" + c
+User Function U_XPTO(c)
+Return "W" + c
+Static Function Outra()
+Return U_SO()
+User Function SO()
+Return "so"
+`
+	out := saidaDe(t, src)
+	if !strings.Contains(out, "r=Na|Wb|Nc|so|.T..F.") {
+		t.Errorf("resolução errada:\n%s", out)
+	}
+	v := NewVM(compilarPrg(t, src), false) // como StartJob/MCP: VM nova, sem Run()
+	r, err := v.RunFunction("U_XPTO", []advplrt.Value{advplrt.NewString("z")})
+	if err != nil || r.String() != "Nz" {
+		t.Errorf("RunFunction(U_XPTO) = %v, %v; esperava a User Function XPTO", r, err)
 	}
 }
