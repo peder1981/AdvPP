@@ -24,6 +24,8 @@ User Function Main()
 	oPg:AddAction("Limpar", {|| aSize(aLin, 0), oTab:SetItems(aLin), oMsg:SetValue("Lista limpa")})
 	oApp:SetTimer(1000, {|| oHora:SetValue(Time())})
 
+	oBtn:Set("kind", "primary")
+	oBtn:Set("icon", "an an-plus")
 	oApp:Activate()
 Return
 
