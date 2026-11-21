@@ -124,6 +124,12 @@ Quando o erro tem posição, `line`/`col` trazem linha e coluna e `message` traz
 texto sem o sufixo de arquivo (é o que o `AdvCodeEditor` usa para marcar o erro).
 Sem posição reconhecível, só `message`.
 
+Avisos não reprovam o arquivo: o código compila (como no Protheus), mas merece
+atenção. Hoje o caso é o terminador de bloco órfão (`EndIf`, `Next`, `End`,
+`EndDo`... sem bloco aberto). No modo humano saem no stderr como
+`Aviso: b.prw:4:2: EndIf sem bloco aberto (ignorado)`; no JSON, em
+`"warnings":[{"line":4,"col":2,"message":"..."}]`, com `ok` continuando `true`.
+
 `--format` desconhecido falha alto. Modo humano inalterado.
 
 ### Executável standalone

@@ -2,6 +2,23 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.8.1] - 2026-11-21
+
+### Added
+- **`advplc check` avisa terminador de bloco órfão**: `EndIf`/`Next`/`End`/`EndDo` (e
+  afins) sem bloco aberto continuam compilando, como no Protheus real, mas agora saem como
+  `Aviso: arquivo:linha:coluna: EndIf sem bloco aberto (ignorado)` no stderr e em
+  `"warnings"` no `--format json` (`ok` segue `true`). Antes eram ignorados em silêncio,
+  inclusive depois do `Return` de uma função. API Go: `parser.Aviso`, `(*Parser).Avisos()`.
+
+### Fixed
+- **Texto digitado se perdia ao clicar logo em seguida** (componentes PO-UI): o valor de
+  `PoInput`/`PoPassword`/`PoTextarea`/`PoNumber`/`AdvCodeEditor` só ia ao programa 300 ms
+  (500 ms no editor) depois da última tecla, e um clique nesse intervalo chegava antes —
+  o handler lia o valor antigo. Agora qualquer evento descarrega a digitação pendente
+  antes, e os `POST /ui` saem em fila, na ordem dos eventos. Teste de navegador em
+  `tests/poui/ao-vivo.sh`.
+
 ## [4.8.0] - 2026-11-21
 
 ### Added
