@@ -465,6 +465,12 @@ func (e *RemoteSQLEngine) QueryRows(query string, args ...any) ([]map[string]str
 		}
 		row := make(map[string]string)
 		for i, c := range cols {
+			// NULL vira "" (igual ao motor SQLite); Value.String() do Nil
+			// e' representacao de depuracao ("Nil") e nao pode virar dado.
+			if values[i] == nil {
+				row[strings.ToUpper(c)] = ""
+				continue
+			}
 			row[strings.ToUpper(c)] = convertDBValue(values[i]).String()
 		}
 		out = append(out, row)
