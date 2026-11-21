@@ -386,21 +386,27 @@ func (v *VM) registerSegurancaCriptografiaNatives(natives map[string]func(args [
 	//   Retorna a assinatura como string binária; Nil em caso de erro.
 	natives["PRIVSIGNRSA"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		keyOrPath := getArgString(args, 0, "")
+		// @cErrStr (5º argumento): mensagem do erro, "" quando assinou.
+		falha := func(msg string) (advplrt.Value, error) {
+			v.gravaRefArg(4, advplrt.NewString(msg))
+			return advplrt.Nil, nil
+		}
+		v.gravaRefArg(4, advplrt.NewString(""))
 		pemData, ok := readKeyMaterial(keyOrPath)
 		if !ok {
-			return advplrt.Nil, nil
+			return falha("chave privada nao encontrada ou ilegivel")
 		}
 		priv, err := parseRSAPrivateKey(pemData, getArgString(args, 3, ""))
 		if err != nil {
-			return advplrt.Nil, nil
+			return falha("chave privada invalida: " + err.Error())
 		}
 		hf, err := privSignHashFunc(advplrt.ToFloat(getArg(args, 2)))
 		if err != nil {
-			return advplrt.Nil, nil
+			return falha(err.Error())
 		}
 		digest, err := privSignDigest(getArgString(args, 1, ""), hf)
 		if err != nil {
-			return advplrt.Nil, nil
+			return falha(err.Error())
 		}
 		pad := int(advplrt.ToFloat(getArg(args, 5)))
 		if pad == 0 {
@@ -410,7 +416,7 @@ func (v *VM) registerSegurancaCriptografiaNatives(natives map[string]func(args [
 		case 1, 2: // PKCS1 (2=SSL aproximado)
 			sig, err := rsa.SignPKCS1v15(rand.Reader, priv, hf, digest)
 			if err != nil {
-				return advplrt.Nil, nil
+				return falha("assinatura: " + err.Error())
 			}
 			return advplrt.NewString(string(sig)), nil
 		case 3: // NO padding — RSA puro (m^d mod n)

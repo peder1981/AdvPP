@@ -2,6 +2,30 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.8.4] - 2026-11-21
+
+### Added
+- **Passagem por referência (`@var`)**: `Inc(@n)` agora altera a variável do
+  chamador, como no Protheus. Antes o `@` era descartado pelo parser e o flag
+  `ByRef` nunca usado — toda chamada era por valor, em silêncio. Vale para local,
+  `Private`/`Public`, `Static` de arquivo, variável capturada por codeblock,
+  repasse em cadeia (`A(@x)` → `B(@x)`), métodos e codeblocks (`Eval`). Nativas
+  recebem o valor; as que devolvem algo em parâmetro `@` gravam nele
+  (`PrivSignRSA(..., @cErrStr)` agora devolve a mensagem do erro). Opcodes novos
+  `REF_LOCAL/REF_UPVAL/REF_GLOBAL/REF_DYN` no fim da tabela (bytecode antigo segue
+  válido).
+
+### Fixed
+- **`#include` de fonte inexistente quebrava programa existente** (regressão da
+  4.8.3, achada na suíte do GesCon): virou erro de compilação, e um include morto
+  que sempre foi ignorado passou a impedir a execução. Agora é aviso com
+  arquivo:linha no `advplc check` (texto e `--format json`), como os terminadores
+  órfãos da 4.8.1, e o programa compila.
+- **`Nil` convertido para texto virava a palavra `"Nil"`**: `cValToChar(Nil)`,
+  `AllTrim(Nil)`, `Upper(Nil)`, `cValToChar(oJson["ausente"])`, JSON `null`, SQL
+  `NULL` — um campo ausente passava por preenchido com "Nil". Nil é o nulo do
+  AdvPL: em texto vira `""`. O depurador continua mostrando `Nil`.
+
 ## [4.8.3] - 2026-11-21
 
 Correções de compatibilidade com o Protheus encontradas rodando o ERP GEBAN.

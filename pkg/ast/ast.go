@@ -444,6 +444,17 @@ type Ident struct {
 	Name string
 }
 
+// RefArg: argumento `@nome` — passagem por referência (a função chamada lê e
+// grava a variável do chamador).
+type RefArg struct {
+	Loc  Position
+	Name string
+}
+
+func (r *RefArg) Pos() Position   { return r.Loc }
+func (r *RefArg) String() string  { return "@" + r.Name }
+func (r *RefArg) expressionNode() {}
+
 func (i *Ident) Pos() Position   { return i.Loc }
 func (i *Ident) String() string  { return i.Name }
 func (i *Ident) expressionNode() {}

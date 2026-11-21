@@ -3767,11 +3767,21 @@ func (p *Parser) parseAssignableExpr() (ast.Expression, error) {
 func (p *Parser) parseArguments() ([]ast.Expression, error) {
 	args := make([]ast.Expression, 0)
 	for p.peek().Type != lexer.TOKEN_RPAREN && p.peek().Type != lexer.TOKEN_EOF {
+		// `@nome` = passagem por referência. Outras formas com @ (ex.: @aArr[1])
+		// seguem por valor, como antes.
+		isRef := false
 		if p.peek().Type == lexer.TOKEN_AT {
-			p.advance()
+			atTok := p.advance()
+			if p.peek().Type == lexer.TOKEN_IDENT && (p.peekAt(1).Type == lexer.TOKEN_COMMA || p.peekAt(1).Type == lexer.TOKEN_RPAREN) {
+				nameTok := p.advance()
+				args = append(args, &ast.RefArg{Loc: p.posFromToken(atTok), Name: nameTok.Value})
+				isRef = true
+			}
 		}
-		// Omitted argument: `f(, x)`, `f(x,, y)`, `f(x,)` all default the gap to NIL.
-		if p.peek().Type == lexer.TOKEN_COMMA || p.peek().Type == lexer.TOKEN_RPAREN {
+		if isRef {
+			// argumento já lido; segue para o separador
+		} else if p.peek().Type == lexer.TOKEN_COMMA || p.peek().Type == lexer.TOKEN_RPAREN {
+			// Omitted argument: `f(, x)`, `f(x,, y)`, `f(x,)` all default the gap to NIL.
 			tok := p.peek()
 			args = append(args, &ast.NilLit{Loc: p.posFromToken(tok)})
 		} else if p.peek().Type == lexer.TOKEN_IDENT && p.peekAt(1).Type == lexer.TOKEN_ASSIGN && p.peekAt(1).Value == ":=" {

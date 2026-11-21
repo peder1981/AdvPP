@@ -280,6 +280,7 @@ Todos os commands legacy AdvPL (DEFINE/REDEFINE, @SCREEN SAY/GET, CLIPPER DB com
 
 - **Constant pool deduplication:** números e strings repetidos compartilham referência
 - **Inline IF()/IIF():** special case — short-circuit evaluation (só avalia ramo escolhido)
+- **Passagem por referência (`@var`):** o argumento `@nome` compila para `OP_REF_LOCAL`/`OP_REF_UPVAL`/`OP_REF_GLOBAL`/`OP_REF_DYN`, que empilham uma `RefValue` (get/set da variável do chamador). No chamado, `LOAD`/`STORE` de local e upvalue seguem a referência; nativas recebem o valor desreferenciado e gravam em parâmetro de saída com `v.gravaRefArg(i, valor)`
 - **`.And.`/`.Or.`:** curto-circuito com `OP_JUMP_IF_FALSE`/`OP_JUMP_IF_TRUE` (o lado direito só roda quando decide); resultado sempre lógico (duplo `OP_NOT`)
 - **EVAL(codeblock):** usa `OP_EVAL_CODEBLOCK` ao invés de `OP_CALL_NATIVE`
 - **Closure upvalue capture:** resolve variáveis de frames parentais para closures
