@@ -1,10 +1,10 @@
 package vm
 
 import (
-	"github.com/advpl/compiler/pkg/db"
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/advpl/compiler/pkg/db"
 	"io"
 	"math"
 	"os"
@@ -84,8 +84,8 @@ type TryCatch struct {
 // VM is the AdvPL/TLPP virtual machine executing bytecode.
 // It maintains execution stack, call frames, native functions, and state for UI, database, and file I/O.
 type VM struct {
-	bc                    *compiler.Bytecode
-	stack                 []advplrt.Value
+	bc    *compiler.Bytecode
+	stack []advplrt.Value
 	// fault guarda uma falha fatal e não-recuperável do próprio motor
 	// (estouro de pilha de operandos). Como as ~490 chamadas de push()
 	// descartam o retorno de erro, o estouro era silencioso: o runLoop
@@ -842,6 +842,17 @@ func (v *VM) execute(instr compiler.Instruction) error {
 	case compiler.OP_ADD:
 		return v.opAdd()
 	case compiler.OP_SUB:
+		// data - n = data; data - data = dias (pelo ToFloat da data)
+		if n := len(v.stack); n >= 2 {
+			if ld, ok := v.stack[n-2].(*advplrt.DateValue); ok {
+				if _, ok := v.stack[n-1].(*advplrt.DateValue); !ok {
+					dias := advplrt.ToFloat(v.pop())
+					v.pop()
+					v.push(advplrt.NewDate(advplrt.DateAddDays(ld.Val, -dias)))
+					return nil
+				}
+			}
+		}
 		return v.opBinary(func(a, b float64) float64 { return a - b }, "OPERATOR_SUB")
 	case compiler.OP_MUL:
 		return v.opBinary(func(a, b float64) float64 { return a * b }, "OPERATOR_MULT")
@@ -1321,6 +1332,19 @@ func (v *VM) opAdd() error {
 	if result, handled := v.tryOperatorOverload(left, right, "OPERATOR_ADD"); handled {
 		v.push(result)
 		return nil
+	}
+	// data + n e n + data = data (n dias depois)
+	if ld, ok := left.(*advplrt.DateValue); ok {
+		if _, ok := right.(*advplrt.DateValue); !ok {
+			v.push(advplrt.NewDate(advplrt.DateAddDays(ld.Val, advplrt.ToFloat(right))))
+			return nil
+		}
+	}
+	if rd, ok := right.(*advplrt.DateValue); ok {
+		if _, ok := left.(*advplrt.NumberValue); ok {
+			v.push(advplrt.NewDate(advplrt.DateAddDays(rd.Val, advplrt.ToFloat(left))))
+			return nil
+		}
 	}
 	// String concatenation: if either side is a string, concatenate
 	if ls, ok := left.(*advplrt.StringValue); ok {
