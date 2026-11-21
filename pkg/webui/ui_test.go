@@ -170,7 +170,7 @@ func TestUIPostWaitBloqueiaEDesbloqueia(t *testing.T) {
 		p.UIPost(1, "x", nil) // enche a fila
 	}
 	ret := make(chan bool, 1)
-	go func() { ret <- p.UIPostWait(1, "line", nil) }()
+	go func() { ret <- p.UIPostWait(1, "line", nil, nil) }()
 	select {
 	case <-ret:
 		t.Fatal("UIPostWait não bloqueou com a fila cheia")

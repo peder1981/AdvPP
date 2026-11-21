@@ -65,11 +65,13 @@ func (f *fakeUI) UIPost(id int, ev string, val []byte) {
 	}
 }
 
-func (f *fakeUI) UIPostWait(id int, ev string, val []byte) bool {
+func (f *fakeUI) UIPostWait(id int, ev string, val []byte, cancel <-chan struct{}) bool {
 	select {
 	case f.in <- fakeEv{id, ev, val}:
 		return true
 	case <-f.quit:
+		return false
+	case <-cancel:
 		return false
 	}
 }

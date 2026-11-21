@@ -5,6 +5,7 @@ package vm
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -126,4 +127,27 @@ Return
 	}
 	syscall.Kill(pid, syscall.SIGKILL)
 	t.Fatalf("processo %d continuou vivo depois que a sessão fechou", pid)
+}
+
+// Close() com um processo ainda imprimindo: o processo morre e a goroutine
+// de leitura não pode ficar presa postando numa fila que ninguém mais lê.
+func TestSpawnNaoVazaAposClose(t *testing.T) {
+	antes := runtime.NumGoroutine()
+	f := newFakeUI()
+	_, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	oApp:Spawn("seq", {"1", "200000"}, {|c| oApp:Close()}, {|n| .T.})
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	for i := 0; i < 100; i++ {
+		if runtime.NumGoroutine() <= antes+1 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Errorf("goroutines: antes %d, depois %d (leitura do processo presa)", antes, runtime.NumGoroutine())
 }

@@ -13,8 +13,9 @@ import (
 type ComponentUI interface {
 	UISend(op []byte)
 	UIPost(id int, event string, value []byte)
-	// UIPostWait espera vaga na fila (saída de processo); false = sessão encerrada.
-	UIPostWait(id int, event string, value []byte) bool
+	// UIPostWait espera vaga na fila (saída de processo). Devolve false sem
+	// postar se a sessão encerrou ou se cancel fechou (laço terminado).
+	UIPostWait(id int, event string, value []byte, cancel <-chan struct{}) bool
 	UINext() (id int, event string, value []byte)
 }
 

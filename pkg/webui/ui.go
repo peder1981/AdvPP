@@ -35,12 +35,15 @@ func (p *Provider) UIPost(id int, ev string, value []byte) {
 }
 
 // UIPostWait injeta um evento esperando vaga na fila (saída de processo
-// filho: nenhuma linha pode se perder). Sessão encerrada: devolve false.
-func (p *Provider) UIPostWait(id int, ev string, value []byte) bool {
+// filho: nenhuma linha pode se perder). Sessão encerrada ou cancel fechado
+// (o laço do programa terminou): devolve false sem postar.
+func (p *Provider) UIPostWait(id int, ev string, value []byte, cancel <-chan struct{}) bool {
 	select {
 	case p.s.ui <- uiEvent{ID: id, Event: ev, Value: value}:
 		return true
 	case <-p.s.quit:
+		return false
+	case <-cancel:
 		return false
 	}
 }

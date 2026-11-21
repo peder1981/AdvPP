@@ -21,6 +21,7 @@ type poSpawn struct {
 	bFim     advplrt.Value
 	cmd      *exec.Cmd
 	iniciado bool
+	parar    chan struct{} // fechado no fim do laço: a leitura para de postar
 }
 
 const poSpawnMaxLinha = 1 << 20 // 1 MB por linha
@@ -42,12 +43,13 @@ func (a *poAppState) startSpawn(id int, sp *poSpawn) {
 		return
 	}
 	sp.iniciado = true
-	ui := a.ui
+	sp.parar = make(chan struct{})
+	ui, parar := a.ui, sp.parar
 	cmd := exec.Command(sp.prog, sp.args...)
 	stdout, err1 := cmd.StdoutPipe()
 	stderr, err2 := cmd.StderrPipe()
 	if err1 != nil || err2 != nil || cmd.Start() != nil {
-		go ui.UIPostWait(id, "exit", []byte("-1"))
+		go ui.UIPostWait(id, "exit", []byte("-1"), parar)
 		return
 	}
 	sp.cmd = cmd
@@ -57,9 +59,13 @@ func (a *poAppState) startSpawn(id int, sp *poSpawn) {
 			defer wg.Done()
 			sc := bufio.NewScanner(r)
 			sc.Buffer(make([]byte, 64*1024), poSpawnMaxLinha)
+			postando := true
 			for sc.Scan() {
+				if !postando {
+					continue // laço/sessão encerrados: só drena até o pipe fechar
+				}
 				data, _ := json.Marshal(map[string]any{"t": sc.Text(), "e": erro})
-				ui.UIPostWait(id, "line", data) // sessão encerrada: só drena
+				postando = ui.UIPostWait(id, "line", data, parar)
 			}
 		}
 		wg.Add(2)
@@ -73,7 +79,7 @@ func (a *poAppState) startSpawn(id int, sp *poSpawn) {
 				code = ee.ExitCode()
 			}
 		}
-		ui.UIPostWait(id, "exit", []byte(strconv.Itoa(code)))
+		ui.UIPostWait(id, "exit", []byte(strconv.Itoa(code)), parar)
 	}()
 }
 
@@ -83,10 +89,15 @@ func (a *poAppState) killSpawn(id int) {
 	}
 }
 
-// killSpawns encerra os processos ao fim do laço (Close ou sessão abandonada).
+// killSpawns encerra os processos ao fim do laço (Close ou sessão abandonada)
+// e libera as goroutines de leitura, que deixam de postar.
 func (a *poAppState) killSpawns() {
-	for id := range a.spawns {
+	for id, sp := range a.spawns {
 		a.killSpawn(id)
+		if sp.parar != nil {
+			close(sp.parar)
+		}
+		delete(a.spawns, id)
 	}
 }
 
