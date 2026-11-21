@@ -2,7 +2,7 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
-## [Não lançado]
+## [4.8.0] - 2026-11-21
 
 ### Added
 - **`AdvCodeEditor` e `AdvTerminal`** (fase 4 dos componentes): editor CodeMirror 6 com
