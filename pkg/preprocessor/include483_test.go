@@ -39,14 +39,19 @@ func TestIncludeAninhadoRelativo(t *testing.T) {
 	}
 }
 
-// Fonte incluído inexistente é erro; header .ch inexistente segue tolerado.
+// Fonte incluído inexistente vira aviso com arquivo e linha (não erro, para
+// não quebrar programa existente com include morto); .ch ausente segue sem aviso.
 func TestIncludeFonteInexistente(t *testing.T) {
 	d := t.TempDir()
 	raiz := filepath.Join(d, "t.prw")
 	escreve(t, raiz, "#include \"totvs.ch\"\n#include \"nao_existe.prw\"\nUser Function T()\nReturn\n")
-	_, err := NewPreprocessor(nil).Process(string(mustRead(t, raiz)), raiz)
-	if err == nil || !strings.Contains(err.Error(), "nao_existe.prw") || !strings.Contains(err.Error(), ":2:") {
-		t.Fatalf("esperava erro com nome e linha do include, veio: %v", err)
+	p := NewPreprocessor(nil)
+	if _, err := p.Process(string(mustRead(t, raiz)), raiz); err != nil {
+		t.Fatalf("nao devia falhar: %v", err)
+	}
+	av := p.Avisos()
+	if len(av) != 1 || av[0].Linha != 2 || !strings.Contains(av[0].Mensagem, "nao_existe.prw") {
+		t.Fatalf("esperava 1 aviso na linha 2 sobre nao_existe.prw, veio: %+v", av)
 	}
 }
 

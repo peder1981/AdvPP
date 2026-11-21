@@ -11,6 +11,7 @@ import (
 
 // Preprocessor represents a core AdvPP type.
 type Preprocessor struct {
+	avisos       []Aviso
 	includePaths []string
 	defines      map[string]string
 	processed    map[string]bool
@@ -27,6 +28,16 @@ type Preprocessor struct {
 }
 
 // NewPreprocessor performs a core operation.
+// Aviso do pré-processador (ex.: #include de fonte não encontrado).
+type Aviso struct {
+	Arquivo  string
+	Linha    int
+	Mensagem string
+}
+
+// Avisos devolve os avisos acumulados pelo Process, na ordem em que surgiram.
+func (p *Preprocessor) Avisos() []Aviso { return p.avisos }
+
 func NewPreprocessor(includePaths []string) *Preprocessor {
 	return &Preprocessor{
 		includePaths: includePaths,
@@ -87,12 +98,11 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 					return "", err
 				}
 				if incSource == "" && incPath == "" && isSourceInclude(includeFile) {
-					// Fonte incluído que não existe: erro, como no Protheus. Antes
-					// sumia em silêncio e as funções dele viravam "unknown function"
-					// só ao executar. Headers .ch/.th seguem tolerantes (vários são
-					// embutidos no AdvPP).
-					return "", fmt.Errorf("%s:%d: #include \"%s\" não encontrado (procurado ao lado de %s e nos caminhos de include)",
-						fileName, i+1, includeFile, fileName)
+					// Fonte incluído que não existe: aviso (sai no advplc check), não
+					// erro — como os terminadores órfãos (4.8.1), para não quebrar
+					// programa existente com include morto. Antes sumia em silêncio.
+					p.avisos = append(p.avisos, Aviso{Arquivo: fileName, Linha: i + 1,
+						Mensagem: fmt.Sprintf("#include \"%s\" não encontrado (ignorado; procurado ao lado de %s e nos caminhos de include)", includeFile, fileName)})
 				}
 				if incSource != "" {
 					processed, err := p.processFile(incSource, incPath, depth+1)

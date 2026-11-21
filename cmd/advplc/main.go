@@ -369,7 +369,15 @@ func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []p
 		return nil, nil, fmt.Errorf("compiler error: %v", err)
 	}
 
-	return bc, p.Avisos(), nil
+	avisos := p.Avisos()
+	for _, a := range pp.Avisos() {
+		msg := a.Mensagem
+		if a.Arquivo != sourceFile {
+			msg = a.Arquivo + ": " + msg
+		}
+		avisos = append(avisos, parser.Aviso{Line: a.Linha, Col: 1, Message: msg})
+	}
+	return bc, avisos, nil
 }
 
 func runFile(sourceFile string, opts *Options) error {

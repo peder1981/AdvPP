@@ -16,6 +16,11 @@ Todas as mudanças relevantes no projeto AdvPP.
   válido).
 
 ### Fixed
+- **`#include` de fonte inexistente quebrava programa existente** (regressão da
+  4.8.3, achada na suíte do GesCon): virou erro de compilação, e um include morto
+  que sempre foi ignorado passou a impedir a execução. Agora é aviso com
+  arquivo:linha no `advplc check` (texto e `--format json`), como os terminadores
+  órfãos da 4.8.1, e o programa compila.
 - **`Nil` convertido para texto virava a palavra `"Nil"`**: `cValToChar(Nil)`,
   `AllTrim(Nil)`, `Upper(Nil)`, `cValToChar(oJson["ausente"])`, JSON `null`, SQL
   `NULL` — um campo ausente passava por preenchido com "Nil". Nil é o nulo do
