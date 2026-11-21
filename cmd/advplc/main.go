@@ -161,7 +161,7 @@ func main() {
 		}
 
 	case "serve":
-		if len(os.Args) >= 3 && os.Args[2] == "--apps" {
+		if modoApps(os.Args[2:]) {
 			if err := serveApps(parseOptions(os.Args[2:])); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)

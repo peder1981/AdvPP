@@ -155,3 +155,19 @@ func TestParseOptionsApps(t *testing.T) {
 		t.Errorf("apps=%q home=%q", o.apps, o.home)
 	}
 }
+
+// --apps vale em qualquer posição depois de "serve".
+func TestModoApps(t *testing.T) {
+	casos := map[string]bool{
+		"--apps d":                 true,
+		"--port 9000 --apps d":     true,
+		"--home x --apps d":        true,
+		"programa.prw --port 9000": false,
+		"programa.prw":             false,
+	}
+	for args, want := range casos {
+		if got := modoApps(strings.Fields(args)); got != want {
+			t.Errorf("modoApps(%q) = %v, esperado %v", args, got, want)
+		}
+	}
+}

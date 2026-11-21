@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -110,6 +111,11 @@ func serveAppsPrepara(opts *Options) error {
 	opts.apps = abs
 	vm.DefinirIconesValidos(webui.Icones())
 	return os.Setenv("ADVPP_APPS_DIR", abs)
+}
+
+// modoApps: "--apps" em qualquer posição depois de "serve".
+func modoApps(args []string) bool {
+	return slices.Contains(args, "--apps")
 }
 
 // serveApps: advplc serve --apps <dir> [--home <nome>] [--port n].
