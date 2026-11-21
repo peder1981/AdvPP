@@ -7,7 +7,7 @@ import { Compartment, EditorState, Extension, Prec } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { basicSetup } from 'codemirror';
 import { advpl } from './advpl-lang';
-import { UiNode, UiPost } from './ui-host';
+import { UiNode, UiPost, adiaEnvio, cancelaEnvio } from './ui-host';
 
 interface Marcador { line: number; col: number; message: string; severity: 'error' | 'warning' | 'info' }
 
@@ -104,6 +104,7 @@ export class AdvCodeEditorComponent implements AfterViewInit, DoCheck, OnDestroy
   private salvar() {
     const t = this.view!.state.doc.toString();
     clearTimeout(this.debounce);
+    cancelaEnvio(this);
     this.node.props['value'] = t;
     this.visto['value'] = t;
     this.post(this.node.id, 'save', t);
@@ -111,16 +112,17 @@ export class AdvCodeEditorComponent implements AfterViewInit, DoCheck, OnDestroy
 
   private mudou() {
     clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => {
+    this.debounce = adiaEnvio(this, 500, () => {
       const t = this.view!.state.doc.toString();
       this.node.props['value'] = t;
       this.visto['value'] = t;
       this.post(this.node.id, 'change', t);
-    }, 500);
+    });
   }
 
   ngOnDestroy() {
     clearTimeout(this.debounce);
+    cancelaEnvio(this);
     this.view?.destroy();
   }
 }

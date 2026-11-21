@@ -16,11 +16,32 @@ const (
 // Parser builds an abstract syntax tree (AST) from a token stream.
 // It enforces AdvPL/TLPP grammar rules and validates structure.
 type Parser struct {
-	tokens           []lexer.Token
-	pos              int
-	fileName         string
-	defines          map[string]string
-	recursionDepth   int
+	tokens         []lexer.Token
+	pos            int
+	fileName       string
+	defines        map[string]string
+	recursionDepth int
+	avisos         []Aviso
+}
+
+// Aviso é um problema que não impede a compilação (o Protheus também aceita),
+// mas que o `advplc check` mostra com a posição.
+type Aviso struct {
+	Line    int    `json:"line"`
+	Col     int    `json:"col"`
+	Message string `json:"message"`
+}
+
+// Avisos devolve os avisos acumulados pelo Parse, na ordem do fonte.
+func (p *Parser) Avisos() []Aviso {
+	return p.avisos
+}
+
+// ignoraOrfao consome um terminador de bloco sem bloco aberto (EndIf, Next,
+// End, EndDo...), que o Protheus real tolera, registrando um aviso.
+func (p *Parser) ignoraOrfao() {
+	tok := p.advance()
+	p.avisos = append(p.avisos, Aviso{Line: tok.Line, Col: tok.Col, Message: tok.Value + " sem bloco aberto (ignorado)"})
 }
 
 // NewParser creates a new parser for the given token stream.
@@ -452,6 +473,12 @@ func (p *Parser) Parse() (*ast.Program, error) {
 			continue
 		}
 
+		// Terminador órfão fora de função (ex.: EndIf depois do Return).
+		if p.isStatementBoundary(tok) && !p.isFunctionBoundary(tok) {
+			p.ignoraOrfao()
+			continue
+		}
+
 		stmt, err := p.parseStatement()
 		if err != nil {
 			return nil, err
@@ -611,7 +638,7 @@ func (p *Parser) parseFunctionBody() ([]ast.Statement, ast.Expression, error) {
 		// bloco aberto correspondente — o Protheus real tolera. Consome e
 		// ignora em vez de falhar com "unexpected token".
 		if p.isStatementBoundary(tok) && !p.isFunctionBoundary(tok) {
-			p.advance()
+			p.ignoraOrfao()
 			continue
 		}
 

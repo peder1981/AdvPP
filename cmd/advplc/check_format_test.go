@@ -127,3 +127,31 @@ func TestCheckJSONSemPosicao(t *testing.T) {
 		t.Errorf("JSON sem posição não deve ter line/col: %s", data)
 	}
 }
+
+// Terminador órfão: ok continua true (compila, como no Protheus) e o aviso
+// sai em "warnings" com linha e coluna.
+func TestRunCheckJSONAvisos(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "orfao.prw")
+	if err := os.WriteFile(f, []byte("User Function Tst()\nReturn\n\tEndIf\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := runCheckJSON([]string{f}, &Options{}, w)
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	if code != 0 {
+		t.Fatalf("aviso não é falha: saiu %d (%s)", code, buf.String())
+	}
+	var got checkJSONResult
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.OK || len(got.Warnings) != 1 || got.Warnings[0].Line != 3 || got.Warnings[0].Message != "EndIf sem bloco aberto (ignorado)" {
+		t.Fatalf("resultado inesperado: %s", buf.String())
+	}
+}

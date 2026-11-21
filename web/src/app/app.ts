@@ -6,7 +6,7 @@ import {
   PoModalAction, PoModalComponent, PoModalModule, PoPageModule,
   PoTableAction, PoTableColumn, PoTableModule, PoTagModule,
 } from '@po-ui/ng-components';
-import { UiHostComponent, UiNode } from './ui-host';
+import { UiHostComponent, UiNode, descarregaPendentes } from './ui-host';
 import { entregaTerm } from './adv-terminal';
 
 // Heurística de ícone pra item de menu (FWMenuSelect não carrega nenhuma
@@ -390,8 +390,13 @@ export class App {
   }
 
   // Evento de componente -> laço de PoApp:Activate (POST /ui).
+  // Os POSTs saem em fila (um por vez), na ordem dos eventos: um "change"
+  // não pode chegar ao servidor depois do "click" que veio em seguida.
+  private filaUI: Promise<unknown> = Promise.resolve();
   protected postUI = (id: number, event: string, value: unknown) => {
-    fetch('/ui?s=' + this.sid, { method: 'POST', body: JSON.stringify({ id, event, value }) });
+    descarregaPendentes();
+    const body = JSON.stringify({ id, event, value });
+    this.filaUI = this.filaUI.then(() => fetch('/ui?s=' + this.sid, { method: 'POST', body })).catch(() => undefined);
   };
 
   private showDialog(ev: ServerEvent) {
