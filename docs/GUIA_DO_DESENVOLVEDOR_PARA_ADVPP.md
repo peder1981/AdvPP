@@ -280,6 +280,7 @@ Todos os commands legacy AdvPL (DEFINE/REDEFINE, @SCREEN SAY/GET, CLIPPER DB com
 
 - **Constant pool deduplication:** números e strings repetidos compartilham referência
 - **Inline IF()/IIF():** special case — short-circuit evaluation (só avalia ramo escolhido)
+- **`.And.`/`.Or.`:** curto-circuito com `OP_JUMP_IF_FALSE`/`OP_JUMP_IF_TRUE` (o lado direito só roda quando decide); resultado sempre lógico (duplo `OP_NOT`)
 - **EVAL(codeblock):** usa `OP_EVAL_CODEBLOCK` ao invés de `OP_CALL_NATIVE`
 - **Closure upvalue capture:** resolve variáveis de frames parentais para closures
 - **Global bit flag:** locals globais são marcados com bit 0x8000 no slot index
@@ -607,7 +608,7 @@ existindo para diálogos tradicionais).
 
 | Função | Args | Retorno | Descrição |
 |--------|------|---------|-----------|
-| `TRANSFORM(val, mask)` | any, string | string | Aplica máscara de formatação |
+| `TRANSFORM(val, mask)` | any, string | string | Picture do Protheus: `@E` (formato brasileiro), `@R` (template de texto), `@!` (maiúsculas), separadores de milhar, alinhamento no tamanho do template e `*` quando o número não cabe |
 
 #### Checks de Caractere
 
@@ -794,7 +795,7 @@ Acesso a chave é por colchete (`oJ["chave"]`, `oJ["a"]["b"]`), não por dois-po
 
 | Método | Args | Retorno | Descrição |
 |--------|------|---------|-----------|
-| `oJ:FromJson(cJson)` | string | Bool | Parser real (`encoding/json` da stdlib) — antes era stub que sempre devolvia Nil sem parsear nada. Objetos aninhados viram `JsonObject`, arrays viram `Array` 1-based, `null`→Nil. `.F.` se `cJson` não parsear como objeto (JSON inválido, ou top-level array/escalar) — nunca falha/lança erro |
+| `oJ:FromJson(cJson)` | string | Nil ou texto | Parser real (`encoding/json` da stdlib). Como no Protheus, devolve `Nil` quando leu e o texto do erro quando não (JSON inválido, ou top-level array/escalar) — nunca lança erro. Objetos aninhados viram `JsonObject`, arrays viram `Array` 1-based, `null`→Nil |
 | `oJ:ToString()` / `oJ:ToJson()` | — | string | Serializa de volta para JSON |
 | `GetNames(oJ)` | JsonObject | array | Lista as propriedades, na ordem de inserção |
 

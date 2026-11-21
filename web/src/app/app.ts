@@ -107,6 +107,7 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
     }
 
     <ng-template #consoleTpl>
+      @if (lines().length > 0) {
       <div class="advpp-console-toggle" (click)="consoleOpen.set(!consoleOpen())">
         <i class="an" [class.an-caret-right]="!consoleOpen()" [class.an-caret-down]="consoleOpen()"></i>
         Log técnico ({{ lines().length }} linha{{ lines().length === 1 ? '' : 's' }})
@@ -114,6 +115,7 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
       @if (consoleOpen()) {
         <div class="advpp-console">@for (line of lines(); track $index) {{{ line }}
 }</div>
+      }
       }
     </ng-template>
 

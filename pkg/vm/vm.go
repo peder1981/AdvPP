@@ -1,10 +1,10 @@
 package vm
 
 import (
-	"github.com/advpl/compiler/pkg/db"
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/advpl/compiler/pkg/db"
 	"io"
 	"math"
 	"os"
@@ -84,8 +84,8 @@ type TryCatch struct {
 // VM is the AdvPL/TLPP virtual machine executing bytecode.
 // It maintains execution stack, call frames, native functions, and state for UI, database, and file I/O.
 type VM struct {
-	bc                    *compiler.Bytecode
-	stack                 []advplrt.Value
+	bc    *compiler.Bytecode
+	stack []advplrt.Value
 	// fault guarda uma falha fatal e não-recuperável do próprio motor
 	// (estouro de pilha de operandos). Como as ~490 chamadas de push()
 	// descartam o retorno de erro, o estouro era silencioso: o runLoop
@@ -587,19 +587,10 @@ func (v *VM) Run() (advplrt.Value, error) {
 // RunFunction executa uma função específica do bytecode (busca
 // case-insensitive) num VM já inicializado. Usada por StartJob.
 func (v *VM) RunFunction(name string, args []advplrt.Value) (advplrt.Value, error) {
-	info, ok := v.bc.Functions[name]
-	if !ok {
-		// Busca case-insensitive; o prefixo U_ de User Function é aceito
-		// (o bytecode guarda o nome declarado, sem o prefixo)
-		upper := strings.ToUpper(name)
-		trimmed := strings.TrimPrefix(upper, "U_")
-		for fname, finfo := range v.bc.Functions {
-			fupper := strings.ToUpper(fname)
-			if fupper == upper || fupper == trimmed {
-				info, ok = finfo, true
-				break
-			}
-		}
+	var info *compiler.FunctionInfo
+	k, ok := v.bc.ResolveFunc(name)
+	if ok {
+		info = v.bc.Functions[k]
 	}
 	if !ok {
 		return advplrt.Nil, fmt.Errorf("function %s not found", name)
@@ -842,6 +833,17 @@ func (v *VM) execute(instr compiler.Instruction) error {
 	case compiler.OP_ADD:
 		return v.opAdd()
 	case compiler.OP_SUB:
+		// data - n = data; data - data = dias (pelo ToFloat da data)
+		if n := len(v.stack); n >= 2 {
+			if ld, ok := v.stack[n-2].(*advplrt.DateValue); ok {
+				if _, ok := v.stack[n-1].(*advplrt.DateValue); !ok {
+					dias := advplrt.ToFloat(v.pop())
+					v.pop()
+					v.push(advplrt.NewDate(advplrt.DateAddDays(ld.Val, -dias)))
+					return nil
+				}
+			}
+		}
 		return v.opBinary(func(a, b float64) float64 { return a - b }, "OPERATOR_SUB")
 	case compiler.OP_MUL:
 		return v.opBinary(func(a, b float64) float64 { return a * b }, "OPERATOR_MULT")
@@ -1321,6 +1323,19 @@ func (v *VM) opAdd() error {
 	if result, handled := v.tryOperatorOverload(left, right, "OPERATOR_ADD"); handled {
 		v.push(result)
 		return nil
+	}
+	// data + n e n + data = data (n dias depois)
+	if ld, ok := left.(*advplrt.DateValue); ok {
+		if _, ok := right.(*advplrt.DateValue); !ok {
+			v.push(advplrt.NewDate(advplrt.DateAddDays(ld.Val, advplrt.ToFloat(right))))
+			return nil
+		}
+	}
+	if rd, ok := right.(*advplrt.DateValue); ok {
+		if _, ok := left.(*advplrt.NumberValue); ok {
+			v.push(advplrt.NewDate(advplrt.DateAddDays(rd.Val, advplrt.ToFloat(left))))
+			return nil
+		}
 	}
 	// String concatenation: if either side is a string, concatenate
 	if ls, ok := left.(*advplrt.StringValue); ok {
@@ -1878,18 +1893,21 @@ func (v *VM) callJsonObjectMethod(obj *advplrt.ObjectValue, method string, args 
 		v.push(advplrt.False)
 		return nil
 	case "FROMJSON":
+		// Como no Protheus: Nil quando leu o JSON, texto do erro quando não
+		// (antes .T./.F.; código escrito para o Protheus, que testa
+		// ValType(xErr) == "C", nunca via o erro).
 		if len(args) > 0 {
 			if s, ok := args[0].(*advplrt.StringValue); ok {
 				var parsed interface{}
 				if err := json.Unmarshal([]byte(s.Val), &parsed); err != nil {
-					v.push(advplrt.False)
+					v.push(advplrt.NewString("JSON invalido: " + err.Error()))
 					return nil
 				}
 				root, ok := parsed.(map[string]interface{})
 				if !ok {
 					// Top-level JSON não é objeto (ex.: array ou escalar) — não há
-					// como popular Props/Keys de obj; devolve .F. sem mutar.
-					v.push(advplrt.False)
+					// como popular Props/Keys de obj; devolve o erro sem mutar.
+					v.push(advplrt.NewString("JSON invalido: o texto nao e' um objeto"))
 					return nil
 				}
 				obj.Props = make(map[string]advplrt.Value, len(root))
@@ -1897,11 +1915,11 @@ func (v *VM) callJsonObjectMethod(obj *advplrt.ObjectValue, method string, args 
 				for k, val := range root {
 					obj.SetProp(k, jsonToAdvplValue(val))
 				}
-				v.push(advplrt.True)
+				v.push(advplrt.Nil)
 				return nil
 			}
 		}
-		v.push(advplrt.False)
+		v.push(advplrt.NewString("JSON invalido: parametro nao e' texto"))
 		return nil
 	case "GETNAMES":
 		// Ordem de inserção das chaves (mesma semântica do native GetNames).

@@ -1,6 +1,7 @@
 package preprocessor
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -81,9 +82,23 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 		if strings.HasPrefix(upper, "#INCLUDE") {
 			includeFile := extractIncludeFile(trimmed)
 			if includeFile != "" {
-				incSource, err := p.loadInclude(includeFile)
-				if err == nil && incSource != "" {
-					processed, _ := p.processFile(incSource, includeFile, depth+1)
+				incSource, incPath, err := p.loadInclude(includeFile, filepath.Dir(fileName))
+				if err != nil {
+					return "", err
+				}
+				if incSource == "" && incPath == "" && isSourceInclude(includeFile) {
+					// Fonte incluído que não existe: erro, como no Protheus. Antes
+					// sumia em silêncio e as funções dele viravam "unknown function"
+					// só ao executar. Headers .ch/.th seguem tolerantes (vários são
+					// embutidos no AdvPP).
+					return "", fmt.Errorf("%s:%d: #include \"%s\" não encontrado (procurado ao lado de %s e nos caminhos de include)",
+						fileName, i+1, includeFile, fileName)
+				}
+				if incSource != "" {
+					processed, err := p.processFile(incSource, incPath, depth+1)
+					if err != nil {
+						return "", err
+					}
 					output.WriteString(processed)
 					output.WriteString("\n")
 				}
@@ -499,44 +514,70 @@ func isWordChar(ch byte) bool {
 	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_'
 }
 
-func (p *Preprocessor) loadInclude(fileName string) (string, error) {
-	key := strings.ToLower(fileName)
-	if p.processed[key] {
-		return "", nil
+// loadInclude devolve o conteúdo e o caminho resolvido do include. Procura
+// primeiro no diretório do arquivo que o inclui (include aninhado relativo,
+// ex.: "GEBDB_CORE.prw" dentro de src/X.prw rodado de outro diretório), depois
+// nos caminhos de include e no diretório corrente. Um arquivo já incluído
+// (mesmo caminho absoluto, por qualquer grafia) devolve ("", caminho, nil).
+// Não encontrado: ("", "", nil).
+func (p *Preprocessor) loadInclude(fileName, dirAtual string) (string, string, error) {
+	dirs := []string{}
+	if dirAtual != "" && !filepath.IsAbs(fileName) {
+		dirs = append(dirs, dirAtual)
 	}
-	p.processed[key] = true
+	dirs = append(dirs, p.includePaths...)
 
 	// Além do diretório em si, projetos reais guardam os headers em
 	// subpastas convencionais ("ch/", "include/", "includes/") ao lado dos
 	// fontes; e em Linux o nome no #include quase nunca bate o case do
 	// arquivo em disco (fonte CP-1252 vindo de Windows) — tenta exato e
 	// depois case-insensitive.
-	for _, dir := range p.includePaths {
+	for _, dir := range dirs {
 		for _, sub := range []string{"", "ch", "include", "includes"} {
 			base := dir
 			if sub != "" {
 				base = filepath.Join(dir, sub)
 			}
-			path := filepath.Join(base, fileName)
-			data, err := os.ReadFile(path)
-			if err == nil && !isBinary(data) {
-				return SourceToUTF8(data), nil
+			if src, path, ok := p.leInclude(filepath.Join(base, fileName)); ok {
+				return src, path, nil
 			}
 			if found := findFileFold(base, fileName); found != "" {
-				data, err := os.ReadFile(found)
-				if err == nil && !isBinary(data) {
-					return SourceToUTF8(data), nil
+				if src, path, ok := p.leInclude(found); ok {
+					return src, path, nil
 				}
 			}
 		}
 	}
-
-	data, err := os.ReadFile(fileName)
-	if err == nil && !isBinary(data) {
-		return SourceToUTF8(data), nil
+	if src, path, ok := p.leInclude(fileName); ok {
+		return src, path, nil
 	}
+	return "", "", nil
+}
 
-	return "", nil
+// leInclude lê o arquivo se existir e for texto; já incluído devolve "" com ok.
+func (p *Preprocessor) leInclude(path string) (string, string, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil || isBinary(data) {
+		return "", "", false
+	}
+	key := strings.ToLower(path)
+	if abs, err := filepath.Abs(path); err == nil {
+		key = strings.ToLower(abs)
+	}
+	if p.processed[key] {
+		return "", path, true
+	}
+	p.processed[key] = true
+	return SourceToUTF8(data), path, true
+}
+
+// isSourceInclude: o include é um fonte (.prw/.prx/.prg/.tlpp), não um header.
+func isSourceInclude(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".prw", ".prx", ".prg", ".tlpp":
+		return true
+	}
+	return false
 }
 
 // findFileFold procura em `dir` uma entrada cujo nome case-insensitive seja

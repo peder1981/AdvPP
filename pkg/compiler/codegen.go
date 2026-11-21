@@ -1017,6 +1017,9 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 }
 
 func (c *Compiler) compileBinaryOp(e *ast.BinaryOp) error {
+	if e.Op == ".And." || e.Op == ".Or." {
+		return c.compileLogicOp(e)
+	}
 	if err := c.compileExpr(e.Left); err != nil {
 		return err
 	}
@@ -1057,6 +1060,31 @@ func (c *Compiler) compileBinaryOp(e *ast.BinaryOp) error {
 	default:
 		return fmt.Errorf("unknown operator: %s", e.Op)
 	}
+	return nil
+}
+
+// compileLogicOp: .And./.Or. com curto-circuito, como no Protheus — o operando
+// direito só é avaliado quando decide o resultado (`x != Nil .And. x:Foo()` não
+// chama Foo com x Nil). O resultado é sempre lógico, pelo mesmo critério do
+// OP_AND/OP_OR (IsTruthy); o duplo OP_NOT converte o operando direito.
+func (c *Compiler) compileLogicOp(e *ast.BinaryOp) error {
+	if err := c.compileExpr(e.Left); err != nil {
+		return err
+	}
+	salto, curto := OP_JUMP_IF_FALSE, OP_FALSE
+	if e.Op == ".Or." {
+		salto, curto = OP_JUMP_IF_TRUE, OP_TRUE
+	}
+	jCurto := c.emitJump(salto, e.Loc.Line)
+	if err := c.compileExpr(e.Right); err != nil {
+		return err
+	}
+	c.emit(OP_NOT, 0, 0, "", e.Loc.Line)
+	c.emit(OP_NOT, 0, 0, "", e.Loc.Line)
+	jFim := c.emitJump(OP_JUMP, e.Loc.Line)
+	c.patchJump(jCurto, len(c.bc.Code))
+	c.emit(curto, 0, 0, "", e.Loc.Line)
+	c.patchJump(jFim, len(c.bc.Code))
 	return nil
 }
 
@@ -1112,8 +1140,8 @@ func (c *Compiler) compileCallExpr(e *ast.CallExpr) error {
 		c.emit(OP_EVAL_CODEBLOCK, 0, len(e.Args)-1, "", e.Loc.Line)
 		return nil
 	}
-	if _, ok := c.bc.Functions[e.Name]; ok {
-		c.emit(OP_CALL_FUNC, 0, len(e.Args), e.Name, e.Loc.Line)
+	if k, ok := c.bc.ResolveFunc(e.Name); ok {
+		c.emit(OP_CALL_FUNC, 0, len(e.Args), k, e.Loc.Line)
 	} else {
 		c.emit(OP_CALL_NATIVE, 0, len(e.Args), e.Name, e.Loc.Line)
 	}

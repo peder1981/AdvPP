@@ -9,10 +9,10 @@ import (
 
 // Resource limits to prevent denial-of-service attacks (CWE-400)
 const (
-	MaxArraySize        = 1_000_000  // 1M elements per array
-	MaxObjectProperties = 10_000     // 10k properties per object
-	MaxJSONNesting      = 100        // 100 levels of nesting
-	MaxConcurrentJobs   = 1_000      // 1000 concurrent goroutines
+	MaxArraySize        = 1_000_000 // 1M elements per array
+	MaxObjectProperties = 10_000    // 10k properties per object
+	MaxJSONNesting      = 100       // 100 levels of nesting
+	MaxConcurrentJobs   = 1_000     // 1000 concurrent goroutines
 )
 
 // Value represents any AdvPL/TLPP runtime value (scalar, array, object, function).
@@ -32,7 +32,7 @@ func (n *NilValue) IsTruthy() bool { return false }
 func (n *NilValue) Equals(other Value) bool {
 	// Guard against nil interface (CWE-476: null pointer dereference)
 	if other == nil {
-		return true  // nil == nil
+		return true // nil == nil
 	}
 	_, ok := other.(*NilValue)
 	return ok
@@ -240,6 +240,26 @@ func (d *DateValue) Equals(other Value) bool {
 // NewDate creates a date value from a time.Time.
 func NewDate(t time.Time) *DateValue { return &DateValue{Val: t} }
 
+// DateDays: dias desde 01/01/0001 (data vazia = 0). É o valor numérico de uma
+// data em comparações (<, >, ...) e em data - data, como no Protheus. Antes
+// ToFloat(data) era 0: toda data "valia" o mesmo e dVenc < Date() era sempre .F.
+func DateDays(t time.Time) float64 {
+	if t.IsZero() {
+		return 0
+	}
+	y, m, d := t.Date()
+	return float64(time.Date(y, m, d, 0, 0, 0, 0, time.UTC).Unix()/86400) + 719163
+}
+
+// DateAddDays: data + n dias (data vazia continua vazia).
+func DateAddDays(t time.Time, n float64) time.Time {
+	if t.IsZero() {
+		return t
+	}
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, t.Location()).AddDate(0, 0, int(math.Round(n)))
+}
+
 // ArrayValue represents an array/table (zero-indexed collection of values).
 type ArrayValue struct{ Elements []Value }
 
@@ -318,7 +338,7 @@ type CodeBlockValue struct {
 	Params   []string
 	Body     interface{}
 	Env      *Environment
-	FuncName string  // for bytecode VM
+	FuncName string   // for bytecode VM
 	Upvalues []*Value // closures: ponteiros para os slots capturados do frame envolvente
 }
 
@@ -365,12 +385,12 @@ type ObjectValue struct {
 // If MaxObjectProperties is exceeded (new keys only), silently returns without setting.
 func (o *ObjectValue) SetProp(key string, val Value) {
 	if o == nil {
-		return  // Cannot set property on nil object
+		return // Cannot set property on nil object
 	}
 	// Check if adding a new key would exceed the limit (CWE-400: DoS prevention)
 	if _, exists := o.Props[key]; !exists {
 		if len(o.Props) >= MaxObjectProperties {
-			return  // Limit exceeded; silently skip new property
+			return // Limit exceeded; silently skip new property
 		}
 		o.Keys = append(o.Keys, key)
 	}
@@ -382,7 +402,7 @@ func (o *ObjectValue) SetProp(key string, val Value) {
 // Guard against nil receiver (CWE-476).
 func (o *ObjectValue) DelProp(key string) bool {
 	if o == nil {
-		return false  // Cannot delete property from nil object
+		return false // Cannot delete property from nil object
 	}
 	if _, exists := o.Props[key]; !exists {
 		return false
@@ -546,14 +566,19 @@ type ParamDef struct {
 // Helper functions
 
 func IsNumber(v Value) bool { _, ok := v.(*NumberValue); return ok }
+
 // IsString performs a core operation.
 func IsString(v Value) bool { _, ok := v.(*StringValue); return ok }
+
 // IsBool performs a core operation.
-func IsBool(v Value) bool   { _, ok := v.(*BoolValue); return ok }
+func IsBool(v Value) bool { _, ok := v.(*BoolValue); return ok }
+
 // IsNil performs a core operation.
-func IsNil(v Value) bool    { _, ok := v.(*NilValue); return ok }
+func IsNil(v Value) bool { _, ok := v.(*NilValue); return ok }
+
 // IsArray performs a core operation.
-func IsArray(v Value) bool  { _, ok := v.(*ArrayValue); return ok }
+func IsArray(v Value) bool { _, ok := v.(*ArrayValue); return ok }
+
 // IsObject performs a core operation.
 func IsObject(v Value) bool { _, ok := v.(*ObjectValue); return ok }
 
@@ -571,6 +596,8 @@ func ToFloat(v Value) float64 {
 			return 1
 		}
 		return 0
+	case *DateValue:
+		return DateDays(val.Val)
 	}
 	return 0
 }
