@@ -161,6 +161,13 @@ func main() {
 		}
 
 	case "serve":
+		if modoApps(os.Args[2:]) {
+			if err := serveApps(parseOptions(os.Args[2:])); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "Error: missing source file")
 			os.Exit(1)
@@ -223,6 +230,8 @@ type Options struct {
 	gui       bool // advplc build --gui: app desktop (janela sempre, subsistema GUI no Windows)
 	debugPort string // advplc serve --debug-port: liga um listener DAP TCP (attach)
 	format    string // check --format: "" (humano) ou "json" (um objeto por linha)
+	apps      string // serve --apps <dir>: vários programas (um por arquivo)
+	home      string // serve --home <nome>: app da página inicial
 }
 
 func parseOptions(args []string) *Options {
@@ -283,6 +292,16 @@ func parseOptions(args []string) *Options {
 		case "--debug-port":
 			if i+1 < len(args) {
 				opts.debugPort = args[i+1]
+				i++
+			}
+		case "--apps":
+			if i+1 < len(args) {
+				opts.apps = args[i+1]
+				i++
+			}
+		case "--home":
+			if i+1 < len(args) {
+				opts.home = args[i+1]
 				i++
 			}
 		}
@@ -778,6 +797,10 @@ Options:
   -o <file>                     Output file for compile command
   --port <n>                    Web mode port (default: webui_port in
                                 ~/.advpp/advpp_config.json, or 8080)
+  --apps <dir>                  serve: several programs, one per file —
+                                <dir>/<name>.prw|.tlpp is served at
+                                /app/<name> (no source argument)
+  --home <name>                 serve --apps: app shown at "/"
   -w, --watch                   Web mode: recompile on source change and
                                 reload browser sessions (hot reload)
   --gui                         build: mark the program as a desktop app.
@@ -795,6 +818,7 @@ Examples:
   advplc check program.prw --include ./includes
   advplc check a.prw b.prw --format json
   advplc serve program.prw --port 9000 --watch
+  advplc serve --apps ./apps --home inicio
   advplc build program.prw -o myapp --db-path ./data.db
   advplc build app.prw -o MyApp --gui
   advplc bytecode program.prw`)

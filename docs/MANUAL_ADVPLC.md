@@ -158,7 +158,17 @@ execução — mais fraca que `--gui` (não muda o subsistema Windows).
 advplc serve programa.prw               # http://localhost:8080
 advplc serve programa.prw --port 9000
 advplc serve programa.prw --watch       # hot reload ao salvar o fonte
+advplc serve --apps ./apps --home inicio  # vários programas num servidor
 ```
+
+Com `--apps <dir>`, cada `<dir>/<nome>.prw` (ou `.tlpp`) vira o app
+`/app/<nome>`, e `--home <nome>` escolhe o app de `/`. Cada janela é uma
+sessão com VM própria (multitarefa real); o app é compilado na primeira
+abertura e recompilado quando o arquivo muda (sem `--watch`). Erro de
+compilação aparece só na janela daquele app. O nome do app aceita apenas
+letras, dígitos, `_` e `-` (nunca vira caminho de arquivo). Os programas
+recebem `ADVPP_APPS_DIR` (caminho absoluto do diretório) para listar os
+apps com `Directory()`, e um app abre outro com `PoApp:Open(cNome)`.
 
 Executa o programa no servidor (mesma VM, mesmo banco `ADVPP.db`) e
 renderiza a interface no browser com **PO-UI** (framework visual da

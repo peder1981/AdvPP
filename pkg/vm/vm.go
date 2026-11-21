@@ -118,6 +118,7 @@ type VM struct {
 	outWriter             io.Writer                     // espelho opcional da saída de console (modo web)
 	curDialog             *webDialog                    // MSDIALOG em construção (fase 4 do renderer web)
 	poApp                 *poAppState                   // PoApp corrente (componentes PO-UI, poui*.go)
+	globals               []advplrt.Value               // locais do frame principal (Run): globais do arquivo
 	debugger              *Debugger                     // hook opcional (advplc debug); nil em execução normal
 	fileHandles           map[int]*os.File              // handles abertos por FOpen/FCreate
 	nextFH                int                           // próximo handle a distribuir
@@ -425,6 +426,15 @@ func (v *VM) SetUIProvider(provider UIProvider) {
 	v.uiProvider = provider
 }
 
+// globais: os globais do arquivo (frame principal de Run). Sem Run (ex.:
+// RunFunction numa VM filha) não há globais: leitura dá NIL e escrita é
+// ignorada — nunca o slot de uma variável local de mesmo índice. Só Run
+// executa o corpo principal, então o código de nível superior sempre tem
+// v.globals.
+func (v *VM) globais() []advplrt.Value {
+	return v.globals
+}
+
 // SetOutputWriter espelha a saída de console (ConOut etc.) para um writer
 // adicional — usado pelo modo web (advplc serve) para transmitir ao browser.
 func (v *VM) SetOutputWriter(w io.Writer) {
@@ -555,6 +565,9 @@ func (v *VM) Run() (advplrt.Value, error) {
 	}
 	v.frames = append(v.frames, frame)
 	v.current = frame
+	// Os globais do arquivo (Static de nível do arquivo, variáveis do corpo)
+	// são os locais do frame principal; funções acessam pelo mesmo slice.
+	v.globals = frame.Locals
 	if debugVM {
 		fmt.Fprintf(os.Stderr, "[VM] Run() frame created, about to runLoop()\n")
 	}
@@ -807,15 +820,16 @@ func (v *VM) execute(instr compiler.Instruction) error {
 			v.current.Locals[instr.Arg] = val
 		}
 	case compiler.OP_LOAD_GLOBAL:
-		if instr.Arg < len(v.current.Locals) {
-			v.push(v.current.Locals[instr.Arg])
+		g := v.globais()
+		if instr.Arg < len(g) {
+			v.push(g[instr.Arg])
 		} else {
 			v.push(advplrt.Nil)
 		}
 	case compiler.OP_STORE_GLOBAL:
 		val := v.pop()
-		if instr.Arg < len(v.current.Locals) {
-			v.current.Locals[instr.Arg] = val
+		if g := v.globais(); instr.Arg < len(g) {
+			g[instr.Arg] = val
 		}
 	case compiler.OP_LOAD_SELF:
 		v.push(v.current.Self)

@@ -16,6 +16,7 @@ package webui
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net"
@@ -235,14 +236,21 @@ type RunFunc func(ui *Provider, console *OutWriter) error
 // broadcast (hot reload da fase 3: --watch).
 type Server struct {
 	sourceName string
-	run        RunFunc
+	resolve    AppResolver
 	mu         sync.Mutex
 	sessions   map[string]*session
 }
 
 // New cria o servidor do modo web. run é chamado uma vez por sessão.
 func New(sourceName string, run RunFunc) *Server {
-	return &Server{sourceName: sourceName, run: run, sessions: map[string]*session{}}
+	// Um programa só: nenhuma rota /app/<nome> existe.
+	resolve := func(app string) (RunFunc, error) {
+		if app != "" {
+			return nil, ErrAppNaoEncontrado
+		}
+		return run, nil
+	}
+	return &Server{sourceName: sourceName, resolve: resolve, sessions: map[string]*session{}}
 }
 
 // Serve sobe o servidor HTTP e bloqueia (compatibilidade com a fase 1).
@@ -281,7 +289,6 @@ func (srv *Server) Handler() http.Handler {
 	mu := &srv.mu
 	sessions := srv.sessions
 	sourceName := srv.sourceName
-	run := srv.run
 
 	mux := http.NewServeMux()
 
@@ -290,6 +297,14 @@ func (srv *Server) Handler() http.Handler {
 		panic(err) // "dist" é embutido no binário: só falha com build quebrado
 	}
 	mux.Handle("/", http.FileServerFS(staticFS))
+	// /app/<nome>: a mesma SPA; o frontend lê o app da URL (vários apps).
+	mux.HandleFunc("GET /app/{nome}", func(w http.ResponseWriter, r *http.Request) {
+		if !NomeDeAppValido(r.PathValue("nome")) {
+			http.Error(w, "nome de app inválido", http.StatusBadRequest)
+			return
+		}
+		http.ServeFileFS(w, r, staticFS, "index.html")
+	})
 
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
 		sid := r.URL.Query().Get("s")
@@ -309,12 +324,33 @@ func (srv *Server) Handler() http.Handler {
 		// FWGetText, MsgYesNo...) que nunca mais vai chegar. Por isso:
 		// sid já conhecido e ainda vivo (done == false) reaproveita a
 		// mesma sessão em vez de criar uma nova.
+		// App da sessão (vários apps): validado antes de qualquer acesso a
+		// disco; resolvido só para sessão nova.
+		app := r.URL.Query().Get("app")
+		if app != "" && !NomeDeAppValido(app) {
+			http.Error(w, "nome de app inválido", http.StatusBadRequest)
+			return
+		}
+
 		mu.Lock()
 		s, resumed := sessions[sid]
 		if !resumed && len(sessions) >= maxSessions {
 			mu.Unlock()
 			http.Error(w, "too many sessions", http.StatusServiceUnavailable)
 			return
+		}
+		var run RunFunc
+		if !resumed {
+			var err error
+			if run, err = srv.resolve(app); err != nil {
+				mu.Unlock()
+				if errors.Is(err, ErrAppNaoEncontrado) {
+					http.Error(w, err.Error(), http.StatusNotFound)
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+				return
+			}
 		}
 		if !resumed {
 			s = newSession()

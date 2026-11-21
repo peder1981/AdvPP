@@ -327,6 +327,13 @@ tela; `KillSpawn(nId)` encerra, e o processo é morto se a janela fechar.
 `SetCols(1..12)` em qualquer componente define a largura numa grade de 12
 colunas. Exemplo completo: `examples/poui/fase2.prw`.
 
+**Vários programas num servidor** — `advplc serve --apps <dir> [--home <nome>]`:
+cada `<dir>/<nome>.prw|.tlpp` é servido em `/app/<nome>` (o `--home` em `/`),
+cada janela com a sua VM, compilado sob demanda e recompilado quando o
+fonte muda. `PoApp:Open(cNome)` abre outro app numa janela nova, e
+`ADVPP_APPS_DIR` traz o diretório para listar os apps com `Directory()`.
+Exemplo: `advplc serve --apps examples/poui/apps --home inicio`.
+
 Comuns a todos os componentes: `Set(cProp, xValor)`, `Get(cProp)`,
 `SetValue`/`GetValue`, `SetLabel`, `SetVisible`, `SetDisabled`, `SetCols`, `Id()`.
 `Get` de propriedades estruturadas (`columns`, `items`, `series`...) devolve

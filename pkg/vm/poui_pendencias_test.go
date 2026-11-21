@@ -86,3 +86,78 @@ Return
 		t.Errorf("saída = %q", out)
 	}
 }
+
+// Static de arquivo (comum no Protheus) não pode impedir a chamada da função
+// de entrada: antes, qualquer declaração no nível do arquivo virava "corpo"
+// e o Main nunca rodava.
+func TestStaticDeArquivoNaoImpedeMain(t *testing.T) {
+	for _, src := range []string{
+		"Static nCont := 0\nStatic cNome := \"x\"\n\nUser Function Main()\n\tnCont++\n\tConOut(\"n=\" + cValToChar(nCont) + cNome)\nReturn\n",
+		"Static nCont\nStatic cNome := \"x\"\n\nUser Function Main()\n\tnCont := 0\n\tFor nCont := 1 To 1\n\tNext nCont\n\tConOut(\"n=\" + cValToChar(nCont - 1) + cNome)\n\tSoma()\nReturn\n\nStatic Function Soma()\n\tnCont += 10\n\tConOut(\"soma=\" + cValToChar(nCont))\nReturn\n",
+	} {
+		_, out, err := rodaPrg(t, src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out, "n=1x") || (strings.Contains(src, "Soma()") && !strings.Contains(out, "soma=12")) {
+			t.Errorf("saída = %q para:\n%s", out, src)
+		}
+	}
+}
+
+// Compatibilidade: corpo de nível superior com código de verdade continua
+// sendo o programa (sem chamar função automaticamente).
+func TestCorpoComCodigoNaoChamaMain(t *testing.T) {
+	_, out, err := rodaPrg(t, "Static nX := 1\nConOut(\"corpo\")\n\nUser Function Main()\n\tConOut(\"main\")\nReturn\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "corpo") || strings.Contains(out, "main") {
+		t.Errorf("saída = %q", out)
+	}
+}
+
+// VM que roda só uma função (sem Run, ex.: StartJob): Static de arquivo vale
+// NIL — nunca o slot de uma variável local de mesmo índice.
+func TestStaticDeArquivoSemRunNaoLeLocal(t *testing.T) {
+	bc := compilarPrg(t, "Static nCont := 7\n\nUser Function Main()\nReturn\n\nUser Function Job()\n\tLocal cLocal := \"nao-e-static\"\nReturn nCont\n")
+	v := NewVM(bc, false)
+	r, err := v.RunFunction("Job", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Type() != "U" {
+		t.Errorf("Job() = %v (%s), esperado NIL", r, r.Type())
+	}
+}
+
+func TestPoOpenOp(t *testing.T) {
+	f := newFakeUI(fakeEv{2, "click", nil}, fakeEv{3, "click", nil})
+	_, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oB   := PoButton():New(oPg, "abrir", {|| oApp:Open("relogio")})
+	Local oS   := PoButton():New(oPg, "sair", {|| oApp:Close()})
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	if string(f.sent[1]) != `{"op":"batch","ops":[{"app":"relogio","op":"open"}]}` {
+		t.Errorf("batch = %s", f.sent[1])
+	}
+}
+
+func TestPoOpenNomeInvalido(t *testing.T) {
+	for _, nome := range []string{"../x", "a/b", "", "a.b"} {
+		_, _, err := rodaPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	oApp:Open("`+nome+`")
+Return
+`)
+		if err == nil || !strings.Contains(err.Error(), "nome de app inválido") {
+			t.Errorf("Open(%q): erro = %v", nome, err)
+		}
+	}
+}

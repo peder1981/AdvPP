@@ -5,6 +5,13 @@ Todas as mudanças relevantes no projeto AdvPP.
 ## [Não lançado]
 
 ### Added
+- **`advplc serve --apps <dir> [--home <nome>]` — vários programas num servidor** (fase 3
+  dos componentes PO-UI): cada `<dir>/<nome>.prw|.tlpp` em `/app/<nome>`, uma VM por
+  janela, compilação sob demanda com recompilação quando o fonte muda, erro de
+  compilação isolado na janela do app, nome validado (sem path traversal).
+  `PoApp:Open(cNome)` abre outro app numa janela nova; `ADVPP_APPS_DIR` disponível aos
+  programas. API Go: `webui.NewApps`, `webui.AppResolver`. Exemplos em
+  `examples/poui/apps/`.
 - **Componentes PO-UI — fase 2**: `PoMenu` (menu lateral) e várias páginas por
   aplicação (`PoApp:Navigate`); `PoContainer`, `PoWidget`, `PoDivider`, `PoTabs`/`PoTab`;
   `PoTree`, `PoList`, `PoInfo`, `PoProgress`, `PoGauge`, `PoChart` (com `AddPoint` em
@@ -26,6 +33,12 @@ Todas as mudanças relevantes no projeto AdvPP.
   `docs/superpowers/specs/2026-11-20-poui-componentes-design.md`.
 
 ### Fixed
+- **`Static` de arquivo**: qualquer `Static` declarado no nível do arquivo (comum no
+  Protheus) fazia o compilador tratar o programa como "corpo" e a função de entrada nunca
+  era chamada — o programa não fazia nada. E, mesmo chamada, uma função não enxergava o
+  `Static` (lia uma variável dinâmica vazia). Agora o corpo inicializa os `Static` e a
+  entrada é chamada; dentro das funções o `Static` é lido e gravado (inclusive em `For`).
+  Em VM sem programa principal (ex.: função rodada isoladamente) ele vale NIL.
 - **Componentes PO-UI — pendências das fases 1 e 2**: `PoList` sem detalhe não mostra
   mais linha vazia; `PoMenu:AddItem` com ícone inexistente no PO-UI embutido é erro claro
   (antes o item ficava sem ícone, em silêncio) e aceita `"an an-x"`, `"an-x"` ou `"x"`;
