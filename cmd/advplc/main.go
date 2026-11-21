@@ -797,6 +797,10 @@ Options:
   -o <file>                     Output file for compile command
   --port <n>                    Web mode port (default: webui_port in
                                 ~/.advpp/advpp_config.json, or 8080)
+  --apps <dir>                  serve: several programs, one per file —
+                                <dir>/<name>.prw|.tlpp is served at
+                                /app/<name> (no source argument)
+  --home <name>                 serve --apps: app shown at "/"
   -w, --watch                   Web mode: recompile on source change and
                                 reload browser sessions (hot reload)
   --gui                         build: mark the program as a desktop app.
@@ -814,6 +818,7 @@ Examples:
   advplc check program.prw --include ./includes
   advplc check a.prw b.prw --format json
   advplc serve program.prw --port 9000 --watch
+  advplc serve --apps ./apps --home inicio
   advplc build program.prw -o myapp --db-path ./data.db
   advplc build app.prw -o MyApp --gui
   advplc bytecode program.prw`)

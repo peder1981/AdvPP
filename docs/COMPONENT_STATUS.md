@@ -16,8 +16,9 @@
   `PoChart`, campos tipados, `SetCols`, `Notify`/`Confirm`/`Loading` e `Spawn`
   (sem shell, sem perda de linhas, morto ao fechar). Teste de navegador:
   `tests/poui/ao-vivo.sh`.
-- ⏳ **Fases seguintes** (design aprovado): `advplc serve --apps`, `AdvCodeEditor`
-  e `AdvTerminal`.
+- ✅ **Fase 3**: `advplc serve --apps <dir> [--home <nome>]` (vários programas,
+  VM por janela, compilação sob demanda) e `PoApp:Open`.
+- ⏳ **Fase 4** (design aprovado): `AdvCodeEditor` e `AdvTerminal`.
 
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 
