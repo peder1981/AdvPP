@@ -11,8 +11,13 @@
 - ✅ **Timers `PoApp:SetTimer/KillTimer`**: param ao fechar a sessão (sem vazar goroutine).
 - ✅ **Transporte**: evento SSE `ui` + `POST /ui` (`pkg/webui/ui.go`), origem e limite iguais a `/reply`.
 - ✅ **Frontend**: `web/src/app/ui-host.ts` (renderer recursivo genérico).
-- ⏳ **Fases seguintes** (design aprovado): demais componentes PO-UI, `Spawn`,
-  `Notify`/`Confirm`, `advplc serve --apps`, `AdvCodeEditor` e `AdvTerminal`.
+- ✅ **Fase 2**: `PoMenu` + várias páginas (`Navigate`), `PoContainer`/`PoWidget`/
+  `PoDivider`/`PoTabs`/`PoTab`, `PoTree`/`PoList`/`PoInfo`/`PoProgress`/`PoGauge`/
+  `PoChart`, campos tipados, `SetCols`, `Notify`/`Confirm`/`Loading` e `Spawn`
+  (sem shell, sem perda de linhas, morto ao fechar). Teste de navegador:
+  `tests/poui/ao-vivo.sh`.
+- ⏳ **Fases seguintes** (design aprovado): `advplc serve --apps`, `AdvCodeEditor`
+  e `AdvTerminal`.
 
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 
