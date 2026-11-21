@@ -38,6 +38,7 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POSWITCH":   {"PoSwitch", "switch"},
 	// fase 4: componentes próprios do AdvPP
 	"ADVCODEEDITOR": {"AdvCodeEditor", "editor"},
+	"ADVTERMINAL":   {"AdvTerminal", "terminal"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -299,6 +300,22 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		case "checkbox", "switch":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			c.props["value"] = advplrt.ToBool(getArg(args, 2))
+		case "terminal":
+			if !ptyDisponivel {
+				return fmt.Errorf("AdvTerminal: terminal indisponível no Windows nesta versão")
+			}
+			var argv []string
+			if arr, ok := getArg(args, 2).(*advplrt.ArrayValue); ok {
+				for _, el := range arr.Elements {
+					argv = append(argv, advplrt.ToString(el))
+				}
+			}
+			c.term = &poTerm{prog: advplrt.ToString(getArg(args, 1)), args: argv}
+			c.props["running"] = false
+			c.props["height"] = "400px"
+			if c.app.active {
+				c.app.startTerm(c)
+			}
 		case "editor":
 			lang, err := poLinguagem(argTexto(args, 2, "advpl"))
 			if err != nil {
@@ -449,6 +466,16 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		a.setProp(c, "markers", []map[string]any{})
 	case "ONSAVE":
 		c.handlers["save"] = getArg(args, 0)
+	case "ONEXIT":
+		c.handlers["exit"] = getArg(args, 0)
+	case "WRITE":
+		if c.term != nil && c.term.proc != nil {
+			_, _ = c.term.proc.Write([]byte(advplrt.ToString(getArg(args, 0))))
+		}
+	case "KILL":
+		if c.term != nil && c.term.proc != nil {
+			c.term.proc.Kill()
+		}
 	case "SETCOLS":
 		n := int(advplrt.ToFloat(getArg(args, 0)))
 		if n < 1 || n > 12 {
