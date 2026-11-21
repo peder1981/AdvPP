@@ -2,6 +2,45 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.8.3] - 2026-11-21
+
+Correções de compatibilidade com o Protheus encontradas rodando o ERP GEBAN.
+Todas mudam comportamento — código que dependia do comportamento antigo
+(errado) pode precisar de ajuste.
+
+### Fixed
+- **`.And.`/`.Or.` sem curto-circuito**: os dois lados eram sempre avaliados, então
+  `x != Nil .And. x:Foo()` quebrava com x Nil e `lOk := lOk .And. Migra()` chamava
+  `Migra()` mesmo com lOk falso. Agora o lado direito só roda quando decide o
+  resultado; o resultado continua lógico.
+- **Aritmética e comparação de datas**: `SToD("20280201") + 90` dava `90` (número),
+  `data - data` dava 0 e toda comparação entre datas errava (`ToFloat(data)` era 0:
+  `dVenc < Date()` era sempre .F.). Agora `data ± n` = data, `data - data` = dias e
+  `<`, `>`, `<=`, `>=` comparam as datas (data vazia é menor que qualquer outra).
+- **`U_Nome()` não achava a `User Function Nome`** ("unknown function"). Agora vale a
+  convenção do Protheus em chamadas, `RunFunction` (rotas REST, `StartJob`) e
+  `FindFunction`: `U_X` é a User Function X; uma `User Function U_X` só é alcançada
+  por `U_U_X` (antes as duas colidiam e a rota REST caía na errada).
+- **`#include` aninhado**: resolvia só pelos caminhos de include e pelo diretório
+  corrente, e falhava em silêncio — rodando de outro diretório, `src/A.prw` com
+  `#include "B.prw"` perdia B e as funções dele viravam "unknown function" só ao
+  executar. Agora procura primeiro ao lado do arquivo que inclui; o mesmo arquivo
+  incluído por grafias diferentes entra uma vez (deduplicação pelo caminho
+  absoluto); fonte incluído (`.prw/.prx/.prg/.tlpp`) inexistente é erro com
+  arquivo:linha. Headers `.ch/.th` ausentes seguem tolerados.
+- **`Transform` ignorava a picture**: `Transform(1234.5, "@E 999,999.99")` dava
+  `1234.50`. Agora `@E`, `@R` (template de texto, ex. CNPJ), `@!`, separadores de
+  milhar, alinhamento no tamanho do template e `*` quando o número não cabe.
+- **`JsonObject:FromJson`** devolvia `.T./.F.`; como no Protheus, agora devolve `Nil`
+  quando leu e o texto do erro quando não (código que testa `ValType(xErr) == "C"`
+  não via o erro).
+
+### Added
+- **`ADVPP_WEBUI_HIDE_LOG=1`** no `advplc serve`: o `ConOut` não vai ao browser (só
+  ao stdout do processo) e o painel "Log técnico" não aparece — ele mostrava detalhes
+  internos (banco, migrações) a qualquer visitante de um sistema exposto. Sem linhas,
+  o painel também deixa de aparecer.
+
 ## [4.8.2] - 2026-11-21
 
 ### Added

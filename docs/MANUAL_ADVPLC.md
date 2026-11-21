@@ -195,7 +195,9 @@ presente, o mesmo host:porta. Acessando pela LAN por **nome** de máquina,
 inclua-o: `ADVPP_WEBUI_ALLOWED_HOSTS=meu-servidor advplc serve x.prw`.
 Limites: 64 sessões simultâneas, `/reply` só POST com até 8 MB. A porta
 `--debug-port` (DAP) aceita só frames DAP puros — requisição HTTP vinda de
-browser é recusada.
+browser é recusada. Em produção exposta, `ADVPP_WEBUI_HIDE_LOG=1` tira do
+browser o painel "Log técnico" (o `ConOut` vai só para o stdout do processo),
+que mostraria detalhes internos — banco, migrações — a qualquer visitante.
 
 O que é renderizado:
 

@@ -367,7 +367,9 @@ presente, o mesmo host:porta. Acessando pela LAN por **nome** de máquina,
 inclua-o: `ADVPP_WEBUI_ALLOWED_HOSTS=meu-servidor advplc serve x.prw`.
 Limites: 64 sessões simultâneas, `/reply` só POST com até 8 MB. A porta
 `--debug-port` (DAP) aceita só frames DAP puros — requisição HTTP vinda de
-browser é recusada.
+browser é recusada. Em produção exposta, `ADVPP_WEBUI_HIDE_LOG=1` tira do
+browser o painel "Log técnico" (o `ConOut` vai só para o stdout do processo),
+que mostraria detalhes internos — banco, migrações — a qualquer visitante.
 
 ## Framework MVC
 
@@ -518,6 +520,9 @@ A IDE gráfica fornece:
 - Auto-referência `::property`
 - Todos os tipos de dados AdvPL: Character, Numeric, Logical, Date, Array, Code Block, Nil, Object
 - `If()`/`IIF()` com 3 argumentos fazem curto-circuito (avaliam só o ramo escolhido)
+- `.And.`/`.Or.` com curto-circuito: o lado direito só é avaliado quando decide o resultado
+- Aritmética de data: `data + n`/`data - n` dão data, `data - data` dá dias; comparação entre datas
+- `U_Nome()` chama a `User Function Nome` (convenção do Protheus); `#include` aninhado resolve ao lado do arquivo que inclui
 - `Private`/`Public` com escopo dinâmico (visíveis às funções chamadas)
 - Closures aninhadas: codeblocks capturam Locais N níveis acima por referência
 
