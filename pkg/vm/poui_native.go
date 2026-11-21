@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
@@ -36,6 +37,9 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POCHECKBOX": {"PoCheckbox", "checkbox"},
 	"POSWITCH":   {"PoSwitch", "switch"},
 }
+
+// reNomeApp: mesma regra de webui.NomeDeAppValido (pkg/vm não importa webui).
+var reNomeApp = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 // iconesValidos: nomes de ícone Animalia do PO-UI embutido (sem o prefixo
 // "an-"), definidos pelo modo web (webui.Icones). nil = sem validação.
@@ -145,6 +149,12 @@ func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []adv
 		a.nextID++
 		a.confirms[a.nextID] = [2]advplrt.Value{getArg(args, 1), getArg(args, 2)}
 		a.addOp(map[string]any{"op": "confirm", "id": a.nextID, "text": advplrt.ToString(getArg(args, 0)), "title": argTexto(args, 3, "Confirmação")})
+	case "OPEN":
+		app := advplrt.ToString(getArg(args, 0))
+		if !reNomeApp.MatchString(app) {
+			return fmt.Errorf("PoApp:Open: nome de app inválido %q (letras, dígitos, _ e -)", app)
+		}
+		a.addOp(map[string]any{"op": "open", "app": app})
 	case "LOADING":
 		a.addOp(map[string]any{"op": "loading", "on": advplrt.ToBool(getArg(args, 0)), "text": argTexto(args, 1, "")})
 	case "NOTIFY":

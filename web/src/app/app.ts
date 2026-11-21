@@ -243,7 +243,9 @@ export class App {
   protected dlgPrimaryAction: PoModalAction = { label: 'Fechar', action: () => this.dlgButton(-1) };
 
   constructor() {
-    const es = new EventSource('/events?s=' + this.sid);
+    // Vários apps (advplc serve --apps): /app/<nome> roda o app <nome>.
+    const app = /^\/app\/([A-Za-z0-9_-]{1,64})\/?$/.exec(location.pathname)?.[1] ?? '';
+    const es = new EventSource('/events?s=' + this.sid + (app ? '&app=' + app : ''));
     es.onmessage = (m) => this.onEvent(JSON.parse(m.data) as ServerEvent);
     es.onerror = () => { if (!this.finished()) this.status.set('desconectado'); es.close(); };
   }
@@ -358,6 +360,9 @@ export class App {
         break;
       case 'loading':
         this.uiLoading.set(p.on ? (p.text || 'Carregando') : null);
+        break;
+      case 'open': // PoApp:Open: outro app numa janela nova
+        if (/^[A-Za-z0-9_-]{1,64}$/.test(p.app)) { window.open('/app/' + p.app, '_blank'); }
         break;
     }
   }

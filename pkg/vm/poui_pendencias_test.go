@@ -130,3 +130,34 @@ func TestStaticDeArquivoSemRunNaoLeLocal(t *testing.T) {
 		t.Errorf("Job() = %v (%s), esperado NIL", r, r.Type())
 	}
 }
+
+func TestPoOpenOp(t *testing.T) {
+	f := newFakeUI(fakeEv{2, "click", nil}, fakeEv{3, "click", nil})
+	_, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P")
+	Local oB   := PoButton():New(oPg, "abrir", {|| oApp:Open("relogio")})
+	Local oS   := PoButton():New(oPg, "sair", {|| oApp:Close()})
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	if string(f.sent[1]) != `{"op":"batch","ops":[{"app":"relogio","op":"open"}]}` {
+		t.Errorf("batch = %s", f.sent[1])
+	}
+}
+
+func TestPoOpenNomeInvalido(t *testing.T) {
+	for _, nome := range []string{"../x", "a/b", "", "a.b"} {
+		_, _, err := rodaPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	oApp:Open("`+nome+`")
+Return
+`)
+		if err == nil || !strings.Contains(err.Error(), "nome de app inválido") {
+			t.Errorf("Open(%q): erro = %v", nome, err)
+		}
+	}
+}
