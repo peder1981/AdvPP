@@ -282,7 +282,7 @@ Return
 		`"options":[{"label":"azul","value":"azul"},{"label":"Verde","value":"g"}]`, `"value":"g"`,
 		`"type":"checkbox"`, `"value":true`, `"type":"switch"`, `"value":false`,
 		`"label":"Kernel"`, `"value":"6.12"`,
-		`"items":[{"detail":"det 1","title":"Um"},{"detail":"","title":"Dois"}]`,
+		`"items":[{"detail":"det 1","title":"Um"},{"title":"Dois"}]`,
 	} {
 		if !strings.Contains(s, frag) {
 			t.Errorf("mount sem %s", frag)

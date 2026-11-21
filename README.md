@@ -303,7 +303,7 @@ Return
 | `PoInput` | `New(oPai, cRotulo[, cValor])` | `OnChange({\|o, cValor\| ...})` |
 | `PoTable` | `New(oPai)` | `SetColumns({{cProp, cRotulo[, cTipo]}, ...})`, `SetItems(aLinhas)`, `OnSelect({\|o, aLinha\| ...})` |
 | `PoTag` | `New(oPai, cTexto[, cTipo])` | tipos `success`, `warning`, `danger`, `info`, `neutral` |
-| `PoMenu` | `New(oApp)` | `AddItem(cRotulo, cIcone, bAcao)` — menu lateral (um por aplicação) |
+| `PoMenu` | `New(oApp)` | `AddItem(cRotulo, cIcone, bAcao)` — menu lateral (um por aplicação); ícone Animalia do PO-UI (`"an an-house"`, `"an-house"` ou `"house"`), e ícone inexistente é erro |
 | `PoContainer` / `PoWidget` | `New(oPai[, cTitulo])` | agrupam componentes (cartão com título) |
 | `PoDivider` | `New(oPai[, cRotulo])` | separador |
 | `PoTabs` / `PoTab` | `New(oPai)` / `New(oTabs, cRotulo)` | abas; a primeira começa ativa |
@@ -329,6 +329,9 @@ colunas. Exemplo completo: `examples/poui/fase2.prw`.
 
 Comuns a todos os componentes: `Set(cProp, xValor)`, `Get(cProp)`,
 `SetValue`/`GetValue`, `SetLabel`, `SetVisible`, `SetDisabled`, `SetCols`, `Id()`.
+`Get` de propriedades estruturadas (`columns`, `items`, `series`...) devolve
+arrays e `JsonObject`. `Activate()` chamado com a tela já ativa (de dentro de
+um evento) é recusado com erro.
 `oPai` é uma `PoPage`, `PoContainer`, `PoWidget` ou `PoTab`. Erro
 dentro de um handler aparece no log técnico da página e o laço continua.
 Funciona só no modo web (`advplc serve`); fora dele, `Activate()` devolve erro.

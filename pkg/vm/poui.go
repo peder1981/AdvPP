@@ -179,7 +179,19 @@ func poFromJSON(x any) advplrt.Value {
 			el[i] = poFromJSON(e)
 		}
 		return advplrt.NewArray(el)
-	default:
+	case nil:
 		return advplrt.Nil
+	default:
+		// props estruturadas (columns, items, actions, series...): pelo JSON,
+		// objetos viram JsonObject e listas viram arrays.
+		data, err := json.Marshal(v)
+		if err != nil {
+			return advplrt.Nil
+		}
+		var g any
+		if json.Unmarshal(data, &g) != nil {
+			return advplrt.Nil
+		}
+		return jsonToAdvplValue(g)
 	}
 }

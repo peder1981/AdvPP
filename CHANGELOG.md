@@ -26,6 +26,13 @@ Todas as mudanças relevantes no projeto AdvPP.
   `docs/superpowers/specs/2026-11-20-poui-componentes-design.md`.
 
 ### Fixed
+- **Componentes PO-UI — pendências das fases 1 e 2**: `PoList` sem detalhe não mostra
+  mais linha vazia; `PoMenu:AddItem` com ícone inexistente no PO-UI embutido é erro claro
+  (antes o item ficava sem ícone, em silêncio) e aceita `"an an-x"`, `"an-x"` ou `"x"`;
+  `PoApp:Activate()` aninhado (de dentro de um evento) é recusado em vez de remontar a
+  tela; `Get()` de propriedades estruturadas devolve arrays/`JsonObject` (antes NIL);
+  `POST /ui` com a fila de eventos cheia responde 503 na hora (antes segurava a conexão
+  até o cliente desistir); o alvo `make web`, citado no README, agora existe.
 - **Componentes PO-UI (fase 1): atualizações do servidor não apareciam na tela** até a
   próxima interação do usuário — os patches mudavam objetos que o Angular não observa.
   Cada lote agora incrementa um signal lido no template.

@@ -2,8 +2,11 @@ package webui
 
 import (
 	"encoding/json"
+	"io/fs"
 	"net/http"
+	"regexp"
 	"runtime"
+	"sync"
 )
 
 // uiBuffer: eventos de componentes pendentes por sessão. Acima disso,
@@ -81,10 +84,42 @@ func handleUIPost(s *session, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	select {
-	case s.ui <- uiEvent{ID: body.ID, Event: body.Event, Value: body.Value}:
-		w.WriteHeader(http.StatusNoContent)
 	case <-s.quit:
 		http.Error(w, "session closed", http.StatusGone)
-	case <-r.Context().Done():
+		return
+	default:
 	}
+	// Sem esperar vaga: com a fila cheia (programa fora do laço de eventos,
+	// ex.: preso num MsgYesNo), responde na hora em vez de segurar a conexão.
+	select {
+	case s.ui <- uiEvent{ID: body.ID, Event: body.Event, Value: body.Value}:
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		http.Error(w, "fila de eventos cheia", http.StatusServiceUnavailable)
+	}
+}
+
+var (
+	iconesOnce sync.Once
+	icones     map[string]bool
+)
+
+// Icones devolve os nomes de ícone Animalia (sem o prefixo "an-") definidos
+// no CSS do PO-UI embutido — a fonte de verdade de quais ícones aparecem.
+func Icones() map[string]bool {
+	iconesOnce.Do(func() {
+		icones = map[string]bool{}
+		re := regexp.MustCompile(`\.an-([a-z0-9-]+):+before`)
+		ents, _ := fs.Glob(distFS, "dist/styles-*.css")
+		for _, e := range ents {
+			data, err := distFS.ReadFile(e)
+			if err != nil {
+				continue
+			}
+			for _, m := range re.FindAllSubmatch(data, -1) {
+				icones[string(m[1])] = true
+			}
+		}
+	})
+	return icones
 }

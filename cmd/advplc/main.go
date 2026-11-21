@@ -407,6 +407,8 @@ func serveFile(sourceFile string, opts *Options) error {
 	// reconectar (ex.: reload do editor) substitui a anterior sem problema.
 	var dbgSrv atomic.Pointer[dap.Server]
 
+	// PoMenu:AddItem recusa ícone que o PO-UI embutido não tem.
+	vm.DefinirIconesValidos(webui.Icones())
 	srv := webui.New(filepath.Base(sourceFile),
 		func(ui *webui.Provider, console *webui.OutWriter) error {
 			v := vm.NewVM(current.Load(), true)

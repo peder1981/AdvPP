@@ -37,6 +37,27 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POSWITCH":   {"PoSwitch", "switch"},
 }
 
+// iconesValidos: nomes de ícone Animalia do PO-UI embutido (sem o prefixo
+// "an-"), definidos pelo modo web (webui.Icones). nil = sem validação.
+var iconesValidos map[string]bool
+
+// DefinirIconesValidos informa os ícones aceitos por PoMenu:AddItem.
+func DefinirIconesValidos(m map[string]bool) { iconesValidos = m }
+
+// poIcone normaliza "an an-house", "an-house" ou "house" para "an an-house"
+// e recusa ícone inexistente (com a lista definida).
+func poIcone(orig string) (string, error) {
+	f := strings.Fields(orig)
+	if len(f) == 0 {
+		return "", nil
+	}
+	nome := strings.TrimPrefix(f[len(f)-1], "an-")
+	if iconesValidos != nil && !iconesValidos[nome] {
+		return "", fmt.Errorf("PoMenu:AddItem: ícone inválido %q (use um ícone Animalia do PO-UI, ex.: \"an an-house\")", orig)
+	}
+	return "an an-" + nome, nil
+}
+
 // poChartTypes: tipos aceitos por PoChart (PoChartType do PO-UI).
 var poChartTypes = map[string]bool{"line": true, "column": true, "bar": true, "pie": true, "donut": true, "area": true}
 
@@ -80,6 +101,9 @@ func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []adv
 	}
 	switch method {
 	case "ACTIVATE":
+		if a.active {
+			return fmt.Errorf("PoApp:Activate: a tela já está ativa (Activate chamado dentro de um evento?)")
+		}
 		ui, ok := v.uiProvider.(ComponentUI)
 		if !ok {
 			return fmt.Errorf("PoApp: requer o modo web (advplc serve)")
@@ -358,10 +382,14 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		if c.typ != "menu" {
 			return fmt.Errorf("AddItem: só em PoMenu")
 		}
+		icone, err := poIcone(argTexto(args, 1, ""))
+		if err != nil {
+			return err
+		}
 		items := c.props["items"].([]map[string]any)
 		n := len(items)
 		c.handlers[fmt.Sprintf("action:%d", n)] = getArg(args, 2)
-		a.setProp(c, "items", append(items, map[string]any{"label": advplrt.ToString(getArg(args, 0)), "icon": argTexto(args, 1, ""), "index": n}))
+		a.setProp(c, "items", append(items, map[string]any{"label": advplrt.ToString(getArg(args, 0)), "icon": icone, "index": n}))
 	case "ADDACTION":
 		if c.typ != "page" {
 			return fmt.Errorf("AddAction: só em PoPage")
@@ -399,12 +427,15 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 			if arr, ok := getArg(args, 0).(*advplrt.ArrayValue); ok {
 				for _, el := range arr.Elements {
 					linha, _ := el.(*advplrt.ArrayValue)
-					it := map[string]any{"title": "", "detail": ""}
+					it := map[string]any{"title": ""}
 					if linha != nil && len(linha.Elements) > 0 {
 						it["title"] = advplrt.ToString(linha.Elements[0])
 					}
+					// sem detalhe: nem envia a chave (a lista não mostra linha vazia)
 					if linha != nil && len(linha.Elements) > 1 {
-						it["detail"] = advplrt.ToString(linha.Elements[1])
+						if d := advplrt.ToString(linha.Elements[1]); d != "" {
+							it["detail"] = d
+						}
 					}
 					items = append(items, it)
 					c.rows = append(c.rows, el)

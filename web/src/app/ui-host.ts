@@ -122,12 +122,19 @@ export type UiPost = (id: number, event: string, value: unknown) => void;
                         (p-selected)="onTree($event)"></po-tree-view>
         }
         @case ('list') {
-          <po-list-view [p-items]="node.props['items']" p-property-title="title"
-                        (p-title-action)="onSelect($event)">
-            <ng-template p-list-view-content-template let-item>
-              <span>{{ item.detail }}</span>
-            </ng-template>
-          </po-list-view>
+          <!-- O template de conteúdo reserva espaço abaixo do título: só
+               existe quando algum item tem detalhe. -->
+          @if (temDetalhe()) {
+            <po-list-view [p-items]="node.props['items']" p-property-title="title"
+                          (p-title-action)="onSelect($event)">
+              <ng-template p-list-view-content-template let-item>
+                @if (item.detail) { <span>{{ item.detail }}</span> }
+              </ng-template>
+            </po-list-view>
+          } @else {
+            <po-list-view [p-items]="node.props['items']" p-property-title="title"
+                          (p-title-action)="onSelect($event)"></po-list-view>
+          }
         }
         @case ('info') {
           <po-info [p-label]="node.props['label']" [p-value]="node.props['value']"></po-info>
@@ -161,6 +168,10 @@ export class UiHostComponent {
   private seriesFor: unknown = null;
   private seriesCache: PoChartSerie[] = [];
   private debounce?: ReturnType<typeof setTimeout>;
+
+  protected temDetalhe(): boolean {
+    return (this.node.props['items'] ?? []).some((it: { detail?: string }) => !!it.detail);
+  }
 
   protected temCols(pai: UiNode): boolean {
     return pai.children.some(c => c.props['cols']);
