@@ -3796,12 +3796,18 @@ func (p *Parser) parseArguments() ([]ast.Expression, error) {
 			}
 			args = append(args, arg)
 		}
+		// Depois de cada argumento: "," ou ")" — argumentos colados ou um
+		// parêntese que nunca fecha são erro, como no Protheus.
 		if p.peek().Type == lexer.TOKEN_COMMA {
 			p.advance()
+		} else if p.peek().Type != lexer.TOKEN_RPAREN {
+			if _, err := p.expect(lexer.TOKEN_RPAREN); err != nil {
+				return nil, err
+			}
 		}
 	}
-	if p.peek().Type == lexer.TOKEN_RPAREN {
-		p.advance()
+	if _, err := p.expect(lexer.TOKEN_RPAREN); err != nil {
+		return nil, err
 	}
 	return args, nil
 }

@@ -532,7 +532,7 @@ Static Function TestJSONErrors()
 	// Test 3: JSON with huge string value
 	nTotal++
 	Begin Sequence
-		Local cJson := '{"key":"' + Space(1_000_000) + '"}'
+		Local cJson := '{"key":"' + Space(1000000) + '"}'
 		Local oJson := JsonObject():FromJson(cJson)
 		ConOut("⚠ Test 30: Huge JSON value (may be accepted)")
 		nPass++
