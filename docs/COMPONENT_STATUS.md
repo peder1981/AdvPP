@@ -18,7 +18,8 @@
   `tests/poui/ao-vivo.sh`.
 - ✅ **Fase 3**: `advplc serve --apps <dir> [--home <nome>]` (vários programas,
   VM por janela, compilação sob demanda) e `PoApp:Open`.
-- ⏳ **Fase 4** (design aprovado): `AdvCodeEditor` e `AdvTerminal`.
+- ✅ **Fase 4**: `AdvCodeEditor` (CodeMirror 6, marcações via `check --format json`)
+  e `AdvTerminal` (xterm.js + pty; Windows: erro claro nesta versão).
 
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 

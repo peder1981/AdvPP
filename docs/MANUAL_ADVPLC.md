@@ -117,8 +117,12 @@ próprio JSON via stdout:
 ```bash
 advplc check a.prw b.prw --format json
 # {"file":"a.prw","ok":true}
-# {"file":"b.prw","ok":false,"error":"parser error: ..."}
+# {"file":"b.prw","ok":false,"error":"parser error: ... at b.prw:2:8","line":2,"col":8,"message":"parser error: ..."}
 ```
+
+Quando o erro tem posição, `line`/`col` trazem linha e coluna e `message` traz o
+texto sem o sufixo de arquivo (é o que o `AdvCodeEditor` usa para marcar o erro).
+Sem posição reconhecível, só `message`.
 
 `--format` desconhecido falha alto. Modo humano inalterado.
 
