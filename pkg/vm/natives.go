@@ -2062,22 +2062,124 @@ func buildOutputString(args []advplrt.Value) string {
 	return strings.Join(parts, " ")
 }
 
+// applyTransform aplica uma picture do Protheus: funções "@..." (E = formato
+// europeu/brasileiro, troca "." e ","; R = template literal para texto;
+// ! = maiúsculas) seguidas de um template ("999,999.99", "99.999-999").
+// Número: separadores só onde há dígitos, alinhado à direita no tamanho do
+// template, "*" quando não cabe. Antes "@E" e os separadores eram ignorados
+// (Transform(1234.5, "@E 999,999.99") devolvia "1234.50").
 func applyTransform(val advplrt.Value, mask string) string {
-	if mask == "" {
-		return advplrt.ToString(val)
-	}
-	if mask == "@E" {
-		return advplrt.ToString(val)
-	}
-	if strings.Contains(mask, "9") || strings.Contains(mask, "#") {
-		num := advplrt.ToFloat(val)
-		decimals := 0
-		if dotIdx := strings.Index(mask, "."); dotIdx >= 0 {
-			decimals = len(mask) - dotIdx - 1
+	funcs, tpl := "", mask
+	if strings.HasPrefix(mask, "@") {
+		funcs = strings.ToUpper(mask)
+		tpl = ""
+		if i := strings.IndexByte(mask, ' '); i >= 0 {
+			funcs, tpl = strings.ToUpper(mask[:i]), mask[i+1:]
 		}
-		return strconv.FormatFloat(num, 'f', decimals, 64)
 	}
-	return advplrt.ToString(val)
+	europeu := strings.Contains(funcs, "E")
+	if _, ok := val.(*advplrt.NumberValue); ok {
+		if tpl == "" {
+			out := advplrt.ToString(val)
+			if europeu {
+				out = strings.ReplaceAll(out, ".", ",")
+			}
+			return out
+		}
+		return pictureNumero(advplrt.ToFloat(val), tpl, europeu)
+	}
+	txt := advplrt.ToString(val)
+	if strings.Contains(funcs, "!") {
+		txt = strings.ToUpper(txt)
+	}
+	if tpl != "" && (strings.Contains(funcs, "R") || funcs == "") {
+		return pictureTexto(txt, tpl)
+	}
+	return txt
+}
+
+// pictureNumero formata n no template numérico (9/# = dígito, "," milhar,
+// "." decimal).
+func pictureNumero(n float64, tpl string, europeu bool) string {
+	intTpl, decs := tpl, 0
+	if i := strings.IndexByte(tpl, '.'); i >= 0 {
+		intTpl = tpl[:i]
+		decs = strings.Count(tpl[i+1:], "9") + strings.Count(tpl[i+1:], "#")
+	}
+	abs := strconv.FormatFloat(math.Abs(n), 'f', decs, 64)
+	intDig, decDig := abs, ""
+	if decs > 0 {
+		intDig, decDig = abs[:len(abs)-decs-1], abs[len(abs)-decs:]
+	}
+	if n < 0 {
+		intDig = "-" + intDig
+	}
+	out := make([]byte, len(intTpl))
+	k := len(intDig) - 1
+	for i := len(intTpl) - 1; i >= 0; i-- {
+		c := intTpl[i]
+		switch {
+		case c == '9' || c == '#':
+			if k >= 0 {
+				out[i] = intDig[k]
+				k--
+			} else {
+				out[i] = ' '
+			}
+		case c == ',':
+			if k >= 0 && intDig[k] != '-' {
+				out[i] = ','
+			} else {
+				out[i] = ' '
+			}
+		default:
+			out[i] = c
+		}
+	}
+	if k >= 0 {
+		return strings.Repeat("*", len(tpl))
+	}
+	res := string(out)
+	if decs > 0 {
+		res += "." + decDig
+	}
+	if europeu {
+		res = strings.Map(func(r rune) rune {
+			switch r {
+			case '.':
+				return ','
+			case ',':
+				return '.'
+			}
+			return r
+		}, res)
+	}
+	return res
+}
+
+// pictureTexto encaixa o texto nas posições de dado do template (9, A, X, N,
+// !) mantendo os literais: "@R 99.999-999" + "12345678" = "12.345-678".
+func pictureTexto(txt, tpl string) string {
+	var b strings.Builder
+	j := 0
+	for i := 0; i < len(tpl); i++ {
+		switch tpl[i] {
+		case '9', 'A', 'X', 'N', '!', '#':
+			if j < len(txt) {
+				c := txt[j]
+				if tpl[i] == '!' {
+					c = byte(unicode.ToUpper(rune(c)))
+				}
+				b.WriteByte(c)
+				j++
+			} else {
+				b.WriteByte(' ')
+			}
+		default:
+			b.WriteByte(tpl[i])
+		}
+	}
+	return b.String()
 }
 
 func sortValues(elems []advplrt.Value) {

@@ -41,7 +41,7 @@ User Function TuiNativesTest()
     ConOut("")
 
     // JsonObject:FromJson - parser real (nao mais stub), aninhado
-    lOk := oJson:FromJson('{"nome":"AdvPP","versao":2.18,"ok":true,"nulo":null,"itens":["a","b"],"sub":{"x":1}}')
+    lOk := (oJson:FromJson('{"nome":"AdvPP","versao":2.18,"ok":true,"nulo":null,"itens":["a","b"],"sub":{"x":1}}') == Nil)
     ConOut("JSON_PARSE_OK=" + cValToChar(lOk))
     ConOut("JSON_NOME=" + oJson["nome"])
     ConOut("JSON_VERSAO=" + Str(oJson["versao"]))
@@ -49,9 +49,9 @@ User Function TuiNativesTest()
     ConOut("JSON_ITEM2=" + oJson["itens"][2])
     ConOut("JSON_SUB_X=" + Str(oJson["sub"]["x"]))
 
-    // FromJson com JSON invalido: nao crasha, devolve .F.
-    lOk := oJson:FromJson("{invalido")
-    ConOut("JSON_INVALID_OK=" + cValToChar(!lOk))
+    // FromJson com JSON invalido: nao crasha, devolve o texto do erro (Protheus)
+    lOk := (ValType(oJson:FromJson("{invalido")) == "C")
+    ConOut("JSON_INVALID_OK=" + cValToChar(lOk))
 
     // ConIn no EOF real (stdin fechado/vazio): Nil, nao mais "" -- deixa
     // um REPL distinguir "Enter vazio" de "stdin acabou" e sair do loop

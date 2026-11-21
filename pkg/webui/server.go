@@ -213,6 +213,12 @@ func (p *Provider) Dialog(spec []byte) []byte {
 	return []byte(p.s.askData("msdialog", spec))
 }
 
+// ocultaLog: ADVPP_WEBUI_HIDE_LOG=1 não manda o ConOut ao browser (o painel
+// "Log técnico" some); a saída vai só para o stdout do processo. Para produção
+// exposta, onde o log revela detalhes internos (banco, migrações) a qualquer
+// visitante.
+var ocultaLog = os.Getenv("ADVPP_WEBUI_HIDE_LOG") == "1"
+
 // outWriter transmite a saída de console (ConOut) para o browser.
 type OutWriter struct{ s *session }
 
@@ -220,6 +226,10 @@ func (w *OutWriter) Write(b []byte) (int, error) {
 	text := string(b)
 	if len(text) > 0 && text[len(text)-1] == '\n' {
 		text = text[:len(text)-1]
+	}
+	if ocultaLog {
+		fmt.Fprintln(os.Stdout, text) // só no log do processo (journal)
+		return len(b), nil
 	}
 	select {
 	case w.s.events <- event{Type: "output", Text: text}:
@@ -378,7 +388,9 @@ func (srv *Server) Handler() http.Handler {
 		if !resumed {
 			// Executa o programa em goroutine própria; eventos fluem pelo canal
 			go func() {
-				s.post(event{Type: "output", Text: "── executando " + sourceName + " ──"})
+				if !ocultaLog {
+					s.post(event{Type: "output", Text: "── executando " + sourceName + " ──"})
+				}
 				if err := run(&Provider{s}, &OutWriter{s}); err != nil {
 					s.post(event{Type: "error", Text: err.Error()})
 				}

@@ -103,3 +103,25 @@ Return "so"
 		t.Errorf("RunFunction(U_XPTO) = %v, %v; esperava a User Function XPTO", r, err)
 	}
 }
+
+// Transform com picture do Protheus: separadores, @E, alinhamento, estouro,
+// negativo e template de texto (@R).
+func TestTransformPicture(t *testing.T) {
+	casos := map[string]string{
+		`Transform(1234567.5, "@E 999,999,999.99")`:            "  1.234.567,50",
+		`Transform(1234567.5, "999,999,999.99")`:               "  1,234,567.50",
+		`Transform(-1234.5, "@E 999,999.99")`:                  " -1.234,50",
+		`Transform(0.5, "@E 999.99")`:                          "  0,50",
+		`Transform(42, "999")`:                                 " 42",
+		`Transform(12345, "999")`:                              "***",
+		`Transform(3.14159, "@E")`:                             "3,14159",
+		`Transform("12345678000195", "@R 99.999.999/9999-99")`: "12.345.678/0001-95",
+		`Transform("abc", "@!")`:                               "ABC",
+	}
+	for expr, esp := range casos {
+		out := saidaDe(t, "User Function Main()\n\tConOut(\"[\" + "+expr+" + \"]\")\nReturn\n")
+		if !strings.Contains(out, "["+esp+"]") {
+			t.Errorf("%s = %q, esperava [%s]", expr, strings.TrimSpace(out), esp)
+		}
+	}
+}

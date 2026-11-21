@@ -1893,18 +1893,21 @@ func (v *VM) callJsonObjectMethod(obj *advplrt.ObjectValue, method string, args 
 		v.push(advplrt.False)
 		return nil
 	case "FROMJSON":
+		// Como no Protheus: Nil quando leu o JSON, texto do erro quando não
+		// (antes .T./.F.; código escrito para o Protheus, que testa
+		// ValType(xErr) == "C", nunca via o erro).
 		if len(args) > 0 {
 			if s, ok := args[0].(*advplrt.StringValue); ok {
 				var parsed interface{}
 				if err := json.Unmarshal([]byte(s.Val), &parsed); err != nil {
-					v.push(advplrt.False)
+					v.push(advplrt.NewString("JSON invalido: " + err.Error()))
 					return nil
 				}
 				root, ok := parsed.(map[string]interface{})
 				if !ok {
 					// Top-level JSON não é objeto (ex.: array ou escalar) — não há
-					// como popular Props/Keys de obj; devolve .F. sem mutar.
-					v.push(advplrt.False)
+					// como popular Props/Keys de obj; devolve o erro sem mutar.
+					v.push(advplrt.NewString("JSON invalido: o texto nao e' um objeto"))
 					return nil
 				}
 				obj.Props = make(map[string]advplrt.Value, len(root))
@@ -1912,11 +1915,11 @@ func (v *VM) callJsonObjectMethod(obj *advplrt.ObjectValue, method string, args 
 				for k, val := range root {
 					obj.SetProp(k, jsonToAdvplValue(val))
 				}
-				v.push(advplrt.True)
+				v.push(advplrt.Nil)
 				return nil
 			}
 		}
-		v.push(advplrt.False)
+		v.push(advplrt.NewString("JSON invalido: parametro nao e' texto"))
 		return nil
 	case "GETNAMES":
 		// Ordem de inserção das chaves (mesma semântica do native GetNames).
