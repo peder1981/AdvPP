@@ -521,6 +521,8 @@ A IDE gráfica fornece:
 - Todos os tipos de dados AdvPL: Character, Numeric, Logical, Date, Array, Code Block, Nil, Object
 - `If()`/`IIF()` com 3 argumentos fazem curto-circuito (avaliam só o ramo escolhido)
 - `.And.`/`.Or.` com curto-circuito: o lado direito só é avaliado quando decide o resultado
+- Passagem por referência `@var` (local, Private/Public, Static, upvalue, métodos, codeblocks; nativas com parâmetro de saída)
+- `Nil` é o nulo: convertido para texto (`cValToChar`, `AllTrim`...) vira `""`
 - Aritmética de data: `data + n`/`data - n` dão data, `data - data` dá dias; comparação entre datas
 - `U_Nome()` chama a `User Function Nome` (convenção do Protheus); `#include` aninhado resolve ao lado do arquivo que inclui
 - `Private`/`Public` com escopo dinâmico (visíveis às funções chamadas)
