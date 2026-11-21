@@ -385,3 +385,32 @@ func TestRemoteSQLEngineCloseClosesUnderlyingDB(t *testing.T) {
 		t.Errorf("unmet expectations: %v", err)
 	}
 }
+
+// TestRemoteSQLEngineQueryRowsNull: NULL do banco remoto (Postgres) chega ao
+// TCSqlQuery como "" -- o mesmo do motor SQLite -- e nunca como o texto "Nil"
+// (era a representação de depuração do Nil do runtime vazando para o dado).
+func TestRemoteSQLEngineQueryRowsNull(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer mockDB.Close()
+
+	rows := sqlmock.NewRows([]string{"salt", "valor", "nome"}).AddRow(nil, nil, "Ana")
+	mock.ExpectQuery(`SELECT salt, valor, nome FROM GE2`).WillReturnRows(rows)
+
+	e := NewRemoteSQLEngine(mockDB, postgresDialect{})
+	got, err := e.QueryRows("SELECT salt, valor, nome FROM GE2")
+	if err != nil {
+		t.Fatalf("QueryRows: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("len(got) = %d, want 1", len(got))
+	}
+	if got[0]["SALT"] != "" || got[0]["VALOR"] != "" {
+		t.Fatalf("NULL virou %q / %q, want \"\"", got[0]["SALT"], got[0]["VALOR"])
+	}
+	if got[0]["NOME"] != "Ana" {
+		t.Fatalf("NOME = %q, want Ana", got[0]["NOME"])
+	}
+}

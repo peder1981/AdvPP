@@ -2,6 +2,17 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.8.5] - 2026-11-21
+
+### Fixed
+- **`NULL` do Postgres (e de todo banco remoto) chegava como o texto `"Nil"`
+  no `TCSqlQuery`**: a 4.8.4 corrigiu `cValToChar(Nil)`, mas o motor remoto
+  (Postgres/Oracle/MSSQL) convertia o `NULL` com a representação de depuração
+  do `Nil` antes de entregar a linha, e o campo chegava como `"Nil"` (tipo C).
+  `Empty()` e `== ""` falhavam e a interface mostrava "Nil" em colunas vazias.
+  Agora vira `""`, como sempre foi no motor SQLite. Achado rodando o ERP GEBAN
+  sobre Postgres.
+
 ## [4.8.4] - 2026-11-21
 
 ### Added
