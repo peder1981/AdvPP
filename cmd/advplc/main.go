@@ -129,7 +129,9 @@ func main() {
 			os.Exit(1)
 		}
 		if len(files) == 1 {
-			if err := checkFile(files[0], opts); err != nil {
+			avisos, err := checkFile(files[0], opts)
+			mostraAvisos(files[0], avisos)
+			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
@@ -312,9 +314,16 @@ func parseOptions(args []string) *Options {
 }
 
 func loadAndCompile(sourceFile string, opts *Options) (*compiler.Bytecode, error) {
+	bc, _, err := compilaComAvisos(sourceFile, opts)
+	return bc, err
+}
+
+// compilaComAvisos é o loadAndCompile que também devolve os avisos do parser
+// (problemas que compilam, como no Protheus, mas que o check mostra).
+func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []parser.Aviso, error) {
 	source, err := os.ReadFile(sourceFile)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read file %s: %v", sourceFile, err)
+		return nil, nil, fmt.Errorf("cannot read file %s: %v", sourceFile, err)
 	}
 
 	// Detect and convert CP1252 encoding to UTF-8 if needed
@@ -337,30 +346,30 @@ func loadAndCompile(sourceFile string, opts *Options) (*compiler.Bytecode, error
 	}
 	processed, err := pp.Process(sourceStr, sourceFile)
 	if err != nil {
-		return nil, fmt.Errorf("preprocessor error: %v", err)
+		return nil, nil, fmt.Errorf("preprocessor error: %v", err)
 	}
 
 	// Lex
 	tokens, err := lexer.Tokenize(processed, sourceFile)
 	if err != nil {
-		return nil, fmt.Errorf("lexer error: %v", err)
+		return nil, nil, fmt.Errorf("lexer error: %v", err)
 	}
 
 	// Parse
 	p := parser.NewParser(tokens, sourceFile, pp.GetDefines())
 	prog, err := p.Parse()
 	if err != nil {
-		return nil, fmt.Errorf("parser error: %v", err)
+		return nil, nil, fmt.Errorf("parser error: %v", err)
 	}
 	prog.RootBoundaryLine = pp.RootBoundaryLine
 
 	// Compile
 	bc, err := compiler.Compile(prog)
 	if err != nil {
-		return nil, fmt.Errorf("compiler error: %v", err)
+		return nil, nil, fmt.Errorf("compiler error: %v", err)
 	}
 
-	return bc, nil
+	return bc, p.Avisos(), nil
 }
 
 func runFile(sourceFile string, opts *Options) error {
@@ -405,9 +414,16 @@ func attachDatabase(v *vm.VM, opts *Options) {
 	})
 }
 
-func checkFile(sourceFile string, opts *Options) error {
-	_, err := loadAndCompile(sourceFile, opts)
-	return err
+func checkFile(sourceFile string, opts *Options) ([]parser.Aviso, error) {
+	_, avisos, err := compilaComAvisos(sourceFile, opts)
+	return avisos, err
+}
+
+// mostraAvisos escreve os avisos no stderr, um por linha, com a posição.
+func mostraAvisos(sourceFile string, avisos []parser.Aviso) {
+	for _, a := range avisos {
+		fmt.Fprintf(os.Stderr, "Aviso: %s:%d:%d: %s\n", sourceFile, a.Line, a.Col, a.Message)
+	}
 }
 
 // serveFile executa o programa com a interface renderizada no browser
@@ -566,6 +582,8 @@ type checkJSONResult struct {
 	Line    int    `json:"line,omitempty"`
 	Col     int    `json:"col,omitempty"`
 	Message string `json:"message,omitempty"`
+	// Avisos (compila, mas merece atenção), com posição.
+	Warnings []parser.Aviso `json:"warnings,omitempty"`
 }
 
 // reFimPosicao: " at <arquivo>:<linha>:<coluna>" no fim dos erros do
@@ -593,7 +611,9 @@ func runCheckJSON(files []string, opts *Options, w *os.File) int {
 	failed := false
 	for _, f := range files {
 		r := checkJSONResult{File: f, OK: true}
-		if err := checkFile(f, opts); err != nil {
+		avisos, err := checkFile(f, opts)
+		r.Warnings = avisos
+		if err != nil {
 			r.OK = false
 			r.Error = err.Error()
 			r.Line, r.Col, r.Message = posicaoDoErro(r.Error)
@@ -615,8 +635,9 @@ func runCheckJSON(files []string, opts *Options, w *os.File) int {
 // preprocessador→lexer→parser→codegen não compartilha estado entre arquivos.
 func checkFilesParallel(files []string, opts *Options) int {
 	type result struct {
-		file string
-		err  error
+		file   string
+		avisos []parser.Aviso
+		err    error
 	}
 	jobs := make(chan string)
 	results := make(chan result)
@@ -631,7 +652,8 @@ func checkFilesParallel(files []string, opts *Options) int {
 		go func() {
 			defer wg.Done()
 			for f := range jobs {
-				results <- result{f, checkFile(f, opts)}
+				avisos, err := checkFile(f, opts)
+				results <- result{f, avisos, err}
 			}
 		}()
 	}
@@ -646,6 +668,7 @@ func checkFilesParallel(files []string, opts *Options) int {
 
 	pass, fail := 0, 0
 	for r := range results {
+		mostraAvisos(r.file, r.avisos)
 		if r.err != nil {
 			fail++
 			fmt.Fprintf(os.Stderr, "FAIL %s: %v\n", r.file, r.err)
