@@ -1,0 +1,17 @@
+# GitHub Pages (Jekyll) do diretório docs/.
+# superpowers/ guarda specs e planos internos de desenvolvimento, com muito
+# código AdvPL (ex.: `{{"a","A"}}`, arrays aninhados) que o Liquid do Jekyll
+# lê como tags `{{ ... }}` e derruba o build do site — não são páginas.
+theme: jekyll-theme-primer
+exclude:
+  - superpowers
+  - .sass-cache
+  - .jekyll-cache
+  - gemfiles
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/

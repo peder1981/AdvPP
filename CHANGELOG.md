@@ -5,6 +5,13 @@ Todas as mudanças relevantes no projeto AdvPP.
 ## [Não lançado]
 
 ### Added
+- **`AdvCodeEditor` e `AdvTerminal`** (fase 4 dos componentes): editor CodeMirror 6 com
+  realce AdvPL/TLPP, marcações de erro, Ctrl+S (`OnSave`) e `OnChange`; terminal xterm.js
+  sobre pseudo-terminal real (`creack/pty`, sem shell implícito), entrada, redimensionamento
+  e `OnExit` — no Windows, erro claro nesta versão. Exemplo `examples/poui/fase4.prw`
+  (mini IDE). Dependências novas: `github.com/creack/pty`; npm `codemirror`,
+  `@codemirror/*`, `@xterm/xterm`, `@xterm/addon-fit`.
+- **`advplc check --format json`** traz `line`, `col` e `message` quando o erro tem posição.
 - **`advplc serve --apps <dir> [--home <nome>]` — vários programas num servidor** (fase 3
   dos componentes PO-UI): cada `<dir>/<nome>.prw|.tlpp` em `/app/<nome>`, uma VM por
   janela, compilação sob demanda com recompilação quando o fonte muda, erro de
@@ -33,6 +40,14 @@ Todas as mudanças relevantes no projeto AdvPP.
   `docs/superpowers/specs/2026-11-20-poui-componentes-design.md`.
 
 ### Fixed
+- **Parser aceitava argumentos sem vírgula e parêntese sem fechar**: `ConOut("oi" + x`
+  seguido de outras linhas virava uma única chamada, com as linhas seguintes como
+  argumentos, e o programa rodava imprimindo lixo. Agora é erro de compilação com
+  posição, como no Protheus. Fixture `tests/stability_error_paths_test.prw` corrigido
+  (usava `1_000_000`, que não é número em AdvPL).
+- **GitHub Pages**: o build do site falhava porque o Liquid do Jekyll lia o código AdvPL
+  dos documentos internos em `docs/superpowers/` como tags `{{ }}`. `docs/_config.yml`
+  exclui essa pasta; o restante do site sai idêntico.
 - **`Static` de arquivo**: qualquer `Static` declarado no nível do arquivo (comum no
   Protheus) fazia o compilador tratar o programa como "corpo" e a função de entrada nunca
   era chamada — o programa não fazia nada. E, mesmo chamada, uma função não enxergava o

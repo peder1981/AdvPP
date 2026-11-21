@@ -30,7 +30,8 @@ type poComp struct {
 	app      *poAppState
 	columns  []string // PoTable: propriedades na ordem das colunas
 	rows     []advplrt.Value
-	maxPts   int // PoChart: pontos mantidos (0 = sem limite)
+	maxPts   int     // PoChart: pontos mantidos (0 = sem limite)
+	term     *poTerm // AdvTerminal
 }
 
 // poAppState é o estado de um PoApp (uma por VM ativa por vez).

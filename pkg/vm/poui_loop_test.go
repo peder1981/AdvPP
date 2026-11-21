@@ -44,7 +44,14 @@ func (f *fakeUI) MsgYesNo(string, string) bool         { return false }
 func (f *fakeUI) Menu([]string, string) int            { return 0 }
 func (f *fakeUI) InputText(_, d string, _ bool) string { return d }
 
+// UISend segue o contrato do webui: com a sessão encerrada, a goroutine que
+// envia termina (runtime.Goexit), como no servidor real.
 func (f *fakeUI) UISend(op []byte) {
+	select {
+	case <-f.quit:
+		runtime.Goexit()
+	default:
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.sent = append(f.sent, append([]byte(nil), op...))

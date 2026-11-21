@@ -1,5 +1,7 @@
 import { Component, Input, forwardRef } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
+import { AdvCodeEditorComponent } from './adv-code-editor';
+import { AdvTerminalComponent } from './adv-terminal';
 import { FormsModule } from '@angular/forms';
 import {
   PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoFieldModule,
@@ -22,7 +24,7 @@ export type UiPost = (id: number, event: string, value: unknown) => void;
 @Component({
   selector: 'adv-ui-host',
   imports: [
-    forwardRef(() => UiHostComponent), FormsModule, NgTemplateOutlet,
+    forwardRef(() => UiHostComponent), FormsModule, NgTemplateOutlet, AdvCodeEditorComponent, AdvTerminalComponent,
     PoPageModule, PoButtonModule, PoFieldModule, PoTableModule, PoTagModule,
     PoContainerModule, PoDividerModule, PoWidgetModule, PoTabsModule, PoTreeViewModule,
     PoListViewModule, PoInfoModule, PoProgressModule, PoGaugeModule, PoChartModule,
@@ -149,6 +151,12 @@ export type UiPost = (id: number, event: string, value: unknown) => void;
         @case ('chart') {
           <po-chart [p-title]="node.props['title']" [p-type]="node.props['type']"
                     [p-categories]="node.props['categories']" [p-series]="chartSeries()" [p-height]="280"></po-chart>
+        }
+        @case ('editor') {
+          <adv-code-editor [node]="node" [post]="post"></adv-code-editor>
+        }
+        @case ('terminal') {
+          <adv-terminal [node]="node" [post]="post"></adv-terminal>
         }
         @case ('tag') {
           <po-tag [p-value]="node.props['value']" [p-type]="node.props['type']"></po-tag>

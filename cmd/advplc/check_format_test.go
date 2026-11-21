@@ -91,3 +91,39 @@ func TestParseOptionsFormat(t *testing.T) {
 		t.Fatalf("default deveria ser vazio: %q", got)
 	}
 }
+
+func checkJSONDe(t *testing.T, src string) checkJSONResult {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "x.prw")
+	if err := os.WriteFile(p, []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, w, _ := os.Pipe()
+	runCheckJSON([]string{p}, &Options{}, w)
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	return decodeJSONLines(t, buf.String())[0]
+}
+
+// O editor marca o erro na posição: line/col/message ao lado do error.
+func TestCheckJSONPosicao(t *testing.T) {
+	got := checkJSONDe(t, "User Function Main(\n\tConOut(\"x\"\nReturn\n")
+	if got.OK || got.Line != 2 || got.Col != 8 {
+		t.Fatalf("posição: %+v", got)
+	}
+	if got.Message == "" || strings.Contains(got.Message, "x.prw") || !strings.Contains(got.Error, "x.prw:2:8") {
+		t.Errorf("message/error: %+v", got)
+	}
+}
+
+// Sem posição reconhecível no erro: nenhuma linha/coluna inventada.
+func TestCheckJSONSemPosicao(t *testing.T) {
+	if l, c, m := posicaoDoErro("falha qualquer sem posição"); l != 0 || c != 0 || m != "falha qualquer sem posição" {
+		t.Errorf("posicaoDoErro = %d %d %q", l, c, m)
+	}
+	data, _ := json.Marshal(checkJSONResult{File: "a", Error: "e", Message: "e"})
+	if strings.Contains(string(data), `"line"`) || strings.Contains(string(data), `"col"`) {
+		t.Errorf("JSON sem posição não deve ter line/col: %s", data)
+	}
+}

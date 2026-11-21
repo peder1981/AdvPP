@@ -84,6 +84,7 @@ func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
 	a.active = true
 	a.flush() // ops geradas antes do Activate (ex.: Notify de boas-vindas)
 	defer func() {
+		a.killTerms()
 		a.killSpawns()
 		a.stopTimers()
 		a.active = false
@@ -95,6 +96,12 @@ func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
 	for id, sp := range a.spawns {
 		a.startSpawn(id, sp)
 	}
+	for _, c := range a.byID {
+		if c.term != nil {
+			a.startTerm(c)
+		}
+	}
+	a.flush() // running:true dos terminais
 	for !a.closed {
 		id, ev, val := ui.UINext()
 		v.poDispatch(a, id, ev, val)
@@ -156,9 +163,17 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		if !ok {
 			return
 		}
+		if c.term != nil && (ev == "input" || ev == "resize" || ev == "termexit") {
+			h, args = a.poTermEvento(c, ev, val)
+			break
+		}
 		switch ev {
 		case "click":
 			h, args = c.handlers["click"], []advplrt.Value{c.obj}
+		case "save": // AdvCodeEditor: Ctrl+S com o texto completo
+			txt := poJSONTexto(val)
+			c.props["value"] = txt
+			h, args = c.handlers["save"], []advplrt.Value{c.obj, advplrt.NewString(txt)}
 		case "change":
 			novo := poValorDoBrowser(c.typ, val)
 			c.props["value"] = poToJSON(novo) // veio do browser: não gera patch

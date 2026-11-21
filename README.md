@@ -327,6 +327,16 @@ tela; `KillSpawn(nId)` encerra, e o processo é morto se a janela fechar.
 `SetCols(1..12)` em qualquer componente define a largura numa grade de 12
 colunas. Exemplo completo: `examples/poui/fase2.prw`.
 
+**Editor de código e terminal** (componentes próprios do AdvPP, fora do PO-UI):
+
+| Classe | Criação | Específicos |
+|--------|---------|-------------|
+| `AdvCodeEditor` | `New(oPai[, cTexto[, cLinguagem]])` | CodeMirror 6 com realce AdvPL/TLPP (`advpl`, `tlpp`, `json`, `sh`, `text`); `SetText`/`GetText`, `SetLanguage`, `SetReadOnly`, `SetHeight(cCss)`, `SetMarkers({{nLinha, nColuna, cMensagem[, cSeveridade]}})`, `ClearMarkers()`, `OnChange({\|o, cTexto\| ...})`, `OnSave({\|o, cTexto\| ...})` (Ctrl+S) |
+| `AdvTerminal` | `New(oPai, cProg[, aArgs])` | xterm.js sobre um pseudo-terminal real (sem shell implícito); `OnExit({\|o, nCodigo\| ...})`, `Write(cTexto)`, `Kill()`, `SetHeight`; o processo morre se a janela fechar. **Windows**: erro claro nesta versão |
+
+Exemplo (mini IDE: Ctrl+S verifica o fonte com `advplc check --format json` e
+marca o erro na linha; aba com terminal): `examples/poui/fase4.prw`.
+
 **Vários programas num servidor** — `advplc serve --apps <dir> [--home <nome>]`:
 cada `<dir>/<nome>.prw|.tlpp` é servido em `/app/<nome>` (o `--home` em `/`),
 cada janela com a sua VM, compilado sob demanda e recompilado quando o
