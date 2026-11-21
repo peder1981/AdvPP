@@ -159,6 +159,10 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		switch ev {
 		case "click":
 			h, args = c.handlers["click"], []advplrt.Value{c.obj}
+		case "save": // AdvCodeEditor: Ctrl+S com o texto completo
+			txt := poJSONTexto(val)
+			c.props["value"] = txt
+			h, args = c.handlers["save"], []advplrt.Value{c.obj, advplrt.NewString(txt)}
 		case "change":
 			novo := poValorDoBrowser(c.typ, val)
 			c.props["value"] = poToJSON(novo) // veio do browser: não gera patch

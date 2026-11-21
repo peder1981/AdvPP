@@ -36,6 +36,43 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POSELECT":   {"PoSelect", "select"},
 	"POCHECKBOX": {"PoCheckbox", "checkbox"},
 	"POSWITCH":   {"PoSwitch", "switch"},
+	// fase 4: componentes próprios do AdvPP
+	"ADVCODEEDITOR": {"AdvCodeEditor", "editor"},
+}
+
+// poLinguagens: linguagens de realce do AdvCodeEditor.
+var poLinguagens = map[string]bool{"advpl": true, "tlpp": true, "json": true, "sh": true, "text": true}
+
+func poLinguagem(l string) (string, error) {
+	l = strings.ToLower(strings.TrimSpace(l))
+	if !poLinguagens[l] {
+		return "", fmt.Errorf("AdvCodeEditor: linguagem inválida %q (advpl, tlpp, json, sh, text)", l)
+	}
+	return l, nil
+}
+
+// poMarcadores: {{nLinha, nColuna, cMensagem[, cSeveridade]}, ...}.
+func poMarcadores(x advplrt.Value) []map[string]any {
+	out := []map[string]any{}
+	arr, _ := x.(*advplrt.ArrayValue)
+	if arr == nil {
+		return out
+	}
+	for _, el := range arr.Elements {
+		m, ok := el.(*advplrt.ArrayValue)
+		if !ok || len(m.Elements) < 3 {
+			continue
+		}
+		sev := argTexto(m.Elements, 3, "error")
+		if sev != "warning" && sev != "info" {
+			sev = "error"
+		}
+		out = append(out, map[string]any{
+			"line": int(advplrt.ToFloat(m.Elements[0])), "col": int(advplrt.ToFloat(m.Elements[1])),
+			"message": advplrt.ToString(m.Elements[2]), "severity": sev,
+		})
+	}
+	return out
 }
 
 // reNomeApp: mesma regra de webui.NomeDeAppValido (pkg/vm não importa webui).
@@ -262,6 +299,16 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		case "checkbox", "switch":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			c.props["value"] = advplrt.ToBool(getArg(args, 2))
+		case "editor":
+			lang, err := poLinguagem(argTexto(args, 2, "advpl"))
+			if err != nil {
+				return err
+			}
+			c.props["value"] = argTexto(args, 1, "")
+			c.props["language"] = lang
+			c.props["markers"] = []map[string]any{}
+			c.props["readonly"] = false
+			c.props["height"] = "400px"
 		}
 	}
 	obj.Native = c
@@ -382,6 +429,26 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		c.handlers["change"] = getArg(args, 0)
 	case "ONSELECT":
 		c.handlers["select"] = getArg(args, 0)
+	case "SETTEXT":
+		a.setProp(c, "value", advplrt.ToString(getArg(args, 0)))
+	case "GETTEXT":
+		ret = poFromJSON(c.props["value"])
+	case "SETLANGUAGE":
+		lang, err := poLinguagem(advplrt.ToString(getArg(args, 0)))
+		if err != nil {
+			return err
+		}
+		a.setProp(c, "language", lang)
+	case "SETREADONLY":
+		a.setProp(c, "readonly", advplrt.ToBool(getArg(args, 0)))
+	case "SETHEIGHT":
+		a.setProp(c, "height", advplrt.ToString(getArg(args, 0)))
+	case "SETMARKERS":
+		a.setProp(c, "markers", poMarcadores(getArg(args, 0)))
+	case "CLEARMARKERS":
+		a.setProp(c, "markers", []map[string]any{})
+	case "ONSAVE":
+		c.handlers["save"] = getArg(args, 0)
 	case "SETCOLS":
 		n := int(advplrt.ToFloat(getArg(args, 0)))
 		if n < 1 || n > 12 {

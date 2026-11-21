@@ -1209,6 +1209,7 @@ var poClassNames = map[string]bool{
 	"POMENU": true, "POCONTAINER": true, "POWIDGET": true, "PODIVIDER": true, "POTABS": true, "POTAB": true,
 	"POTREE": true, "POLIST": true, "POINFO": true, "POPROGRESS": true, "POGAUGE": true, "POCHART": true,
 	"POPASSWORD": true, "POTEXTAREA": true, "PONUMBER": true, "POSELECT": true, "POCHECKBOX": true, "POSWITCH": true,
+	"ADVCODEEDITOR": true,
 }
 
 func isPoClassName(name string) bool {
