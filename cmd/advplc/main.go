@@ -7,7 +7,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -227,7 +229,7 @@ type Options struct {
 	dbBackend string
 	port      string
 	watch     bool
-	gui       bool // advplc build --gui: app desktop (janela sempre, subsistema GUI no Windows)
+	gui       bool   // advplc build --gui: app desktop (janela sempre, subsistema GUI no Windows)
 	debugPort string // advplc serve --debug-port: liga um listener DAP TCP (attach)
 	format    string // check --format: "" (humano) ou "json" (um objeto por linha)
 	apps      string // serve --apps <dir>: vários programas (um por arquivo)
@@ -559,6 +561,26 @@ type checkJSONResult struct {
 	File  string `json:"file"`
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
+	// Posição do erro (para marcar no editor) e a mensagem sem ela. Sem
+	// posição reconhecível no erro, line/col ficam de fora.
+	Line    int    `json:"line,omitempty"`
+	Col     int    `json:"col,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+// reFimPosicao: " at <arquivo>:<linha>:<coluna>" no fim dos erros do
+// lexer/parser.
+var reFimPosicao = regexp.MustCompile(`\s+at\s+\S.*:(\d+):(\d+)\s*$`)
+
+// posicaoDoErro separa linha, coluna e mensagem de um erro de compilação.
+func posicaoDoErro(e string) (int, int, string) {
+	m := reFimPosicao.FindStringSubmatchIndex(e)
+	if m == nil {
+		return 0, 0, e
+	}
+	l, _ := strconv.Atoi(e[m[2]:m[3]])
+	c, _ := strconv.Atoi(e[m[4]:m[5]])
+	return l, c, strings.TrimSpace(e[:m[0]])
 }
 
 // runCheckJSON valida cada arquivo em sequência (ordem de saída == ordem de
@@ -574,6 +596,7 @@ func runCheckJSON(files []string, opts *Options, w *os.File) int {
 		if err := checkFile(f, opts); err != nil {
 			r.OK = false
 			r.Error = err.Error()
+			r.Line, r.Col, r.Message = posicaoDoErro(r.Error)
 			failed = true
 		}
 		if err := enc.Encode(r); err != nil {
