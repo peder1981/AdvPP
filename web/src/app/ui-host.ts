@@ -1,13 +1,16 @@
 import { Component, Input, forwardRef } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  PoButtonModule, PoFieldModule, PoPageAction, PoPageModule, PoTableModule, PoTagModule,
+  PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoFieldModule,
+  PoGaugeModule, PoInfoModule, PoListViewModule, PoPageAction, PoPageModule, PoProgressModule,
+  PoTableModule, PoTabsModule, PoTagModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
 } from '@po-ui/ng-components';
 
 // Espelho do protocolo de componentes (pkg/vm/poui.go, op "mount"/"batch").
 export interface UiNode {
   id: number;
-  type: string; // page | button | input | table | tag
+  type: string;
   props: Record<string, any>;
   children: UiNode[];
 }
@@ -19,18 +22,63 @@ export type UiPost = (id: number, event: string, value: unknown) => void;
 @Component({
   selector: 'adv-ui-host',
   imports: [
-    forwardRef(() => UiHostComponent), FormsModule,
+    forwardRef(() => UiHostComponent), FormsModule, NgTemplateOutlet,
     PoPageModule, PoButtonModule, PoFieldModule, PoTableModule, PoTagModule,
+    PoContainerModule, PoDividerModule, PoWidgetModule, PoTabsModule, PoTreeViewModule,
+    PoListViewModule, PoInfoModule, PoProgressModule, PoGaugeModule, PoChartModule,
   ],
+  styles: [`
+    .advpp-ui-grid { display: flex; flex-wrap: wrap; margin: 0 -8px; }
+    .advpp-ui-grid > .advpp-ui-item { padding: 0 8px; box-sizing: border-box; }
+  `],
   template: `
+    <!-- Filhos de page/container/widget/tab: blocos empilhados, ou grade de
+         12 colunas quando algum filho usa SetCols. -->
+    <ng-template #filhos let-pai>
+      @if (temCols(pai)) {
+        <div class="advpp-ui-grid">
+          @for (c of pai.children; track c.id) {
+            <div class="advpp-ui-item" [style.flex]="'0 0 ' + largura(c)" [style.max-width]="largura(c)">
+              <adv-ui-host [node]="c" [post]="post"></adv-ui-host>
+            </div>
+          }
+        </div>
+      } @else {
+        @for (c of pai.children; track c.id) {
+          <div class="advpp-ui-item"><adv-ui-host [node]="c" [post]="post"></adv-ui-host></div>
+        }
+      }
+    </ng-template>
+
     @if (node.props['visible'] !== false) {
       @switch (node.type) {
         @case ('page') {
           <po-page-default [p-title]="node.props['title']" [p-actions]="pageActions()">
-            @for (c of node.children; track c.id) {
-              <div class="advpp-ui-item"><adv-ui-host [node]="c" [post]="post"></adv-ui-host></div>
-            }
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
           </po-page-default>
+        }
+        @case ('container') {
+          <po-container [p-title]="node.props['title']">
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-container>
+        }
+        @case ('widget') {
+          <po-widget [p-title]="node.props['title']">
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-widget>
+        }
+        @case ('divider') {
+          <po-divider [p-label]="node.props['label']"></po-divider>
+        }
+        @case ('tabs') {
+          <!-- po-tab precisa ser filho direto de po-tabs (ContentChildren) -->
+          <po-tabs>
+            @for (tab of node.children; track tab.id) {
+              <po-tab [p-label]="tab.props['label']" [p-active]="!!tab.props['active']">
+                <ng-container *ngTemplateOutlet="filhos; context: { $implicit: tab }"></ng-container>
+              </po-tab>
+            }
+          </po-tabs>
         }
         @case ('button') {
           <po-button [p-label]="node.props['label']" [p-disabled]="!!node.props['disabled']"
@@ -40,10 +88,60 @@ export type UiPost = (id: number, event: string, value: unknown) => void;
           <po-input [p-label]="node.props['label']" [p-disabled]="node.props['disabled'] ? 'true' : 'false'"
                     [ngModel]="node.props['value']" (ngModelChange)="onInput($event)"></po-input>
         }
+        @case ('password') {
+          <po-password [p-label]="node.props['label']" [ngModel]="node.props['value']"
+                       (ngModelChange)="onInput($event)"></po-password>
+        }
+        @case ('textarea') {
+          <po-textarea [p-label]="node.props['label']" [ngModel]="node.props['value']"
+                       (ngModelChange)="onInput($event)"></po-textarea>
+        }
+        @case ('number') {
+          <po-number [p-label]="node.props['label']" [ngModel]="node.props['value']"
+                     (ngModelChange)="onInput($event)"></po-number>
+        }
+        @case ('select') {
+          <po-select [p-label]="node.props['label']" [p-options]="node.props['options']"
+                     [ngModel]="node.props['value']" (ngModelChange)="onImediato($event)"></po-select>
+        }
+        @case ('checkbox') {
+          <po-checkbox [p-label]="node.props['label']" [ngModel]="node.props['value']"
+                       (ngModelChange)="onImediato($event)"></po-checkbox>
+        }
+        @case ('switch') {
+          <po-switch [p-label]="node.props['label']" [p-hide-label-status]="true" [ngModel]="node.props['value']"
+                     (ngModelChange)="onImediato($event)"></po-switch>
+        }
         @case ('table') {
           <po-table [p-columns]="node.props['columns']" [p-items]="node.props['items']"
                     [p-selectable]="true" [p-single-select]="true" [p-striped]="true"
                     (p-selected)="onSelect($event)"></po-table>
+        }
+        @case ('tree') {
+          <po-tree-view [p-items]="node.props['items']" [p-selectable]="true" [p-single-select]="true"
+                        (p-selected)="onTree($event)"></po-tree-view>
+        }
+        @case ('list') {
+          <po-list-view [p-items]="node.props['items']" p-property-title="title"
+                        (p-title-action)="onSelect($event)">
+            <ng-template p-list-view-content-template let-item>
+              <span>{{ item.detail }}</span>
+            </ng-template>
+          </po-list-view>
+        }
+        @case ('info') {
+          <po-info [p-label]="node.props['label']" [p-value]="node.props['value']"></po-info>
+        }
+        @case ('progress') {
+          <po-progress [p-value]="node.props['value']" [p-text]="node.props['text']"></po-progress>
+        }
+        @case ('gauge') {
+          <po-gauge [p-title]="node.props['title']" [p-value]="node.props['value']"
+                    [p-description]="node.props['description']" [p-height]="220"></po-gauge>
+        }
+        @case ('chart') {
+          <po-chart [p-title]="node.props['title']" [p-type]="node.props['type']"
+                    [p-categories]="node.props['categories']" [p-series]="chartSeries()" [p-height]="280"></po-chart>
         }
         @case ('tag') {
           <po-tag [p-value]="node.props['value']" [p-type]="node.props['type']"></po-tag>
@@ -55,10 +153,22 @@ export type UiPost = (id: number, event: string, value: unknown) => void;
 export class UiHostComponent {
   @Input({ required: true }) node!: UiNode;
   @Input({ required: true }) post!: UiPost;
+  // Só existe para o pai forçar nova verificação quando chega um lote.
+  @Input() versao = 0;
 
   private actionsFor: unknown = null;
   private actionsCache: PoPageAction[] = [];
+  private seriesFor: unknown = null;
+  private seriesCache: PoChartSerie[] = [];
   private debounce?: ReturnType<typeof setTimeout>;
+
+  protected temCols(pai: UiNode): boolean {
+    return pai.children.some(c => c.props['cols']);
+  }
+
+  protected largura(c: UiNode): string {
+    return ((c.props['cols'] || 12) / 12 * 100).toFixed(4) + '%';
+  }
 
   // Recria as ações só quando a lista do servidor muda (mesma referência =
   // mesmo array para o po-page-default, sem re-render a cada ciclo).
@@ -74,11 +184,34 @@ export class UiHostComponent {
     return this.actionsCache;
   }
 
+  // Pizza/rosca: uma fatia por categoria, com o 1º valor de cada uma.
+  protected chartSeries(): PoChartSerie[] {
+    const series = this.node.props['series'];
+    if (series !== this.seriesFor) {
+      this.seriesFor = series;
+      const tipo = this.node.props['type'];
+      if (tipo === 'pie' || tipo === 'donut') {
+        const cats: string[] = this.node.props['categories'] ?? [];
+        const dados: number[] = series?.[0]?.data ?? [];
+        this.seriesCache = cats.map((c, i) => ({ label: String(c), data: dados[i] ?? 0 }));
+      } else {
+        this.seriesCache = (series ?? []).map((s: { label: string; data: number[] }) => ({ label: s.label, data: s.data }));
+      }
+    }
+    return this.seriesCache;
+  }
+
   // Digitação: guarda localmente e manda um "change" 300 ms após a última tecla.
-  protected onInput(value: string) {
+  protected onInput(value: unknown) {
     this.node.props['value'] = value;
     clearTimeout(this.debounce);
     this.debounce = setTimeout(() => this.post(this.node.id, 'change', value), 300);
+  }
+
+  // Seleção/marcação: manda na hora.
+  protected onImediato(value: unknown) {
+    this.node.props['value'] = value;
+    this.post(this.node.id, 'change', value);
   }
 
   protected onSelect(row: object) {
@@ -86,5 +219,9 @@ export class UiHostComponent {
     if (i >= 0) {
       this.post(this.node.id, 'select', i);
     }
+  }
+
+  protected onTree(item: PoTreeViewItem) {
+    this.post(this.node.id, 'select', item.value);
   }
 }

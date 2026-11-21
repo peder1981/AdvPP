@@ -1,7 +1,8 @@
 import { Component, ViewChild, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import {
-  PoButtonModule, PoDialogService, PoDynamicFormField, PoDynamicModule,
+  PoButtonModule, PoDialogService, PoDynamicFormField, PoDynamicModule, PoLoadingModule, PoMenuItem,
+  PoMenuModule, PoNotificationService,
   PoModalAction, PoModalComponent, PoModalModule, PoPageModule,
   PoTableAction, PoTableColumn, PoTableModule, PoTagModule,
 } from '@po-ui/ng-components';
@@ -56,12 +57,26 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
 @Component({
   selector: 'app-root',
   imports: [PoPageModule, PoTableModule, PoButtonModule, PoModalModule, PoDynamicModule, PoTagModule,
-            UiHostComponent, NgTemplateOutlet],
+            UiHostComponent, NgTemplateOutlet, PoMenuModule, PoLoadingModule],
   template: `
     <!-- Componentes Po* (PoApp:Activate): tela montada pelo programa -->
     @if (uiTree(); as t) {
-      <adv-ui-host [node]="t" [post]="postUI"></adv-ui-host>
-      <div class="po-ml-2 po-mr-2"><ng-container [ngTemplateOutlet]="consoleTpl"></ng-container></div>
+      @if (uiMenu()) {
+        <!-- PoMenu: layout padrão do PO-UI (menu lateral + conteúdo) -->
+        <div class="po-wrapper">
+          <po-menu [p-menus]="menuItems()"></po-menu>
+          <div>
+            <adv-ui-host [node]="t" [post]="postUI" [versao]="uiVersion()"></adv-ui-host>
+            <div class="po-ml-2 po-mr-2"><ng-container [ngTemplateOutlet]="consoleTpl"></ng-container></div>
+          </div>
+        </div>
+      } @else {
+        <adv-ui-host [node]="t" [post]="postUI" [versao]="uiVersion()"></adv-ui-host>
+        <div class="po-ml-2 po-mr-2"><ng-container [ngTemplateOutlet]="consoleTpl"></ng-container></div>
+      }
+      @if (uiLoading(); as l) {
+        <po-loading-overlay [p-screen-lock]="true" [p-text]="l"></po-loading-overlay>
+      }
     } @else {
     <po-page-default [p-title]="pageTitle()" [p-subtitle]="pageSubtitle()">
       <po-tag [p-value]="status()" [p-color]="statusColor()" [p-icon]="statusIcon()"></po-tag>
@@ -184,6 +199,14 @@ export class App {
   protected inputFormValue: any = {};
   protected consoleOpen = signal(false);
   protected uiTree = signal<UiNode | null>(null);
+  protected uiMenu = signal<UiNode | null>(null);
+  // Patches mudam objetos comuns, que o Angular não observa: cada lote
+  // incrementa esta versão (lida no template) para agendar a renderização.
+  protected uiVersion = signal(0);
+  protected uiLoading = signal<string | null>(null);
+  private notification = inject(PoNotificationService);
+  private menuFor: unknown = null;
+  private menuCache: PoMenuItem[] = [];
   private uiNodes = new Map<number, UiNode>();
   protected menuIcon = menuItemIcon;
   protected menuLabel = menuItemLabel;
@@ -292,21 +315,65 @@ export class App {
         this.uiNodes.clear();
         const indexa = (n: UiNode) => { this.uiNodes.set(n.id, n); n.children.forEach(indexa); };
         if (op.tree) { indexa(op.tree); }
+        if (op.menu) { indexa(op.menu); }
+        this.uiMenu.set(op.menu ?? null);
         document.title = op.title || 'AdvPP Web';
         this.uiTree.set(op.tree ?? null);
         break;
       }
       case 'batch':
         for (const p of op.ops ?? []) {
-          const n = this.uiNodes.get(p.id);
-          if (p.op === 'patch' && n) { n.props = { ...n.props, ...p.props }; }
+          this.onUiOp(p);
         }
+        this.uiVersion.update(v => v + 1);
         break;
       case 'close':
         this.uiTree.set(null);
+        this.uiMenu.set(null);
+        this.uiLoading.set(null);
         this.uiNodes.clear();
         break;
     }
+  }
+
+  // Uma operação do lote, na ordem em que o programa a gerou.
+  private onUiOp(p: any) {
+    switch (p.op) {
+      case 'patch': {
+        const n = this.uiNodes.get(p.id);
+        if (n) { n.props = { ...n.props, ...p.props }; }
+        break;
+      }
+      case 'notify': {
+        const tipo = ['success', 'warning', 'error', 'information'].includes(p.type) ? p.type : 'information';
+        (this.notification as any)[tipo](String(p.text ?? ''));
+        break;
+      }
+      case 'confirm':
+        this.dialog.confirm({
+          title: p.title || 'Confirmação', message: p.text ?? '',
+          confirm: () => this.postUI(p.id, 'confirm', true),
+          cancel: () => this.postUI(p.id, 'confirm', false),
+        });
+        break;
+      case 'loading':
+        this.uiLoading.set(p.on ? (p.text || 'Carregando') : null);
+        break;
+    }
+  }
+
+  // Itens do PoMenu; recriados só quando a lista do servidor muda.
+  protected menuItems(): PoMenuItem[] {
+    const m = this.uiMenu();
+    const items = m?.props['items'];
+    if (items !== this.menuFor) {
+      this.menuFor = items;
+      this.menuCache = (items ?? []).map((it: { label: string; icon: string; index: number }) => ({
+        label: it.label, icon: it.icon || undefined, shortLabel: it.label,
+        action: () => this.postUI(m!.id, 'action', it.index),
+      }));
+    }
+    return this.menuCache;
   }
 
   // Evento de componente -> laço de PoApp:Activate (POST /ui).
