@@ -5,6 +5,16 @@ Todas as mudanças relevantes no projeto AdvPP.
 ## [Não lançado]
 
 ### Added
+- **Componentes PO-UI — fase 2**: `PoMenu` (menu lateral) e várias páginas por
+  aplicação (`PoApp:Navigate`); `PoContainer`, `PoWidget`, `PoDivider`, `PoTabs`/`PoTab`;
+  `PoTree`, `PoList`, `PoInfo`, `PoProgress`, `PoGauge`, `PoChart` (com `AddPoint` em
+  janela deslizante); campos tipados `PoPassword`, `PoTextarea`, `PoNumber`, `PoSelect`,
+  `PoCheckbox`, `PoSwitch`; grade de 12 colunas (`SetCols`). Retorno ao usuário:
+  `PoApp:Notify`, `Confirm` (não bloqueante) e `Loading`. **`PoApp:Spawn`**: processo
+  filho sem shell, com stdout/stderr linha a linha sem perda (contrapressão) e
+  encerrado se a janela fechar. Exemplo: `examples/poui/fase2.prw`.
+- `tests/poui/ao-vivo.sh`: teste de navegador (Chromium + DevTools) que confere que
+  uma atualização vinda do servidor aparece na tela sem interação.
 - **Componentes PO-UI orientados a eventos (fase 1)** no `advplc serve`: classes nativas
   `PoApp`, `PoPage`, `PoButton`, `PoInput`, `PoTable` e `PoTag`. O programa monta a tela
   como objetos, `PoApp:Activate()` entra num laço de eventos não bloqueante (handlers em
@@ -16,6 +26,19 @@ Todas as mudanças relevantes no projeto AdvPP.
   `docs/superpowers/specs/2026-11-20-poui-componentes-design.md`.
 
 ### Fixed
+- **Componentes PO-UI — pendências das fases 1 e 2**: `PoList` sem detalhe não mostra
+  mais linha vazia; `PoMenu:AddItem` com ícone inexistente no PO-UI embutido é erro claro
+  (antes o item ficava sem ícone, em silêncio) e aceita `"an an-x"`, `"an-x"` ou `"x"`;
+  `PoApp:Activate()` aninhado (de dentro de um evento) é recusado em vez de remontar a
+  tela; `Get()` de propriedades estruturadas devolve arrays/`JsonObject` (antes NIL);
+  `POST /ui` com a fila de eventos cheia responde 503 na hora (antes segurava a conexão
+  até o cliente desistir); o alvo `make web`, citado no README, agora existe.
+- **Componentes PO-UI (fase 1): atualizações do servidor não apareciam na tela** até a
+  próxima interação do usuário — os patches mudavam objetos que o Angular não observa.
+  Cada lote agora incrementa um signal lido no template.
+- **`Val` lia o texto inteiro em vez do prefixo numérico**: `Val("2.88 3.11")` dava 0 e
+  `Val("12abc")` dava 0; no Protheus são 2.88 e 12. Também deixou de aceitar expoente,
+  `NaN`, `Inf` e hexadecimal (`Val("1e5")` é 1).
 - **`#include` de fonte em CP-1252 chegava cru ao lexer.** Só o arquivo raiz era convertido
   para UTF-8; o conteúdo incluído não, então um `"ã"` vindo de um include nunca era igual ao
   `"ã"` do arquivo principal. A conversão saiu de `cmd/advplc` para

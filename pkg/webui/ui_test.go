@@ -162,3 +162,58 @@ func TestUIPostNaoBloqueiaAposAbandono(t *testing.T) {
 		t.Fatal("UIPost bloqueou numa sessão abandonada")
 	}
 }
+
+func TestUIPostWaitBloqueiaEDesbloqueia(t *testing.T) {
+	s := newSession()
+	p := &Provider{s}
+	for i := 0; i < uiBuffer; i++ {
+		p.UIPost(1, "x", nil) // enche a fila
+	}
+	ret := make(chan bool, 1)
+	go func() { ret <- p.UIPostWait(1, "line", nil, nil) }()
+	select {
+	case <-ret:
+		t.Fatal("UIPostWait não bloqueou com a fila cheia")
+	case <-time.After(100 * time.Millisecond):
+	}
+	s.abandon()
+	select {
+	case ok := <-ret:
+		if ok {
+			t.Error("UIPostWait devolveu true numa sessão encerrada")
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("UIPostWait continuou bloqueado após abandon()")
+	}
+}
+
+// Fila de eventos cheia (programa fora do laço, ex.: preso num MsgYesNo):
+// POST /ui responde na hora com 503 em vez de segurar a requisição.
+func TestUIPostFilaCheia(t *testing.T) {
+	got := make(chan uiRecebido, 1)
+	bloqueia := make(chan struct{})
+	run := func(ui *Provider, _ *OutWriter) error {
+		<-bloqueia // nunca lê a fila
+		return nil
+	}
+	ts, _ := abreSessao(t, run, "cheia")
+	defer close(bloqueia)
+	_ = got
+	for i := 0; i < uiBuffer; i++ {
+		postUI(t, ts.URL+"/ui?s=cheia", `{"id":1,"event":"click"}`)
+	}
+	ini := time.Now()
+	if st := postUI(t, ts.URL+"/ui?s=cheia", `{"id":1,"event":"click"}`); st != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, esperado 503", st)
+	}
+	if time.Since(ini) > time.Second {
+		t.Errorf("POST com fila cheia demorou %v", time.Since(ini))
+	}
+}
+
+func TestIconesDoCSSEmbutido(t *testing.T) {
+	ic := Icones()
+	if len(ic) < 1000 || !ic["house"] || !ic["gauge"] || ic["nao-existe"] {
+		t.Errorf("ícones: %d, house=%v gauge=%v", len(ic), ic["house"], ic["gauge"])
+	}
+}

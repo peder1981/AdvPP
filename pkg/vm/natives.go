@@ -394,9 +394,7 @@ func (v *VM) registerNatives() {
 			return advplrt.NewNumber(float64(s[0])), nil
 		},
 		"VAL": func(args []advplrt.Value) (advplrt.Value, error) {
-			s := strings.TrimSpace(advplrt.ToString(getArg(args, 0)))
-			f, _ := strconv.ParseFloat(s, 64)
-			return advplrt.NewNumber(f), nil
+			return advplrt.NewNumber(valPrefixo(advplrt.ToString(getArg(args, 0)))), nil
 		},
 		"CVALTOCHAR": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewString(advplrt.ToString(getArg(args, 0))), nil
@@ -2026,6 +2024,33 @@ func getArg(args []advplrt.Value, idx int) advplrt.Value {
 		return args[idx]
 	}
 	return advplrt.Nil
+}
+
+// valPrefixo implementa o Val do Protheus/Clipper: ignora espaços à esquerda
+// e lê sinal, dígitos e um ponto decimal até o primeiro caractere inválido
+// ("2.88 3.11" -> 2.88, "12abc" -> 12). Sem número, 0. Ao contrário de
+// strconv.ParseFloat, não aceita expoente, NaN, Inf nem hexadecimal.
+func valPrefixo(s string) float64 {
+	s = strings.TrimLeft(s, " \t\r\n")
+	fim, digitos, ponto := 0, false, false
+	if fim < len(s) && (s[fim] == '+' || s[fim] == '-') {
+		fim++
+	}
+	for ; fim < len(s); fim++ {
+		c := s[fim]
+		if c >= '0' && c <= '9' {
+			digitos = true
+		} else if c == '.' && !ponto {
+			ponto = true
+		} else {
+			break
+		}
+	}
+	if !digitos {
+		return 0
+	}
+	f, _ := strconv.ParseFloat(strings.TrimSuffix(s[:fim], "."), 64)
+	return f
 }
 
 func getArgString(args []advplrt.Value, idx int, def string) string {

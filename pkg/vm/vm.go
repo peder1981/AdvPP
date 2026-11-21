@@ -1728,6 +1728,9 @@ func (v *VM) findMethod(className, methodName string) string {
 
 func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
 	upperMethod := strings.ToUpper(method)
+	if isPoClass(obj.ClassName) {
+		return v.callPoMethod(obj, upperMethod, args)
+	}
 	switch obj.ClassName {
 	case "ErrorClass":
 		return v.callErrorClassMethod(obj, upperMethod, args)
@@ -1739,8 +1742,6 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 		return v.callFormBrowseMethod(obj, upperMethod, args)
 	case "MsDialog":
 		return v.callMsDialogMethod(obj, upperMethod, args)
-	case "PoApp", "PoPage", "PoButton", "PoInput", "PoTable", "PoTag":
-		return v.callPoMethod(obj, upperMethod, args)
 	case "LLM":
 		return v.callLLMMethod(obj, upperMethod, args)
 	case "MCPServer":
@@ -1955,6 +1956,10 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 	if !ok {
 		// Check if it's a known framework class
 		upperName := strings.ToUpper(className)
+		if _, ok := poClasses[upperName]; ok {
+			v.push(newPoObject(upperName))
+			return nil
+		}
 		switch upperName {
 		case "JSONOBJECT":
 			obj := advplrt.NewObject("JsonObject", nil)
@@ -2001,9 +2006,6 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			return nil
 		case "TRUNDLL":
 			v.push(newDllObject())
-			return nil
-		case "POAPP", "POPAGE", "POBUTTON", "POINPUT", "POTABLE", "POTAG":
-			v.push(newPoObject(upperName))
 			return nil
 		case "TPBKDF2":
 			v.push(newPBKDF2Object())

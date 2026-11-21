@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
@@ -78,10 +79,12 @@ func (a *poAppState) stopTimers() {
 func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
 	a.ui = ui
 	a.closed = false
-	a.batch = nil
+	a.remount = false
 	ui.UISend(a.mountJSON())
 	a.active = true
+	a.flush() // ops geradas antes do Activate (ex.: Notify de boas-vindas)
 	defer func() {
+		a.killSpawns()
 		a.stopTimers()
 		a.active = false
 		a.batch = nil
@@ -89,17 +92,39 @@ func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
 	for id, t := range a.timers {
 		a.startTimer(id, t)
 	}
+	for id, sp := range a.spawns {
+		a.startSpawn(id, sp)
+	}
 	for !a.closed {
 		id, ev, val := ui.UINext()
 		v.poDispatch(a, id, ev, val)
-		if len(a.batch) > 0 {
-			data, _ := json.Marshal(map[string]any{"op": "batch", "ops": a.batch})
-			a.batch = nil
-			ui.UISend(data)
+		if a.remount {
+			// Navigate: a página nova vai inteira; patches perdem o sentido,
+			// as demais ops (notify...) seguem depois do mount.
+			a.remount = false
+			ui.UISend(a.mountJSON())
+			resto := a.batch[:0]
+			for _, op := range a.batch {
+				if op["op"] != "patch" {
+					resto = append(resto, op)
+				}
+			}
+			a.batch = resto
 		}
+		a.flush()
 	}
 	ui.UISend([]byte(`{"op":"close"}`))
 	return nil
+}
+
+// flush envia o lote acumulado, se houver.
+func (a *poAppState) flush() {
+	if len(a.batch) == 0 {
+		return
+	}
+	data, _ := json.Marshal(map[string]any{"op": "batch", "ops": a.batch})
+	a.batch = nil
+	a.ui.UISend(data)
 }
 
 // poDispatch executa o handler do evento. Evento sem destino ou sem handler
@@ -107,13 +132,26 @@ func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
 func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 	var h advplrt.Value
 	var args []advplrt.Value
-	if ev == "timer" {
+	switch ev {
+	case "timer":
 		t, ok := a.timers[id]
 		if !ok {
 			return
 		}
 		h, args = t.block, []advplrt.Value{a.obj}
-	} else {
+	case "line", "exit":
+		h, args = a.poSpawnEvento(id, ev, val)
+	case "confirm":
+		cb, ok := a.confirms[id]
+		if !ok {
+			return // resposta repetida ou id desconhecido
+		}
+		delete(a.confirms, id)
+		h, args = cb[1], []advplrt.Value{a.obj}
+		if poJSONTexto(val) == "true" {
+			h = cb[0]
+		}
+	default:
 		c, ok := a.byID[id]
 		if !ok {
 			return
@@ -122,10 +160,14 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		case "click":
 			h, args = c.handlers["click"], []advplrt.Value{c.obj}
 		case "change":
-			txt := poJSONTexto(val)
-			c.props["value"] = txt // veio do browser: não gera patch
-			h, args = c.handlers["change"], []advplrt.Value{c.obj, advplrt.NewString(txt)}
+			novo := poValorDoBrowser(c.typ, val)
+			c.props["value"] = poToJSON(novo) // veio do browser: não gera patch
+			h, args = c.handlers["change"], []advplrt.Value{c.obj, novo}
 		case "select":
+			if c.typ == "tree" {
+				h, args = c.handlers["select"], []advplrt.Value{c.obj, advplrt.NewString(poJSONTexto(val))}
+				break
+			}
 			i, ok := poJSONIndice(val)
 			if !ok || i >= len(c.rows) {
 				return
@@ -151,6 +193,20 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		v.stack = v.stack[:pilha]
 		v.writeOut(fmt.Sprintf("PoApp: erro no evento %s do componente %d: %v", ev, id, err))
 	}
+}
+
+// poValorDoBrowser converte o valor de um "change" conforme o componente:
+// number -> N, checkbox/switch -> L, demais -> C.
+func poValorDoBrowser(typ string, val []byte) advplrt.Value {
+	txt := poJSONTexto(val)
+	switch typ {
+	case "number":
+		f, _ := strconv.ParseFloat(strings.TrimSpace(txt), 64)
+		return advplrt.NewNumber(f)
+	case "checkbox", "switch":
+		return advplrt.NewBool(txt == "true")
+	}
+	return advplrt.NewString(txt)
 }
 
 // poJSONTexto: valor JSON do browser como texto ("abc" -> abc, 42 -> 42).

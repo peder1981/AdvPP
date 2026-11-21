@@ -298,14 +298,41 @@ Return
 | Classe | Criação | Específicos |
 |--------|---------|-------------|
 | `PoApp` | `New(cTitulo)` | `Activate()`, `Close()`, `SetTimer(nMs, bBloco) -> nId` (mín. 100 ms), `KillTimer(nId)` |
-| `PoPage` | `New(oApp, cTitulo)` | `AddAction(cRotulo, bBloco)` — uma página por aplicação nesta versão |
-| `PoButton` | `New(oPage, cRotulo[, bAcao])` | `OnClick(bBloco)` |
-| `PoInput` | `New(oPage, cRotulo[, cValor])` | `OnChange({\|o, cValor\| ...})` |
-| `PoTable` | `New(oPage)` | `SetColumns({{cProp, cRotulo[, cTipo]}, ...})`, `SetItems(aLinhas)`, `OnSelect({\|o, aLinha\| ...})` |
-| `PoTag` | `New(oPage, cTexto[, cTipo])` | tipos `success`, `warning`, `danger`, `info`, `neutral` |
+| `PoPage` | `New(oApp, cTitulo)` | `AddAction(cRotulo, bBloco)` |
+| `PoButton` | `New(oPai, cRotulo[, bAcao])` | `OnClick(bBloco)` |
+| `PoInput` | `New(oPai, cRotulo[, cValor])` | `OnChange({\|o, cValor\| ...})` |
+| `PoTable` | `New(oPai)` | `SetColumns({{cProp, cRotulo[, cTipo]}, ...})`, `SetItems(aLinhas)`, `OnSelect({\|o, aLinha\| ...})` |
+| `PoTag` | `New(oPai, cTexto[, cTipo])` | tipos `success`, `warning`, `danger`, `info`, `neutral` |
+| `PoMenu` | `New(oApp)` | `AddItem(cRotulo, cIcone, bAcao)` — menu lateral (um por aplicação); ícone Animalia do PO-UI (`"an an-house"`, `"an-house"` ou `"house"`), e ícone inexistente é erro |
+| `PoContainer` / `PoWidget` | `New(oPai[, cTitulo])` | agrupam componentes (cartão com título) |
+| `PoDivider` | `New(oPai[, cRotulo])` | separador |
+| `PoTabs` / `PoTab` | `New(oPai)` / `New(oTabs, cRotulo)` | abas; a primeira começa ativa |
+| `PoTree` | `New(oPai)` | `SetItems({{cRotulo, cValor[, aFilhos]}, ...})`, `OnSelect({\|o, cValor\| ...})` |
+| `PoList` | `New(oPai)` | `SetItems({{cTitulo[, cDetalhe]}, ...})`, `OnSelect({\|o, aLinha\| ...})` |
+| `PoInfo` | `New(oPai, cRotulo, xValor)` | rótulo + valor |
+| `PoProgress` / `PoGauge` | `New(oPai[, cTexto])` / `New(oPai, cTitulo)` | `SetValue(0..100)`; gauge: `SetDescription(c)` |
+| `PoChart` | `New(oPai, cTitulo, cTipo)` | tipos `line`, `column`, `bar`, `pie`, `donut`, `area`; `SetCategories`, `SetSeries({{cRotulo, aDados}})`, `AddPoint(cCategoria, aValores)`, `SetMaxPoints(n)` (janela deslizante) |
+| `PoPassword` / `PoTextarea` | `New(oPai, cRotulo[, cValor])` | `OnChange` recebe texto |
+| `PoNumber` | `New(oPai, cRotulo[, nValor])` | `OnChange` recebe número |
+| `PoSelect` | `New(oPai, cRotulo, aOpcoes[, cValor])` | opção = texto ou `{cRotulo, cValor}`; `OnChange` recebe o valor |
+| `PoCheckbox` / `PoSwitch` | `New(oPai, cRotulo[, lValor])` | `OnChange` recebe lógico |
+
+`PoApp` também tem `Navigate(oPage)` (várias páginas por aplicação),
+`Notify(cTexto[, cTipo])` (`success`/`warning`/`error`/`information`),
+`Confirm(cTexto, bSim[, bNao[, cTitulo]])` (diálogo não bloqueante),
+`Loading(lAtivo[, cTexto])` e **`Spawn(cProg, aArgs, bLinha, bFim) -> nId`**:
+roda um processo **sem shell** e entrega stdout/stderr linha a linha
+(`bLinha(cLinha, lErro)`) e o código de saída (`bFim(nCodigo)`) sem travar a
+tela; `KillSpawn(nId)` encerra, e o processo é morto se a janela fechar.
+`SetCols(1..12)` em qualquer componente define a largura numa grade de 12
+colunas. Exemplo completo: `examples/poui/fase2.prw`.
 
 Comuns a todos os componentes: `Set(cProp, xValor)`, `Get(cProp)`,
-`SetValue`/`GetValue`, `SetLabel`, `SetVisible`, `SetDisabled`, `Id()`. Erro
+`SetValue`/`GetValue`, `SetLabel`, `SetVisible`, `SetDisabled`, `SetCols`, `Id()`.
+`Get` de propriedades estruturadas (`columns`, `items`, `series`...) devolve
+arrays e `JsonObject`. `Activate()` chamado com a tela já ativa (de dentro de
+um evento) é recusado com erro.
+`oPai` é uma `PoPage`, `PoContainer`, `PoWidget` ou `PoTab`. Erro
 dentro de um handler aparece no log técnico da página e o laço continua.
 Funciona só no modo web (`advplc serve`); fora dele, `Activate()` devolve erro.
 Um programa que já declare uma função chamada `PoApp`, `PoTag` etc. continua

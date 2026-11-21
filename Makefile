@@ -1,6 +1,6 @@
 # Makefile para AdvPP - Compilador AdvPL/TLPP
 
-.PHONY: all build test clean help cross \
+.PHONY: all build test clean help cross web \
         rpo-analyze rpo-decrypt rpo-inject \
         docker-build docker-run docker-logs
 
@@ -18,6 +18,14 @@ cross:
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o advplc-darwin-arm64 ./cmd/advplc
 	@echo "Cross-compile concluído:"
 	@ls -lh advplc-*
+
+# Frontend PO-UI do `advplc serve`: compila web/ (Angular) e atualiza
+# pkg/webui/dist, que vai embutido no binário. Requer Node 20+; só roda
+# `npm ci` se web/node_modules ainda não existir.
+web:
+	cd web && (test -d node_modules || npm ci) && npx ng build
+	rm -rf pkg/webui/dist && mkdir -p pkg/webui/dist
+	cp -r web/dist/advpp-web/browser/. pkg/webui/dist/
 
 # Build
 build:
