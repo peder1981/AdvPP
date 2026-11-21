@@ -19,6 +19,27 @@ export interface UiNode {
 
 export type UiPost = (id: number, event: string, value: unknown) => void;
 
+// Digitação ainda não enviada (debounce), por componente. Qualquer outro
+// evento descarrega antes de sair (descarregaPendentes), para um clique logo
+// após digitar não chegar ao programa antes do valor digitado.
+const pendentes = new Map<object, () => void>();
+
+export function adiaEnvio(dono: object, ms: number, envia: () => void): ReturnType<typeof setTimeout> {
+  const f = () => { pendentes.delete(dono); envia(); };
+  pendentes.set(dono, f);
+  return setTimeout(f, ms);
+}
+
+export function cancelaEnvio(dono: object) {
+  pendentes.delete(dono);
+}
+
+export function descarregaPendentes() {
+  for (const f of [...pendentes.values()]) {
+    f();
+  }
+}
+
 // Renderiza um nó da árvore e, recursivamente, os filhos. Genérico: não
 // conhece nenhum aplicativo, só o mapeamento tipo -> componente PO-UI.
 @Component({
@@ -224,7 +245,7 @@ export class UiHostComponent {
   protected onInput(value: unknown) {
     this.node.props['value'] = value;
     clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => this.post(this.node.id, 'change', value), 300);
+    this.debounce = adiaEnvio(this, 300, () => this.post(this.node.id, 'change', value));
   }
 
   // Seleção/marcação: manda na hora.
