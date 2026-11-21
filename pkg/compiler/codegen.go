@@ -22,6 +22,10 @@ type Compiler struct {
 	namespace       string
 	usingNamespaces []string
 	loopStack       []*loopContext
+	// fileStatics: Static declarados no nível do arquivo -> índice global.
+	// Dentro das funções esses nomes leem/gravam a global (antes caíam na
+	// busca dinâmica de Private/Public e não enxergavam o valor).
+	fileStatics map[string]int
 }
 
 // loopContext acumula os jumps de Exit (break) e Loop (continue) pendentes de
@@ -166,7 +170,7 @@ func (c *Compiler) compileProgram(prog *ast.Program) error {
 	// nenhuma função "própria" existir (ex.: o arquivo raiz é só um
 	// #include), cai no comportamento antigo (primeira função de todas),
 	// preservando compatibilidade.
-	if len(prog.Body) == 0 && len(prog.Functions) > 0 {
+	if soDeclaracoesStatic(prog.Body) && len(prog.Functions) > 0 {
 		var entry *ast.FunctionDecl
 		for _, fn := range prog.Functions {
 			if fn.IsUser && fn.Loc.Line >= prog.RootBoundaryLine {
@@ -345,6 +349,15 @@ func (c *Compiler) addStringConst(s string) int {
 	return idx
 }
 
+// fileStatic: dentro de uma função, o índice global de um Static de arquivo.
+func (c *Compiler) fileStatic(name string) (int, bool) {
+	if c.currentFunc == nil {
+		return 0, false
+	}
+	idx, ok := c.fileStatics[name]
+	return idx, ok
+}
+
 func (c *Compiler) resolveLocal(name string) (int, bool) {
 	if c.currentFunc != nil {
 		if idx, ok := c.currentFunc.locals[name]; ok {
@@ -358,7 +371,7 @@ func (c *Compiler) addLocal(name string) int {
 	if c.currentFunc == nil {
 		// Global scope
 		if idx, ok := c.globalIdx[name]; ok {
-			return idx
+			return idx | 0x8000 // mark as global
 		}
 		idx := len(c.globalIdx)
 		c.globalIdx[name] = idx
@@ -475,6 +488,13 @@ func (c *Compiler) compileVarDecl(s *ast.VarDecl) error {
 		}
 		return nil
 	}
+	if c.currentFunc == nil && scope == "static" {
+		idx := c.addLocal(s.Name) & 0x7FFF
+		if c.fileStatics == nil {
+			c.fileStatics = map[string]int{}
+		}
+		c.fileStatics[s.Name] = idx
+	}
 	if s.Value != nil {
 		if err := c.compileExpr(s.Value); err != nil {
 			return err
@@ -533,6 +553,8 @@ func (c *Compiler) compileStoreTarget(target ast.Expression, line int) error {
 			c.emit(OP_STORE_LOCAL, idx, 0, target.Name, line)
 		} else if uidx, ok := c.resolveUpvalue(target.Name); ok {
 			c.emit(OP_STORE_UPVAL, uidx, 0, target.Name, line)
+		} else if gi, ok := c.fileStatic(target.Name); ok {
+			c.emit(OP_STORE_GLOBAL, gi, 0, target.Name, line)
 		} else if c.currentFunc == nil {
 			idx := c.addLocal(target.Name)
 			if idx&0x8000 != 0 {
@@ -690,6 +712,8 @@ func (c *Compiler) compileFor(s *ast.ForStmt) error {
 func (c *Compiler) emitLoad(name string, line int) {
 	if idx, ok := c.resolveLocal(name); ok {
 		c.emit(OP_LOAD_LOCAL, idx, 0, name, line)
+	} else if gi, ok := c.fileStatic(name); ok {
+		c.emit(OP_LOAD_GLOBAL, gi, 0, name, line)
 	} else {
 		idx := c.addLocal(name)
 		c.emit(OP_LOAD_GLOBAL, idx&0x7FFF, 0, name, line)
@@ -697,6 +721,12 @@ func (c *Compiler) emitLoad(name string, line int) {
 }
 
 func (c *Compiler) emitStore(name string, line int) {
+	if _, local := c.resolveLocal(name); !local {
+		if gi, ok := c.fileStatic(name); ok {
+			c.emit(OP_STORE_GLOBAL, gi, 0, name, line)
+			return
+		}
+	}
 	idx := c.addLocal(name)
 	if idx&0x8000 != 0 {
 		c.emit(OP_STORE_GLOBAL, idx&0x7FFF, 0, name, line)
@@ -904,6 +934,8 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 			c.emit(OP_LOAD_LOCAL, idx, 0, e.Name, e.Loc.Line)
 		} else if uidx, ok := c.resolveUpvalue(e.Name); ok {
 			c.emit(OP_LOAD_UPVAL, uidx, 0, e.Name, e.Loc.Line)
+		} else if gi, ok := c.fileStatic(e.Name); ok {
+			c.emit(OP_LOAD_GLOBAL, gi, 0, e.Name, e.Loc.Line)
 		} else if c.currentFunc == nil {
 			idx := c.addLocal(e.Name)
 			if idx&0x8000 != 0 {
@@ -1138,6 +1170,30 @@ var builtinClasses = map[string]bool{
 	"FWTOTVSLINKCLIENT": true,
 	"GRPCSERVER":        true,
 	"DBCONNECTION":      true,
+}
+
+// soDeclaracoesStatic: o corpo de nível superior só declara Static de
+// arquivo (comum no Protheus) — não é um programa em si. O corpo roda
+// primeiro (inicializa os Static) e a função de entrada é chamada depois.
+// Corpo vazio também conta (comportamento de sempre).
+func soDeclaracoesStatic(body []ast.Statement) bool {
+	for _, st := range body {
+		switch d := st.(type) {
+		case *ast.VarDecl:
+			if !strings.EqualFold(d.Scope, "static") {
+				return false
+			}
+		case *ast.VarDeclGroup:
+			for _, v := range d.Decls {
+				if !strings.EqualFold(v.Scope, "static") {
+					return false
+				}
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func isBuiltinClass(name string) bool {
