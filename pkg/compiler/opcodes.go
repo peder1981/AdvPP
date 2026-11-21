@@ -116,6 +116,14 @@ const (
 	OP_LOAD_DYN
 	OP_STORE_DYN
 	OP_DECL_DYN
+
+	// Passagem por referência (`@nome` em argumento): empilham uma referência à
+	// variável do chamador (Arg = slot/índice; Str = nome no DYN). Ficam no fim
+	// do iota para não renumerar os opcodes existentes (.bc já gerados).
+	OP_REF_LOCAL
+	OP_REF_UPVAL
+	OP_REF_GLOBAL
+	OP_REF_DYN
 )
 
 var opcodeNames = map[Opcode]string{
@@ -159,6 +167,10 @@ var opcodeNames = map[Opcode]string{
 	OP_LOAD_DYN:             "LOAD_DYN",
 	OP_STORE_DYN:            "STORE_DYN",
 	OP_DECL_DYN:             "DECL_DYN",
+	OP_REF_LOCAL:            "REF_LOCAL",
+	OP_REF_UPVAL:            "REF_UPVAL",
+	OP_REF_GLOBAL:           "REF_GLOBAL",
+	OP_REF_DYN:              "REF_DYN",
 }
 
 func (op Opcode) String() string {

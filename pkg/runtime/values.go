@@ -23,6 +23,35 @@ type Value interface {
 	Equals(other Value) bool
 }
 
+// RefValue é uma referência a uma variável (passagem por `@nome`): a função
+// chamada guarda a RefValue no parâmetro e a VM lê/grava através dela. Nunca
+// aparece como valor para o código AdvPL — leituras devolvem o valor apontado.
+type RefValue struct {
+	Get func() Value
+	Set func(Value)
+}
+
+func (r *RefValue) Type() string            { return r.Get().Type() }
+func (r *RefValue) String() string          { return r.Get().String() }
+func (r *RefValue) IsTruthy() bool          { return r.Get().IsTruthy() }
+func (r *RefValue) Equals(other Value) bool { return r.Get().Equals(Deref(other)) }
+
+// Deref devolve o valor apontado se v for uma referência; senão o próprio v.
+func Deref(v Value) Value {
+	if r, ok := v.(*RefValue); ok {
+		return r.Get()
+	}
+	return v
+}
+
+// RefTo cria (ou repassa) a referência para o valor guardado em *p.
+func RefTo(p *Value) *RefValue {
+	if r, ok := (*p).(*RefValue); ok {
+		return r // parâmetro por referência repassado adiante: mesma variável
+	}
+	return &RefValue{Get: func() Value { return *p }, Set: func(x Value) { *p = x }}
+}
+
 // NilValue represents nil/empty value.
 type NilValue struct{}
 
@@ -603,9 +632,16 @@ func ToFloat(v Value) float64 {
 }
 
 // ToString performs a core operation.
+// Nil é o nulo do AdvPL (JSON null, SQL NULL): convertido para texto vira ""
+// — cValToChar(Nil), AllTrim(Nil), Upper(Nil), GetEnv sem default etc. Antes
+// virava a palavra "Nil", que passava por dado (um campo ausente "preenchido"
+// com "Nil"). NilValue.String() segue "Nil" só para exibição (depurador).
 func ToString(v Value) string {
 	if v == nil {
-		return "Nil"
+		return ""
+	}
+	if _, ok := v.(*NilValue); ok {
+		return ""
 	}
 	return v.String()
 }

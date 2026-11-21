@@ -84,8 +84,9 @@ type TryCatch struct {
 // VM is the AdvPL/TLPP virtual machine executing bytecode.
 // It maintains execution stack, call frames, native functions, and state for UI, database, and file I/O.
 type VM struct {
-	bc    *compiler.Bytecode
-	stack []advplrt.Value
+	refArgs []*advplrt.RefValue // referências (@var) da chamada nativa em curso
+	bc      *compiler.Bytecode
+	stack   []advplrt.Value
 	// fault guarda uma falha fatal e não-recuperável do próprio motor
 	// (estouro de pilha de operandos). Como as ~490 chamadas de push()
 	// descartam o retorno de erro, o estouro era silencioso: o runLoop
@@ -801,14 +802,59 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		}
 	case compiler.OP_LOAD_LOCAL:
 		if instr.Arg < len(v.current.Locals) {
-			v.push(v.current.Locals[instr.Arg])
+			v.push(advplrt.Deref(v.current.Locals[instr.Arg]))
 		} else {
 			v.push(advplrt.Nil)
 		}
 	case compiler.OP_STORE_LOCAL:
 		val := v.pop()
 		if instr.Arg < len(v.current.Locals) {
-			v.current.Locals[instr.Arg] = val
+			if r, ok := v.current.Locals[instr.Arg].(*advplrt.RefValue); ok {
+				r.Set(val) // parâmetro recebido por referência: grava no chamador
+			} else {
+				v.current.Locals[instr.Arg] = val
+			}
+		}
+	case compiler.OP_REF_LOCAL:
+		if instr.Arg < len(v.current.Locals) {
+			v.push(advplrt.RefTo(&v.current.Locals[instr.Arg]))
+		} else {
+			v.push(advplrt.Nil)
+		}
+	case compiler.OP_REF_GLOBAL:
+		idx := instr.Arg
+		if idx < len(v.globais()) {
+			if r, ok := v.globais()[idx].(*advplrt.RefValue); ok {
+				v.push(r)
+			} else {
+				v.push(&advplrt.RefValue{
+					Get: func() advplrt.Value { return v.globais()[idx] },
+					Set: func(x advplrt.Value) { v.globais()[idx] = x },
+				})
+			}
+		} else {
+			v.push(advplrt.Nil)
+		}
+	case compiler.OP_REF_DYN:
+		name := instr.Str
+		if r, ok := v.dynEnv[name].(*advplrt.RefValue); ok {
+			v.push(r)
+		} else {
+			v.push(&advplrt.RefValue{
+				Get: func() advplrt.Value {
+					if x, ok := v.dynEnv[name]; ok {
+						return x
+					}
+					return advplrt.Nil
+				},
+				Set: func(x advplrt.Value) { v.dynEnv[name] = x },
+			})
+		}
+	case compiler.OP_REF_UPVAL:
+		if cb, ok := v.blockSelf().(*advplrt.CodeBlockValue); ok && instr.Arg < len(cb.Upvalues) && cb.Upvalues[instr.Arg] != nil {
+			v.push(advplrt.RefTo(cb.Upvalues[instr.Arg]))
+		} else {
+			v.push(advplrt.Nil)
 		}
 	case compiler.OP_LOAD_GLOBAL:
 		g := v.globais()
@@ -1241,14 +1287,18 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		v.push(cb)
 	case compiler.OP_LOAD_UPVAL:
 		if cb, ok := v.blockSelf().(*advplrt.CodeBlockValue); ok && instr.Arg < len(cb.Upvalues) && cb.Upvalues[instr.Arg] != nil {
-			v.push(*cb.Upvalues[instr.Arg])
+			v.push(advplrt.Deref(*cb.Upvalues[instr.Arg]))
 		} else {
 			v.push(advplrt.Nil)
 		}
 	case compiler.OP_STORE_UPVAL:
 		val := v.pop()
 		if cb, ok := v.blockSelf().(*advplrt.CodeBlockValue); ok && instr.Arg < len(cb.Upvalues) && cb.Upvalues[instr.Arg] != nil {
-			*cb.Upvalues[instr.Arg] = val
+			if r, ok := (*cb.Upvalues[instr.Arg]).(*advplrt.RefValue); ok {
+				r.Set(val)
+			} else {
+				*cb.Upvalues[instr.Arg] = val
+			}
 		}
 	case compiler.OP_LOAD_DYN:
 		if val, ok := v.dynEnv[instr.Str]; ok {
@@ -1580,13 +1630,24 @@ func (v *VM) callNative(name string, argCount int) error {
 	}
 
 	args := make([]advplrt.Value, argCount)
+	refs := make([]*advplrt.RefValue, argCount)
 	for i := argCount - 1; i >= 0; i-- {
-		args[i] = v.pop()
+		val := v.pop()
+		if r, ok := val.(*advplrt.RefValue); ok {
+			// nativo recebe o valor; a referência fica disponível para os que
+			// devolvem algo num parâmetro @ (ver gravaRefArg)
+			refs[i] = r
+			val = r.Get()
+		}
+		args[i] = val
 	}
 	v.namedArgs = v.namedArgs[:0]
 	v.argCounter = 0
 
+	prevRefs := v.refArgs
+	v.refArgs = refs
 	result, err := fn.Fn(args)
+	v.refArgs = prevRefs
 	if err != nil {
 		return err
 	}
@@ -1755,7 +1816,18 @@ func (v *VM) findMethod(className, methodName string) string {
 	return ""
 }
 
+// gravaRefArg grava val no argumento i da chamada nativa em curso, se ele foi
+// passado por referência (@var); sem referência, não faz nada.
+func (v *VM) gravaRefArg(i int, val advplrt.Value) {
+	if i >= 0 && i < len(v.refArgs) && v.refArgs[i] != nil {
+		v.refArgs[i].Set(val)
+	}
+}
+
 func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
+	for i, a := range args {
+		args[i] = advplrt.Deref(a)
+	}
 	upperMethod := strings.ToUpper(method)
 	if isPoClass(obj.ClassName) {
 		return v.callPoMethod(obj, upperMethod, args)

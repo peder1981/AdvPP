@@ -946,6 +946,25 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 		} else {
 			c.emit(OP_LOAD_DYN, 0, 0, e.Name, e.Loc.Line)
 		}
+	case *ast.RefArg:
+		// `@nome`: mesma resolução do Ident (local, upvalue, Static de arquivo,
+		// local do corpo principal, dinâmica), mas empilha a referência.
+		if idx, ok := c.resolveLocal(e.Name); ok {
+			c.emit(OP_REF_LOCAL, idx, 0, e.Name, e.Loc.Line)
+		} else if uidx, ok := c.resolveUpvalue(e.Name); ok {
+			c.emit(OP_REF_UPVAL, uidx, 0, e.Name, e.Loc.Line)
+		} else if gi, ok := c.fileStatic(e.Name); ok {
+			c.emit(OP_REF_GLOBAL, gi, 0, e.Name, e.Loc.Line)
+		} else if c.currentFunc == nil {
+			idx := c.addLocal(e.Name)
+			if idx&0x8000 != 0 {
+				c.emit(OP_REF_GLOBAL, idx&0x7FFF, 0, e.Name, e.Loc.Line)
+			} else {
+				c.emit(OP_REF_LOCAL, idx, 0, e.Name, e.Loc.Line)
+			}
+		} else {
+			c.emit(OP_REF_DYN, 0, 0, e.Name, e.Loc.Line)
+		}
 	case *ast.BinaryOp:
 		return c.compileBinaryOp(e)
 	case *ast.UnaryOp:

@@ -125,3 +125,127 @@ func TestTransformPicture(t *testing.T) {
 		}
 	}
 }
+
+// Passagem por referência (@var): a função chamada lê e grava a variável do
+// chamador — local, Private, Static de arquivo, variável capturada por
+// codeblock, repasse em cadeia, método e nativas (que recebem o valor).
+func TestPassagemPorReferencia(t *testing.T) {
+	out := saidaDe(t, `
+Static nStat := 10
+
+Class Conta
+	Method New() Constructor
+	Method Soma(nAlvo, nQt)
+EndClass
+Method New() Class Conta
+Return Self
+Method Soma(nAlvo, nQt) Class Conta
+	nAlvo := nAlvo + nQt
+Return .T.
+
+User Function Main()
+	Local n := 0
+	Local c := "a"
+	Local aL := {1}
+	Local nVal := 5
+	Local nCad := 0
+	Local nBloco := 0
+	Local bInc := {|| Inc(@nBloco)}
+	Local oC := Conta():New()
+	Private nPriv := 1
+
+	Inc(@n)
+	Soma(@n, 10)
+	ConOut("local=" + cValToChar(n))
+	Texto(@c)
+	Troca(@aL)
+	ConOut("texto=" + c + " array=" + cValToChar(Len(aL)) + "/" + cValToChar(aL[3]))
+	PorValor(nVal)
+	ConOut("valor=" + cValToChar(nVal))
+	A(@nCad)
+	ConOut("cadeia=" + cValToChar(nCad))
+	Inc(@nPriv)
+	Inc(@nStat)
+	ConOut("priv=" + cValToChar(nPriv) + " stat=" + cValToChar(nStat))
+	Eval(bInc)
+	Eval(bInc)
+	ConOut("bloco=" + cValToChar(nBloco))
+	ConOut("closure=" + cValToChar(ViaBloco(@n)) + " n=" + cValToChar(n))
+	oC:Soma(@n, 100)
+	ConOut("metodo=" + cValToChar(n))
+	ConOut("nativa=" + cValToChar(Len(@aL)) + Upper(@c) + ValType(@n))
+	ConOut("retorno=" + cValToChar(Devolve(@n)))
+Return
+
+Static Function Inc(x)
+	x++
+Return .T.
+Static Function Soma(x, y)
+	x := x + y
+Return .T.
+Static Function Texto(c)
+	c += "bc"
+Return .T.
+Static Function Troca(a)
+	a := {7, 8, 9}
+Return .T.
+Static Function PorValor(x)
+	x := 99
+Return .T.
+Static Function A(x)
+	B(@x)
+Return .T.
+Static Function B(y)
+	C(@y)
+	y += 1
+Return .T.
+Static Function C(z)
+	z := 40
+Return .T.
+Static Function ViaBloco(x)
+	Local b := {|| x := x * 2}
+	Eval(b)
+Return x
+Static Function Devolve(x)
+Return x
+`)
+	for _, esp := range []string{
+		"local=11", "texto=abc array=3/9", "valor=5", "cadeia=41",
+		"priv=2 stat=11", "bloco=2", "closure=22 n=22", "metodo=122",
+		"nativa=3ABCN", "retorno=122",
+	} {
+		if !strings.Contains(out, esp) {
+			t.Errorf("esperava %q na saída:\n%s", esp, out)
+		}
+	}
+}
+
+// Nil é o nulo: convertido para texto vira "" (cValToChar, AllTrim, Upper,
+// concatenação de campo ausente) — antes virava a palavra "Nil".
+func TestNilComoNulo(t *testing.T) {
+	out := saidaDe(t, `
+User Function Main()
+	Local o := JsonObject():New()
+	o:FromJson('{"a":null}')
+	ConOut("[" + cValToChar(Nil) + "][" + cValToChar(o["a"]) + "][" + cValToChar(o["inexistente"]) + "][" + AllTrim(Nil) + "][" + Upper(o["a"]) + "]")
+	ConOut("tipos=" + ValType(o["a"]) + ValType(Nil) + cValToChar(Empty(cValToChar(Nil))))
+Return
+`)
+	if !strings.Contains(out, "[][][][][]") || !strings.Contains(out, "tipos=UU.T.") {
+		t.Errorf("Nil deveria virar texto vazio:\n%s", out)
+	}
+}
+
+// PrivSignRSA devolve a mensagem de erro no parâmetro @cErrStr.
+func TestPrivSignRSAErroPorReferencia(t *testing.T) {
+	out := saidaDe(t, `
+User Function Main()
+	Local cErr := "inicial"
+	Local xSig := PrivSignRSA("/nao/existe.pem", "abc", 2, "", @cErr)
+	ConOut("sig=" + ValType(xSig) + " err=[" + cErr + "]")
+Return
+`)
+	if !strings.Contains(out, "sig=U err=[chave privada nao encontrada ou ilegivel]") {
+		t.Errorf("cErrStr nao preenchido:\n%s", out)
+	}
+}
