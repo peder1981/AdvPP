@@ -227,7 +227,7 @@ Static Function TestArrayErrors()
 		Local lOk := .T.
 		For i := 1 To 1_000_001
 			aAdd(aHuge, i)
-			If Len(aHuge) >= 1_000_000
+			If Len(aHuge) >= 1000000
 				lOk := (aAdd(aHuge, i + 1) != .F.)
 				If !lOk
 					nPass++
