@@ -7,6 +7,7 @@ import {
   PoTableAction, PoTableColumn, PoTableModule, PoTagModule,
 } from '@po-ui/ng-components';
 import { UiHostComponent, UiNode } from './ui-host';
+import { entregaTerm } from './adv-terminal';
 
 // Heurística de ícone pra item de menu (FWMenuSelect não carrega nenhuma
 // informação de ícone — só o texto do item) — genérico o bastante pra
@@ -329,6 +330,13 @@ export class App {
         }
         this.uiVersion.update(v => v + 1);
         break;
+      case 'term': { // saída do AdvTerminal (base64 de bytes crus)
+        const bin = atob(op.data ?? '');
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) { bytes[i] = bin.charCodeAt(i); }
+        entregaTerm(op.id, bytes);
+        break;
+      }
       case 'close':
         this.uiTree.set(null);
         this.uiMenu.set(null);
