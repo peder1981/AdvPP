@@ -20,6 +20,8 @@ const antes = await relogio();
 await espera(3000);
 const depois = await relogio();
 const js = async e => (await cmd('Runtime.evaluate', { expression: e, returnByValue: true })).result.value;
+// Botão com Set("kind", "primary") e Set("icon", ...) (fase1.prw)
+const botao = await js("(()=>{const e=[...document.querySelectorAll('po-button')].find(x=>x.innerText.trim()==='Adicionar');const b=e&&e.querySelector('button');return b?{kind:b.getAttribute('p-kind')||b.className,icone:!!e.querySelector('.an-plus')}:null})()");
 await js("document.querySelector('po-input input').focus()");
 await cmd('Input.insertText', { text: 'Digitado na pressa' });
 const b = await js("(()=>{const e=[...document.querySelectorAll('po-button button')].find(x=>x.innerText.trim()==='Adicionar');const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
@@ -29,6 +31,10 @@ const tabela = await js("(document.querySelector('po-table')||{}).innerText||''"
 ws.close();
 if (!antes || antes === depois) {
   console.log(`FALHOU: relógio não atualizou na tela (${antes} -> ${depois})`);
+  process.exit(1);
+}
+if (!botao || !/primary/.test(botao.kind) || !botao.icone) {
+  console.log('FALHOU: botão sem destaque/ícone: ' + JSON.stringify(botao));
   process.exit(1);
 }
 if (!tabela.includes('Digitado na pressa')) {

@@ -2,6 +2,14 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.8.2] - 2026-11-21
+
+### Added
+- **`PoButton` com ícone e destaque**: `oBtn:Set("icon", "an an-code")` mostra um ícone
+  Animalia do PO-UI no botão e `oBtn:Set("kind", "primary"|"secondary"|"tertiary")` muda o
+  destaque (padrão `secondary`, como antes). Exemplo em `examples/poui/fase1.prw`; teste de
+  navegador em `tests/poui/ao-vivo.sh`.
+
 ## [4.8.1] - 2026-11-21
 
 ### Added

@@ -105,6 +105,7 @@ export function descarregaPendentes() {
         }
         @case ('button') {
           <po-button [p-label]="node.props['label']" [p-disabled]="!!node.props['disabled']"
+                     [p-icon]="node.props['icon']" [p-kind]="node.props['kind'] || 'secondary'"
                      (p-click)="post(node.id, 'click', null)"></po-button>
         }
         @case ('input') {

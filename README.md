@@ -299,7 +299,7 @@ Return
 |--------|---------|-------------|
 | `PoApp` | `New(cTitulo)` | `Activate()`, `Close()`, `SetTimer(nMs, bBloco) -> nId` (mín. 100 ms), `KillTimer(nId)` |
 | `PoPage` | `New(oApp, cTitulo)` | `AddAction(cRotulo, bBloco)` |
-| `PoButton` | `New(oPai, cRotulo[, bAcao])` | `OnClick(bBloco)` |
+| `PoButton` | `New(oPai, cRotulo[, bAcao])` | `OnClick(bBloco)`; `Set("icon", "an an-code")` (ícone Animalia) e `Set("kind", "primary"\|"secondary"\|"tertiary")` (destaque) |
 | `PoInput` | `New(oPai, cRotulo[, cValor])` | `OnChange({\|o, cValor\| ...})` |
 | `PoTable` | `New(oPai)` | `SetColumns({{cProp, cRotulo[, cTipo]}, ...})`, `SetItems(aLinhas)`, `OnSelect({\|o, aLinha\| ...})` |
 | `PoTag` | `New(oPai, cTexto[, cTipo])` | tipos `success`, `warning`, `danger`, `info`, `neutral` |
