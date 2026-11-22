@@ -489,7 +489,7 @@ func TestAdapterCampoNaoMapeado400(t *testing.T)   // ?order=senha -> 400, messa
     AdvPP (requer ExecAuto/MVC)". É uma lacuna conhecida, registrada no
     `COMPONENT_STATUS.md` (53 usos no corpus).
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [X] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestApiManagerListaComFiltro(t *testing.T) // SetApiAlias("NNR")+SetApiMap+SetApiQString({{"filter","codigo eq '01'"}})+Activate -> GetJsonSerialize com items[0].codigo == "01" e hasNext
@@ -497,11 +497,11 @@ func TestApiManagerErroJson(t *testing.T)       // SetJsonError(400,"x") -> GetJ
 func TestApiManagerToExecAutoErroClaro(t *testing.T) // erro contém "não suportado"
 ```
 
-- [ ] **Step 2:** `go test ./pkg/vm -run TestApiManager -v`. Esperado: FAIL.
-- [ ] **Step 3:** Levantar no corpus a forma de `aMapa`/`SetApiRelation` (ler 3
+- [X] **Step 2:** `go test ./pkg/vm -run TestApiManager -v`. Esperado: FAIL.
+- [X] **Step 3:** Levantar no corpus a forma de `aMapa`/`SetApiRelation` (ler 3
   fontes que usam `SetApiMap`) e implementar.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(vm): FwApiManager (leitura)`
+- [X] **Step 4:** `go test ./...`. Esperado: PASS.
+- [X] **Step 5: Commit** — `feat(vm): FwApiManager (leitura)`
 
 ---
 
