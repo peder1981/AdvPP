@@ -1746,7 +1746,11 @@ func (v *VM) invokeMethodFrame(o *advplrt.ObjectValue, funcName string, info *co
 
 	locals := newLocals(info.NumLocals)
 	locals[0] = o // self
-	for i := 0; i < argCount && i+1 < info.NumParams; i++ {
+	// Itera len(args) — depois do reorderNamedArgs o slice tem uma posição
+	// por parâmetro (ParamNames[1:]), então um arg nomeado em parâmetro
+	// POSTERIOR (índice >= argCount original) não pode ser descartado.
+	// Parâmetros não preenchidos ficam Nil (newLocals), como antes.
+	for i := 0; i < len(args) && i+1 < info.NumParams; i++ {
 		locals[i+1] = args[i]
 	}
 
@@ -1865,19 +1869,35 @@ func lookupNativeBase(upper string) (*nativeBaseDef, bool) {
 // registerNativeBase declara uma classe nativa herdável. A fábrica cria o
 // objeto de estado nativo que vai para obj.Native das instâncias (da própria
 // base e das sub classes de usuário).
+//
+// Contrato:
+//   - name não pode ser vazio; factory pode ser nil (base sem estado
+//     pré-inicializado — o :New nativo pode criá-lo depois).
+//   - Thread-safe (RWMutex interno): pode ser chamada durante o registro de
+//     rotas/VMs; leituras concorrentes de qualquer VM são seguras.
+//   - Precedência: registrar o mesmo nome duas vezes SOBRESCREVE a entrada
+//     anterior (último registro vence). registerNativeBase tem precedência
+//     sobre as classes nativas built-in de mesmo nome na herança.
+//   - Chamada típica: init()/registro de rotas, antes das requisições —
+//     evita corrida de inicialização por garantia, não por exigência.
 func registerNativeBase(name string, factory func() *advplrt.ObjectValue) {
+	upper := strings.ToUpper(strings.TrimSpace(name))
+	if upper == "" {
+		panic("registerNativeBase: nome de classe vazio")
+	}
 	nativeBaseFactories.Lock()
-	nativeBaseFactories.m[strings.ToUpper(name)] = &nativeBaseDef{name: name, factory: factory}
+	nativeBaseFactories.m[upper] = &nativeBaseDef{name: name, factory: factory}
 	nativeBaseFactories.Unlock()
 }
 
 // nativeHeritageNames: classes nativas que podem ser raiz de herança E têm
-// dispatch real em callNativeMethodOn (um case próprio no switch) — mais as
-// registradas via registerNativeBase e as PoUI (isPoClass). Classes de UI
-// sem handler de método (FWForm*, FWPanel, FWTabs...) ficam DE FORA de
-// propósito: tratá-las como raiz desviaria o dispatch de callNativeMethod
-// para um case inexistente e mascararia o erro "unknown method" que já
-// existia — sem handler real, não são raiz nativa.
+// dispatch real em callNativeMethodOn — mais as registradas via
+// registerNativeBase. Os valores são os nomes canônicos EXATOS dos cases do
+// switch de callNativeMethodOn (case-sensitive); mantidos em sincronia com
+// builtinNativeObject/newInstance. Classes de UI sem handler de método
+// (FWForm*, FWPanel, FWTabs...) ficam DE FORA de propósito: tratá-las como
+// raiz desviado o dispatch para um case inexistente. Cobertura:
+// TestNativeHeritageNamesBatemComDispatch.
 var nativeHeritageNames = map[string]string{
 	"JSONOBJECT":        "JsonObject",
 	"FWGRIDPROCESS":     "FWGridProcess",
@@ -1898,13 +1918,13 @@ var nativeHeritageNames = map[string]string{
 	"TPBKDF2":           "TPBKDF2",
 	"TJWT":              "TJWT",
 	"TAMQP":             "TAMQP",
-	"THASHMAP":          "THashMap",
-	"TJSONPARSER":       "TJsonParser",
-	"TUNICODE":          "TUnicode",
-	"TFTPCLIENT":        "TFtpClient",
-	"TGRPC":             "TGrpc",
-	"FWTOTVSLINKCLIENT": "FwTotvsLinkClient",
-	"GRPCSERVER":        "GRPCServer",
+	"THASHMAP":          "THASHMAP",
+	"TJSONPARSER":       "TJSONPARSER",
+	"TUNICODE":          "TUNICODE",
+	"TFTPCLIENT":        "TFTPCLIENT",
+	"TGRPC":             "TGRPC",
+	"FWTOTVSLINKCLIENT": "FWTOTVSLINKCLIENT",
+	"GRPCSERVER":        "GRPCSERVER",
 	"ERRORCLASS":        "ErrorClass",
 }
 
@@ -1989,8 +2009,16 @@ func (v *VM) rootNativeClass(className string) string {
 // métodos por conta própria (sem caso no switch de callNativeMethodOn).
 // A fábrica devolve um *ObjectValue; o handler pode estar nele mesmo ou no
 // .Native dele.
+//
+// Contrato para as Tasks 7/8 do plano PO-UI:
+//   - `v` é a VM da requisição atual — use-a para dbEngine, estado REST etc.
+//   - `obj.ClassName` é a classe CONCRETA do objeto (ex.: "Repo"), NÃO a
+//     raiz; para comportamento da base, faça type-assert em obj.Native.
+//   - `method` chega em maiúsculas; args já vêm dereferenciados.
+//   - O retorno é empurrado como valor do método (mesma convenção das
+//     natives); para devolver nada, retorne advplrt.Nil.
 type nativeBaseMethodHandler interface {
-	NativeCallMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) (advplrt.Value, error)
+	NativeCallMethod(v *VM, obj *advplrt.ObjectValue, method string, args []advplrt.Value) (advplrt.Value, error)
 }
 
 func nativeBaseHandler(obj *advplrt.ObjectValue) (nativeBaseMethodHandler, bool) {
@@ -2015,6 +2043,30 @@ func methodInClassInfo(cls *compiler.ClassInfo, methodName string) string {
 		return m.Name
 	}
 	return ""
+}
+
+// classInHierarchy: `upperName` (maiúsculas) é a própria `className` ou uma
+// ancestral dela na cadeia Parent de bytecode. Comparação tolera nome
+// qualificado por namespace ("NS.Filho" casa "FILHO"). Para quando a cadeia
+// sai do bytecode (raiz nativa/desconhecida) — só conta o que já foi visto.
+func (v *VM) classInHierarchy(className, upperName string) bool {
+	seen := make(map[string]bool)
+	for cur := className; cur != ""; {
+		upper := strings.ToUpper(cur)
+		if seen[upper] {
+			return false
+		}
+		seen[upper] = true
+		if upper == upperName || strings.HasSuffix(upper, "."+upperName) {
+			return true
+		}
+		cls, ok := v.bcClassInfo(cur)
+		if !ok {
+			break
+		}
+		cur = cls.Parent
+	}
+	return false
 }
 
 // parentClassName: nome do pai de `className` na hierarquia de bytecode;
@@ -2073,6 +2125,19 @@ func (v *VM) callSuper(str string, argCount int) error {
 		v.namedArgs = v.namedArgs[:0]
 		v.argCounter = 0
 		return fmt.Errorf("_Super:Metodo fora de metodo de classe (self ausente)")
+	}
+
+	// defClass deve pertencer à hierarquia da classe concreta do objeto: o
+	// método que contém _Super é sempre definido na própria classe ou numa
+	// ancestral dela. Fora disso é uso indevido — erro limpo em vez de
+	// despachar contra a classe errada. A validação só roda quando defClass
+	// existe no bytecode (caso contrário já é erro adiante).
+	if defClass != "" {
+		if _, ok := v.bcClassInfo(defClass); ok && !v.classInHierarchy(o.ClassName, strings.ToUpper(defClass)) {
+			v.namedArgs = v.namedArgs[:0]
+			v.argCounter = 0
+			return fmt.Errorf("_Super:%s: classe %s nao pertence a hierarquia de %s", methodName, defClass, o.ClassName)
+		}
 	}
 
 	// Ponto de partida: pai da classe que define o método. Distingue os
@@ -2212,7 +2277,7 @@ func (v *VM) callNativeMethodOn(obj *advplrt.ObjectValue, className, method stri
 		// PO-UI): o estado nativo pode atender o método por conta própria,
 		// sem caso próprio neste switch.
 		if h, ok := nativeBaseHandler(obj); ok {
-			res, err := h.NativeCallMethod(obj, upperMethod, args)
+			res, err := h.NativeCallMethod(v, obj, upperMethod, args)
 			if err != nil {
 				return err
 			}
@@ -2405,157 +2470,11 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			v.push(obj)
 			return nil
 		}
-		switch upperName {
-		case "JSONOBJECT":
-			obj := advplrt.NewObject("JsonObject", nil)
+		if obj, ok := v.builtinNativeObject(upperName); ok {
 			v.push(obj)
 			return nil
-		case "FWGRIDPROCESS":
-			v.push(newGridObject())
-			return nil
-		case "FWMBROWSE":
-			v.push(newBrowseObject())
-			return nil
-		case "LLM":
-			v.push(newLLMObject())
-			return nil
-		case "MCPSERVER":
-			v.push(newMCPServerObject())
-			return nil
-		case "WSRESTSERVER":
-			v.push(newWSRestServerObject())
-			return nil
-		case "TMAILMESSAGE":
-			v.push(newTMailMessageObject())
-			return nil
-		case "DBCONNECTION":
-			v.push(newDbConnectionObject())
-			return nil
-		case "TENSOR":
-			v.push(newTensorObject())
-			return nil
-		case "VARIABLE":
-			v.push(newVariableObject())
-			return nil
-		case "SGD":
-			v.push(newSGDObject())
-			return nil
-		case "ADAM":
-			v.push(newAdamObject())
-			return nil
-		case "LINEAR":
-			v.push(newLinearObject())
-			return nil
-		case "EMBEDDING":
-			v.push(newEmbeddingObject())
-			return nil
-		case "TRUNDLL":
-			v.push(newDllObject())
-			return nil
-		case "TPBKDF2":
-			v.push(newPBKDF2Object())
-			return nil
-		case "TJWT":
-			v.push(newJWTObject())
-			return nil
-		case "TAMQP":
-			v.push(newAMQPObject())
-			return nil
-		case "THASHMAP":
-			v.push(newTHashMapObject())
-			return nil
-		case "TJSONPARSER":
-			v.push(newTJsonParserObject())
-			return nil
-		case "TUNICODE":
-			v.push(newTUnicodeObject())
-			return nil
-		case "TFTPCLIENT":
-			v.push(newFTPClientObject())
-			return nil
-		case "TGRPC":
-			v.push(newTGrpcObject())
-			return nil
-		case "FWTOTVSLINKCLIENT":
-			v.push(newSmartlinkObject())
-			return nil
-		case "GRPCSERVER":
-			v.push(newGRPCServerObject())
-			return nil
-		case "ERRORCLASS":
-			obj := advplrt.NewObject("ErrorClass", cls)
-			obj.Props["DESCRIPTION"] = advplrt.NewString("")
-			obj.Props["GENCODE"] = advplrt.NewNumber(0)
-			v.push(obj)
-			return nil
-		case "FWFORMMODEL":
-			obj := advplrt.NewObject("FWFormModel", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			obj.Props["_MODELID"] = advplrt.NewNumber(0)
-			v.push(obj)
-			return nil
-		case "FWFORMVIEW":
-			obj := advplrt.NewObject("FWFormView", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			obj.Props["_VIEWID"] = advplrt.NewNumber(0)
-			v.push(obj)
-			return nil
-		case "FWFORMBROWSE":
-			obj := advplrt.NewObject("FWFormBrowse", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			obj.Props["_BROWSEID"] = advplrt.NewNumber(0)
-			v.push(obj)
-			return nil
-		case "FWWIZARDCONTROL":
-			obj := advplrt.NewObject("FWWizardControl", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			obj.Props["TITLE"] = advplrt.NewString("")
-			obj.Props["CURRENTSTEP"] = advplrt.NewNumber(0)
-			v.push(obj)
-			return nil
-		case "FWDYNDIALOG":
-			obj := advplrt.NewObject("FWDynDialog", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			obj.Props["TITLE"] = advplrt.NewString("")
-			v.push(obj)
-			return nil
-		case "FWPANEL":
-			obj := advplrt.NewObject("FWPanel", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			v.push(obj)
-			return nil
-		case "FWGROUPBOX":
-			obj := advplrt.NewObject("FWGroupBox", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			obj.Props["TITLE"] = advplrt.NewString("")
-			v.push(obj)
-			return nil
-		case "FWTABS":
-			obj := advplrt.NewObject("FWTabs", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			obj.Props["ACTIVETAB"] = advplrt.NewNumber(0)
-			v.push(obj)
-			return nil
-		case "FWSPLITTER":
-			obj := advplrt.NewObject("FWSplitter", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			obj.Props["ORIENTATION"] = advplrt.NewString("")
-			v.push(obj)
-			return nil
-		case "FWTREEVIEW":
-			obj := advplrt.NewObject("FWTreeView", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			v.push(obj)
-			return nil
-		case "FWLISTVIEW":
-			obj := advplrt.NewObject("FWListView", cls)
-			obj.Props["NAME"] = advplrt.NewString("")
-			obj.Props["VIEWSTYLE"] = advplrt.NewString("REPORT")
-			v.push(obj)
-			return nil
-		default:
-			return fmt.Errorf("unknown class: %s", className)
 		}
+		return fmt.Errorf("unknown class: %s", className)
 	}
 
 	obj := advplrt.NewObject(className, cls)
@@ -2567,10 +2486,16 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 
 	// Classe de usuário com raiz nativa (`Class X FROM FWAdapterBaseV2`):
 	// a instância carrega o estado nativo da raiz em obj.Native, e os métodos
-	// que o bytecode não define caem nela via callNativeMethod.
+	// que o bytecode não define caem nela via callNativeMethod. A fábrica
+	// registrada via registerNativeBase tem precedência; sem ela, raízes
+	// built-in stateful (FWMBrowse, WSRestServer...) recebem o mesmo
+	// obj.Native que a instanciação direta criaria — esses estados nascem
+	// no construtor, não no :New.
 	if root := v.rootNativeClass(className); root != "" {
 		if def, ok := lookupNativeBase(strings.ToUpper(root)); ok && def.factory != nil {
 			obj.Native = def.factory()
+		} else if builtin, ok := v.builtinNativeObject(strings.ToUpper(root)); ok {
+			obj.Native = builtin.Native
 		}
 	}
 
@@ -2578,6 +2503,125 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 	// via CALL_METHOD if the code does Calculator():New()
 	v.push(obj)
 	return nil
+}
+
+// builtinNativeObject instancia uma classe nativa embutida da VM (as mesmas
+// que newInstance reconhece pelo nome em maiúsculas). Devolve (nil, false)
+// para nomes desconhecidos. Compartilhada por newInstance (instanciação
+// direta) e pela herança de raiz nativa — que aproveita apenas o .Native.
+func (v *VM) builtinNativeObject(upperName string) (*advplrt.ObjectValue, bool) {
+	switch upperName {
+	case "JSONOBJECT":
+		return advplrt.NewObject("JsonObject", nil), true
+	case "FWGRIDPROCESS":
+		return newGridObject(), true
+	case "FWMBROWSE":
+		return newBrowseObject(), true
+	case "LLM":
+		return newLLMObject(), true
+	case "MCPSERVER":
+		return newMCPServerObject(), true
+	case "WSRESTSERVER":
+		return newWSRestServerObject(), true
+	case "TMAILMESSAGE":
+		return newTMailMessageObject(), true
+	case "DBCONNECTION":
+		return newDbConnectionObject(), true
+	case "TENSOR":
+		return newTensorObject(), true
+	case "VARIABLE":
+		return newVariableObject(), true
+	case "SGD":
+		return newSGDObject(), true
+	case "ADAM":
+		return newAdamObject(), true
+	case "LINEAR":
+		return newLinearObject(), true
+	case "EMBEDDING":
+		return newEmbeddingObject(), true
+	case "TRUNDLL":
+		return newDllObject(), true
+	case "TPBKDF2":
+		return newPBKDF2Object(), true
+	case "TJWT":
+		return newJWTObject(), true
+	case "TAMQP":
+		return newAMQPObject(), true
+	case "THASHMAP":
+		return newTHashMapObject(), true
+	case "TJSONPARSER":
+		return newTJsonParserObject(), true
+	case "TUNICODE":
+		return newTUnicodeObject(), true
+	case "TFTPCLIENT":
+		return newFTPClientObject(), true
+	case "TGRPC":
+		return newTGrpcObject(), true
+	case "FWTOTVSLINKCLIENT":
+		return newSmartlinkObject(), true
+	case "GRPCSERVER":
+		return newGRPCServerObject(), true
+	case "ERRORCLASS":
+		obj := advplrt.NewObject("ErrorClass", nil)
+		obj.Props["DESCRIPTION"] = advplrt.NewString("")
+		obj.Props["GENCODE"] = advplrt.NewNumber(0)
+		return obj, true
+	case "FWFORMMODEL":
+		obj := advplrt.NewObject("FWFormModel", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		obj.Props["_MODELID"] = advplrt.NewNumber(0)
+		return obj, true
+	case "FWFORMVIEW":
+		obj := advplrt.NewObject("FWFormView", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		obj.Props["_VIEWID"] = advplrt.NewNumber(0)
+		return obj, true
+	case "FWFORMBROWSE":
+		obj := advplrt.NewObject("FWFormBrowse", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		obj.Props["_BROWSEID"] = advplrt.NewNumber(0)
+		return obj, true
+	case "FWWIZARDCONTROL":
+		obj := advplrt.NewObject("FWWizardControl", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		obj.Props["TITLE"] = advplrt.NewString("")
+		obj.Props["CURRENTSTEP"] = advplrt.NewNumber(0)
+		return obj, true
+	case "FWDYNDIALOG":
+		obj := advplrt.NewObject("FWDynDialog", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		obj.Props["TITLE"] = advplrt.NewString("")
+		return obj, true
+	case "FWPANEL":
+		obj := advplrt.NewObject("FWPanel", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		return obj, true
+	case "FWGROUPBOX":
+		obj := advplrt.NewObject("FWGroupBox", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		obj.Props["TITLE"] = advplrt.NewString("")
+		return obj, true
+	case "FWTABS":
+		obj := advplrt.NewObject("FWTabs", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		obj.Props["ACTIVETAB"] = advplrt.NewNumber(0)
+		return obj, true
+	case "FWSPLITTER":
+		obj := advplrt.NewObject("FWSplitter", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		obj.Props["ORIENTATION"] = advplrt.NewString("")
+		return obj, true
+	case "FWTREEVIEW":
+		obj := advplrt.NewObject("FWTreeView", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		return obj, true
+	case "FWLISTVIEW":
+		obj := advplrt.NewObject("FWListView", nil)
+		obj.Props["NAME"] = advplrt.NewString("")
+		obj.Props["VIEWSTYLE"] = advplrt.NewString("REPORT")
+		return obj, true
+	}
+	return nil, false
 }
 
 func (v *VM) callConstructor(className string, obj *advplrt.ObjectValue, args []advplrt.Value) error {

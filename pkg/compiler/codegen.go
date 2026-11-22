@@ -1303,9 +1303,16 @@ func (c *Compiler) compileCodeBlock(e *ast.CodeBlock) error {
 	// Jump over the codeblock body (it will be called via Eval)
 	jumpOver := c.emit(OP_JUMP, 0, 0, "", e.Loc.Line)
 
+	// _Super: dentro de closure resolve a classe do método que a contém.
+	// savedFunc pode ser nil (codeblock no corpo principal do arquivo,
+	// fora de qualquer função/método) — sem a guarda isso dereferenciava.
+	cbClassName := ""
+	if savedFunc != nil {
+		cbClassName = savedFunc.className
+	}
 	c.currentFunc = &funcContext{
 		name:      funcName,
-		className: savedFunc.className, // _Super: dentro de closure resolve a classe do método que a contém
+		className: cbClassName,
 		locals:    make(map[string]int),
 		nextLocal: 1,
 		parent:    savedFunc, // escopo envolvente, para capturar upvalues (closures)
