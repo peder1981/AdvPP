@@ -410,7 +410,7 @@ type PouiAppUI interface {
 - Os parâmetros 2 a 5 e 7 em diante são aceitos e ignorados, e ficam documentados no
   `COMPONENT_STATUS.md`.
 
-- [ ] **Step 1: Escrever os testes que falham** (com um `PouiAppUI` falso no teste)
+- [x] **Step 1: Escrever os testes que falham** (com um `PouiAppUI` falso no teste)
 
 ```go
 func TestFwCallAppForaDoModoWeb(t *testing.T)      // erro exato "FwCallApp: requer o modo web (advplc serve)"
@@ -421,11 +421,11 @@ func TestFwCallAppErroNoCallbackNaoDerruba(t *testing.T)
 func TestFwCallAppAppInexistente(t *testing.T)     // erro "FwCallApp: app <nome> não encontrado em <dirs>"
 ```
 
-- [ ] **Step 2:** `go test ./pkg/vm -run TestFwCallApp -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar conforme Interfaces. No `cmd/advplc`, ligar a `Provider`
+- [x] **Step 2:** `go test ./pkg/vm -run TestFwCallApp -v`. Esperado: FAIL.
+- [x] **Step 3:** Implementar conforme Interfaces. No `cmd/advplc`, ligar a `Provider`
   do webui ao `PouiAppUI`.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(vm): FwCallApp real com JsToAdvpl e AdvPLToJS`
+- [x] **Step 4:** `go test ./...`. Esperado: PASS.
+- [x] **Step 5: Commit** — `feat(vm): FwCallApp real com JsToAdvpl e AdvPLToJS`
 
 ### Task 2.5: endpoints de framework que a lib chama
 
@@ -487,7 +487,7 @@ func TestFrameworkFonteDoUsuarioVence(t *testing.T) // fonte com @Get("/api/fram
     servidor sem VM chamadora: os `jsToAdvpl` são descartados e o `close` só desregistra.
   - Todo o resto (shim, contexto, checagens) é idêntico ao do `FwCallApp`.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestServePouiAppRedirecionaRaiz(t *testing.T) // GET / -> 302 para /poui/<nome>/?sid=
@@ -495,10 +495,10 @@ func TestServePouiAppComRest(t *testing.T)         // --poui-app fixture + tests
 func TestServePouiAppSemFonte(t *testing.T)        // só o app -> framework endpoints respondem; jsToAdvpl aceito (204) e descartado
 ```
 
-- [ ] **Step 2:** `go test ./cmd/advplc -run TestServePouiApp -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar conforme Interfaces.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(serve): --poui-app para apps PO-UI externos`
+- [x] **Step 2:** `go test ./cmd/advplc -run TestServePouiApp -v`. Esperado: FAIL.
+- [x] **Step 3:** Implementar conforme Interfaces.
+- [x] **Step 4:** `go test ./...`. Esperado: PASS.
+- [x] **Step 5: Commit** — `feat(serve): --poui-app para apps PO-UI externos`
 
 ### Task 2.7: app de teste com `@totvs/protheus-lib-core`
 
