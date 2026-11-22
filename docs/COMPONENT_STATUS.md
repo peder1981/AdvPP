@@ -365,6 +365,25 @@ compatibilidade PO-UI" na seção de recursos executados.
   filtro OData parametrizado, `TamSx3`, `FWAdapterBaseV2` e
   `FwApiManager` (somente leitura) — detalhes no plano
   `docs/superpowers/plans/2026-11-22-poui-onda1-rest.md`
+- ✅ **Camada de compatibilidade PO-UI (onda 2)**: `FwCallApp` real com
+  ponte `JsToAdvpl`/`AdvPLToJS` (`TWebChannel`), hosting de apps PO-UI
+  externos (`advplc serve --poui-app <dir|.app> [fonte]`), endpoints de
+  framework do `@totvs/protheus-lib-core` 21.1.4 (companies, branches,
+  current-user, systemModules, session defaults, idiomas, marca,
+  aliasAccess/functionAccess, genericList/genericQuery sobre SX3+SQLite;
+  OAuth2/MFA respondem 501) — detalhes no plano
+  `docs/superpowers/plans/2026-11-22-poui-plano-integral.md`. O app de
+  teste `tests/poui/apps/fixture-app` (Angular + lib-core) valida o
+  ciclo ponta a ponta via `tests/poui/ao-vivo.sh fixture-app`
+- ⚠️ **`FwCallApp` — parâmetros ignorados**: as posições 2 a 5 e 7 em
+  diante são aceitas e descartadas (oAdvEngine/oChannel/cHost não têm
+  efeito no modo web); `cSource` (posição 6) resolve a `Static Function
+  JsToAdvpl` do fonte que chamou
+- ⚠️ **`TWebEngine`/desktop não implementado**: `FwCallApp` fora do modo
+  web (`advplc serve`) retorna o erro exato
+  `FwCallApp: requer o modo web (advplc serve)`
+- ⚠️ **Endpoints OAuth2/MFA do framework**: respondem HTTP 501 — não há
+  fluxo de autenticação real no AdvPP
 - ⚠️ **`FwApiManager:ToExecAuto` não implementado**: retorna erro
   explícito ("não suportado no AdvPP — requer ExecAuto/MVC").
   `SetApiRelation` aceita e ignora: o formato mestre-detalhe depende
@@ -375,7 +394,9 @@ compatibilidade PO-UI" na seção de recursos executados.
   (`tests/rest_totvs/`). Os testes de corpus em
   `tests/rest_totvs/corpus_test.go` existem e fazem SKIP sem a
   variável — a seleção dos 5 fontes HTTP e os formatos exatos de
-  `aMapa`/`SetApiRelation` ficam pendentes de confirmação real
+  `aMapa`/`SetApiRelation` ficam pendentes de confirmação real.
+  `tests/poui/corpus_test.go` faz o mesmo para fontes com
+  `FwCallApp`/`JsToAdvpl`
 - ⚠️ **Locks de registro (RecLock/MsUnlock) são no-ops** — sem controle de
   concorrência em escrita entre processos
 

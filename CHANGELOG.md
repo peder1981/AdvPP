@@ -29,6 +29,17 @@ Todas as mudanças relevantes no projeto AdvPP.
 - `advplc serve <diretório>`: compila todos os fontes do diretório num
   único bytecode (projeto/RPO) e serve; `--watch` recompila e troca as
   rotas REST atomicamente.
+- **Onda 2 da compatibilidade PO-UI/TOTVS (FwCallApp + apps externos)**:
+  `FwCallApp` abre apps PO-UI do `@totvs/protheus-lib-core` em aba do
+  navegador com a ponte `JsToAdvpl`/`AdvPLToJS` (`TWebChannel`), e
+  `advplc serve --poui-app <dir|arquivo.app> [fonte]` hospeda um app
+  externo (pasta ou `.app` em memória) com redirect da raiz, contexto de
+  sessão e endpoints de framework (companies, branches, current-user,
+  systemModules, session defaults, genericList/genericQuery).
+- App de teste Angular real (`tests/poui/apps/fixture-app`,
+  `@totvs/protheus-lib-core` 21.1.4 fixada) validado de ponta a ponta por
+  `tests/poui/ao-vivo.sh fixture-app`: tabela REST, ping/pong via
+  JsToAdvpl e fechamento de aba.
 
 ### Known limitations
 - `FwApiManager:ToExecAuto` retorna erro explícito (requer ExecAuto/MVC).
@@ -36,7 +47,10 @@ Todas as mudanças relevantes no projeto AdvPP.
   corpus TOTVS).
 - Validação contra o corpus Protheus 12.1.2510 pendente:
   `ADVPP_CORPUS_2510` indisponível; testes em
-  `tests/rest_totvs/corpus_test.go` fazem SKIP sem a variável.
+  `tests/rest_totvs/corpus_test.go` e `tests/poui/corpus_test.go`
+  (FwCallApp/JsToAdvpl) fazem SKIP sem a variável.
+- `FwCallApp` aceita e ignora os parâmetros 2–5 e 7 em diante; fora do
+  modo web retorna erro. Endpoints OAuth2/MFA do framework respondem 501.
 
 ## [4.8.7] - 2026-11-22
 

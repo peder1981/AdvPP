@@ -544,15 +544,15 @@ func TestServePouiAppSemFonte(t *testing.T)        // só o app -> framework end
 
 ### Task 2.8: validação no corpus, documentação e encerramento
 
-- [ ] **Step 1:** `TestCorpusFwCallAppCheck` (local, `ADVPP_CORPUS_2510`; `SKIP` sem
+- [x] **Step 1:** `TestCorpusFwCallAppCheck` (local, `ADVPP_CORPUS_2510`; `SKIP` sem
   corpus): os 91 arquivos com `FwCallApp` e os 58 com `JsToAdvpl` passam no `check`
   com 0 erros quando o corpus estiver disponível.
-- [ ] **Step 2:** `COMPONENT_STATUS.md`:
+- [x] **Step 2:** `COMPONENT_STATUS.md`:
   - `FwCallApp`, `TWebChannel`, `--poui-app` e os endpoints de framework;
   - os parâmetros ignorados do `FwCallApp`;
   - o texto da seção 3.2 (divulgação do shim);
   - lacunas: OAuth2/MFA e `TWebEngine` desktop.
-- [ ] **Step 3:** `CHANGELOG.md`. Push, CI verde nos 3 SOs e no job `determinism`,
+- [x] **Step 3:** `CHANGELOG.md`. Push, CI verde nos 3 SOs e no job `determinism`,
   e revisão do branch somente após autorização. PR e release somente com pedido
   explícito do operador.
 

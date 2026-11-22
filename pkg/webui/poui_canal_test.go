@@ -242,3 +242,40 @@ func TestPouiCorpoGrande413(t *testing.T) {
 	}
 	_ = s
 }
+
+// TestPouiEnviaGrande confere que um AdvPLToJS de ~1 MB chega inteiro ao
+// SSE (review focus da onda 2, item 5).
+func TestPouiEnviaGrande(t *testing.T) {
+	srv, s, _ := pouiServer(t)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	p := &Provider{s: s}
+
+	resp, err := http.Get(ts.URL + "/events?s=s1&canal=poui")
+	if err != nil {
+		t.Fatalf("GET /events canal=poui: %v", err)
+	}
+	defer resp.Body.Close()
+
+	grande := strings.Repeat("y", 1<<20)
+	go p.PouiEnvia("r-grande", grande)
+
+	reader := bufio.NewReader(resp.Body)
+	var sb strings.Builder
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("ler SSE: %v", err)
+		}
+		sb.WriteString(line)
+		if strings.Contains(line, "\n") && strings.HasSuffix(strings.TrimSpace(line), "}") {
+			// uma linha data: completa termina com } após o JSON
+			if strings.Contains(sb.String(), grande[:100]) && strings.Contains(sb.String(), grande[len(grande)-100:]) {
+				break
+			}
+		}
+	}
+	if !strings.Contains(sb.String(), grande[:100]) || !strings.Contains(sb.String(), grande[len(grande)-100:]) {
+		t.Fatal("conteúdo de 1MB truncado no SSE")
+	}
+}
