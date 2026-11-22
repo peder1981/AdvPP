@@ -2,6 +2,42 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [Unreleased]
+
+### Added
+- **Onda 1 da compatibilidade PO-UI/TOTVS (REST)**: `advplc serve` agora
+  monta as rotas REST do projeto na mesma origem do modo web, sob `/rest`
+  (configurável via `rest_prefix`/`ADVPL_REST_PREFIX`), com a mesma
+  checagem de host/origem — `webui.Server.MountREST`.
+- DSL clássico `WSRESTFUL`/`WSMETHOD ... ENDWSRESTFUL` executa de verdade:
+  verbo+`PATH`/`SERVICE` de cada método viram rotas REST com dispatch por
+  classe, `aURLParms`, `SetRestFault` e `HTTPSetStatus`.
+- Objeto `oRest` nas rotas anotadas (`@Get`/`@Post`/...): leitura de
+  query/path/body/header e resposta via `setResponse`, `setStatusCode`,
+  `setKeyHeaderResponse`, `updateKeyHeaderResponse` e `setFault`.
+- `FWAdapterBaseV2` (herdável): `AddMapFields`, `SetQuery` com
+  `#QueryFields#`/`#QueryWhere#`, `SetPage`/`SetPageSize`, `Execute`,
+  `FillGetResponse`, `GetJsonResponse` (`items`+`hasNext`) — filtro
+  OData (`eq/ne/gt/ge/lt/le`, `contains`/`startswith`/`endswith`,
+  `null`, `orderBy`) traduzido para SQL parametrizado.
+- `FwApiManager` (somente leitura): `SetApiAlias`, `SetApiMap`,
+  `SetApiQString`, `SetQuery`, `Activate`, `GetJsonSerialize`,
+  `ToObjectJson`, `ToArray`, `GetJsonObject`, `SetJsonError`/
+  `GetJsonError`/`oJsonError`, `IsActive`, `Destroy`.
+- `TamSx3(cCampo)`: metadados do campo (`nTamanho`, `nDecimais`, `cTipo`)
+  lidos do SX3 local.
+- `advplc serve <diretório>`: compila todos os fontes do diretório num
+  único bytecode (projeto/RPO) e serve; `--watch` recompila e troca as
+  rotas REST atomicamente.
+
+### Known limitations
+- `FwApiManager:ToExecAuto` retorna erro explícito (requer ExecAuto/MVC).
+- `FwApiManager:SetApiRelation` aceita sem efeito (formato pendente do
+  corpus TOTVS).
+- Validação contra o corpus Protheus 12.1.2510 pendente:
+  `ADVPP_CORPUS_2510` indisponível; testes em
+  `tests/rest_totvs/corpus_test.go` fazem SKIP sem a variável.
+
 ## [4.8.7] - 2026-11-22
 
 ### Fixed

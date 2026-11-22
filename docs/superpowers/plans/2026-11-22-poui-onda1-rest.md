@@ -547,7 +547,7 @@ func TestServeSemRestInalterado(t *testing.T)      // serve de tests/webui_test.
 
 ---
 
-### Task 10: validação no corpus 12.1.2510 (local)
+### Task 10: validação no corpus 12.1.2510 (local) — ADIADA (ADVPP_CORPUS_2510 indisponível)
 
 **Files:**
 - Create: `tests/rest_totvs/corpus_test.go`, `tests/rest_totvs/corpus_fixtures/*.sql`
@@ -566,10 +566,10 @@ func TestCorpusWSRestfulAmostra(t *testing.T) // amostra fixa de 500 arquivos co
 func TestCorpusCincoFontesHTTP(t *testing.T) // 5 fontes reais escolhidos no Step 2 (módulos diferentes; ≥1 oRest, ≥1 WSRESTFUL clássico, ≥1 FWAdapterBaseV2) carregados com CompileProject + fixture SQL -> GET documentado responde 200 com o formato esperado
 ```
 
-- [ ] **Step 2:** Se `ADVPP_CORPUS_2510` estiver ausente ou inválida, marcar esta task
-  como adiada, registrar o motivo no `COMPONENT_STATUS.md` e seguir para a Task 11
-  com os testes de corpus em `SKIP`. Não implementar correções de corpus sem acesso
-  real ao corpus.
+- [X] **Step 2:** `ADVPP_CORPUS_2510` ausente → task ADIADA. Testes de corpus
+  criados em `tests/rest_totvs/corpus_test.go` (SKIP sem a variável); motivo
+  registrado no `COMPONENT_STATUS.md`. Passos 1, 3–6 pendentes até o corpus
+  estar disponível.
 - [ ] **Step 3:** Com o corpus disponível, escolher os 5 fontes (registrar os caminhos
   relativos ao corpus no teste) e escrever os fixtures SQL.
 - [ ] **Step 4:** Rodar `ADVPP_CORPUS_2510="<caminho>" go test ./tests/rest_totvs -run
