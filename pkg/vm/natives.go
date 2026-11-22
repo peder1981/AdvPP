@@ -1443,7 +1443,7 @@ func (v *VM) registerNatives() {
 			return advplrt.NewString(""), nil
 		},
 		"FWCALLAPP": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.Nil, nil
+			return v.fwCallApp(args)
 		},
 		"FWLIBVERSION": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewString("1.0.0"), nil

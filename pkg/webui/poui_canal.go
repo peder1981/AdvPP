@@ -112,6 +112,41 @@ func (c *pouiCanal) deadCh() <-chan struct{} {
 // Provider — interface usada pela VM (pkg/vm implementa PouiAppUI sobre isto)
 // ---------------------------------------------------------------------------
 
+// AbrePouiAppPorNome é o PouiAppUI do lado webui (implementa a interface
+// que a VM consome): localiza o app em dirs + poui_apps_dirs do config,
+// monta o contexto da sessão e abre o canal.
+func (p *Provider) AbrePouiAppPorNome(nome string, dirs []string) (string, error) {
+	cfg, _ := shared.LoadConfig()
+	for _, d := range cfg.PouiAppsDirs {
+		dirs = append(dirs, d)
+	}
+	caminho, err := LocalizaPouiApp(nome, dirs)
+	if err != nil {
+		return "", err
+	}
+	maxZip := int64(64 << 20)
+	if cfg.PouiAppMaxMB > 0 {
+		maxZip = cfg.PouiAppMaxMB << 20
+	}
+	app, err := AbrePouiApp(caminho, maxZip)
+	if err != nil {
+		return "", err
+	}
+	usuario := os.Getenv("USER")
+	if usuario == "" {
+		usuario = os.Getenv("USERNAME")
+	}
+	if usuario == "" {
+		usuario = "admin"
+	}
+	ctx, err := NovoPouiCtx(app.Nome, "01", "01", "CUSTOM", usuario, "pt-br",
+		shared.ResolveRestPrefix(), p.s.origin)
+	if err != nil {
+		return "", err
+	}
+	return p.AbrePouiApp(app, ctx)
+}
+
 // AbrePouiApp registra o app na sessão e avisa a SPA para abrir a aba.
 // Devolve a URL que a aba carrega (/?sid=&app= no shim).
 func (p *Provider) AbrePouiApp(app *PouiApp, ctx *PouiCtx) (string, error) {

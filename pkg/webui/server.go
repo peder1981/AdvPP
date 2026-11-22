@@ -68,6 +68,9 @@ type session struct {
 	ui chan uiEvent
 	// sid é a chave desta sessão no mapa sessions (preenchida na criação).
 	sid string
+	// origin é o esquema+host da primeira conexão da sessão — base do
+	// api_baseUrl entregue ao app PO-UI.
+	origin string
 	// poui é o canal do app PO-UI aberto por FwCallApp nesta sessão
 	// (nil = nenhum; ver poui_canal.go). pouiGone marca que o app foi
 	// fechado — requisições seguintes a /poui/{app} recebem 410.
@@ -394,6 +397,7 @@ func (srv *Server) Handler() http.Handler {
 		if !resumed {
 			s = newSession()
 			s.sid = sid
+			s.origin = "http://" + r.Host
 			sessions[sid] = s
 		}
 		mu.Unlock()

@@ -631,6 +631,13 @@ func serveFile(sourceFile string, opts *Options) error {
 		func(ui *webui.Provider, console *webui.OutWriter) error {
 			v := vm.NewVM(current.Load(), true)
 			v.SetUIProvider(ui)
+			if st, err := os.Stat(sourceFile); err == nil {
+				if st.IsDir() {
+					v.SetSourceDir(sourceFile)
+				} else {
+					v.SetSourceDir(filepath.Dir(sourceFile))
+				}
+			}
 			attachDatabase(v, opts)
 
 			var release func(error)

@@ -110,6 +110,7 @@ type VM struct {
 	ownedConns            []int    // conexões desta VM, fechadas em CloseOwnedConnections
 	currentAlias          string   // último alias passado para DbSelectArea, para GetArea()/RestArea()
 	uiProvider            UIProvider
+	sourceDir             string // diretório do fonte em execução (busca de apps PO-UI do FwCallApp)
 	output                strings.Builder
 	namedArgs             []namedArgInfo // tracks named parameter info for current call
 	argCounter            int            // counts args pushed for current call
@@ -462,6 +463,12 @@ func (v *VM) SetDBFactory(factory func() DBEngine) {
 
 func (v *VM) SetUIProvider(provider UIProvider) {
 	v.uiProvider = provider
+}
+
+// SetSourceDir informa o diretório do fonte que originou o bytecode —
+// o FwCallApp procura o app PO-UI primeiro nele.
+func (v *VM) SetSourceDir(dir string) {
+	v.sourceDir = dir
 }
 
 // globais: os globais do arquivo (frame principal de Run). Sem Run (ex.:
