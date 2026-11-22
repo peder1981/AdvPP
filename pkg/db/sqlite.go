@@ -546,8 +546,7 @@ func (e *SQLiteEngine) QueryRows(query string, args ...any) ([]map[string]string
 
 // Exec executa um comando SQL (INSERT/UPDATE/DELETE) — extensão vm.SQLEngine.
 func (e *SQLiteEngine) Exec(query string, args ...any) error {
-	_, err := e.db.Exec(query, args...)
-	return err
+	return execDesfazendoEmErro(e.db, query, args...)
 }
 
 // QueryRowsOrdered executa SQL direto e devolve as colunas NA ORDEM REAL

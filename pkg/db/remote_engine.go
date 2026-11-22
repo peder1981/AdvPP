@@ -520,8 +520,7 @@ func (e *RemoteSQLEngine) pragmaTableInfo(table string) ([]map[string]string, er
 }
 
 func (e *RemoteSQLEngine) Exec(query string, args ...any) error {
-	_, err := e.db.Exec(query, args...)
-	return err
+	return execDesfazendoEmErro(e.db, query, args...)
 }
 
 // Close fecha a conexão real (*sql.DB) subjacente. Achado #5 da revisão
