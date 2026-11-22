@@ -2,15 +2,14 @@ package vm
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
-	"golang.org/x/crypto/pkcs12"
 )
 
 // registerHttpNatives registers HTTP client functions: FWHTTPGET, FWHTTPPOST, etc.
@@ -146,24 +145,21 @@ func (v *VM) fwHTTPRequest(method string, args []advplrt.Value) (advplrt.Value, 
 	}
 
 	if certPath != "" && certPass != "" {
-		pfxData, err := os.ReadFile(certPath)
-		if err != nil {
-			v.httpLastError = fmt.Sprintf("Failed to read cert: %v", err)
+		// Mesmo leitor do PFXKey2PEM: PKCS#12 com a cadeia de CAs (A1
+		// ICP-Brasil) ou PEM. pkcs12.Decode só aceitava certificado único.
+		certs, privateKey, err := loadPfxMaterial(certPath, certPass)
+		if err != nil || privateKey == nil || len(certs) == 0 {
+			if err == nil {
+				err = errors.New("certificado sem chave privada")
+			}
+			v.httpLastError = fmt.Sprintf("Failed to load client certificate: %v", err)
 			return advplrt.NewNumber(0), nil
 		}
-
-		privateKey, cert, err := pkcs12.Decode(pfxData, certPass)
-		if err != nil {
-			v.httpLastError = fmt.Sprintf("Failed to decode PKCS12: %v", err)
-			return advplrt.NewNumber(0), nil
+		chain := make([][]byte, 0, len(certs))
+		for _, c := range certs {
+			chain = append(chain, c.Raw)
 		}
-
-		tlsConfig.Certificates = []tls.Certificate{
-			{
-				Certificate: [][]byte{cert.Raw},
-				PrivateKey:  privateKey,
-			},
-		}
+		tlsConfig.Certificates = []tls.Certificate{{Certificate: chain, PrivateKey: privateKey, Leaf: certs[0]}}
 	}
 
 	timeoutSec := v.httpTimeoutSec

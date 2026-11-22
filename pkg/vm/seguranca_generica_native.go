@@ -13,12 +13,14 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"hash"
 	"os"
 	"strings"
 	"time"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
+	"golang.org/x/crypto/pkcs12"
 )
 
 // registerSegurancaGenericaNatives registra as funções de Segurança / Genérica
@@ -163,7 +165,8 @@ func (v *VM) registerSegurancaGenericaNatives(natives map[string]func(args []adv
 		if keyPEM == nil {
 			return advplrt.NewBool(false), nil
 		}
-		if err := os.WriteFile(getArgString(args, 1, ""), keyPEM, 0644); err != nil {
+		// 0600: é a chave privada do certificado.
+		if err := os.WriteFile(getArgString(args, 1, ""), keyPEM, 0o600); err != nil {
 			return advplrt.NewBool(false), nil
 		}
 		return advplrt.NewBool(true), nil
@@ -195,7 +198,12 @@ func (v *VM) registerSegurancaGenericaNatives(natives map[string]func(args []adv
 		if buf.Len() == 0 {
 			return advplrt.NewBool(false), nil
 		}
-		if err := os.WriteFile(getArgString(args, 1, ""), buf.Bytes(), 0644); err != nil {
+		// 0600 quando leva a chave privada.
+		perm := os.FileMode(0o644)
+		if priv != nil {
+			perm = 0o600
+		}
+		if err := os.WriteFile(getArgString(args, 1, ""), buf.Bytes(), perm); err != nil {
 			return advplrt.NewBool(false), nil
 		}
 		return advplrt.NewBool(true), nil
@@ -367,8 +375,13 @@ func certInfoArray(cert *x509.Certificate) advplrt.Value {
 
 // loadPfxMaterial lê um arquivo .PFX e extrai certificados e chave privada.
 // Como a stdlib Go não suporta PKCS#12 (o formato real dos .PFX), o conteúdo é
-// interpretado como bundle PEM ou DER PKCS#8/PKCS#1 (fallback documentado).
-// Retorna erro quando nada é reconhecido — diante de um container PKCS#12 real.
+// interpretado como bundle PEM ou DER PKCS#8/PKCS#1. O certificado de cliente
+// (o da chave privada) vem sempre primeiro, seguido das CAs.
+//
+// PKCS#12 com cifra legada (3DES/RC2 + SHA-1, o padrão do Windows ao exportar
+// um A1 ICP-Brasil) é lido por golang.org/x/crypto/pkcs12, inclusive com a
+// cadeia de CAs dentro. PKCS#12 com PBES2/AES (padrão do OpenSSL 3) não é
+// suportado por essa biblioteca: o erro diz como reexportar.
 func loadPfxMaterial(file, password string) ([]*x509.Certificate, crypto.PrivateKey, error) {
 	data, err := os.ReadFile(file)
 	if err != nil {
@@ -376,9 +389,46 @@ func loadPfxMaterial(file, password string) ([]*x509.Certificate, crypto.Private
 	}
 	certs, priv := parsePEMOrDER(data, password)
 	if len(certs) == 0 && priv == nil {
-		return nil, nil, errors.New("PFX (PKCS#12) não suportado pela stdlib Go; forneça arquivo PEM ou DER PKCS#8")
+		blocks, perr := pkcs12.ToPEM(data, password)
+		if perr != nil {
+			return nil, nil, fmt.Errorf("PFX (PKCS#12) ilegível: %v. Senha errada, ou arquivo com cifra AES "+
+				"(OpenSSL 3): reexporte com 3DES (openssl pkcs12 -export -legacy)", perr)
+		}
+		for _, b := range blocks {
+			cert, key := parsePEMBlock(b, "")
+			if cert != nil {
+				certs = append(certs, cert)
+			}
+			if key != nil && priv == nil {
+				priv = key
+			}
+		}
 	}
-	return certs, priv, nil
+	if len(certs) == 0 && priv == nil {
+		return nil, nil, errors.New("nenhum certificado ou chave privada no arquivo")
+	}
+	return certificadoDaChavePrimeiro(certs, priv), priv, nil
+}
+
+// certificadoDaChavePrimeiro põe na frente o certificado cuja chave pública é
+// a da chave privada (o "certificado de cliente"); a ordem dentro de um PFX
+// não é garantida.
+func certificadoDaChavePrimeiro(certs []*x509.Certificate, priv crypto.PrivateKey) []*x509.Certificate {
+	k, ok := priv.(interface{ Public() crypto.PublicKey })
+	if !ok || len(certs) < 2 {
+		return certs
+	}
+	pub, ok := k.Public().(interface{ Equal(crypto.PublicKey) bool })
+	if !ok {
+		return certs
+	}
+	for i, c := range certs {
+		if pub.Equal(c.PublicKey) {
+			out := append([]*x509.Certificate{c}, certs[:i]...)
+			return append(out, certs[i+1:]...)
+		}
+	}
+	return certs
 }
 
 // parsePEMOrDER interpreta bytes como bundle PEM ou DER (PKCS#8/PKCS#1/EC) e

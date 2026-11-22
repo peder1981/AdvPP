@@ -2,6 +2,21 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.8.7] - 2026-11-22
+
+### Fixed
+- **Certificado A1 em `.pfx` (PKCS#12) não era lido**: `PFXInfo`,
+  `PFXCert2PEM`, `PFXCA2PEM`, `PFXKey2PEM` e `PFX2PEM` só aceitavam PEM/DER
+  com extensão `.pfx`, e `FWHTTPGet/Post/...` com certificado de cliente usava
+  um decodificador que recusa PFX com mais de um certificado — justamente o
+  caso do A1 da ICP-Brasil, que traz a cadeia. Agora os dois caminhos leem
+  PKCS#12 de verdade (cifra legada 3DES/RC2, padrão do Windows), com a cadeia;
+  o certificado de cliente vem primeiro e o TLS manda a cadeia inteira. PFX
+  com cifra AES (padrão do OpenSSL 3) dá erro explicando como reexportar
+  (`openssl pkcs12 -export -legacy`). Achado na NFS-e do GesCon.
+- `PFXKey2PEM` e `PFX2PEM` gravam a chave privada com permissão 0600 (era
+  0644).
+
 ## [4.8.6] - 2026-11-21
 
 ### Fixed
