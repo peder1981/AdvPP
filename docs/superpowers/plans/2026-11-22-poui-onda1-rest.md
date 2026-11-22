@@ -443,7 +443,7 @@ func TraduzCampos(campos string, mapa map[string]MapaCampo) ([]string, error) //
 - Erro (filtro inválido, campo não mapeado): `Execute()` devolve `.F.` e
   `GetErrorMessage()` traz o motivo. O fixture REST responde 400 com essa mensagem.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [X] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestFiltroSimples(t *testing.T)   // "filial eq '01' and codigo ge '000010'" -> "(NNR_FILIAL = ? AND NNR_CODIGO >= ?)", args ["01","000010"]
@@ -456,14 +456,14 @@ func TestAdapterFiltroEOrdemPelaURL(t *testing.T) // ?filter=descri eq 'Central'
 func TestAdapterCampoNaoMapeado400(t *testing.T)   // ?order=senha -> 400, message cita "senha"
 ```
 
-- [ ] **Step 2:** `go test ./pkg/vm -run 'TestFiltro|TestOrdem|TestTamSx3|TestAdapter' -v`.
+- [X] **Step 2:** `go test ./pkg/vm -run 'TestFiltro|TestOrdem|TestTamSx3|TestAdapter' -v`.
   Esperado: FAIL.
-- [ ] **Step 3:** Implementar o filtro, depois o `TamSx3`, depois o adapter. Os
+- [X] **Step 3:** Implementar o filtro, depois o `TamSx3`, depois o adapter. Os
   fixtures `armazens_*.tlpp` são escritos do zero, imitando a forma do corpus
   (`Class ... FROM FWAdapterBaseV2`, `_Super:New`, `#QueryFields#`), sem copiar código
   TOTVS.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(vm): FWAdapterBaseV2, TamSx3 e filtro OData
+- [X] **Step 4:** `go test ./...`. Esperado: PASS.
+- [X] **Step 5: Commit** — `feat(vm): FWAdapterBaseV2, TamSx3 e filtro OData
   parametrizado`
 
 ---
