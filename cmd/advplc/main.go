@@ -9,12 +9,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/advpl/compiler/pkg/ast"
 	"github.com/advpl/compiler/pkg/compiler"
 	"github.com/advpl/compiler/pkg/dap"
 	"github.com/advpl/compiler/pkg/db"
@@ -318,9 +320,10 @@ func loadAndCompile(sourceFile string, opts *Options) (*compiler.Bytecode, error
 	return bc, err
 }
 
-// compilaComAvisos é o loadAndCompile que também devolve os avisos do parser
-// (problemas que compilam, como no Protheus, mas que o check mostra).
-func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []parser.Aviso, error) {
+// parseFonteComAvisos lê, preprocessa, lexa e parseia um fonte AdvPL/TLPP,
+// devolvendo o AST e os avisos do parser+preprocessador. includes já deve
+// vir completo (o chamador decide os diretórios de #include).
+func parseFonteComAvisos(sourceFile string, includes []string, opts *Options) (*ast.Program, []parser.Aviso, error) {
 	source, err := os.ReadFile(sourceFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot read file %s: %v", sourceFile, err)
@@ -328,16 +331,6 @@ func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []p
 
 	// Detect and convert CP1252 encoding to UTF-8 if needed
 	sourceStr := preprocessor.SourceToUTF8(source)
-
-	// Add default include paths
-	includes := opts.includes
-	includes = append(includes, filepath.Dir(sourceFile))
-
-	// Add defines from command line
-	for k, v := range opts.defines {
-		_ = k
-		_ = v
-	}
 
 	// Preprocess
 	pp := preprocessor.NewPreprocessor(includes)
@@ -363,12 +356,6 @@ func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []p
 	}
 	prog.RootBoundaryLine = pp.RootBoundaryLine
 
-	// Compile
-	bc, err := compiler.Compile(prog)
-	if err != nil {
-		return nil, nil, fmt.Errorf("compiler error: %v", err)
-	}
-
 	avisos := p.Avisos()
 	for _, a := range pp.Avisos() {
 		msg := a.Mensagem
@@ -377,7 +364,85 @@ func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []p
 		}
 		avisos = append(avisos, parser.Aviso{Line: a.Linha, Col: 1, Message: msg})
 	}
+	return prog, avisos, nil
+}
+
+// compilaComAvisos é o loadAndCompile que também devolve os avisos do parser
+// (problemas que compilam, como no Protheus, mas que o check mostra).
+func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []parser.Aviso, error) {
+	// Add default include paths (cópia: append não pode vazar no opts.includes)
+	includes := append([]string{}, opts.includes...)
+	includes = append(includes, filepath.Dir(sourceFile))
+
+	prog, avisos, err := parseFonteComAvisos(sourceFile, includes, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Compile
+	bc, err := compiler.Compile(prog)
+	if err != nil {
+		return nil, nil, fmt.Errorf("compiler error: %v", err)
+	}
 	return bc, avisos, nil
+}
+
+// extFonteProjeto: extensões que compilaDiretorio carrega num "RPO".
+func extFonteProjeto(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".prw", ".prx", ".tlpp":
+		return true
+	}
+	return false
+}
+
+// compilaDiretorio compila todos os fontes .prw/.prx/.tlpp da raiz de dir
+// (não recursivo) num único bytecode via CompileProject — é o que
+// `advplc serve <diretório>` carrega. Ordem alfabética dos arquivos mantém
+// o bytecode determinístico.
+func compilaDiretorio(dir string, opts *Options) (*compiler.Bytecode, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read directory %s: %v", dir, err)
+	}
+	files := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() || !extFonteProjeto(e.Name()) {
+			continue
+		}
+		files = append(files, filepath.Join(dir, e.Name()))
+	}
+	sort.Strings(files)
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no .prw/.prx/.tlpp sources in %s", dir)
+	}
+
+	includes := append([]string{}, opts.includes...)
+	includes = append(includes, dir)
+	progs := make([]*ast.Program, 0, len(files))
+	for _, f := range files {
+		prog, avisos, err := parseFonteComAvisos(f, includes, opts)
+		mostraAvisos(f, avisos)
+		if err != nil {
+			return nil, err
+		}
+		progs = append(progs, prog)
+	}
+	bc, err := compiler.CompileProject(progs)
+	if err != nil {
+		return nil, fmt.Errorf("compiler error: %v", err)
+	}
+	return bc, nil
+}
+
+// compilaAlvo escolhe o pipeline pelo argumento do serve: diretório vira
+// projeto (vários fontes, como um RPO); arquivo continua fonte único.
+func compilaAlvo(sourceFile string, opts *Options) (*compiler.Bytecode, error) {
+	if st, err := os.Stat(sourceFile); err == nil && st.IsDir() {
+		return compilaDiretorio(sourceFile, opts)
+	}
+	bc, err := loadAndCompile(sourceFile, opts)
+	return bc, err
 }
 
 func runFile(sourceFile string, opts *Options) error {
@@ -438,7 +503,12 @@ func mostraAvisos(sourceFile string, avisos []parser.Aviso) {
 // (fase 1: console + diálogos). Cada aba/recarga do browser cria uma
 // sessão com VM isolada — mesma semântica de work process do StartJob.
 func serveFile(sourceFile string, opts *Options) error {
-	bc, err := loadAndCompile(sourceFile, opts)
+	// Diretório vira projeto (todos os fontes num bytecode só, como um
+	// RPO); arquivo segue fonte único. compilaAlvo decide pelo os.Stat.
+	compile := func() (*compiler.Bytecode, error) {
+		return compilaAlvo(sourceFile, opts)
+	}
+	bc, err := compile()
 	if err != nil {
 		return err
 	}
@@ -482,7 +552,7 @@ func serveFile(sourceFile string, opts *Options) error {
 		})
 
 	if opts.watch {
-		go watchSource(sourceFile, opts, &current, srv)
+		go watchSource(sourceFile, compile, &current, srv)
 	}
 
 	if opts.debugPort != "" {
@@ -522,22 +592,53 @@ func serveDebugAttach(port, sourceFile string, dbgSrv *atomic.Pointer[dap.Server
 	}
 }
 
-// watchSource observa o fonte (polling de mtime, sem dependências) e, a cada
-// alteração, recompila e manda as sessões do browser recarregarem. Erro de
-// compilação vai para o console do browser em vez de recarregar.
-func watchSource(sourceFile string, opts *Options, current *atomic.Pointer[compiler.Bytecode], srv *webui.Server) {
-	lastMod := time.Time{}
-	if info, err := os.Stat(sourceFile); err == nil {
-		lastMod = info.ModTime()
+// assinaturaFonte devolve uma impressão digital do alvo do watch: mtime do
+// arquivo, ou a lista "nome:mtime" dos fontes do projeto (diretório).
+// Mudança de conteúdo, de nome ou de conjunto de arquivos dispara
+// recompilação.
+func assinaturaFonte(sourceFile string) (string, error) {
+	st, err := os.Stat(sourceFile)
+	if err != nil {
+		return "", err
+	}
+	if !st.IsDir() {
+		return fmt.Sprintf("%s:%d", sourceFile, st.ModTime().UnixNano()), nil
+	}
+	entries, err := os.ReadDir(sourceFile)
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	for _, e := range entries {
+		if e.IsDir() || !extFonteProjeto(e.Name()) {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(&b, "%s:%d;", e.Name(), info.ModTime().UnixNano())
+	}
+	return b.String(), nil
+}
+
+// watchSource observa o fonte (polling de mtime, sem dependências) — ou o
+// conjunto de fontes, quando o alvo é um diretório — e, a cada alteração,
+// recompila e manda as sessões do browser recarregarem. Erro de compilação
+// vai para o console do browser em vez de recarregar.
+func watchSource(sourceFile string, compile func() (*compiler.Bytecode, error), current *atomic.Pointer[compiler.Bytecode], srv *webui.Server) {
+	lastSig, err := assinaturaFonte(sourceFile)
+	if err != nil {
+		lastSig = ""
 	}
 	for {
 		time.Sleep(500 * time.Millisecond)
-		info, err := os.Stat(sourceFile)
-		if err != nil || !info.ModTime().After(lastMod) {
+		sig, err := assinaturaFonte(sourceFile)
+		if err != nil || sig == lastSig {
 			continue
 		}
-		lastMod = info.ModTime()
-		bc, err := loadAndCompile(sourceFile, opts)
+		lastSig = sig
+		bc, err := compile()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "watch: erro de compilação: %v\n", err)
 			srv.Broadcast("error", fmt.Sprintf("erro de compilação: %v", err))

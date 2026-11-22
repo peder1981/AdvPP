@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/advpl/compiler/pkg/ast"
@@ -26,6 +27,30 @@ type Compiler struct {
 	// Dentro das funções esses nomes leem/gravam a global (antes caíam na
 	// busca dinâmica de Private/Public e não enxergavam o valor).
 	fileStatics map[string]int
+	// proj: estado do CompileProject (nil no Compile de fonte único). Vários
+	// programas num só bytecode, como um RPO: User Function e classes são
+	// globais; Static Function fica restrita ao arquivo.
+	proj *projectState
+}
+
+// projectProgram é um fonte dentro do CompileProject: suas Static Function
+// resolvem para chaves "STATIC:<ARQUIVO>:<NOME>" e seus Static de arquivo
+// têm slot global próprio (o corpo principal, que os inicializaria, é
+// ignorado — MainOffset aponta direto para OP_HALT).
+type projectProgram struct {
+	prog        *ast.Program
+	fileTag     string            // basename do arquivo em maiúsculas (com extensão)
+	statics     map[string]string // nome da Static Function (maiúsculas) -> chave qualificada
+	fileStatics map[string]int    // Static de arquivo -> slot global
+}
+
+// projectState acumula o que o CompileProject precisa entre o passe de
+// registro (todos os programas) e o passe de compilação (um por vez).
+type projectState struct {
+	programs   []*projectProgram
+	funcFiles  map[string]string // chave em bc.Functions -> arquivo de origem
+	classFiles map[string]string // chave em bc.Classes -> arquivo de origem
+	current    *projectProgram   // programa cujas funções estão sendo compiladas
 }
 
 // loopContext acumula os jumps de Exit (break) e Loop (continue) pendentes de
@@ -102,6 +127,227 @@ func Compile(program *ast.Program) (*Bytecode, error) {
 		return nil, err
 	}
 	return c.bc, nil
+}
+
+// CompileProject compila vários programas num único bytecode, como um RPO:
+// mesmo pool de constantes e mesmo Code, sem relocação. User Function e
+// classes são globais — nome duplicado entre arquivos é erro citando os
+// dois arquivos. Static Function fica restrita ao arquivo que a declara,
+// registrada como "STATIC:<ARQUIVO>:<NOME>" (arquivo = basename em
+// maiúsculas, com extensão, sem diretório); chamadas dentro do mesmo
+// arquivo saem já qualificadas. O corpo principal de cada programa é
+// ignorado: MainOffset aponta para um OP_HALT.
+func CompileProject(progs []*ast.Program) (*Bytecode, error) {
+	c := New()
+	ps := &projectState{
+		funcFiles:  make(map[string]string),
+		classFiles: make(map[string]string),
+	}
+	c.proj = ps
+
+	// MainOffset -> HALT: nenhum corpo top-level executa.
+	c.bc.MainOffset = len(c.bc.Code)
+	c.emit(OP_HALT, 0, 0, "", 0)
+
+	// Passe 1: registra funções e classes de TODOS os programas antes de
+	// compilar qualquer um — chamadas e heranças (_Super:) enxerem símbolos
+	// de arquivos em qualquer posição da lista.
+	for _, prog := range progs {
+		pp, err := c.registerProjectProgram(prog, ps)
+		if err != nil {
+			return nil, err
+		}
+		ps.programs = append(ps.programs, pp)
+	}
+
+	// Passe 2: compila funções e métodos de cada programa.
+	for _, pp := range ps.programs {
+		if err := c.compileProjectProgram(pp); err != nil {
+			return nil, err
+		}
+	}
+	return c.bc, nil
+}
+
+// staticFuncKey monta a chave qualificada de uma Static Function:
+// "STATIC:<ARQUIVO>:<NOME>".
+func staticFuncKey(fileTag, name string) string {
+	return "STATIC:" + fileTag + ":" + name
+}
+
+// registerProjectProgram registra no pool global as funções e classes de
+// um programa do projeto e devolve o contexto por-arquivo (estáticas e
+// Static de arquivo). Não emite código.
+func (c *Compiler) registerProjectProgram(prog *ast.Program, ps *projectState) (*projectProgram, error) {
+	pp := &projectProgram{
+		prog:        prog,
+		fileTag:     strings.ToUpper(filepath.Base(prog.FileName)),
+		statics:     make(map[string]string),
+		fileStatics: make(map[string]int),
+	}
+	file := prog.FileName
+	if file == "" {
+		file = prog.Loc.FileName
+	}
+
+	// Static Function: só com o nome qualificado — o nome puro não entra
+	// no pool, senão dois arquivos com a mesma Static colidiriam.
+	for _, fn := range prog.Functions {
+		if !fn.IsStatic {
+			continue
+		}
+		key := staticFuncKey(pp.fileTag, strings.ToUpper(fn.Name))
+		if prev, dup := ps.funcFiles[key]; dup {
+			return nil, fmt.Errorf("função %s duplicada em %s e %s", fn.Name, prev, file)
+		}
+		info := &FunctionInfo{
+			Name:       key,
+			NumParams:  len(fn.Params),
+			IsUser:     fn.IsUser,
+			IsStatic:   true,
+			ParamNames: make([]string, len(fn.Params)),
+		}
+		for i, p := range fn.Params {
+			info.ParamNames[i] = p.Name
+		}
+		for _, ann := range fn.Annotations {
+			info.Annotations = append(info.Annotations, AnnotationInfo{Name: ann.Name, Value: ann.Value})
+		}
+		c.bc.Functions[key] = info
+		ps.funcFiles[key] = file
+		pp.statics[strings.ToUpper(fn.Name)] = key
+	}
+
+	// Demais funções (User Function, Function, Procedure): globais.
+	for _, fn := range prog.Functions {
+		if fn.IsStatic {
+			continue
+		}
+		fullName := fn.Name
+		if prog.Namespace != "" {
+			fullName = prog.Namespace + "." + fn.Name
+		}
+		keys := []string{fullName}
+		if fn.Name != fullName {
+			keys = append(keys, fn.Name)
+		}
+		for _, k := range keys {
+			if prev, dup := ps.funcFiles[k]; dup {
+				return nil, fmt.Errorf("função %s duplicada: declarada em %s e %s", fn.Name, prev, file)
+			}
+		}
+		info := &FunctionInfo{
+			Name:       fullName,
+			NumParams:  len(fn.Params),
+			IsUser:     fn.IsUser,
+			IsStatic:   fn.IsStatic,
+			ParamNames: make([]string, len(fn.Params)),
+		}
+		for i, p := range fn.Params {
+			info.ParamNames[i] = p.Name
+		}
+		for _, ann := range fn.Annotations {
+			info.Annotations = append(info.Annotations, AnnotationInfo{Name: ann.Name, Value: ann.Value})
+		}
+		for _, k := range keys {
+			c.bc.Functions[k] = info
+			ps.funcFiles[k] = file
+		}
+	}
+
+	// Classes globais.
+	for _, cls := range prog.Classes {
+		fullName := cls.Name
+		if prog.Namespace != "" {
+			fullName = prog.Namespace + "." + cls.Name
+		}
+		keys := []string{fullName}
+		if cls.Name != fullName {
+			keys = append(keys, cls.Name)
+		}
+		for _, k := range keys {
+			if prev, dup := ps.classFiles[k]; dup {
+				return nil, fmt.Errorf("classe %s duplicada: declarada em %s e %s", cls.Name, prev, file)
+			}
+		}
+		info := &ClassInfo{
+			Name:       fullName,
+			Parent:     cls.Parent,
+			Properties: make(map[string]string),
+			Methods:    make(map[string]*FunctionInfo),
+		}
+		for _, prop := range cls.Properties {
+			info.Properties[prop.Name] = prop.Type
+		}
+		for _, ann := range cls.Annotations {
+			info.Annotations = append(info.Annotations, AnnotationInfo{Name: ann.Name, Value: ann.Value})
+		}
+		for _, k := range keys {
+			c.bc.Classes[k] = info
+			ps.classFiles[k] = file
+		}
+	}
+
+	// Static de arquivo (variáveis): reserva slot global com chave
+	// qualificada para não dividir estado entre arquivos. O inicializador
+	// mora no corpo principal, que o projeto ignora — a global fica Nil.
+	for _, st := range prog.Body {
+		var decls []*ast.VarDecl
+		switch d := st.(type) {
+		case *ast.VarDecl:
+			decls = []*ast.VarDecl{d}
+		case *ast.VarDeclGroup:
+			decls = d.Decls
+		default:
+			continue
+		}
+		for _, d := range decls {
+			if !strings.EqualFold(d.Scope, "static") {
+				continue
+			}
+			key := staticFuncKey(pp.fileTag, d.Name)
+			pp.fileStatics[d.Name] = c.addLocal(key) & 0x7FFF
+		}
+	}
+
+	return pp, nil
+}
+
+// compileProjectProgram compila as funções e métodos de um programa do
+// projeto, com o contexto por-arquivo ativo (estáticas e Static de
+// arquivo). O corpo principal não é compilado.
+func (c *Compiler) compileProjectProgram(pp *projectProgram) error {
+	prog := pp.prog
+	c.namespace = prog.Namespace
+	c.usingNamespaces = prog.UsingNamespaces
+	c.proj.current = pp
+	c.fileStatics = pp.fileStatics
+	defer func() {
+		c.proj.current = nil
+		c.fileStatics = nil
+	}()
+
+	for _, fn := range prog.Functions {
+		if err := c.compileFunction(fn); err != nil {
+			return err
+		}
+	}
+	for _, m := range prog.Methods {
+		if err := c.compileMethod(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// functionKey devolve a chave de registro da função no pool global. No
+// CompileProject, Static Function usa o nome qualificado do arquivo — o
+// nome puro não existe em bc.Functions.
+func (c *Compiler) functionKey(fn *ast.FunctionDecl) string {
+	if c.proj != nil && c.proj.current != nil && fn.IsStatic {
+		return staticFuncKey(c.proj.current.fileTag, strings.ToUpper(fn.Name))
+	}
+	return fn.Name
 }
 
 func (c *Compiler) compileProgram(prog *ast.Program) error {
@@ -213,7 +459,7 @@ func (c *Compiler) compileProgram(prog *ast.Program) error {
 }
 
 func (c *Compiler) compileFunction(fn *ast.FunctionDecl) error {
-	info := c.bc.Functions[fn.Name]
+	info := c.bc.Functions[c.functionKey(fn)]
 	info.Offset = len(c.bc.Code)
 
 	ctx := &funcContext{
@@ -1148,6 +1394,17 @@ func (c *Compiler) compileCallExpr(e *ast.CallExpr) error {
 		return nil
 	}
 
+	// Static Function do arquivo em compilação (CompileProject): resolve
+	// para a chave qualificada "STATIC:<ARQUIVO>:<NOME>". Vem antes das
+	// classes/built-ins porque a static é o vínculo mais específico do
+	// arquivo — mesmo motivo pelo qual hasFunction faz PoUI ceder a uma
+	// função do programa.
+	if c.proj != nil && c.proj.current != nil {
+		if key, ok := c.proj.current.statics[strings.ToUpper(e.Name)]; ok {
+			c.emit(OP_CALL_FUNC, 0, len(e.Args), key, e.Loc.Line)
+			return nil
+		}
+	}
 	// Check if this is a class constructor call (e.g., Calculator():New())
 	if _, isClass := c.bc.Classes[e.Name]; isClass {
 		if err := c.compileArgs(e.Args); err != nil {
