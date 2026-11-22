@@ -35,8 +35,11 @@ type Compiler struct {
 
 // projectProgram é um fonte dentro do CompileProject: suas Static Function
 // resolvem para chaves "STATIC:<ARQUIVO>:<NOME>" e seus Static de arquivo
-// têm slot global próprio (o corpo principal, que os inicializaria, é
-// ignorado — MainOffset aponta direto para OP_HALT).
+// têm slot global próprio. O corpo principal é ignorado, exceto os
+// inicializadores dos Static de arquivo — emitidos por
+// compileProjectStaticInit no início do "main" do projeto: MainOffset
+// aponta para o bloco de inicialização, que termina em OP_HALT (sem
+// Static de arquivo, MainOffset aponta direto para o OP_HALT).
 type projectProgram struct {
 	prog        *ast.Program
 	fileTag     string            // basename do arquivo em maiúsculas (com extensão)
@@ -592,7 +595,14 @@ func (c *Compiler) compileFunction(fn *ast.FunctionDecl) error {
 }
 
 func (c *Compiler) compileMethod(m *ast.MethodImpl) error {
-	funcName := m.ClassName + "::" + m.Name
+	// Classe/método com caixa diferente da declarada resolvem para a chave
+	// canônica — o OP_NEW_INSTANCE carrega o nome que a VM encontra em
+	// bc.Classes e o _Super: (ctx.className) aponta para a classe real.
+	className := m.ClassName
+	if key, ok := c.classKey(m.ClassName); ok {
+		className = key
+	}
+	funcName := className + "::" + m.Name
 	info := &FunctionInfo{
 		Name:       funcName,
 		NumParams:  len(m.Params) + 1, // +1 for self
@@ -604,17 +614,17 @@ func (c *Compiler) compileMethod(m *ast.MethodImpl) error {
 		info.ParamNames[i+1] = p.Name
 	}
 
-	cls, ok := c.bc.Classes[m.ClassName]
+	cls, ok := c.bc.Classes[className]
 	if !ok {
-		cls = &ClassInfo{Name: m.ClassName, Properties: make(map[string]string), Methods: make(map[string]*FunctionInfo)}
-		c.bc.Classes[m.ClassName] = cls
+		cls = &ClassInfo{Name: className, Properties: make(map[string]string), Methods: make(map[string]*FunctionInfo)}
+		c.bc.Classes[className] = cls
 	}
 	cls.Methods[m.Name] = info
 	c.bc.Functions[funcName] = info
 
 	ctx := &funcContext{
 		name:      funcName,
-		className: m.ClassName,
+		className: className,
 		locals:    make(map[string]int),
 		nextLocal: len(m.Params) + 1,
 	}
@@ -689,11 +699,13 @@ func (c *Compiler) addStringConst(s string) int {
 }
 
 // fileStatic: dentro de uma função, o índice global de um Static de arquivo.
+// Também vale no nível do arquivo quando há Static declarados (init de
+// Static do CompileProject: `Static b := a + 1` precisa enxergar `a`).
 // Lookup case-insensitive (AdvPL não diferencia maiúsculas): chave exata,
 // depois maiúsculas e por fim comparação dobrada — cobre Static declarados
 // com caixa mista no fonte único e as chaves em maiúsculas do projeto.
 func (c *Compiler) fileStatic(name string) (int, bool) {
-	if c.currentFunc == nil || c.fileStatics == nil {
+	if c.fileStatics == nil {
 		return 0, false
 	}
 	if idx, ok := c.fileStatics[name]; ok {
@@ -708,6 +720,24 @@ func (c *Compiler) fileStatic(name string) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// classKey resolve o nome de uma classe para a chave canônica registrada
+// em bc.Classes, ignorando caixa — AdvPL não diferencia maiúsculas, então
+// `Method X() Class REPO` e `Class Repo` são a mesma classe, e
+// `REPO():New()` instancia a `Repo` declarada. Devolve ("", false) quando
+// não há classe registrada; o chamador decide o fallback.
+func (c *Compiler) classKey(name string) (string, bool) {
+	if _, ok := c.bc.Classes[name]; ok {
+		return name, true
+	}
+	upper := strings.ToUpper(name)
+	for k := range c.bc.Classes {
+		if strings.ToUpper(k) == upper {
+			return k, true
+		}
+	}
+	return "", false
 }
 
 func (c *Compiler) resolveLocal(name string) (int, bool) {
@@ -1372,7 +1402,13 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 		if err := c.compileArgs(e.Args); err != nil { // via compileArgs p/ tratar NamedParam como nos demais calls
 			return err
 		}
-		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), e.ClassName, e.Loc.Line)
+		// Chave canônica da classe (caixa-insensível) — a VM resolve
+		// OP_NEW_INSTANCE por bc.Classes e falharia com caixa divergente.
+		className := e.ClassName
+		if key, ok := c.classKey(e.ClassName); ok {
+			className = key
+		}
+		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), className, e.Loc.Line)
 	case *ast.MacroExp:
 		if err := c.compileExpr(e.Expr); err != nil {
 			return err
@@ -1513,16 +1549,20 @@ func (c *Compiler) compileCallExpr(e *ast.CallExpr) error {
 	// função do programa.
 	if c.proj != nil && c.proj.current != nil {
 		if key, ok := c.proj.current.statics[strings.ToUpper(e.Name)]; ok {
+			if err := c.compileArgs(e.Args); err != nil {
+				return err
+			}
 			c.emit(OP_CALL_FUNC, 0, len(e.Args), key, e.Loc.Line)
 			return nil
 		}
 	}
-	// Check if this is a class constructor call (e.g., Calculator():New())
-	if _, isClass := c.bc.Classes[e.Name]; isClass {
+	// Check if this is a class constructor call (e.g., Calculator():New()).
+	// classKey resolve a caixa divergente (`REPO():New()` acha `Class Repo`).
+	if key, isClass := c.classKey(e.Name); isClass {
 		if err := c.compileArgs(e.Args); err != nil {
 			return err
 		}
-		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), e.Name, e.Loc.Line)
+		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), key, e.Loc.Line)
 		return nil
 	}
 	// Check known built-in classes

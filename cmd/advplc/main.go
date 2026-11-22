@@ -444,6 +444,10 @@ func compilaDiretorioDeps(dir string, opts *Options) (*compiler.Bytecode, []stri
 	if err != nil {
 		return nil, nil, fmt.Errorf("compiler error: %v", err)
 	}
+	// Watch: além dos includes resolvidos, vigia os CANDIDATOS de
+	// #include (inclusive os que ainda não existem) — criar um .ch
+	// referenciado precisa mudar a assinatura e disparar recompilação.
+	deps = append(deps, candidatosIncludes(anexaRaizes(files, deps), includes)...)
 	return bc, deps, nil
 }
 
@@ -460,7 +464,65 @@ func compilaFonteDeps(sourceFile string, opts *Options) (*compiler.Bytecode, []s
 	if err != nil {
 		return nil, nil, fmt.Errorf("compiler error: %v", err)
 	}
+	deps = append(deps, candidatosIncludes(anexaRaizes([]string{sourceFile}, deps), includes)...)
 	return bc, deps, nil
+}
+
+// anexaRaizes junta fontes e dependências já resolvidas numa lista de
+// raízes para a varredura de candidatos de #include.
+func anexaRaizes(fontes, deps []string) []string {
+	out := make([]string, 0, len(fontes)+len(deps))
+	out = append(out, fontes...)
+	return append(out, deps...)
+}
+
+// reIncludeDiretiva casa `#include "x"` / `#include <x>` (qualquer caixa)
+// no texto bruto — usado só pelo watch, para achar diretivas que o
+// preprocessor não resolveu (include ainda inexistente não vira dep).
+var reIncludeDiretiva = regexp.MustCompile(`(?im)^\s*#include\s+[<"]([^>"]+)[>"]`)
+
+// candidatosIncludes varre fontes e includes já resolvidos (worklist)
+// atrás de diretivas #include e devolve todos os caminhos candidatos,
+// espelhando a busca do preprocessor: diretório do arquivo, caminhos de
+// --include e subpastas ch/include/includes. Candidatos inexistentes
+// entram na assinatura como "missing" — quando o arquivo for criado, a
+// impressão digital muda e o watch recompila. Includes resolvidos são
+// varridos recursivamente (um .ch pode incluir outro .ch).
+func candidatosIncludes(raizes, includes []string) []string {
+	vistos := make(map[string]bool)
+	var out []string
+	fila := append([]string(nil), raizes...)
+	for len(fila) > 0 {
+		f := fila[0]
+		fila = fila[1:]
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		dirs := []string{filepath.Dir(f)}
+		dirs = append(dirs, includes...)
+		for _, m := range reIncludeDiretiva.FindAllSubmatch(data, -1) {
+			nome := string(m[1])
+			for _, dir := range dirs {
+				for _, sub := range []string{"", "ch", "include", "includes"} {
+					base := dir
+					if sub != "" {
+						base = filepath.Join(dir, sub)
+					}
+					cand := filepath.Join(base, nome)
+					if vistos[cand] {
+						continue
+					}
+					vistos[cand] = true
+					out = append(out, cand)
+					if info, err := os.Stat(cand); err == nil && info.Mode().IsRegular() {
+						fila = append(fila, cand)
+					}
+				}
+			}
+		}
+	}
+	return out
 }
 
 // compilaAlvo escolhe o pipeline pelo argumento do serve: diretório vira

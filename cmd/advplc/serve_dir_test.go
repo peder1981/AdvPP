@@ -204,6 +204,48 @@ User Function FA()
 	}
 }
 
+// O watch cobre #include que ainda NÃO existia: os caminhos candidatos
+// entram na assinatura como "missing" e, quando o .ch é criado depois, a
+// assinatura muda — e a recompilação passa a enxergar o conteúdo.
+func TestAssinaturaDiretorioIncludeFuturo(t *testing.T) {
+	dir := t.TempDir()
+	escreveFonteProjeto(t, dir, "a.prw", `#include "depois.ch"
+User Function FA()
+	Return FC()
+`)
+
+	_, deps, err := compilaDiretorioDeps(dir, &Options{})
+	if err != nil {
+		t.Fatalf("compilaDiretorioDeps: %v", err)
+	}
+	sig1, err := assinaturaFonte(dir, deps)
+	if err != nil {
+		t.Fatalf("assinaturaFonte: %v", err)
+	}
+
+	// Cria o include depois da primeira compilação.
+	time.Sleep(5 * time.Millisecond)
+	escreveFonteProjeto(t, dir, "depois.ch", `User Function FC()
+	Return "inc"
+`)
+	sig2, err := assinaturaFonte(dir, deps)
+	if err != nil {
+		t.Fatalf("assinaturaFonte: %v", err)
+	}
+	if sig2 == sig1 {
+		t.Fatal("assinatura não mudou após criar o .ch referenciado")
+	}
+
+	// Recompilação enxerga o conteúdo do include criado.
+	bc, _, err := compilaDiretorioDeps(dir, &Options{})
+	if err != nil {
+		t.Fatalf("compilaDiretorioDeps (2): %v", err)
+	}
+	if _, ok := bc.Functions["FC"]; !ok {
+		t.Fatal("função do .ch criado depois não foi compilada")
+	}
+}
+
 // `advplc serve <diretório>` usa o mesmo caminho de compilação do projeto;
 // `advplc serve <arquivo>` continua compilando um fonte só.
 func TestCompilaAlvoDiretorio(t *testing.T) {

@@ -295,6 +295,106 @@ User Function FB()
 	}
 }
 
+// Static Function chamada com argumentos: posicionais saem na ordem e
+// nomeados são reordenados pelos ParamNames — os args precisam ser
+// empilhados antes do OP_CALL_FUNC.
+func TestProjetoStaticComArgumentos(t *testing.T) {
+	a := parseProjeto(t, "a.prw", `
+Static Function Soma(x, y)
+	Return x + y
+
+User Function FA()
+	Return cValToChar(Soma(2, 3))
+
+User Function FB()
+	Return cValToChar(Soma(y := 10, x := 5))
+`)
+	bc, err := compiler.CompileProject([]*ast.Program{a})
+	if err != nil {
+		t.Fatalf("CompileProject: %v", err)
+	}
+	if got := rodaFuncao(t, bc, "FA"); got != "5" {
+		t.Fatalf("FA() = %q, esperava %q", got, "5")
+	}
+	if got := rodaFuncao(t, bc, "FB"); got != "15" {
+		t.Fatalf("FB() = %q, esperava %q", got, "15")
+	}
+}
+
+// Inicializador de Static de arquivo enxerga outros Static do MESMO
+// arquivo: `Static nB := nA + 1` lê o slot global de nA, gravado pelo
+// inicializador anterior no main do projeto. Slots continuam isolados
+// por arquivo.
+func TestProjetoStaticArquivoVeOutroStatic(t *testing.T) {
+	a := parseProjeto(t, "a.prw", `
+Static nA := 1
+Static nB := nA + 1
+
+User Function FA()
+	Return cValToChar(nB)
+`)
+	b := parseProjeto(t, "b.prw", `
+Static nB := 7
+
+User Function FB()
+	Return cValToChar(nB)
+`)
+	bc, err := compiler.CompileProject([]*ast.Program{a, b})
+	if err != nil {
+		t.Fatalf("CompileProject: %v", err)
+	}
+	v := vm.NewVM(bc, false)
+	if _, err := v.Run(); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	val, err := v.RunFunction("FA", nil)
+	if err != nil {
+		t.Fatalf("RunFunction(FA): %v", err)
+	}
+	if got := advplrt.ToString(val); got != "2" {
+		t.Fatalf("FA() = %q, esperava %q", got, "2")
+	}
+	val, err = v.RunFunction("FB", nil)
+	if err != nil {
+		t.Fatalf("RunFunction(FB): %v", err)
+	}
+	if got := advplrt.ToString(val); got != "7" {
+		t.Fatalf("FB() = %q, esperava %q", got, "7")
+	}
+}
+
+// Classe e método resolvem case-insensitive entre arquivos: `Method ...
+// Class REPO` e `REPO():New()` encontram a `Class Repo` declarada em
+// outro fonte — sem criar uma segunda classe "REPO".
+func TestProjetoClasseEMetodoCaseInsensitive(t *testing.T) {
+	// impl.tlpp primeiro de propósito: a resolução não pode depender da
+	// ordem da lista (o registro de classes é um passe à parte).
+	impl := parseProjeto(t, "impl.tlpp", `
+Method New() Class REPO
+	::cX := "ok"
+	Return Self
+
+User Function Faz()
+	Local o := REPO():New()
+	Return o:cX
+`)
+	decl := parseProjeto(t, "decl.tlpp", `
+Class Repo
+	Method New()
+EndClass
+`)
+	bc, err := compiler.CompileProject([]*ast.Program{impl, decl})
+	if err != nil {
+		t.Fatalf("CompileProject: %v", err)
+	}
+	if _, ok := bc.Classes["REPO"]; ok {
+		t.Fatal("caixa divergente criou uma segunda classe REPO")
+	}
+	if got := rodaFuncao(t, bc, "Faz"); got != "ok" {
+		t.Fatalf("Faz() = %q, esperava %q", got, "ok")
+	}
+}
+
 // CompileProject rejeita entrada vazia/nil com erro claro.
 func TestProjetoVazioErro(t *testing.T) {
 	if _, err := compiler.CompileProject(nil); err == nil {

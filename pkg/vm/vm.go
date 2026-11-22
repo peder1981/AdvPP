@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1810,22 +1811,27 @@ func (v *VM) reorderNamedArgs(args []advplrt.Value, paramNames []string) []advpl
 func (v *VM) findMethod(className, methodName string) string {
 	upperMethod := strings.ToUpper(methodName)
 	// Check user-defined classes in bytecode
-	for {
-		if cls, ok := v.bc.Classes[className]; ok {
-			// Try original case first, then uppercase
-			if m, ok := cls.Methods[methodName]; ok {
-				return m.Name
-			}
-			if m, ok := cls.Methods[upperMethod]; ok {
-				return m.Name
-			}
-			className = cls.Parent
-		} else {
+	for className != "" {
+		// bcClassInfo é case-insensitive: o Parent gravado no ClassInfo e o
+		// nome usado na chamada podem ter caixa diferente da declarada.
+		cls, ok := v.bcClassInfo(className)
+		if !ok {
 			break
 		}
-		if className == "" {
-			break
+		// Try original case first, then uppercase
+		if m, ok := cls.Methods[methodName]; ok {
+			return m.Name
 		}
+		if m, ok := cls.Methods[upperMethod]; ok {
+			return m.Name
+		}
+		// Caixa divergente na declaração do método (`Method MeuMetodo`
+		// chamado como `:meumetodo()`): fallback dobrado, em ordem
+		// determinística para não depender da ordem do mapa.
+		if names := methodKeysFold(cls.Methods, methodName); len(names) > 0 {
+			return cls.Methods[names[0]].Name
+		}
+		className = cls.Parent
 	}
 	// Check native classes registered in v.classes
 	if cls, ok := v.classes[strings.ToUpper(className)]; ok {
@@ -1834,6 +1840,21 @@ func (v *VM) findMethod(className, methodName string) string {
 		}
 	}
 	return ""
+}
+
+// methodKeysFold devolve, em ordem alfabética, as chaves de methods que
+// casam com methodName ignorando caixa. Ordenado para que o fallback de
+// findMethod seja determinístico mesmo se duas chaves diferirem só por
+// caixa (situação que a deduplicação de projeto já impede).
+func methodKeysFold(methods map[string]*compiler.FunctionInfo, methodName string) []string {
+	var out []string
+	for k := range methods {
+		if strings.EqualFold(k, methodName) {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ---------------------------------------------------------------------------

@@ -155,7 +155,12 @@ func TestSuperNativoRegistrado(t *testing.T) {
     com o nome qualificado.
   - `User Function` e classes são globais. Nome duplicado entre arquivos dá erro
     citando os dois arquivos.
-  - O corpo principal de cada programa é ignorado (`MainOffset` → `HALT`).
+  - O corpo principal de cada programa é ignorado, exceto os inicializadores dos
+    `Static` de arquivo, emitidos no início do "main" (`MainOffset` aponta para o
+    bloco de inicialização, que termina em `OP_HALT`; sem `Static`, aponta direto
+    para o `HALT`). Desvio documentado na implementação: o plano original previa
+    `MainOffset` → `HALT` direto, mas inicializar `Static` de arquivo exige código
+    executável antes do halt.
   - `func compilaDiretorio(dir string, opts *Options) (*compiler.Bytecode, error)` em
     `cmd/advplc`: preprocessa e parseia cada `.prw`/`.prx`/`.tlpp` (não recursivo) com
     `dir` no include path. Ordem dos arquivos: alfabética, para manter o determinismo.
