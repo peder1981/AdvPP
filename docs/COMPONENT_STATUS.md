@@ -259,8 +259,9 @@ ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
 - ✅ **Path params** (`/clientes/{id}`) via roteador nativo do Go 1.22+
   (`http.ServeMux`), populados no objeto de argumento da função AdvPL
 - ✅ **Query string e corpo JSON** decodificados e mesclados no objeto
-  de argumento (`oParam:CAMPO`) — corpo tem precedência sobre path
-  params, que tem precedência sobre query string
+  de argumento (`oParam:CAMPO`) — path params têm precedência sobre o
+  corpo JSON, que tem precedência sobre a query string (o path vem do
+  roteamento e não pode ser falsificado pelo corpo)
 - ✅ **Dispatch real para a função AdvPL** via VM isolada por requisição
   (mesmo mecanismo do `MCPServer`/`StartJob`: `v.RunFunction`), banco e
   bytecode compartilhados

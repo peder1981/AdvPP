@@ -1,0 +1,31 @@
+// Endpoints REST do adapter de armazéns (plano PO-UI onda 1, Task 7).
+// A query string (page/pageSize/filter/order/fields) é lida da requisição
+// corrente pelo próprio adapter — o oRest só devolve a resposta.
+
+@Get("/api/est/v1/armazens")
+User Function ArmazensList(oParam)
+	Local oRepo := ArmazensRepo():New("GET", .T.)
+	oRepo:SetQuery("SELECT #QueryFields# FROM NNR #QueryWhere#")
+	If !oRepo:Execute()
+		oRest:setStatusCode(400)
+		oRest:setResponse({"message": oRepo:GetErrorMessage()})
+		Return Nil
+	EndIf
+	oRest:setResponse(oRepo:GetJsonResponse())
+Return Nil
+
+@Get("/api/est/v1/armazensfix")
+User Function ArmazensFix(oParam)
+	// Mesma lista, mas com WHERE/ORDER explícitos do fonte — a URL só
+	// controla paginação.
+	Local oRepo := ArmazensRepo():New("GET", .T.)
+	oRepo:SetQuery("SELECT #QueryFields# FROM NNR #QueryWhere#")
+	oRepo:SetWhere("NNR_DESCRI <> ''")
+	oRepo:SetOrder("-codigo")
+	If !oRepo:Execute()
+		oRest:setStatusCode(400)
+		oRest:setResponse({"message": oRepo:GetErrorMessage()})
+		Return Nil
+	EndIf
+	oRest:setResponse(oRepo:GetJsonResponse())
+Return Nil

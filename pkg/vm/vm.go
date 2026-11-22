@@ -16,6 +16,7 @@ import (
 
 	"github.com/advpl/compiler/pkg/compiler"
 	"github.com/advpl/compiler/pkg/mvc"
+	"github.com/advpl/compiler/pkg/rest"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
@@ -142,6 +143,7 @@ type VM struct {
 	legacyProxyPass       string                        // senha do proxy HTTP (SetProxy)
 	legacyNoProxyFor      []string                      // domínios que não usam proxy (SetNoProxyFor), com curingas *
 	wsRestReq             *wsRestReq                    // requisição WSRESTFUL clássica em curso nesta VM (nil fora de dispatch REST)
+	restReq               *rest.Request                 // requisição REST corrente (rotas anotadas e WSRESTFUL) — lida por FWAdapterBaseV2/FwApiManager
 	filialAtiva           string                        // filial ativa da sessão (RpcSetEnv/FWxFilial), 6 chars GG+UU+FF; "" = nenhuma definida ainda
 	stdinReader           *bufio.Reader                 // leitor de linha do stdin (ConIn), lazy
 	inputHistory          []string                      // histórico de linhas do ConIn (setas up/down), últimas inputHistoryLimit

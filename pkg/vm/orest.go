@@ -57,6 +57,8 @@ func (v *VM) orestRawHandlerFor(funcName string) func(*rest.Request) *rest.Respo
 		// (OP_DECL_DYN registra restore; Local resolve antes do dyn).
 		job.dynEnv["oRest"] = oRestObj
 		job.dynEnv["OREST"] = oRestObj
+		job.restReq = req
+		defer func() { job.restReq = nil }()
 
 		argObj := jsonMapToAdvplObject(params)
 		result, err := job.RunFunction(funcName, []advplrt.Value{argObj})

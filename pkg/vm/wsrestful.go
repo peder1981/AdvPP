@@ -171,7 +171,8 @@ func (v *VM) dispatchWSRestful(cls *compiler.ClassInfo, minfo *compiler.Function
 	obj := job.newWSRestfulInstance(cls, state, req, routePath)
 
 	job.wsRestReq = state
-	defer func() { job.wsRestReq = nil }()
+	job.restReq = req
+	defer func() { job.wsRestReq = nil; job.restReq = nil }()
 
 	result, err := job.invokeWSRestfulMethod(obj, minfo)
 	if err != nil {
