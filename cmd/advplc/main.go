@@ -9,12 +9,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/advpl/compiler/pkg/ast"
 	"github.com/advpl/compiler/pkg/compiler"
 	"github.com/advpl/compiler/pkg/dap"
 	"github.com/advpl/compiler/pkg/db"
@@ -318,26 +320,18 @@ func loadAndCompile(sourceFile string, opts *Options) (*compiler.Bytecode, error
 	return bc, err
 }
 
-// compilaComAvisos é o loadAndCompile que também devolve os avisos do parser
-// (problemas que compilam, como no Protheus, mas que o check mostra).
-func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []parser.Aviso, error) {
+// parseFonteComAvisos lê, preprocessa, lexa e parseia um fonte AdvPL/TLPP,
+// devolvendo o AST, os avisos do parser+preprocessador e as dependências
+// resolvidas (#include). includes já deve vir completo (o chamador decide
+// os diretórios de #include).
+func parseFonteComAvisos(sourceFile string, includes []string, opts *Options) (*ast.Program, []parser.Aviso, []string, error) {
 	source, err := os.ReadFile(sourceFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read file %s: %v", sourceFile, err)
+		return nil, nil, nil, fmt.Errorf("cannot read file %s: %v", sourceFile, err)
 	}
 
 	// Detect and convert CP1252 encoding to UTF-8 if needed
 	sourceStr := preprocessor.SourceToUTF8(source)
-
-	// Add default include paths
-	includes := opts.includes
-	includes = append(includes, filepath.Dir(sourceFile))
-
-	// Add defines from command line
-	for k, v := range opts.defines {
-		_ = k
-		_ = v
-	}
 
 	// Preprocess
 	pp := preprocessor.NewPreprocessor(includes)
@@ -346,28 +340,22 @@ func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []p
 	}
 	processed, err := pp.Process(sourceStr, sourceFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("preprocessor error: %v", err)
+		return nil, nil, nil, fmt.Errorf("preprocessor error: %v", err)
 	}
 
 	// Lex
 	tokens, err := lexer.Tokenize(processed, sourceFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("lexer error: %v", err)
+		return nil, nil, nil, fmt.Errorf("lexer error: %v", err)
 	}
 
 	// Parse
 	p := parser.NewParser(tokens, sourceFile, pp.GetDefines())
 	prog, err := p.Parse()
 	if err != nil {
-		return nil, nil, fmt.Errorf("parser error: %v", err)
+		return nil, nil, nil, fmt.Errorf("parser error: %v", err)
 	}
 	prog.RootBoundaryLine = pp.RootBoundaryLine
-
-	// Compile
-	bc, err := compiler.Compile(prog)
-	if err != nil {
-		return nil, nil, fmt.Errorf("compiler error: %v", err)
-	}
 
 	avisos := p.Avisos()
 	for _, a := range pp.Avisos() {
@@ -377,7 +365,181 @@ func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []p
 		}
 		avisos = append(avisos, parser.Aviso{Line: a.Linha, Col: 1, Message: msg})
 	}
+	return prog, avisos, pp.Dependencias(), nil
+}
+
+// compilaComAvisos é o loadAndCompile que também devolve os avisos do parser
+// (problemas que compilam, como no Protheus, mas que o check mostra).
+func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []parser.Aviso, error) {
+	// Add default include paths (cópia: append não pode vazar no opts.includes)
+	includes := append([]string{}, opts.includes...)
+	includes = append(includes, filepath.Dir(sourceFile))
+
+	prog, avisos, _, err := parseFonteComAvisos(sourceFile, includes, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Compile
+	bc, err := compiler.Compile(prog)
+	if err != nil {
+		return nil, nil, fmt.Errorf("compiler error: %v", err)
+	}
 	return bc, avisos, nil
+}
+
+// extFonteProjeto: extensões que compilaDiretorio carrega num "RPO".
+func extFonteProjeto(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".prw", ".prx", ".tlpp":
+		return true
+	}
+	return false
+}
+
+// compilaDiretorio compila todos os fontes .prw/.prx/.tlpp da raiz de dir
+// (não recursivo) num único bytecode via CompileProject — é o que
+// `advplc serve <diretório>` carrega. Ordem alfabética dos arquivos mantém
+// o bytecode determinístico.
+func compilaDiretorio(dir string, opts *Options) (*compiler.Bytecode, error) {
+	bc, _, err := compilaDiretorioDeps(dir, opts)
+	return bc, err
+}
+
+// compilaDiretorioDeps é o compilaDiretorio que também devolve as
+// dependências resolvidas (#include) de todos os fontes — o --watch usa
+// para recompilar quando um .ch/include muda.
+func compilaDiretorioDeps(dir string, opts *Options) (*compiler.Bytecode, []string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read directory %s: %v", dir, err)
+	}
+	files := make([]string, 0, len(entries))
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil || !info.Mode().IsRegular() || !extFonteProjeto(e.Name()) {
+			continue // só arquivos regulares .prw/.prx/.tlpp
+		}
+		files = append(files, filepath.Join(dir, e.Name()))
+	}
+	sort.Strings(files)
+	if len(files) == 0 {
+		return nil, nil, fmt.Errorf("no .prw/.prx/.tlpp sources in %s", dir)
+	}
+
+	includes := append([]string{}, opts.includes...)
+	includes = append(includes, dir)
+	progs := make([]*ast.Program, 0, len(files))
+	deps := make([]string, 0, len(files))
+	for _, f := range files {
+		prog, avisos, d, err := parseFonteComAvisos(f, includes, opts)
+		mostraAvisos(f, avisos)
+		if err != nil {
+			return nil, nil, err
+		}
+		progs = append(progs, prog)
+		deps = append(deps, d...)
+	}
+	bc, err := compiler.CompileProject(progs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("compiler error: %v", err)
+	}
+	// Watch: além dos includes resolvidos, vigia os CANDIDATOS de
+	// #include (inclusive os que ainda não existem) — criar um .ch
+	// referenciado precisa mudar a assinatura e disparar recompilação.
+	deps = append(deps, candidatosIncludes(anexaRaizes(files, deps), includes)...)
+	return bc, deps, nil
+}
+
+// compilaFonteDeps é o loadAndCompile que também devolve as dependências
+// (#include) do fonte — para o --watch de arquivo único.
+func compilaFonteDeps(sourceFile string, opts *Options) (*compiler.Bytecode, []string, error) {
+	includes := append([]string{}, opts.includes...)
+	includes = append(includes, filepath.Dir(sourceFile))
+	prog, _, deps, err := parseFonteComAvisos(sourceFile, includes, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	bc, err := compiler.Compile(prog)
+	if err != nil {
+		return nil, nil, fmt.Errorf("compiler error: %v", err)
+	}
+	deps = append(deps, candidatosIncludes(anexaRaizes([]string{sourceFile}, deps), includes)...)
+	return bc, deps, nil
+}
+
+// anexaRaizes junta fontes e dependências já resolvidas numa lista de
+// raízes para a varredura de candidatos de #include.
+func anexaRaizes(fontes, deps []string) []string {
+	out := make([]string, 0, len(fontes)+len(deps))
+	out = append(out, fontes...)
+	return append(out, deps...)
+}
+
+// reIncludeDiretiva casa `#include "x"` / `#include <x>` (qualquer caixa)
+// no texto bruto — usado só pelo watch, para achar diretivas que o
+// preprocessor não resolveu (include ainda inexistente não vira dep).
+var reIncludeDiretiva = regexp.MustCompile(`(?im)^\s*#include\s+[<"]([^>"]+)[>"]`)
+
+// candidatosIncludes varre fontes e includes já resolvidos (worklist)
+// atrás de diretivas #include e devolve todos os caminhos candidatos,
+// espelhando a busca do preprocessor: diretório do arquivo, caminhos de
+// --include e subpastas ch/include/includes. Candidatos inexistentes
+// entram na assinatura como "missing" — quando o arquivo for criado, a
+// impressão digital muda e o watch recompila. Includes resolvidos são
+// varridos recursivamente (um .ch pode incluir outro .ch).
+func candidatosIncludes(raizes, includes []string) []string {
+	vistos := make(map[string]bool)
+	var out []string
+	fila := append([]string(nil), raizes...)
+	for len(fila) > 0 {
+		f := fila[0]
+		fila = fila[1:]
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		dirs := []string{filepath.Dir(f)}
+		dirs = append(dirs, includes...)
+		for _, m := range reIncludeDiretiva.FindAllSubmatch(data, -1) {
+			nome := string(m[1])
+			for _, dir := range dirs {
+				for _, sub := range []string{"", "ch", "include", "includes"} {
+					base := dir
+					if sub != "" {
+						base = filepath.Join(dir, sub)
+					}
+					cand := filepath.Join(base, nome)
+					if vistos[cand] {
+						continue
+					}
+					vistos[cand] = true
+					out = append(out, cand)
+					if info, err := os.Stat(cand); err == nil && info.Mode().IsRegular() {
+						fila = append(fila, cand)
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+// compilaAlvo escolhe o pipeline pelo argumento do serve: diretório vira
+// projeto (vários fontes, como um RPO); arquivo continua fonte único.
+func compilaAlvo(sourceFile string, opts *Options) (*compiler.Bytecode, error) {
+	bc, _, err := compilaAlvoDeps(sourceFile, opts)
+	return bc, err
+}
+
+// compilaAlvoDeps é o compilaAlvo que também devolve as dependências
+// resolvidas (#include) do alvo — fonte único ou todas as fontes do
+// diretório.
+func compilaAlvoDeps(sourceFile string, opts *Options) (*compiler.Bytecode, []string, error) {
+	if st, err := os.Stat(sourceFile); err == nil && st.IsDir() {
+		return compilaDiretorioDeps(sourceFile, opts)
+	}
+	return compilaFonteDeps(sourceFile, opts)
 }
 
 func runFile(sourceFile string, opts *Options) error {
@@ -438,7 +600,18 @@ func mostraAvisos(sourceFile string, avisos []parser.Aviso) {
 // (fase 1: console + diálogos). Cada aba/recarga do browser cria uma
 // sessão com VM isolada — mesma semântica de work process do StartJob.
 func serveFile(sourceFile string, opts *Options) error {
-	bc, err := loadAndCompile(sourceFile, opts)
+	// Diretório vira projeto (todos os fontes num bytecode só, como um
+	// RPO); arquivo segue fonte único. compilaAlvoDeps decide pelo
+	// os.Stat e devolve as dependências (#include) para o --watch.
+	var deps atomic.Value // []string — deps do último compile bem-sucedido
+	compile := func() (*compiler.Bytecode, error) {
+		bc, d, err := compilaAlvoDeps(sourceFile, opts)
+		if err == nil {
+			deps.Store(d)
+		}
+		return bc, err
+	}
+	bc, err := compile()
 	if err != nil {
 		return err
 	}
@@ -481,8 +654,14 @@ func serveFile(sourceFile string, opts *Options) error {
 			return err
 		})
 
+	// REST TOTVS (@Get/... e WSRESTFUL) montado sob shared.ResolveRestPrefix
+	// ("/rest" por padrão). O ponteiro atômico é trocado pelo --watch.
+	restSrv := montaRESTNoServe(bc, opts, srv)
+
 	if opts.watch {
-		go watchSource(sourceFile, opts, &current, srv)
+		go watchSource(sourceFile, compile, &deps, &current, srv, func(bc *compiler.Bytecode) {
+			registraRest(bc, opts, restSrv)
+		})
 	}
 
 	if opts.debugPort != "" {
@@ -522,28 +701,73 @@ func serveDebugAttach(port, sourceFile string, dbgSrv *atomic.Pointer[dap.Server
 	}
 }
 
-// watchSource observa o fonte (polling de mtime, sem dependências) e, a cada
-// alteração, recompila e manda as sessões do browser recarregarem. Erro de
-// compilação vai para o console do browser em vez de recarregar.
-func watchSource(sourceFile string, opts *Options, current *atomic.Pointer[compiler.Bytecode], srv *webui.Server) {
-	lastMod := time.Time{}
-	if info, err := os.Stat(sourceFile); err == nil {
-		lastMod = info.ModTime()
+// assinaturaFonte devolve uma impressão digital do alvo do watch: mtime do
+// arquivo, ou a lista "nome:mtime" dos fontes do projeto (diretório), mais
+// o mtime de cada dependência resolvida (#include/.ch — deps vem do último
+// compile). Mudança de conteúdo, de nome, de conjunto de arquivos ou de um
+// include dispara recompilação.
+func assinaturaFonte(sourceFile string, deps []string) (string, error) {
+	st, err := os.Stat(sourceFile)
+	if err != nil {
+		return "", err
 	}
+	var b strings.Builder
+	if st.IsDir() {
+		entries, err := os.ReadDir(sourceFile)
+		if err != nil {
+			return "", err
+		}
+		for _, e := range entries {
+			info, err := e.Info()
+			if err != nil || !info.Mode().IsRegular() || !extFonteProjeto(e.Name()) {
+				continue
+			}
+			fmt.Fprintf(&b, "%s:%d;", e.Name(), info.ModTime().UnixNano())
+		}
+	} else {
+		fmt.Fprintf(&b, "%s:%d", sourceFile, st.ModTime().UnixNano())
+	}
+	for _, d := range deps {
+		if info, err := os.Stat(d); err == nil {
+			fmt.Fprintf(&b, "|%s:%d", d, info.ModTime().UnixNano())
+		} else {
+			fmt.Fprintf(&b, "|%s:missing", d)
+		}
+	}
+	return b.String(), nil
+}
+
+// watchSource observa o fonte (polling de mtime, sem dependências) — ou o
+// conjunto de fontes e seus #include, quando o alvo é um diretório — e, a
+// cada alteração, recompila e manda as sessões do browser recarregarem.
+// Erro de compilação vai para o console do browser em vez de recarregar.
+func watchSource(sourceFile string, compile func() (*compiler.Bytecode, error), deps *atomic.Value, current *atomic.Pointer[compiler.Bytecode], srv *webui.Server, onRecompiled ...func(*compiler.Bytecode)) {
+	sig := func() string {
+		d, _ := deps.Load().([]string)
+		s, err := assinaturaFonte(sourceFile, d)
+		if err != nil {
+			return ""
+		}
+		return s
+	}
+	lastSig := sig()
 	for {
 		time.Sleep(500 * time.Millisecond)
-		info, err := os.Stat(sourceFile)
-		if err != nil || !info.ModTime().After(lastMod) {
+		s := sig()
+		if s == lastSig {
 			continue
 		}
-		lastMod = info.ModTime()
-		bc, err := loadAndCompile(sourceFile, opts)
+		lastSig = s
+		bc, err := compile()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "watch: erro de compilação: %v\n", err)
 			srv.Broadcast("error", fmt.Sprintf("erro de compilação: %v", err))
 			continue
 		}
 		current.Store(bc)
+		if len(onRecompiled) > 0 && onRecompiled[0] != nil {
+			onRecompiled[0](bc)
+		}
 		fmt.Printf("watch: %s recompilado, recarregando sessões\n", filepath.Base(sourceFile))
 		srv.Broadcast("reload", "fonte alterado")
 	}
@@ -825,7 +1049,10 @@ Commands:
   compile   Compile source to bytecode file (use -o for output)
   exec      Execute a compiled bytecode file
   check     Validate syntax without executing (accepts multiple files)
-  serve     Run the program with the UI rendered in the browser (web mode)
+  serve     Run the program with the UI rendered in the browser (web mode);
+            accepts a source file or a directory — a directory loads every
+            .prw/.prx/.tlpp in it as one project (like an RPO), with
+            cross-file classes/functions and per-file Static Function
   build     Compile to a standalone desktop executable (Fyne) with embedded
             bytecode (use -o for output; run from within the repo or set
             ADVPP_SRC so the stub can find a checkout of this module)
@@ -872,6 +1099,7 @@ Examples:
   advplc check program.prw --include ./includes
   advplc check a.prw b.prw --format json
   advplc serve program.prw --port 9000 --watch
+  advplc serve ./fontes --watch
   advplc serve --apps ./apps --home inicio
   advplc build program.prw -o myapp --db-path ./data.db
   advplc build app.prw -o MyApp --gui

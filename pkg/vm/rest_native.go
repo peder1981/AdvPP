@@ -17,6 +17,10 @@ import (
 // Function pelo nome numa VM isolada).
 type restState struct {
 	server *rest.Server
+	// regErrors acumula os erros de registro das rotas WSRESTFUL
+	// (RegistrarWSRestful devolve []error; WSRestServer:New não tem como
+	// propagá-los — ficam aqui para diagnóstico futuro).
+	regErrors []error
 }
 
 func newWSRestServerObject() *advplrt.ObjectValue {
@@ -42,12 +46,9 @@ var restVerbAnnotations = map[string]string{
 // (pkg/rest).
 //
 // Cobre o estilo moderno de REST 2.0 do TLPP (anotações sobre `User
-// Function`), que carrega verbo+path completos até o bytecode
-// (FunctionInfo.Annotations). O DSL clássico `WSRESTFUL ... WSMETHOD GET
-// path("...") ... ENDWSRESTFUL` é reconhecido pelo parser (parseWSClient)
-// mas hoje descarta o path e o verbo ao virar ast.ClassDecl — ver
-// limitação documentada em COMPONENT_STATUS.md. Para esse estilo, use
-// AddRoute() para registrar a rota manualmente.
+// Function`) e o DSL clássico WSRESTFUL (verbo+PATH de cada WSMETHOD em
+// ClassInfo.Annotations, formato "<VERBO>|<Nome>|<PATH>") — este último é
+// despachado por pkg/vm/wsrestful.go via Route.Raw.
 func (v *VM) callWSRestServerMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
 	st, ok := obj.Native.(*restState)
 	if !ok {
@@ -63,6 +64,7 @@ func (v *VM) callWSRestServerMethod(obj *advplrt.ObjectValue, method string, arg
 		}
 		st.server = rest.NewServer(name, version)
 		v.autoRegisterAnnotatedRoutes(st.server)
+		st.regErrors = append(st.regErrors, v.RegistrarWSRestful(st.server, "")...)
 		v.push(obj)
 
 	case "ADDROUTE":
@@ -120,10 +122,24 @@ func (v *VM) callWSRestServerMethod(obj *advplrt.ObjectValue, method string, arg
 	return nil
 }
 
+// RegisterRestRoutes registra no servidor rest.Server todas as rotas do
+// bytecode: anotações @Get/@Post/@Put/@Patch/@Delete (Route.Raw com oRest)
+// e o DSL clássico WSRESTFUL/WSMETHOD. Devolve os erros de registro sem
+// abortar as demais rotas — é o que o `advplc serve` usa para montar o
+// REST na mesma origem do modo web (serve_rest.go).
+func (v *VM) RegisterRestRoutes(server *rest.Server) []error {
+	v.autoRegisterAnnotatedRoutes(server)
+	return v.RegistrarWSRestful(server, "")
+}
+
 // autoRegisterAnnotatedRoutes varre as funções do bytecode carregado
-// procurando anotações @Get/@Post/@Put/@Patch/@Delete("/path") — o estilo
-// REST 2.0 moderno do TLPP — e registra cada uma como rota. Anotações sem
-// path explícito viram "/" + nome da função em minúsculas.
+// procurando anotações @Get/@Post/@Put/@Patch/@Delete — o estilo REST 2.0
+// moderno do TLPP — e registra cada uma como rota Raw (pkg/vm/orest.go),
+// que dá à função acesso ao objeto oRest do TOTVS e ao Request de baixo
+// nível. Aceita as formas "@Get(\"/path\")", "@Get('/path')",
+// "@Get(endpoint=\"/path\", description=\"...\")" e "@Get(\"/a/:id\")"
+// (":param" vira "{param}" via rest.NormalizaPath). Anotações sem path
+// explícito viram "/" + nome da função em minúsculas.
 func (v *VM) autoRegisterAnnotatedRoutes(server *rest.Server) {
 	for fname, info := range v.bc.Functions {
 		for _, ann := range info.Annotations {
@@ -131,17 +147,47 @@ func (v *VM) autoRegisterAnnotatedRoutes(server *rest.Server) {
 			if !ok {
 				continue
 			}
-			path := ann.Value
-			if strings.TrimSpace(path) == "" {
+			path := restAnnotationPath(ann.Value)
+			if path == "" {
 				path = "/" + strings.ToLower(strings.TrimPrefix(strings.ToUpper(fname), "U_"))
 			}
 			server.AddRoute(rest.Route{
-				Method:  httpMethod,
-				Path:    normalizeRestPath(path),
-				Handler: v.restHandlerFor(fname),
+				Method: httpMethod,
+				Path:   rest.NormalizaPath(path),
+				Raw:    v.orestRawHandlerFor(fname),
 			})
 		}
 	}
+}
+
+// restAnnotationPath extrai o path de uma anotação @Get/@Post.... O parser
+// concatena os tokens do argumento sem espaços e sem aspas, então as formas
+// possíveis são: "/path" (literal), "endpoint=/path,description=..."
+// (argumentos nomeados TOTVS) ou "path,description=..." (literal seguido de
+// outros argumentos — corta no primeiro ",").
+func restAnnotationPath(value string) string {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return ""
+	}
+	lower := strings.ToLower(v)
+	if idx := strings.Index(lower, "endpoint"); idx >= 0 &&
+		(idx == 0 || v[idx-1] == ',' || v[idx-1] == ' ' || v[idx-1] == '\t') {
+		tail := strings.TrimLeft(v[idx+len("endpoint"):], " \t")
+		if strings.HasPrefix(tail, ":=") {
+			tail = tail[2:]
+		} else {
+			tail = strings.TrimPrefix(tail, "=")
+		}
+		if i := strings.IndexByte(tail, ','); i >= 0 {
+			tail = tail[:i]
+		}
+		return strings.TrimSpace(tail)
+	}
+	if i := strings.IndexByte(v, ','); i >= 0 {
+		v = v[:i]
+	}
+	return strings.TrimSpace(v)
 }
 
 // normalizeRestPath garante que o path começa com "/" — o roteador nativo

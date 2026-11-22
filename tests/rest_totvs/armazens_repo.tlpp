@@ -1,0 +1,27 @@
+// Repo de armazéns: Class FROM FWAdapterBaseV2 imitando a forma do corpus
+// (plano PO-UI onda 1, Task 7). Monta o mapa de campos com TamSx3 e expõe
+// os métodos do adapter via _Super/bytecode.
+
+Class ArmazensRepo from FWAdapterBaseV2
+EndClass
+
+Method New(cVerbo, lList) Class ArmazensRepo Constructor
+	_Super:New(cVerbo, lList)
+	// aStruct: {campo, tipo, tamanho, decimais} por coluna — o tipo vem
+	// do TamSx3 do dicionário local (SX3 da fixture).
+	Local aTamCod  := TamSx3("NNR_CODIGO")
+	Local aTamDes  := TamSx3("NNR_DESCRI")
+	Local aTamEst  := TamSx3("NNR_ESTOQUE")
+	Local aTamFil  := TamSx3("NNR_FILIAL")
+	Local aStruct  := {}
+	aStruct := {
+		{"NNR_CODIGO",  aTamCod["CTIPO"],  aTamCod["NTAMANHO"],  aTamCod["NDECIMAIS"]},
+		{"NNR_DESCRI",  aTamDes["CTIPO"],  aTamDes["NTAMANHO"],  aTamDes["NDECIMAIS"]},
+		{"NNR_ESTOQUE", aTamEst["CTIPO"],  aTamEst["NTAMANHO"],  aTamEst["NDECIMAIS"]},
+		{"NNR_FILIAL",  aTamFil["CTIPO"],  aTamFil["NTAMANHO"],  aTamFil["NDECIMAIS"]}
+	}
+	::AddMapFields("codigo",  "NNR_CODIGO",  .T., .T., aStruct)
+	::AddMapFields("descri",  "NNR_DESCRI",  .T., .T., aStruct)
+	::AddMapFields("estoque", "NNR_ESTOQUE", .T., .F., aStruct)
+	::AddMapFields("filial",  "NNR_FILIAL",  .T., .T., aStruct)
+Return Self

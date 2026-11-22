@@ -242,13 +242,16 @@ O compilador AdvPP agora inclui renderização completa de widgets Fyne para tod
 
 ## Recursos REST 2.0
 
-### Status Atual: Funcional (estilo anotações) / Apenas Parsing (DSL clássico WSRESTFUL)
+### Status Atual: Funcional (anotações, DSL clássico WSRESTFUL e camada PO-UI)
 
 O compilador AdvPP sobe um servidor HTTP REST **real** (`pkg/rest` + classe
 nativa `WSRestServer`, mesmo padrão arquitetural do `MCPServer`) para o
 estilo moderno TLPP de anotações (`@Get`/`@Post`/`@Put`/`@Patch`/`@Delete`
-sobre `User Function`). O DSL clássico `WSRESTFUL ... WSMETHOD ...
-ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
+sobre `User Function`) e para o DSL clássico `WSRESTFUL ... WSMETHOD ...
+ENDWSRESTFUL`. Desde a onda 1 PO-UI, o `advplc serve` também monta essas
+rotas sob `/rest` na mesma origem do modo web (`webui.Server.MountREST`),
+e as rotas anotadas expõem o objeto `oRest` do TOTVS. Ver "Camada de
+compatibilidade PO-UI" na seção de recursos executados.
 
 ### O Que Funciona:
 - ✅ **Servidor HTTP real** (`net/http` puro, sem CGO/dependências): classe
@@ -259,8 +262,9 @@ ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
 - ✅ **Path params** (`/clientes/{id}`) via roteador nativo do Go 1.22+
   (`http.ServeMux`), populados no objeto de argumento da função AdvPL
 - ✅ **Query string e corpo JSON** decodificados e mesclados no objeto
-  de argumento (`oParam:CAMPO`) — corpo tem precedência sobre path
-  params, que tem precedência sobre query string
+  de argumento (`oParam:CAMPO`) — path params têm precedência sobre o
+  corpo JSON, que tem precedência sobre a query string (o path vem do
+  roteamento e não pode ser falsificado pelo corpo)
 - ✅ **Dispatch real para a função AdvPL** via VM isolada por requisição
   (mesmo mecanismo do `MCPServer`/`StartJob`: `v.RunFunction`), banco e
   bytecode compartilhados
@@ -273,26 +277,15 @@ ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
   getJsonText), serialização/deserialização JSON
 
 ### O Que NÃO Funciona (limitações conhecidas):
-- ❌ **DSL clássico `WSRESTFUL <nome> ... WSMETHOD <verbo> ... PATH "..."
-  ... ENDWSRESTFUL`**: o parser (`parseWSClient` em
-  `pkg/parser/parser.go`) reconhece a sintaxe e monta um `ast.ClassDecl`,
-  mas descarta o verbo HTTP e a cláusula `PATH` ao fazer isso — só o
-  nome do `WSMETHOD` sobrevive como protótipo. Além disso, a
-  implementação real do método (`WSMETHOD ... WSSERVICE <classe>`) é um
-  método de instância, e `v.RunFunction` (usado pelo dispatch HTTP) só
-  chama funções top-level, não métodos de classe — precisaria criar a
-  instância do serviço a cada requisição. Nenhuma das duas partes foi
-  implementada: exigiria cirurgia de parser (capturar verbo+path como
-  antes) e um caminho de dispatch novo (instanciar + chamar método) só
-  para esse estilo, sem um caso de uso real nos corpora validados para
-  justificar o esforço agora. Workaround: reescrever o serviço no estilo
-  anotações (`@Get`/`@Post` sobre `User Function`), que já é 100%
-  funcional, ou registrar a rota manualmente via `AddRoute`.
+- ✅ **DSL clássico `WSRESTFUL`/`WSMETHOD` executando**: verbo+`PATH` de
+  cada `WSMETHOD` (anotação `<VERBO>|<Nome>|<PATH>`) vira rota REST com
+  dispatch por instância de classe em VM-filha isolada; `aURLParms`,
+  `SetRestFault`, `HTTPSetStatus`, `GetContent` e `SetResponse`/
+  `SetContentType`/`SetHeader`/`GetHeader`/`SetStatus` funcionam
+  (`pkg/vm/wsrestful.go`). Registrado via `WSRestServer:New` e via
+  `advplc serve` (`RegisterRestRoutes`)
 - ❌ Geração de WSDL / cliente REST (`WSCLIENT` consumindo serviço
   externo) — fora de escopo, é consumo e não exposição de API
-- ❌ Controle fino de código HTTP de resposta pela função AdvPL (sempre
-  200 em sucesso / 500 em erro — sem equivalente a `SetLegacySuccess`/
-  `GetHTTPCode` do lado servidor)
 
 ### Notas de Implementação:
 - Servidor: `pkg/rest/rest.go` (stdlib `net/http`, roteador nativo do Go
@@ -365,8 +358,25 @@ ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
   (`@Get`/`@Post`/`@Put`/`@Patch`/`@Delete`) ou registro manual via
   `AddRoute`, path params, dispatch para a função AdvPL via
   `v.RunFunction` — mesmo padrão do `MCPServer`; o DSL clássico
-  `WSRESTFUL`/`WSMETHOD` continua só parseado (ver "Recursos REST 2.0")
-- ⚠️ Locks de registro (RecLock/MsUnlock) são no-ops — sem controle de
+  `WSRESTFUL`/`WSMETHOD` executa via `pkg/vm/wsrestful.go` (ver
+  "Recursos REST 2.0")
+- ✅ **Camada de compatibilidade PO-UI (onda 1)**: `oRest` nas rotas
+  anotadas, DSL clássico `WSRESTFUL`/`WSMETHOD` executando de verdade,
+  filtro OData parametrizado, `TamSx3`, `FWAdapterBaseV2` e
+  `FwApiManager` (somente leitura) — detalhes no plano
+  `docs/superpowers/plans/2026-11-22-poui-onda1-rest.md`
+- ⚠️ **`FwApiManager:ToExecAuto` não implementado**: retorna erro
+  explícito ("não suportado no AdvPP — requer ExecAuto/MVC").
+  `SetApiRelation` aceita e ignora: o formato mestre-detalhe depende
+  do corpus TOTVS, indisponível na validação atual
+- ⚠️ **Validação no corpus TOTVS 12.1.2510 pendente**:
+  `ADVPP_CORPUS_2510` não está disponível neste ambiente, então a
+  compatibilidade foi verificada apenas com fixtures próprias
+  (`tests/rest_totvs/`). Os testes de corpus em
+  `tests/rest_totvs/corpus_test.go` existem e fazem SKIP sem a
+  variável — a seleção dos 5 fontes HTTP e os formatos exatos de
+  `aMapa`/`SetApiRelation` ficam pendentes de confirmação real
+- ⚠️ **Locks de registro (RecLock/MsUnlock) são no-ops** — sem controle de
   concorrência em escrita entre processos
 
 ## Resumo
@@ -377,7 +387,7 @@ ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
 | Diálogos UI | ✅ Completo | MsgInfo, MsgStop, MsgAlert, MsgYesNo funcionam |
 | Parsing REST | ✅ Completo | Sintaxe totalmente parseada |
 | Execução REST (anotações @Get/@Post) | ✅ Funcional | Servidor HTTP real (`WSRestServer`), dispatch para a função AdvPL |
-| Execução REST (DSL WSRESTFUL/WSMETHOD) | ❌ Nenhum | Apenas parsing — ver "Recursos REST 2.0" |
+| Execução REST (DSL WSRESTFUL/WSMETHOD) | ✅ Funcional | Rotas por verbo+PATH, dispatch por classe em VM-filha |
 | Anotações @Get/@Post/@Put/@Patch/@Delete | ✅ Executadas | Viram rota HTTP automaticamente |
 | Suporte JSON | ✅ Completo | Sintaxe inline e JsonObject funcionam |
 | Construção de Serviços | ⚠️ Parcial | Parseado, não gerado |
@@ -428,6 +438,6 @@ Isso exibirá uma janela com:
 ## Recomendações
 
 1. **Para Componentes UI**: Implementar sistema de renderização de widgets Fyne ou documentar como apenas dados
-2. **Para REST**: DSL clássico `WSRESTFUL`/`WSMETHOD` ainda precisa de captura de verbo+path no parser e dispatch via instância de classe (hoje `v.RunFunction` só chama funções top-level) — sem caso de uso real nos corpora para priorizar agora
+2. **Para REST**: ~~DSL clássico `WSRESTFUL`/`WSMETHOD`~~ — implementado na onda 1 PO-UI (`pkg/vm/wsrestful.go`); pendente apenas a validação no corpus TOTVS (`ADVPP_CORPUS_2510`)
 3. **Para Serviços**: Adicionar geração de código ou integração de cliente HTTP
 4. **Documentação**: Atualizar README para separar claramente recursos "parseados" de "executados"

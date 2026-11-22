@@ -22,6 +22,10 @@ type Parser struct {
 	defines        map[string]string
 	recursionDepth int
 	avisos         []Aviso
+	// wsClassKind registra o opener (WSCLIENT/WSSTRUCT/WSRESTFUL/WSSERVICE)
+	// de cada classe WS* já declarada no arquivo — parseWSMethodImpl usa
+	// para saber se a implementação é REST antes de consumir o verbo HTTP.
+	wsClassKind map[string]string
 }
 
 // Aviso é um problema que não impede a compilação (o Protheus também aceita),
@@ -49,10 +53,11 @@ func (p *Parser) ignoraOrfao() {
 func NewParser(tokens []lexer.Token, fileName string, defines map[string]string) *Parser {
 	tokens = lexer.FilterTokens(tokens)
 	return &Parser{
-		tokens:   tokens,
-		pos:      0,
-		fileName: fileName,
-		defines:  defines,
+		tokens:      tokens,
+		pos:         0,
+		fileName:    fileName,
+		defines:     defines,
+		wsClassKind: make(map[string]string),
 	}
 }
 
@@ -165,6 +170,25 @@ func (p *Parser) isRestMethodClauseWord(tok lexer.Token) bool {
 		}
 	}
 	return false
+}
+
+// wsHTTPVerbs são os verbos HTTP aceitos na forma REST do WSMETHOD
+// (`WSMETHOD GET hasAPI ...`), compartilhados pela declaração
+// (parseWSClient) e pela implementação (parseWSMethodImpl).
+var wsHTTPVerbs = []string{"GET", "POST", "PUT", "DELETE", "PATCH"}
+
+// isWSClassBoundary reporta se o próximo token fecha o bloco WS* ou abre
+// outro membro dele — usado para reconhecer `WSMETHOD GET` sem nome
+// seguido de ENDWSRESTFUL/END WSRESTFUL, outro WSMETHOD ou WSDATA.
+func (p *Parser) isWSClassBoundary() bool {
+	tok := p.peek()
+	if tok.Type == lexer.TOKEN_EOF {
+		return true
+	}
+	if p.isWord(tok, "WSMETHOD") || p.isWord(tok, "WSDATA") {
+		return true
+	}
+	return p.isEndWSClient()
 }
 
 func (p *Parser) matchKeyword(kw string) bool {
@@ -425,6 +449,12 @@ func (p *Parser) Parse() (*ast.Program, error) {
 			class, err := p.parseWSClient()
 			if err != nil {
 				return nil, err
+			}
+			// Anotações `@` pendentes entram antes das anotações internas
+			// do DSL (WSRESTFUL/WSMETHOD), como em parseClass.
+			if len(pendingAnnotations) > 0 {
+				class.Annotations = append(pendingAnnotations, class.Annotations...)
+				pendingAnnotations = nil
 			}
 			prog.Classes = append(prog.Classes, class)
 			continue
@@ -952,48 +982,111 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 			return nil, err
 		}
 	}
+	// WSRESTFUL é o DSL de serviço REST do Protheus: o compilador precisa
+	// saber disso para montar as rotas (verbo+PATH de cada WSMETHOD vão em
+	// anotações da classe — ClassInfo.Annotations no bytecode).
+	isRESTFUL := p.isWord(startTok, "WSRESTFUL")
+	// Registra o tipo da classe para parseWSMethodImpl decidir se a
+	// implementação é REST (verbo HTTP) ou WSCLIENT/WSSTRUCT comum.
+	p.wsClassKind[strings.ToUpper(nameTok.Value)] = strings.ToUpper(startTok.Value)
 	class := &ast.ClassDecl{
 		Loc:        p.posFromToken(startTok),
 		Name:       nameTok.Value,
 		Properties: make([]*ast.PropertyDecl, 0),
 		Methods:    make([]*ast.MethodDecl, 0),
 	}
+	if isRESTFUL {
+		class.Annotations = append(class.Annotations, &ast.Annotation{
+			Loc:  class.Loc,
+			Name: "WSRESTFUL",
+		})
+	}
 
 	for !p.isEndWSClient() && p.peek().Type != lexer.TOKEN_EOF {
 		tok := p.peek()
 		if p.isWord(tok, "WSMETHOD") || p.isWord(tok, "WSDATA") {
 			p.advance()
-			// WSRESTFUL spells a method `WSMETHOD GET hasAPI ...` — the
-			// HTTP verb (all reserved keywords) comes before the name.
-			if strings.EqualFold(tok.Value, "WSMETHOD") {
-				for _, verb := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
-					if p.isKeyword(p.peek(), verb) {
+			isWSMethod := strings.EqualFold(tok.Value, "WSMETHOD")
+			// Só WSRESTFUL tem verbo HTTP na frente do nome
+			// (`WSMETHOD GET hasAPI ...`). Em WSCLIENT/WSSTRUCT/WSSERVICE,
+			// GET/POST/etc. são nomes de método comuns — não consumir.
+			var verb string
+			if isWSMethod && isRESTFUL {
+				for _, v := range wsHTTPVerbs {
+					if p.isKeyword(p.peek(), v) {
+						verb = v
 						p.advance()
 						break
 					}
 				}
+				if verb == "" {
+					p.avisos = append(p.avisos, Aviso{
+						Line:    tok.Line,
+						Col:     tok.Col,
+						Message: "WSMETHOD em WSRESTFUL sem verbo HTTP",
+					})
+				}
 			}
 			// The method name itself is optional in the REST form — some
 			// real code goes straight from the verb into clauses:
-			// `WSMETHOD POST DESCRIPTION "..." WSSYNTAX "..."`. WSDATA has
-			// no such form — a field is always named, even when that name
-			// happens to collide with a WSMETHOD clause word like
-			// "Description" (`WSDATA Description As String`).
+			// `WSMETHOD POST DESCRIPTION "..." WSSYNTAX "..."`. Também é
+			// sem nome quando o verbo é seguido direto do fim da classe ou
+			// de outro membro (`WSMETHOD GET` + ENDWSRESTFUL/WSMETHOD...).
+			// WSDATA has no such form — a field is always named, even when
+			// that name happens to collide with a WSMETHOD clause word
+			// like "Description" (`WSDATA Description As String`). Fora de
+			// WSRESTFUL não existe forma sem nome: toda palavra (mesmo
+			// PATH/DESCRIPTION) é o nome do método.
+			unnamedREST := isRESTFUL && isWSMethod &&
+				(p.isRestMethodClauseWord(p.peek()) || p.isWSClassBoundary())
 			nameTok := tok
-			if strings.EqualFold(tok.Value, "WSDATA") || !p.isRestMethodClauseWord(p.peek()) {
+			named := true
+			if strings.EqualFold(tok.Value, "WSDATA") || !unnamedREST {
 				var err error
 				nameTok, err = p.expectName()
 				if err != nil {
 					return nil, err
 				}
+			} else {
+				named = false
 			}
-			if strings.EqualFold(tok.Value, "WSMETHOD") {
-				// Optional REST metadata clauses: DESCRIPTION/PATH <expr>,
+			// Método REST sem nome chama-se pelo verbo ("GET", "POST"...) —
+			// antes virava "WSMETHOD" aqui e "REST" na implementação, o que
+			// fazia dois métodos sem nome colidirem.
+			declName := nameTok.Value
+			if isWSMethod && !named && verb != "" {
+				declName = verb
+			}
+			var path string
+			if isWSMethod {
+				// Optional REST metadata clauses: DESCRIPTION/WSSYNTAX
+				// <expr>, PATH <expr> (só literal string é guardado),
 				// PRODUCES/CONSUMES <ident> — parsed and dropped, like the
 				// SOAP WSSEND/WSRECEIVE clauses above.
 				for {
 					switch {
-					case p.isWord(p.peek(), "DESCRIPTION"), p.isWord(p.peek(), "PATH"), p.isWord(p.peek(), "WSSYNTAX"):
+					case p.isWord(p.peek(), "PATH"):
+						pathTok := p.peek()
+						p.advance()
+						expr, err := p.parseOr()
+						if err != nil {
+							return nil, err
+						}
+						// Só WSRESTFUL guarda PATH (vira anotação); nos demais
+						// DSLs a cláusula é descartada como antes, sem aviso.
+						if !isRESTFUL {
+							break
+						}
+						if lit, ok := expr.(*ast.StringLit); ok {
+							path = lit.Value
+						} else {
+							p.avisos = append(p.avisos, Aviso{
+								Line:    pathTok.Line,
+								Col:     pathTok.Col,
+								Message: "PATH de WSMETHOD não é literal string (ignorado)",
+							})
+						}
+					case p.isWord(p.peek(), "DESCRIPTION"), p.isWord(p.peek(), "WSSYNTAX"):
 						p.advance()
 						if _, err := p.parseOr(); err != nil {
 							return nil, err
@@ -1040,9 +1133,18 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 			} else {
 				class.Methods = append(class.Methods, &ast.MethodDecl{
 					Loc:    p.posFromToken(nameTok),
-					Name:   nameTok.Value,
+					Name:   declName,
 					Params: make([]*ast.Parameter, 0),
 				})
+				if isRESTFUL {
+					// "<VERBO>|<NomeDoMetodo>|<PATH>" — o dispatch REST lê
+					// estas anotações (ClassInfo.Annotations no bytecode).
+					class.Annotations = append(class.Annotations, &ast.Annotation{
+						Loc:   p.posFromToken(tok),
+						Name:  "WSMETHOD",
+						Value: verb + "|" + declName + "|" + path,
+					})
+				}
 			}
 			continue
 		}
@@ -1061,6 +1163,45 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 	return class, nil
 }
 
+// wsImplIsREST determina, antes de consumir qualquer token do cabeçalho,
+// se a implementação WSMETHOD em curso é REST: procura o primeiro
+// linking de classe à frente (WSREST / WSSERVICE / WSCLIENT / WSSTRUCT /
+// WSRESTFUL) e resolve o tipo da classe alvo em wsClassKind. WSREST é
+// sempre REST; WSCLIENT/WSSTRUCT nunca são; WSSERVICE/WSRESTFUL dependem
+// do tipo declarado da classe — desconhecida (outro arquivo), assume REST,
+// que é o caso de uso majoritário do linkage WSSERVICE.
+// wsImplScanMax limita a varredura de wsImplIsREST: o cabeçalho de um
+// WSMETHOD é curto (verbo, nome, cláusulas, linkage), então passar de
+// ~128 tokens sem achar o opener significa que não há linkage à frente
+// (implementação sem classe) — trata como não-REST em vez de varrer o
+// resto do arquivo.
+const wsImplScanMax = 128
+
+func (p *Parser) wsImplIsREST() bool {
+	limite := p.pos + wsImplScanMax
+	for i := p.pos; i < len(p.tokens) && i < limite; i++ {
+		tok := p.tokens[i]
+		if tok.Type == lexer.TOKEN_EOF {
+			return false
+		}
+		if p.isWord(tok, "WSREST") {
+			return true
+		}
+		if p.isWord(tok, "WSCLIENT") || p.isWord(tok, "WSSTRUCT") {
+			return false
+		}
+		if p.isWord(tok, "WSSERVICE") || p.isWord(tok, "WSRESTFUL") {
+			if i+1 < len(p.tokens) {
+				if kind, ok := p.wsClassKind[strings.ToUpper(p.tokens[i+1].Value)]; ok {
+					return kind == "WSRESTFUL"
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
 // parseWSMethodImpl handles a WSMETHOD implementation:
 //
 //	WSMETHOD Init WSCLIENT MyService
@@ -1071,22 +1212,35 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 // and WSCLIENT and (in practice) no parameter list.
 func (p *Parser) parseWSMethodImpl() (*ast.MethodImpl, error) {
 	startTok := p.advance() // WSMETHOD
-	// WSRESTFUL spells an implementation `WSMETHOD GET hasAPI WSSERVICE
-	// ...` too — same HTTP-verb-before-name shape as the declaration.
-	for _, verb := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
-		if p.isKeyword(p.peek(), verb) {
-			p.advance()
-			break
+	// Só implementação REST (classe WSRESTFUL, ou linkage WSREST/WSSERVICE
+	// apontando para ela) tem verbo HTTP antes do nome —
+	// `WSMETHOD GET hasAPI WSSERVICE ...`. Em WSCLIENT/WSSTRUCT, GET/POST
+	// etc. são nomes de método comuns e não podem ser consumidos aqui
+	// (`WSMETHOD GET(...) WSCLIENT Foo` é um método chamado GET).
+	verb := ""
+	if p.wsImplIsREST() {
+		for _, v := range wsHTTPVerbs {
+			// `WSMETHOD GET(...)` — o verbo seguido de "(" é o próprio nome
+			// do método com lista de parâmetros, não um verbo HTTP.
+			if p.isKeyword(p.peek(), v) && p.peekAt(1).Type != lexer.TOKEN_LPAREN {
+				verb = v
+				p.advance()
+				break
+			}
 		}
 	}
 	// `WSMETHOD GET WSRECEIVE a,b WSSERVICE X` — REST sem nome próprio
 	// (só o verbo HTTP): se o que vem depois do verbo já é uma cláusula,
-	// o nome do método é o próprio verbo.
+	// o nome do método é o próprio verbo (antes era "REST", o que fazia
+	// dois métodos sem nome na mesma classe colidirem).
 	var methodName string
 	if p.isWord(p.peek(), "WSRECEIVE") || p.isWord(p.peek(), "WSSEND") ||
 		p.isWord(p.peek(), "PATHPARAM") || p.isWord(p.peek(), "QUERYPARAM") ||
 		p.isWSClientOpener(p.peek()) || p.isWord(p.peek(), "WSREST") {
-		methodName = "REST"
+		methodName = verb
+		if methodName == "" {
+			methodName = "REST"
+		}
 	} else {
 		nameTok, err := p.expectName()
 		if err != nil {

@@ -12,7 +12,8 @@ import (
 // (~/.advpp/advpp_config.json — editável à mão; ver ResolveDatabasePath)
 type Config struct {
 	DefaultDatabase string `json:"default_database"`
-	WebUIPort       string `json:"webui_port,omitempty"` // porta do advplc serve (padrão 8080)
+	WebUIPort       string `json:"webui_port,omitempty"`  // porta do advplc serve (padrão 8080)
+	RestPrefix      string `json:"rest_prefix,omitempty"` // prefixo do REST no advplc serve (padrão /rest)
 }
 
 // ResolveWebUIPort resolve a porta do modo web: explícita (--port) →
@@ -25,6 +26,29 @@ func ResolveWebUIPort(explicit string) string {
 		return config.WebUIPort
 	}
 	return "8080"
+}
+
+// ResolveRestPrefix resolve o prefixo sob o qual as rotas REST do
+// `advplc serve` são montadas: variável ADVPL_REST_PREFIX →
+// rest_prefix do ~/.advpp/advpp_config.json → padrão "/rest".
+// ADVPL_REST_PREFIX="off" desativa a montagem do REST.
+func ResolveRestPrefix() string {
+	if p := os.Getenv("ADVPL_REST_PREFIX"); p != "" {
+		return normalizaPrefixoRest(p)
+	}
+	if config, err := LoadConfig(); err == nil && config.RestPrefix != "" {
+		return normalizaPrefixoRest(config.RestPrefix)
+	}
+	return "/rest"
+}
+
+// normalizaPrefixoRest devolve "" para "off"/vazio e "/x" para o resto.
+func normalizaPrefixoRest(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" || strings.EqualFold(p, "off") {
+		return ""
+	}
+	return "/" + strings.Trim(p, "/")
 }
 
 const configFileName = "advpp_config.json"
