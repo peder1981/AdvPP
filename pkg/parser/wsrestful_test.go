@@ -258,6 +258,74 @@ Return .T.
 	}
 }
 
+// `WSMETHOD GET` sem nome e sem cláusulas no fim do bloco: o verbo é o
+// nome do método — o parser não pode engolir ENDWSRESTFUL/END WSRESTFUL,
+// outro WSMETHOD ou WSDATA como nome.
+func TestWSRestfulMetodoSemNomeNoFimDaClasse(t *testing.T) {
+	src := `WSRESTFUL Servico
+	WSMETHOD GET PATH "/a"
+	WSMETHOD POST
+	WSDATA page AS INTEGER OPTIONAL
+END WSRESTFUL
+`
+	prog, _ := parseWSRestfulSrc(t, src)
+	var cls *ast.ClassDecl
+	for _, c := range prog.Classes {
+		if strings.EqualFold(c.Name, "Servico") {
+			cls = c
+		}
+	}
+	if cls == nil {
+		t.Fatal("classe Servico não encontrada")
+	}
+	metodos := nomesDosMetodos(cls)
+	if !metodos["GET"] || !metodos["POST"] {
+		t.Errorf("métodos declarados errados: %v", metodos)
+	}
+	anns := anotacoesDe(cls)["WSMETHOD"]
+	want := []string{"GET|GET|/a", "POST|POST|"}
+	if len(anns) != 2 || anns[0] != want[0] || anns[1] != want[1] {
+		t.Errorf("anotações WSMETHOD erradas: %v", anns)
+	}
+	// WSDATA depois do método sem nome continua sendo propriedade.
+	if len(cls.Properties) != 1 || !strings.EqualFold(cls.Properties[0].Name, "page") {
+		t.Errorf("WSDATA page perdida: %+v", cls.Properties)
+	}
+}
+
+// Mesma situação com o fechamento em duas palavras (`END WSRESTFUL`).
+func TestWSRestfulMetodoSemNomeAntesDeEndEmDuasPalavras(t *testing.T) {
+	src := `WSRESTFUL Servico
+	WSMETHOD DELETE
+END WSRESTFUL
+`
+	prog, _ := parseWSRestfulSrc(t, src)
+	var cls *ast.ClassDecl
+	for _, c := range prog.Classes {
+		if strings.EqualFold(c.Name, "Servico") {
+			cls = c
+		}
+	}
+	if cls == nil {
+		t.Fatal("classe Servico não encontrada")
+	}
+	if !nomesDosMetodos(cls)["DELETE"] {
+		t.Errorf("método DELETE não declarado: %v", nomesDosMetodos(cls))
+	}
+}
+
+// WSMETHOD em WSRESTFUL sem verbo HTTP gera aviso (não erro).
+func TestWSRestfulSemVerboGeraAviso(t *testing.T) {
+	src := `WSRESTFUL Servico
+	WSMETHOD lista PATH "/a"
+END WSRESTFUL
+`
+	_, p := parseWSRestfulSrc(t, src)
+	if len(p.Avisos()) == 0 {
+		t.Error("WSMETHOD sem verbo em WSRESTFUL devia gerar aviso")
+	}
+}
+
 // PATH que não é literal string (expressão/identificador) é guardado
 // vazio e gera aviso do parser — não derruba o parse.
 func TestWSRestfulPathNaoLiteralVazioComAviso(t *testing.T) {

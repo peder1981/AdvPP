@@ -44,10 +44,11 @@ var restVerbAnnotations = map[string]string{
 // Cobre o estilo moderno de REST 2.0 do TLPP (anotações sobre `User
 // Function`), que carrega verbo+path completos até o bytecode
 // (FunctionInfo.Annotations). O DSL clássico `WSRESTFUL ... WSMETHOD GET
-// path("...") ... ENDWSRESTFUL` é reconhecido pelo parser (parseWSClient)
-// mas hoje descarta o path e o verbo ao virar ast.ClassDecl — ver
-// limitação documentada em COMPONENT_STATUS.md. Para esse estilo, use
-// AddRoute() para registrar a rota manualmente.
+// path("...") ... ENDWSRESTFUL` já é reconhecido pelo parser, que guarda
+// verbo e PATH de cada WSMETHOD em ClassInfo.Annotations (anotações
+// "WSRESTFUL"/"WSMETHOD" no formato "<VERBO>|<Nome>|<PATH>") — o dispatch
+// dessas rotas ainda não existe (trabalho futuro). Para esse estilo,
+// use AddRoute() para registrar a rota manualmente.
 func (v *VM) callWSRestServerMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
 	st, ok := obj.Native.(*restState)
 	if !ok {
