@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -314,6 +315,202 @@ func TestAddRouteEIgnoraConflitoAntigo(t *testing.T) {
 	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/ok", nil))
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "ok") {
 		t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+	}
+}
+
+// TestPrecedenciaDeParams fixa o contrato de Route.Handler: em colisão
+// de chave, path params > corpo JSON > query string. Path params vêm do
+// roteamento do servidor e não podem ser falsificados pelo cliente.
+func TestPrecedenciaDeParams(t *testing.T) {
+	var got map[string]any
+	s := NewServer("t", "1")
+	s.AddRoute(Route{
+		Method: "POST",
+		Path:   "/item/{id}",
+		Handler: func(params map[string]any) (any, error) {
+			got = params
+			return "ok", nil
+		},
+	})
+
+	req := httptest.NewRequest("POST", "/item/P9?ID=Q1&Y=9", strings.NewReader(`{"ID":"B1","Y":2}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, body %q", rec.Code, rec.Body.String())
+	}
+	if got["ID"] != "P9" {
+		t.Errorf("path param deveria vencer body/query: ID = %v", got["ID"])
+	}
+	if got["Y"] != float64(2) {
+		t.Errorf("body deveria vencer query: Y = %v", got["Y"])
+	}
+}
+
+// TestHandlerErroDevolve500 verifica que um erro do Handler vira 500 com
+// a mensagem no corpo JSON.
+func TestHandlerErroDevolve500(t *testing.T) {
+	s := NewServer("t", "1")
+	s.AddRoute(Route{
+		Method: "GET",
+		Path:   "/err",
+		Handler: func(map[string]any) (any, error) {
+			return nil, fmt.Errorf("falhou de propósito")
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/err", nil))
+	if rec.Code != 500 {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "falhou de propósito") {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+}
+
+// TestRawNilDevolve200Vazio verifica que um Raw que devolve nil responde
+// 200 com corpo vazio (não entra em pânico).
+func TestRawNilDevolve200Vazio(t *testing.T) {
+	s := NewServer("t", "1")
+	s.AddRoute(Route{
+		Method: "GET",
+		Path:   "/vazio",
+		Raw:    func(*Request) *Response { return nil },
+	})
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/vazio", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+}
+
+// TestStatusInvalidoVerificaClampe verifica que Status fora da faixa
+// HTTP válida (100–599) não entra em pânico no WriteHeader e vira 500.
+func TestStatusInvalidoVerificaClampe(t *testing.T) {
+	for _, status := range []int{42, 99, 600, 9999} {
+		s := NewServer("t", "1")
+		s.AddRoute(Route{
+			Method: "GET",
+			Path:   "/s",
+			Raw: func(*Request) *Response {
+				return &Response{Status: status, Body: []byte(`{}`)}
+			},
+		})
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/s", nil))
+		if rec.Code != 500 {
+			t.Fatalf("status=%d -> HTTP %d, esperava 500", status, rec.Code)
+		}
+	}
+}
+
+// TestStatusInvalidoRawResponse cobre o mesmo clamp para RawResponse
+// devolvido por Route.Handler.
+func TestStatusInvalidoRawResponse(t *testing.T) {
+	s := NewServer("t", "1")
+	s.AddRoute(Route{
+		Method: "GET",
+		Path:   "/s",
+		Handler: func(map[string]any) (any, error) {
+			return RawResponse{Status: 70000, Body: []byte("x")}, nil
+		},
+	})
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/s", nil))
+	if rec.Code != 500 {
+		t.Fatalf("status = %d, esperava 500", rec.Code)
+	}
+}
+
+// TestParseQueryOrderEscapes verifica que chaves e valores da query são
+// decodificados (%XX e '+' -> espaço) preservando a ordem dos pares.
+func TestParseQueryOrderEscapes(t *testing.T) {
+	order, pairs := parseQueryOrder("a%20b=c%2Bd&x=f%25&y")
+	wantOrder := []string{"a b", "x", "y"}
+	if len(order) != len(wantOrder) {
+		t.Fatalf("order = %v", order)
+	}
+	for i := range wantOrder {
+		if order[i] != wantOrder[i] {
+			t.Fatalf("order = %v", order)
+		}
+	}
+	wantPairs := []QueryPair{
+		{Key: "a b", Value: "c+d"},
+		{Key: "x", Value: "f%"},
+		{Key: "y", Value: ""},
+	}
+	if len(pairs) != len(wantPairs) {
+		t.Fatalf("pairs = %v", pairs)
+	}
+	for i := range wantPairs {
+		if pairs[i] != wantPairs[i] {
+			t.Fatalf("pairs = %v", pairs)
+		}
+	}
+}
+
+// TestCorpoAcimaDoLimiteNoHandler verifica que o teto de corpo também vale
+// para Route.Handler (antes era LimitReader silencioso de 8 MiB).
+func TestCorpoAcimaDoLimiteNoHandler(t *testing.T) {
+	called := false
+	s := NewServer("t", "1")
+	s.AddRoute(Route{
+		Method: "POST",
+		Path:   "/up",
+		Handler: func(map[string]any) (any, error) {
+			called = true
+			return "ok", nil
+		},
+	})
+
+	big := strings.Repeat("a", maxBodyBytes+1)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("POST", "/up", strings.NewReader(big)))
+
+	if rec.Code != 400 {
+		t.Fatalf("status = %d, esperava 400", rec.Code)
+	}
+	if called {
+		t.Fatal("Handler não deveria ter sido chamado com corpo acima do limite")
+	}
+}
+
+// TestResponseHeaderFiltraHopByHop verifica que Response.Header não
+// consegue injetar Content-Length nem headers hop-by-hop.
+func TestResponseHeaderFiltraHopByHop(t *testing.T) {
+	s := NewServer("t", "1")
+	s.AddRoute(Route{
+		Method: "GET",
+		Path:   "/h",
+		Raw: func(*Request) *Response {
+			return &Response{
+				Header: map[string]string{
+					"Content-Length": "999",
+					"Connection":     "close",
+					"X-Ok":           "1",
+				},
+				Body: []byte(`{}`),
+			}
+		},
+	})
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/h", nil))
+	if cl := rec.Header().Get("Content-Length"); cl == "999" {
+		t.Fatalf("Content-Length injetado: %q", cl)
+	}
+	if c := rec.Header().Get("Connection"); c == "close" {
+		t.Fatalf("Connection injetado: %q", c)
+	}
+	if rec.Header().Get("X-Ok") != "1" {
+		t.Fatalf("X-Ok = %q", rec.Header().Get("X-Ok"))
 	}
 }
 

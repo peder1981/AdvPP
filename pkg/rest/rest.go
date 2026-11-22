@@ -39,14 +39,17 @@ const (
 type Route struct {
 	Method string
 	Path   string
-	// Handler recebe os parâmetros já resolvidos (path params + query
-	// string + corpo JSON decodificado, todos mesclados num único mapa —
-	// ver precedência em (*Server).ServeHTTP) e devolve o valor Go a ser
+	// Handler recebe os parâmetros já resolvidos e devolve o valor Go a ser
 	// serializado como corpo JSON da resposta (200) ou um erro (500). Se o
 	// valor devolvido for um RawResponse, o corpo vai para a resposta
 	// exatamente como está (sem JSON), com o Content-Type e status HTTP
 	// que o RawResponse pedir — usado por rotas que servem HTML/texto
 	// puro em vez de uma API JSON (ex.: uma página de login).
+	//
+	// Precedência dos params em caso de colisão de chave (maior por
+	// último): query string < corpo JSON < path params. Path params
+	// vencem sempre — vêm do roteamento do servidor e não podem ser
+	// falsificados pelo corpo da requisição.
 	Handler func(params map[string]any) (any, error)
 
 	// Raw é o handler de baixo nível: recebe a requisição HTTP crua
@@ -78,6 +81,12 @@ type Request struct {
 	QueryPairs []QueryPair
 	Header     http.Header
 	Body       []byte
+	// Ctx é o context.Context da requisição (cancelamento do cliente,
+	// deadline do servidor) — mesmo contexto que net/http entrega.
+	Ctx context.Context
+	// RemoteAddr é o endereço remoto do cliente ("IP:porta"), como em
+	// http.Request.RemoteAddr.
+	RemoteAddr string
 }
 
 // Response é a resposta completa escrita por um Route.Raw.
@@ -306,24 +315,19 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request, route Route) {
 	}
 	params := map[string]any{}
 
+	// Query string primeiro (menor precedência).
 	for k, v := range r.URL.Query() {
 		if len(v) > 0 {
 			params[strings.ToUpper(k)] = v[0]
 		}
 	}
 
-	// Path params: Go 1.22+ expõe cada `{nome}` do pattern via r.PathValue.
-	// O path é normalizado antes (:param -> {param}) porque o mux registra
-	// o pattern normalizado — sem isso, rotas ":param" não populam params.
-	for _, name := range pathParamNames(NormalizaPath(route.Path)) {
-		params[strings.ToUpper(name)] = r.PathValue(name)
-	}
-
+	// Corpo JSON por cima da query.
 	if r.Body != nil {
 		defer r.Body.Close()
-		body, err := io.ReadAll(io.LimitReader(r.Body, 8<<20))
+		body, err := readBody(r)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo da requisição inválido: " + err.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 		if len(strings.TrimSpace(string(body))) > 0 {
@@ -336,6 +340,14 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request, route Route) {
 				params[strings.ToUpper(k)] = v
 			}
 		}
+	}
+
+	// Path params por último: precedência máxima. O mux registra o
+	// pattern normalizado (:param -> {param}), então o path é normalizado
+	// antes de extrair os nomes — sem isso, rotas ":param" não populam
+	// params.
+	for _, name := range pathParamNames(NormalizaPath(route.Path)) {
+		params[strings.ToUpper(name)] = r.PathValue(name)
 	}
 
 	result, err := route.Handler(params)
@@ -354,9 +366,10 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request, route Route) {
 // escreve o Response devolvido. Corpo maior que maxBodyBytes (já limitado
 // por limitBody no Handler) vira 400 sem chamar o handler.
 func (s *Server) dispatchRaw(w http.ResponseWriter, r *http.Request, route Route) {
-	body, err := io.ReadAll(r.Body)
+	defer r.Body.Close()
+	body, err := readBody(r)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo da requisição inválido: " + err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
@@ -377,6 +390,8 @@ func (s *Server) dispatchRaw(w http.ResponseWriter, r *http.Request, route Route
 		QueryPairs: queryPairs,
 		Header:     r.Header.Clone(),
 		Body:       body,
+		Ctx:        r.Context(),
+		RemoteAddr: r.RemoteAddr,
 	}
 
 	resp := route.Raw(req)
@@ -417,21 +432,72 @@ func parseQueryOrder(rawQuery string) (order []string, pairs []QueryPair) {
 	return order, pairs
 }
 
-// writeResponse escreve um Response de Route.Raw: status (0 = 200),
-// headers extras e corpo cru. Content-Type vazio vira application/json.
-func writeResponse(w http.ResponseWriter, resp *Response) {
-	status := resp.Status
-	if status == 0 {
-		status = http.StatusOK
+// errBodyTooLarge é devolvido por readBody quando o corpo excede
+// maxBodyBytes — erro explícito em vez de JSON truncado silenciosamente.
+var errBodyTooLarge = fmt.Errorf("corpo da requisição excede o limite de %d bytes", maxBodyBytes)
+
+// readBody lê o corpo da requisição com teto explícito de maxBodyBytes.
+// Lê até o limite+1 para distinguir "exatamente no limite" de "acima";
+// o limitBody do Handler (MaxBytesReader) normalmente já rejeita antes,
+// mas o teto aqui torna o comportamento correto mesmo sem ele.
+func readBody(r *http.Request) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("corpo da requisição inválido: %w", err)
 	}
+	if int64(len(body)) > maxBodyBytes {
+		return nil, errBodyTooLarge
+	}
+	return body, nil
+}
+
+// forbiddenResponseHeaders são headers que um Response.Header não pode
+// definir: Content-Length é calculado pelo net/http a partir do corpo, e
+// os demais são hop-by-hop (RFC 7230 §6.1) — deixá-los sob controle do
+// handler permitiria corromper o framing da conexão.
+var forbiddenResponseHeaders = map[string]bool{
+	"Content-Length":      true,
+	"Transfer-Encoding":   true,
+	"Connection":          true,
+	"Keep-Alive":          true,
+	"Proxy-Authenticate":  true,
+	"Proxy-Authorization": true,
+	"Te":                  true,
+	"Trailer":             true,
+	"Upgrade":             true,
+}
+
+// validStatus normaliza o status HTTP de uma resposta: 0 vira 200
+// (default) e valores fora da faixa válida de códigos HTTP (100–599)
+// viram 500 — WriteHeader entra em pânico fora de [100,999] e códigos
+// fora de 100–599 não são HTTP válido.
+func validStatus(status int) int {
+	if status == 0 {
+		return http.StatusOK
+	}
+	if status < 100 || status > 599 {
+		return http.StatusInternalServerError
+	}
+	return status
+}
+
+// writeResponse escreve um Response de Route.Raw: status (0 = 200,
+// fora de 100–599 = 500), headers extras (hop-by-hop filtrados) e corpo
+// cru. Content-Type vazio vira application/json e tem precedência sobre
+// um eventual "Content-Type" em Header.
+func writeResponse(w http.ResponseWriter, resp *Response) {
+	status := validStatus(resp.Status)
 	contentType := resp.ContentType
 	if contentType == "" {
 		contentType = "application/json"
 	}
-	w.Header().Set("Content-Type", contentType)
 	for k, v := range resp.Header {
+		if forbiddenResponseHeaders[http.CanonicalHeaderKey(k)] {
+			continue
+		}
 		w.Header().Set(k, v)
 	}
+	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(status)
 	_, _ = w.Write(resp.Body)
 }
@@ -481,10 +547,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func writeRaw(w http.ResponseWriter, raw RawResponse) {
-	status := raw.Status
-	if status == 0 {
-		status = http.StatusOK
-	}
+	status := validStatus(raw.Status)
 	contentType := raw.ContentType
 	if contentType == "" {
 		contentType = "text/plain; charset=utf-8"
