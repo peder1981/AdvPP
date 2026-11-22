@@ -1,6 +1,8 @@
 package compiler_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -193,5 +195,194 @@ User Function FB()
 	v := vm.NewVM(bc, false)
 	if _, err := v.RunFunction("FB", nil); err == nil {
 		t.Fatal("FB() deveria falhar: Segredo() é static de a.prw")
+	}
+}
+
+// User Function é global e AdvPL não diferencia caixa: "Foo" e "FOO" em
+// arquivos diferentes são a mesma função — erro de duplicata.
+func TestProjetoFuncaoDuplicadaCaseInsensitive(t *testing.T) {
+	a := parseProjeto(t, "a.prw", "User Function Foo()\n\tReturn 1\n")
+	b := parseProjeto(t, "b.prw", "User Function FOO()\n\tReturn 2\n")
+
+	_, err := compiler.CompileProject([]*ast.Program{a, b})
+	if err == nil {
+		t.Fatal("esperava erro de função duplicada (Foo/FOO)")
+	}
+	if !strings.Contains(err.Error(), "a.prw") || !strings.Contains(err.Error(), "b.prw") {
+		t.Fatalf("erro %q não cita os dois arquivos", err)
+	}
+}
+
+// Mesma regra para classes: "Foo" e "FOO" colidem.
+func TestProjetoClasseDuplicadaCaseInsensitive(t *testing.T) {
+	a := parseProjeto(t, "a.prw", "Class Foo\nEndClass\n")
+	b := parseProjeto(t, "b.prw", "Class FOO\nEndClass\n")
+
+	_, err := compiler.CompileProject([]*ast.Program{a, b})
+	if err == nil {
+		t.Fatal("esperava erro de classe duplicada (Foo/FOO)")
+	}
+	if !strings.Contains(err.Error(), "a.prw") || !strings.Contains(err.Error(), "b.prw") {
+		t.Fatalf("erro %q não cita os dois arquivos", err)
+	}
+}
+
+// Classe::Metodo também é global: a mesma implementação em dois arquivos
+// (mesmo que um deles não redeclare a classe) é erro citando os arquivos.
+func TestProjetoMetodoDuplicadoEntreArquivos(t *testing.T) {
+	a := parseProjeto(t, "a.prw", `
+Class X
+	Method M()
+EndClass
+Method M() Class X
+	Return 1
+`)
+	b := parseProjeto(t, "b.prw", `
+Method M() Class X
+	Return 2
+`)
+
+	_, err := compiler.CompileProject([]*ast.Program{a, b})
+	if err == nil {
+		t.Fatal("esperava erro de método duplicado X::M")
+	}
+	if !strings.Contains(err.Error(), "a.prw") || !strings.Contains(err.Error(), "b.prw") {
+		t.Fatalf("erro %q não cita os dois arquivos", err)
+	}
+}
+
+// Static de arquivo (variável) inicializa no "main" do projeto — uma vez,
+// por arquivo, isolado entre arquivos. Lookup dentro das funções é
+// case-insensitive.
+func TestProjetoStaticArquivoInicializa(t *testing.T) {
+	a := parseProjeto(t, "a.prw", `
+Static nCont := 10
+Static cNome := "oi"
+Static nZero AS NUMERIC
+
+User Function FA()
+	Return cValToChar(nCont) + "|" + cNome + "|" + cValToChar(nZero)
+`)
+	b := parseProjeto(t, "b.prw", `
+Static nCont := 99
+
+User Function FB()
+	Return cValToChar(NCONT)
+`)
+	bc, err := compiler.CompileProject([]*ast.Program{a, b})
+	if err != nil {
+		t.Fatalf("CompileProject: %v", err)
+	}
+	v := vm.NewVM(bc, false)
+	if _, err := v.Run(); err != nil { // executa o main: inicializadores dos Static
+		t.Fatalf("Run: %v", err)
+	}
+	val, err := v.RunFunction("FA", nil)
+	if err != nil {
+		t.Fatalf("RunFunction(FA): %v", err)
+	}
+	if got := advplrt.ToString(val); got != "10|oi|0" {
+		t.Fatalf("FA() = %q, esperava %q", got, "10|oi|0")
+	}
+	// FB lê NCONT maiúsculo do SEU arquivo (99), não o do a.prw — e o
+	// lookup case-insensitive alcança a declarada "nCont".
+	val, err = v.RunFunction("FB", nil)
+	if err != nil {
+		t.Fatalf("RunFunction(FB): %v", err)
+	}
+	if got := advplrt.ToString(val); got != "99" {
+		t.Fatalf("FB() = %q, esperava %q", got, "99")
+	}
+}
+
+// CompileProject rejeita entrada vazia/nil com erro claro.
+func TestProjetoVazioErro(t *testing.T) {
+	if _, err := compiler.CompileProject(nil); err == nil {
+		t.Fatal("CompileProject(nil) deveria falhar")
+	}
+	if _, err := compiler.CompileProject([]*ast.Program{}); err == nil {
+		t.Fatal("CompileProject([]) deveria falhar")
+	}
+	prog := parseProjeto(t, "a.prw", "User Function FA()\n\tReturn 1\n")
+	if _, err := compiler.CompileProject([]*ast.Program{prog, nil}); err == nil {
+		t.Fatal("CompileProject com programa nil deveria falhar")
+	}
+}
+
+// Erro de compilação de função/método é embrulhado com o arquivo de
+// origem — _Super: fora de método é erro de codegen.
+func TestProjetoErroIdentificaArquivo(t *testing.T) {
+	a := parseProjeto(t, "a.prw", "User Function FA()\n\tReturn 1\n")
+	b := parseProjeto(t, "b.prw", "User Function FB()\n\t_Super:Foo()\n")
+
+	_, err := compiler.CompileProject([]*ast.Program{a, b})
+	if err == nil {
+		t.Fatal("esperava erro de compilação")
+	}
+	if !strings.Contains(err.Error(), "b.prw") {
+		t.Fatalf("erro %q não identifica o arquivo b.prw", err)
+	}
+}
+
+// O bytecode do projeto é determinístico: mesma entrada -> mesmos bytes
+// serializados (maps serializam com chaves ordenadas).
+func TestProjetoBytecodeDeterministico(t *testing.T) {
+	monta := func() *compiler.Bytecode {
+		a := parseProjeto(t, "a.prw", `
+Static Function Aux()
+	Return "A"
+User Function FA()
+	Return Aux()
+`)
+		b := parseProjeto(t, "b.tlpp", `
+Class Repo
+	Method New()
+EndClass
+Method New() Class Repo
+	Return Self
+`)
+		bc, err := compiler.CompileProject([]*ast.Program{a, b})
+		if err != nil {
+			t.Fatalf("CompileProject: %v", err)
+		}
+		return bc
+	}
+	serializa := func(bc *compiler.Bytecode) []byte {
+		j, err := json.Marshal(compiler.BytecodeFile{
+			Version:    "1.0",
+			Constants:  bc.Constants,
+			Functions:  bc.Functions,
+			Classes:    bc.Classes,
+			Code:       bc.Code,
+			MainOffset: bc.MainOffset,
+			NumGlobals: bc.NumGlobals,
+		})
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return j
+	}
+	if !bytes.Equal(serializa(monta()), serializa(monta())) {
+		t.Fatal("bytecode do projeto não é determinístico")
+	}
+}
+
+// Chamada cross-file: função de um.prw chama User Function declarada em
+// b.prw — visibilidade global do projeto, executada na VM.
+func TestProjetoChamadaEntreArquivos(t *testing.T) {
+	a := parseProjeto(t, "a.prw", `
+User Function FA()
+	Return FB() + "!"
+`)
+	b := parseProjeto(t, "b.prw", `
+User Function FB()
+	Return "de B"
+`)
+	bc, err := compiler.CompileProject([]*ast.Program{a, b})
+	if err != nil {
+		t.Fatalf("CompileProject: %v", err)
+	}
+	if got := rodaFuncao(t, bc, "FA"); got != "de B!" {
+		t.Fatalf("FA() = %q, esperava %q", got, "de B!")
 	}
 }

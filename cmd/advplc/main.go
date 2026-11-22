@@ -321,12 +321,13 @@ func loadAndCompile(sourceFile string, opts *Options) (*compiler.Bytecode, error
 }
 
 // parseFonteComAvisos lê, preprocessa, lexa e parseia um fonte AdvPL/TLPP,
-// devolvendo o AST e os avisos do parser+preprocessador. includes já deve
-// vir completo (o chamador decide os diretórios de #include).
-func parseFonteComAvisos(sourceFile string, includes []string, opts *Options) (*ast.Program, []parser.Aviso, error) {
+// devolvendo o AST, os avisos do parser+preprocessador e as dependências
+// resolvidas (#include). includes já deve vir completo (o chamador decide
+// os diretórios de #include).
+func parseFonteComAvisos(sourceFile string, includes []string, opts *Options) (*ast.Program, []parser.Aviso, []string, error) {
 	source, err := os.ReadFile(sourceFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read file %s: %v", sourceFile, err)
+		return nil, nil, nil, fmt.Errorf("cannot read file %s: %v", sourceFile, err)
 	}
 
 	// Detect and convert CP1252 encoding to UTF-8 if needed
@@ -339,20 +340,20 @@ func parseFonteComAvisos(sourceFile string, includes []string, opts *Options) (*
 	}
 	processed, err := pp.Process(sourceStr, sourceFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("preprocessor error: %v", err)
+		return nil, nil, nil, fmt.Errorf("preprocessor error: %v", err)
 	}
 
 	// Lex
 	tokens, err := lexer.Tokenize(processed, sourceFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("lexer error: %v", err)
+		return nil, nil, nil, fmt.Errorf("lexer error: %v", err)
 	}
 
 	// Parse
 	p := parser.NewParser(tokens, sourceFile, pp.GetDefines())
 	prog, err := p.Parse()
 	if err != nil {
-		return nil, nil, fmt.Errorf("parser error: %v", err)
+		return nil, nil, nil, fmt.Errorf("parser error: %v", err)
 	}
 	prog.RootBoundaryLine = pp.RootBoundaryLine
 
@@ -364,7 +365,7 @@ func parseFonteComAvisos(sourceFile string, includes []string, opts *Options) (*
 		}
 		avisos = append(avisos, parser.Aviso{Line: a.Linha, Col: 1, Message: msg})
 	}
-	return prog, avisos, nil
+	return prog, avisos, pp.Dependencias(), nil
 }
 
 // compilaComAvisos é o loadAndCompile que também devolve os avisos do parser
@@ -374,7 +375,7 @@ func compilaComAvisos(sourceFile string, opts *Options) (*compiler.Bytecode, []p
 	includes := append([]string{}, opts.includes...)
 	includes = append(includes, filepath.Dir(sourceFile))
 
-	prog, avisos, err := parseFonteComAvisos(sourceFile, includes, opts)
+	prog, avisos, _, err := parseFonteComAvisos(sourceFile, includes, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -401,48 +402,82 @@ func extFonteProjeto(name string) bool {
 // `advplc serve <diretório>` carrega. Ordem alfabética dos arquivos mantém
 // o bytecode determinístico.
 func compilaDiretorio(dir string, opts *Options) (*compiler.Bytecode, error) {
+	bc, _, err := compilaDiretorioDeps(dir, opts)
+	return bc, err
+}
+
+// compilaDiretorioDeps é o compilaDiretorio que também devolve as
+// dependências resolvidas (#include) de todos os fontes — o --watch usa
+// para recompilar quando um .ch/include muda.
+func compilaDiretorioDeps(dir string, opts *Options) (*compiler.Bytecode, []string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read directory %s: %v", dir, err)
+		return nil, nil, fmt.Errorf("cannot read directory %s: %v", dir, err)
 	}
 	files := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if e.IsDir() || !extFonteProjeto(e.Name()) {
-			continue
+		info, err := e.Info()
+		if err != nil || !info.Mode().IsRegular() || !extFonteProjeto(e.Name()) {
+			continue // só arquivos regulares .prw/.prx/.tlpp
 		}
 		files = append(files, filepath.Join(dir, e.Name()))
 	}
 	sort.Strings(files)
 	if len(files) == 0 {
-		return nil, fmt.Errorf("no .prw/.prx/.tlpp sources in %s", dir)
+		return nil, nil, fmt.Errorf("no .prw/.prx/.tlpp sources in %s", dir)
 	}
 
 	includes := append([]string{}, opts.includes...)
 	includes = append(includes, dir)
 	progs := make([]*ast.Program, 0, len(files))
+	deps := make([]string, 0, len(files))
 	for _, f := range files {
-		prog, avisos, err := parseFonteComAvisos(f, includes, opts)
+		prog, avisos, d, err := parseFonteComAvisos(f, includes, opts)
 		mostraAvisos(f, avisos)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		progs = append(progs, prog)
+		deps = append(deps, d...)
 	}
 	bc, err := compiler.CompileProject(progs)
 	if err != nil {
-		return nil, fmt.Errorf("compiler error: %v", err)
+		return nil, nil, fmt.Errorf("compiler error: %v", err)
 	}
-	return bc, nil
+	return bc, deps, nil
+}
+
+// compilaFonteDeps é o loadAndCompile que também devolve as dependências
+// (#include) do fonte — para o --watch de arquivo único.
+func compilaFonteDeps(sourceFile string, opts *Options) (*compiler.Bytecode, []string, error) {
+	includes := append([]string{}, opts.includes...)
+	includes = append(includes, filepath.Dir(sourceFile))
+	prog, _, deps, err := parseFonteComAvisos(sourceFile, includes, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	bc, err := compiler.Compile(prog)
+	if err != nil {
+		return nil, nil, fmt.Errorf("compiler error: %v", err)
+	}
+	return bc, deps, nil
 }
 
 // compilaAlvo escolhe o pipeline pelo argumento do serve: diretório vira
 // projeto (vários fontes, como um RPO); arquivo continua fonte único.
 func compilaAlvo(sourceFile string, opts *Options) (*compiler.Bytecode, error) {
-	if st, err := os.Stat(sourceFile); err == nil && st.IsDir() {
-		return compilaDiretorio(sourceFile, opts)
-	}
-	bc, err := loadAndCompile(sourceFile, opts)
+	bc, _, err := compilaAlvoDeps(sourceFile, opts)
 	return bc, err
+}
+
+// compilaAlvoDeps é o compilaAlvo que também devolve as dependências
+// resolvidas (#include) do alvo — fonte único ou todas as fontes do
+// diretório.
+func compilaAlvoDeps(sourceFile string, opts *Options) (*compiler.Bytecode, []string, error) {
+	if st, err := os.Stat(sourceFile); err == nil && st.IsDir() {
+		return compilaDiretorioDeps(sourceFile, opts)
+	}
+	return compilaFonteDeps(sourceFile, opts)
 }
 
 func runFile(sourceFile string, opts *Options) error {
@@ -504,9 +539,15 @@ func mostraAvisos(sourceFile string, avisos []parser.Aviso) {
 // sessão com VM isolada — mesma semântica de work process do StartJob.
 func serveFile(sourceFile string, opts *Options) error {
 	// Diretório vira projeto (todos os fontes num bytecode só, como um
-	// RPO); arquivo segue fonte único. compilaAlvo decide pelo os.Stat.
+	// RPO); arquivo segue fonte único. compilaAlvoDeps decide pelo
+	// os.Stat e devolve as dependências (#include) para o --watch.
+	var deps atomic.Value // []string — deps do último compile bem-sucedido
 	compile := func() (*compiler.Bytecode, error) {
-		return compilaAlvo(sourceFile, opts)
+		bc, d, err := compilaAlvoDeps(sourceFile, opts)
+		if err == nil {
+			deps.Store(d)
+		}
+		return bc, err
 	}
 	bc, err := compile()
 	if err != nil {
@@ -552,7 +593,7 @@ func serveFile(sourceFile string, opts *Options) error {
 		})
 
 	if opts.watch {
-		go watchSource(sourceFile, compile, &current, srv)
+		go watchSource(sourceFile, compile, &deps, &current, srv)
 	}
 
 	if opts.debugPort != "" {
@@ -593,51 +634,62 @@ func serveDebugAttach(port, sourceFile string, dbgSrv *atomic.Pointer[dap.Server
 }
 
 // assinaturaFonte devolve uma impressão digital do alvo do watch: mtime do
-// arquivo, ou a lista "nome:mtime" dos fontes do projeto (diretório).
-// Mudança de conteúdo, de nome ou de conjunto de arquivos dispara
-// recompilação.
-func assinaturaFonte(sourceFile string) (string, error) {
+// arquivo, ou a lista "nome:mtime" dos fontes do projeto (diretório), mais
+// o mtime de cada dependência resolvida (#include/.ch — deps vem do último
+// compile). Mudança de conteúdo, de nome, de conjunto de arquivos ou de um
+// include dispara recompilação.
+func assinaturaFonte(sourceFile string, deps []string) (string, error) {
 	st, err := os.Stat(sourceFile)
 	if err != nil {
 		return "", err
 	}
-	if !st.IsDir() {
-		return fmt.Sprintf("%s:%d", sourceFile, st.ModTime().UnixNano()), nil
-	}
-	entries, err := os.ReadDir(sourceFile)
-	if err != nil {
-		return "", err
-	}
 	var b strings.Builder
-	for _, e := range entries {
-		if e.IsDir() || !extFonteProjeto(e.Name()) {
-			continue
-		}
-		info, err := e.Info()
+	if st.IsDir() {
+		entries, err := os.ReadDir(sourceFile)
 		if err != nil {
-			continue
+			return "", err
 		}
-		fmt.Fprintf(&b, "%s:%d;", e.Name(), info.ModTime().UnixNano())
+		for _, e := range entries {
+			info, err := e.Info()
+			if err != nil || !info.Mode().IsRegular() || !extFonteProjeto(e.Name()) {
+				continue
+			}
+			fmt.Fprintf(&b, "%s:%d;", e.Name(), info.ModTime().UnixNano())
+		}
+	} else {
+		fmt.Fprintf(&b, "%s:%d", sourceFile, st.ModTime().UnixNano())
+	}
+	for _, d := range deps {
+		if info, err := os.Stat(d); err == nil {
+			fmt.Fprintf(&b, "|%s:%d", d, info.ModTime().UnixNano())
+		} else {
+			fmt.Fprintf(&b, "|%s:missing", d)
+		}
 	}
 	return b.String(), nil
 }
 
 // watchSource observa o fonte (polling de mtime, sem dependências) — ou o
-// conjunto de fontes, quando o alvo é um diretório — e, a cada alteração,
-// recompila e manda as sessões do browser recarregarem. Erro de compilação
-// vai para o console do browser em vez de recarregar.
-func watchSource(sourceFile string, compile func() (*compiler.Bytecode, error), current *atomic.Pointer[compiler.Bytecode], srv *webui.Server) {
-	lastSig, err := assinaturaFonte(sourceFile)
-	if err != nil {
-		lastSig = ""
+// conjunto de fontes e seus #include, quando o alvo é um diretório — e, a
+// cada alteração, recompila e manda as sessões do browser recarregarem.
+// Erro de compilação vai para o console do browser em vez de recarregar.
+func watchSource(sourceFile string, compile func() (*compiler.Bytecode, error), deps *atomic.Value, current *atomic.Pointer[compiler.Bytecode], srv *webui.Server) {
+	sig := func() string {
+		d, _ := deps.Load().([]string)
+		s, err := assinaturaFonte(sourceFile, d)
+		if err != nil {
+			return ""
+		}
+		return s
 	}
+	lastSig := sig()
 	for {
 		time.Sleep(500 * time.Millisecond)
-		sig, err := assinaturaFonte(sourceFile)
-		if err != nil || sig == lastSig {
+		s := sig()
+		if s == lastSig {
 			continue
 		}
-		lastSig = sig
+		lastSig = s
 		bc, err := compile()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "watch: erro de compilação: %v\n", err)
@@ -926,7 +978,10 @@ Commands:
   compile   Compile source to bytecode file (use -o for output)
   exec      Execute a compiled bytecode file
   check     Validate syntax without executing (accepts multiple files)
-  serve     Run the program with the UI rendered in the browser (web mode)
+  serve     Run the program with the UI rendered in the browser (web mode);
+            accepts a source file or a directory — a directory loads every
+            .prw/.prx/.tlpp in it as one project (like an RPO), with
+            cross-file classes/functions and per-file Static Function
   build     Compile to a standalone desktop executable (Fyne) with embedded
             bytecode (use -o for output; run from within the repo or set
             ADVPP_SRC so the stub can find a checkout of this module)
@@ -973,6 +1028,7 @@ Examples:
   advplc check program.prw --include ./includes
   advplc check a.prw b.prw --format json
   advplc serve program.prw --port 9000 --watch
+  advplc serve ./fontes --watch
   advplc serve --apps ./apps --home inicio
   advplc build program.prw -o myapp --db-path ./data.db
   advplc build app.prw -o MyApp --gui

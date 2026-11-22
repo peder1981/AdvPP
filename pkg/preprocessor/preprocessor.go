@@ -15,6 +15,7 @@ type Preprocessor struct {
 	includePaths []string
 	defines      map[string]string
 	processed    map[string]bool
+	deps         []string // caminhos resolvidos dos #include (na ordem)
 	sqlCounter   int
 	commandRules []commandRule
 
@@ -37,6 +38,13 @@ type Aviso struct {
 
 // Avisos devolve os avisos acumulados pelo Process, na ordem em que surgiram.
 func (p *Preprocessor) Avisos() []Aviso { return p.avisos }
+
+// Dependencias devolve os caminhos resolvidos dos #include efetivamente
+// lidos (o arquivo raiz não entra — quem chama já o conhece). Serve ao
+// --watch do advplc serve para recompilar quando um .ch/include muda.
+func (p *Preprocessor) Dependencias() []string {
+	return append([]string(nil), p.deps...)
+}
 
 func NewPreprocessor(includePaths []string) *Preprocessor {
 	return &Preprocessor{
@@ -578,6 +586,7 @@ func (p *Preprocessor) leInclude(path string) (string, string, bool) {
 		return "", path, true
 	}
 	p.processed[key] = true
+	p.deps = append(p.deps, path)
 	return SourceToUTF8(data), path, true
 }
 

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/advpl/compiler/pkg/compiler"
 )
@@ -94,6 +95,112 @@ func TestCompilaDiretorioIgnoraSubdiretorioEOutrasExtensoes(t *testing.T) {
 func TestCompilaDiretorioVazioErro(t *testing.T) {
 	if _, err := compilaDiretorio(t.TempDir(), &Options{}); err == nil {
 		t.Fatal("esperava erro para diretório sem fontes")
+	}
+}
+
+// #include é resolvido a partir do diretório do projeto: o conteúdo do
+// .ch entra no programa que o inclui (a função vira global do projeto).
+func TestCompilaDiretorioIncludeResolvidoPeloDiretorio(t *testing.T) {
+	dir := t.TempDir()
+	escreveFonteProjeto(t, dir, "a.prw", `#include "meu.ch"
+User Function FA()
+	Return FC()
+`)
+	escreveFonteProjeto(t, dir, "meu.ch", `User Function FC()
+	Return "de dentro"
+`)
+
+	bc, deps, err := compilaDiretorioDeps(dir, &Options{})
+	if err != nil {
+		t.Fatalf("compilaDiretorioDeps: %v", err)
+	}
+	if _, ok := bc.Functions["FC"]; !ok {
+		t.Fatal("função do .ch incluído não foi compilada")
+	}
+	achou := false
+	for _, d := range deps {
+		if strings.HasSuffix(d, "meu.ch") {
+			achou = true
+		}
+	}
+	if !achou {
+		t.Fatalf("dependências %v não contêm meu.ch", deps)
+	}
+}
+
+// A assinatura do diretório muda ao alterar um fonte .prw e também ao
+// alterar um .ch/include resolvido — o --watch precisa recompilar nos
+// dois casos.
+func TestAssinaturaDiretorioMudaComFonteEInclude(t *testing.T) {
+	dir := t.TempDir()
+	escreveFonteProjeto(t, dir, "a.prw", `#include "meu.ch"
+User Function FA()
+	Return 1
+`)
+	escreveFonteProjeto(t, dir, "meu.ch", "// v1\n")
+
+	_, deps, err := compilaDiretorioDeps(dir, &Options{})
+	if err != nil {
+		t.Fatalf("compilaDiretorioDeps: %v", err)
+	}
+	sig1, err := assinaturaFonte(dir, deps)
+	if err != nil {
+		t.Fatalf("assinaturaFonte: %v", err)
+	}
+
+	// Altera o fonte .prw.
+	time.Sleep(5 * time.Millisecond)
+	escreveFonteProjeto(t, dir, "a.prw", `#include "meu.ch"
+User Function FA()
+	Return 2
+`)
+	sig2, err := assinaturaFonte(dir, deps)
+	if err != nil {
+		t.Fatalf("assinaturaFonte: %v", err)
+	}
+	if sig2 == sig1 {
+		t.Fatal("assinatura não mudou após alterar a.prw")
+	}
+
+	// Altera só o .ch (dependência): a assinatura também tem que mudar.
+	time.Sleep(5 * time.Millisecond)
+	escreveFonteProjeto(t, dir, "meu.ch", "// v2 alterado\n")
+	sig3, err := assinaturaFonte(dir, deps)
+	if err != nil {
+		t.Fatalf("assinaturaFonte: %v", err)
+	}
+	if sig3 == sig2 {
+		t.Fatal("assinatura não mudou após alterar meu.ch")
+	}
+}
+
+// Arquivo único também vigia seus #include: a assinatura muda quando o
+// .ch muda.
+func TestAssinaturaArquivoUnicoComInclude(t *testing.T) {
+	dir := t.TempDir()
+	arq := filepath.Join(dir, "a.prw")
+	escreveFonteProjeto(t, dir, "a.prw", `#include "meu.ch"
+User Function FA()
+	Return 1
+`)
+	escreveFonteProjeto(t, dir, "meu.ch", "// v1\n")
+
+	_, deps, err := compilaFonteDeps(arq, &Options{})
+	if err != nil {
+		t.Fatalf("compilaFonteDeps: %v", err)
+	}
+	sig1, err := assinaturaFonte(arq, deps)
+	if err != nil {
+		t.Fatalf("assinaturaFonte: %v", err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	escreveFonteProjeto(t, dir, "meu.ch", "// v2\n")
+	sig2, err := assinaturaFonte(arq, deps)
+	if err != nil {
+		t.Fatalf("assinaturaFonte: %v", err)
+	}
+	if sig2 == sig1 {
+		t.Fatal("assinatura do arquivo único não mudou após alterar o .ch")
 	}
 }
 

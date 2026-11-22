@@ -48,9 +48,19 @@ type projectProgram struct {
 // registro (todos os programas) e o passe de compilação (um por vez).
 type projectState struct {
 	programs   []*projectProgram
-	funcFiles  map[string]string // chave em bc.Functions -> arquivo de origem
-	classFiles map[string]string // chave em bc.Classes -> arquivo de origem
+	funcFiles  map[string]string // chave de função em maiúsculas -> arquivo de origem
+	classFiles map[string]string // chave de classe em maiúsculas -> arquivo de origem
+	methodFiles map[string]string // "CLASSE::METODO" em maiúsculas -> arquivo
 	current    *projectProgram   // programa cujas funções estão sendo compiladas
+}
+
+// progFileName: nome do arquivo-fonte do programa, com fallback para a
+// posição (Program montado à mão pode não ter FileName preenchido).
+func progFileName(prog *ast.Program) string {
+	if prog.FileName != "" {
+		return prog.FileName
+	}
+	return prog.Loc.FileName
 }
 
 // loopContext acumula os jumps de Exit (break) e Loop (continue) pendentes de
@@ -136,22 +146,32 @@ func Compile(program *ast.Program) (*Bytecode, error) {
 // registrada como "STATIC:<ARQUIVO>:<NOME>" (arquivo = basename em
 // maiúsculas, com extensão, sem diretório); chamadas dentro do mesmo
 // arquivo saem já qualificadas. O corpo principal de cada programa é
-// ignorado: MainOffset aponta para um OP_HALT.
+// ignorado, exceto os inicializadores dos Static de arquivo, que rodam
+// uma vez no "main" do projeto (MainOffset) antes do OP_HALT.
 func CompileProject(progs []*ast.Program) (*Bytecode, error) {
+	if len(progs) == 0 {
+		return nil, fmt.Errorf("CompileProject: nenhum programa")
+	}
+	for i, prog := range progs {
+		if prog == nil {
+			return nil, fmt.Errorf("CompileProject: programa %d é nil", i)
+		}
+	}
 	c := New()
 	ps := &projectState{
-		funcFiles:  make(map[string]string),
-		classFiles: make(map[string]string),
+		funcFiles:   make(map[string]string),
+		classFiles:  make(map[string]string),
+		methodFiles: make(map[string]string),
 	}
 	c.proj = ps
 
-	// MainOffset -> HALT: nenhum corpo top-level executa.
+	// MainOffset -> início do "main" do projeto: inicializadores dos Static
+	// de arquivo (na ordem dos programas) e um OP_HALT no fim.
 	c.bc.MainOffset = len(c.bc.Code)
-	c.emit(OP_HALT, 0, 0, "", 0)
 
-	// Passe 1: registra funções e classes de TODOS os programas antes de
-	// compilar qualquer um — chamadas e heranças (_Super:) enxerem símbolos
-	// de arquivos em qualquer posição da lista.
+	// Passe 1: registra funções, classes e métodos de TODOS os programas
+	// antes de compilar qualquer um — chamadas e heranças (_Super:) enxerem
+	// símbolos de arquivos em qualquer posição da lista.
 	for _, prog := range progs {
 		pp, err := c.registerProjectProgram(prog, ps)
 		if err != nil {
@@ -159,6 +179,14 @@ func CompileProject(progs []*ast.Program) (*Bytecode, error) {
 		}
 		ps.programs = append(ps.programs, pp)
 	}
+
+	// Passe 1.5: inicializadores dos Static de arquivo, por programa.
+	for _, pp := range ps.programs {
+		if err := c.compileProjectStaticInit(pp); err != nil {
+			return nil, err
+		}
+	}
+	c.emit(OP_HALT, 0, 0, "", 0)
 
 	// Passe 2: compila funções e métodos de cada programa.
 	for _, pp := range ps.programs {
@@ -179,15 +207,12 @@ func staticFuncKey(fileTag, name string) string {
 // um programa do projeto e devolve o contexto por-arquivo (estáticas e
 // Static de arquivo). Não emite código.
 func (c *Compiler) registerProjectProgram(prog *ast.Program, ps *projectState) (*projectProgram, error) {
+	file := progFileName(prog)
 	pp := &projectProgram{
 		prog:        prog,
-		fileTag:     strings.ToUpper(filepath.Base(prog.FileName)),
+		fileTag:     strings.ToUpper(filepath.Base(file)),
 		statics:     make(map[string]string),
 		fileStatics: make(map[string]int),
-	}
-	file := prog.FileName
-	if file == "" {
-		file = prog.Loc.FileName
 	}
 
 	// Static Function: só com o nome qualificado — o nome puro não entra
@@ -218,7 +243,9 @@ func (c *Compiler) registerProjectProgram(prog *ast.Program, ps *projectState) (
 		pp.statics[strings.ToUpper(fn.Name)] = key
 	}
 
-	// Demais funções (User Function, Function, Procedure): globais.
+	// Demais funções (User Function, Function, Procedure): globais. As
+	// chaves de detecção vão em maiúsculas — "Foo" e "FOO" em arquivos
+	// diferentes são a mesma função global (AdvPL não diferencia caixa).
 	for _, fn := range prog.Functions {
 		if fn.IsStatic {
 			continue
@@ -232,7 +259,7 @@ func (c *Compiler) registerProjectProgram(prog *ast.Program, ps *projectState) (
 			keys = append(keys, fn.Name)
 		}
 		for _, k := range keys {
-			if prev, dup := ps.funcFiles[k]; dup {
+			if prev, dup := ps.funcFiles[strings.ToUpper(k)]; dup {
 				return nil, fmt.Errorf("função %s duplicada: declarada em %s e %s", fn.Name, prev, file)
 			}
 		}
@@ -251,11 +278,11 @@ func (c *Compiler) registerProjectProgram(prog *ast.Program, ps *projectState) (
 		}
 		for _, k := range keys {
 			c.bc.Functions[k] = info
-			ps.funcFiles[k] = file
+			ps.funcFiles[strings.ToUpper(k)] = file
 		}
 	}
 
-	// Classes globais.
+	// Classes globais (mesma regra case-insensitive das funções).
 	for _, cls := range prog.Classes {
 		fullName := cls.Name
 		if prog.Namespace != "" {
@@ -266,7 +293,7 @@ func (c *Compiler) registerProjectProgram(prog *ast.Program, ps *projectState) (
 			keys = append(keys, cls.Name)
 		}
 		for _, k := range keys {
-			if prev, dup := ps.classFiles[k]; dup {
+			if prev, dup := ps.classFiles[strings.ToUpper(k)]; dup {
 				return nil, fmt.Errorf("classe %s duplicada: declarada em %s e %s", cls.Name, prev, file)
 			}
 		}
@@ -284,13 +311,25 @@ func (c *Compiler) registerProjectProgram(prog *ast.Program, ps *projectState) (
 		}
 		for _, k := range keys {
 			c.bc.Classes[k] = info
-			ps.classFiles[k] = file
+			ps.classFiles[strings.ToUpper(k)] = file
 		}
+	}
+
+	// Implementações de método (Classe::Metodo) também são globais:
+	// duplicata entre arquivos sobrescreveria silenciosamente em
+	// compileMethod — detecta aqui, antes de emitir código.
+	for _, m := range prog.Methods {
+		key := strings.ToUpper(m.ClassName + "::" + m.Name)
+		if prev, dup := ps.methodFiles[key]; dup {
+			return nil, fmt.Errorf("método %s::%s duplicado: declarado em %s e %s",
+				m.ClassName, m.Name, prev, file)
+		}
+		ps.methodFiles[key] = file
 	}
 
 	// Static de arquivo (variáveis): reserva slot global com chave
 	// qualificada para não dividir estado entre arquivos. O inicializador
-	// mora no corpo principal, que o projeto ignora — a global fica Nil.
+	// roda no "main" do projeto (compileProjectStaticInit).
 	for _, st := range prog.Body {
 		var decls []*ast.VarDecl
 		switch d := st.(type) {
@@ -305,19 +344,71 @@ func (c *Compiler) registerProjectProgram(prog *ast.Program, ps *projectState) (
 			if !strings.EqualFold(d.Scope, "static") {
 				continue
 			}
-			key := staticFuncKey(pp.fileTag, d.Name)
-			pp.fileStatics[d.Name] = c.addLocal(key) & 0x7FFF
+			key := staticFuncKey(pp.fileTag, strings.ToUpper(d.Name))
+			pp.fileStatics[strings.ToUpper(d.Name)] = c.addLocal(key) & 0x7FFF
 		}
 	}
 
 	return pp, nil
 }
 
+// compileProjectStaticInit emite, no "main" do projeto, os inicializadores
+// dos Static de arquivo de um programa — equivalente ao que o corpo
+// principal faria num Compile de fonte único, mas restrito às declarações
+// Static (o resto do corpo segue ignorado). Roda uma vez, na ordem dos
+// programas, antes do OP_HALT.
+func (c *Compiler) compileProjectStaticInit(pp *projectProgram) error {
+	prog := pp.prog
+	file := progFileName(prog)
+	c.namespace = prog.Namespace
+	c.usingNamespaces = prog.UsingNamespaces
+	c.proj.current = pp
+	c.fileStatics = pp.fileStatics
+	defer func() {
+		c.proj.current = nil
+		c.fileStatics = nil
+	}()
+
+	for _, st := range prog.Body {
+		var decls []*ast.VarDecl
+		switch d := st.(type) {
+		case *ast.VarDecl:
+			decls = []*ast.VarDecl{d}
+		case *ast.VarDeclGroup:
+			decls = d.Decls
+		default:
+			continue
+		}
+		for _, d := range decls {
+			if !strings.EqualFold(d.Scope, "static") {
+				continue
+			}
+			idx, ok := pp.fileStatics[strings.ToUpper(d.Name)]
+			if !ok {
+				continue // registrado no passe 1; não deveria acontecer
+			}
+			if d.Value != nil {
+				if err := c.compileExpr(d.Value); err != nil {
+					return fmt.Errorf("%s: %w", file, err)
+				}
+			} else if d.Type != "" {
+				emitDefaultExpr(c, d.Type, d.Loc.Line)
+			} else {
+				continue // Static sem valor nem tipo: global fica Nil
+			}
+			c.emit(OP_STORE_GLOBAL, idx, 0, d.Name, d.Loc.Line)
+		}
+	}
+	return nil
+}
+
 // compileProjectProgram compila as funções e métodos de um programa do
 // projeto, com o contexto por-arquivo ativo (estáticas e Static de
-// arquivo). O corpo principal não é compilado.
+// arquivo). O corpo principal não é compilado. Erros de compilação são
+// embrulhados com o nome do arquivo para localizar a origem.
 func (c *Compiler) compileProjectProgram(pp *projectProgram) error {
 	prog := pp.prog
+	file := progFileName(prog)
 	c.namespace = prog.Namespace
 	c.usingNamespaces = prog.UsingNamespaces
 	c.proj.current = pp
@@ -329,12 +420,12 @@ func (c *Compiler) compileProjectProgram(pp *projectProgram) error {
 
 	for _, fn := range prog.Functions {
 		if err := c.compileFunction(fn); err != nil {
-			return err
+			return fmt.Errorf("%s: %w", file, err)
 		}
 	}
 	for _, m := range prog.Methods {
 		if err := c.compileMethod(m); err != nil {
-			return err
+			return fmt.Errorf("%s: %w", file, err)
 		}
 	}
 	return nil
@@ -598,12 +689,25 @@ func (c *Compiler) addStringConst(s string) int {
 }
 
 // fileStatic: dentro de uma função, o índice global de um Static de arquivo.
+// Lookup case-insensitive (AdvPL não diferencia maiúsculas): chave exata,
+// depois maiúsculas e por fim comparação dobrada — cobre Static declarados
+// com caixa mista no fonte único e as chaves em maiúsculas do projeto.
 func (c *Compiler) fileStatic(name string) (int, bool) {
-	if c.currentFunc == nil {
+	if c.currentFunc == nil || c.fileStatics == nil {
 		return 0, false
 	}
-	idx, ok := c.fileStatics[name]
-	return idx, ok
+	if idx, ok := c.fileStatics[name]; ok {
+		return idx, true
+	}
+	if idx, ok := c.fileStatics[strings.ToUpper(name)]; ok {
+		return idx, true
+	}
+	for k, idx := range c.fileStatics {
+		if strings.EqualFold(k, name) {
+			return idx, true
+		}
+	}
+	return 0, false
 }
 
 func (c *Compiler) resolveLocal(name string) (int, bool) {
@@ -760,7 +864,11 @@ func (c *Compiler) compileVarDecl(s *ast.VarDecl) error {
 	return nil
 }
 
-func emitDefaultValue(c *Compiler, typeName, varName string, line int) {
+// emitDefaultExpr empilha na pilha o valor default de um tipo declarado
+// (Numeric->0, Character->"", Logical->.F., Date, Array, demais->Nil).
+// Separado de emitDefaultValue para reuso pelo init de Static de arquivo
+// no CompileProject, que grava num slot global já alocado.
+func emitDefaultExpr(c *Compiler, typeName string, line int) {
 	switch strings.ToUpper(typeName) {
 	case "NUMERIC", "INTEGER", "DOUBLE", "DECIMAL", "FLOAT":
 		c.emit(OP_NUMBER, c.addNumberConst(0), 0, "", line)
@@ -775,6 +883,10 @@ func emitDefaultValue(c *Compiler, typeName, varName string, line int) {
 	default:
 		c.emit(OP_NIL, 0, 0, "", line)
 	}
+}
+
+func emitDefaultValue(c *Compiler, typeName, varName string, line int) {
+	emitDefaultExpr(c, typeName, line)
 	idx := c.addLocal(varName)
 	if idx&0x8000 != 0 {
 		c.emit(OP_STORE_GLOBAL, idx&0x7FFF, 0, varName, line)
