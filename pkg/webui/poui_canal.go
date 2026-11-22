@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -112,6 +114,72 @@ func (c *pouiCanal) deadCh() <-chan struct{} {
 // Provider — interface usada pela VM (pkg/vm implementa PouiAppUI sobre isto)
 // ---------------------------------------------------------------------------
 
+// usuarioSessao devolve o usuário do SO para o contexto do app.
+func usuarioSessao() string {
+	if u := os.Getenv("USER"); u != "" {
+		return u
+	}
+	if u := os.Getenv("USERNAME"); u != "" {
+		return u
+	}
+	return "admin"
+}
+
+// NovaSessaoPoui cria uma sessão de servidor (sem VM chamadora) com o app
+// PO-UI aberto — usada pelo `advplc serve --poui-app`, onde a raiz
+// redireciona direto para o app. Os jsToAdvpl são drenados e descartados;
+// o close (ou a aba morta) desregistra o canal e remove a sessão.
+func (srv *Server) NovaSessaoPoui(app *PouiApp, origin string) (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	sid := hex.EncodeToString(buf)
+
+	srv.mu.Lock()
+	if len(srv.sessions) >= maxSessions {
+		srv.mu.Unlock()
+		return "", fmt.Errorf("too many sessions")
+	}
+	s := newSession()
+	s.sid = sid
+	s.origin = origin
+	srv.sessions[sid] = s
+	srv.mu.Unlock()
+
+	p := &Provider{s: s}
+	ctx, err := NovoPouiCtx(app.Nome, "01", "01", "CUSTOM", usuarioSessao(), "pt-br",
+		shared.ResolveRestPrefix(), origin)
+	if err == nil {
+		_, err = p.AbrePouiApp(app, ctx)
+	}
+	if err != nil {
+		srv.mu.Lock()
+		delete(srv.sessions, sid)
+		srv.mu.Unlock()
+		s.abandon()
+		return "", err
+	}
+
+	go func() {
+		defer func() {
+			p.FechaPouiApp()
+			srv.mu.Lock()
+			if srv.sessions[sid] == s {
+				delete(srv.sessions, sid)
+			}
+			srv.mu.Unlock()
+			s.abandon()
+		}()
+		for {
+			if _, _, fechou := p.PouiNext(0); fechou {
+				return
+			}
+		}
+	}()
+	return sid, nil
+}
+
 // AbrePouiAppPorNome é o PouiAppUI do lado webui (implementa a interface
 // que a VM consome): localiza o app em dirs + poui_apps_dirs do config,
 // monta o contexto da sessão e abre o canal.
@@ -132,13 +200,7 @@ func (p *Provider) AbrePouiAppPorNome(nome string, dirs []string) (string, error
 	if err != nil {
 		return "", err
 	}
-	usuario := os.Getenv("USER")
-	if usuario == "" {
-		usuario = os.Getenv("USERNAME")
-	}
-	if usuario == "" {
-		usuario = "admin"
-	}
+	usuario := usuarioSessao()
 	ctx, err := NovoPouiCtx(app.Nome, "01", "01", "CUSTOM", usuario, "pt-br",
 		shared.ResolveRestPrefix(), p.s.origin)
 	if err != nil {

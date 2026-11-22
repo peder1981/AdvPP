@@ -167,19 +167,28 @@ func main() {
 		}
 
 	case "serve":
-		if modoApps(os.Args[2:]) {
-			if err := serveApps(parseOptions(os.Args[2:])); err != nil {
+		args := os.Args[2:]
+		if modoApps(args) {
+			if err := serveApps(parseOptions(args)); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
 			return
 		}
-		if len(os.Args) < 3 {
+		if appPath, fonte, ok := extraiPouiApp(args); ok {
+			opts := parseOptions(args)
+			if err := servePouiApp(appPath, fonte, opts); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+		if len(args) < 1 {
 			fmt.Fprintln(os.Stderr, "Error: missing source file")
 			os.Exit(1)
 		}
-		sourceFile := os.Args[2]
-		opts := parseOptions(os.Args[3:])
+		sourceFile := args[0]
+		opts := parseOptions(args[1:])
 		if err := serveFile(sourceFile, opts); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -1108,6 +1117,8 @@ Examples:
   advplc serve program.prw --port 9000 --watch
   advplc serve ./fontes --watch
   advplc serve --apps ./apps --home inicio
+  advplc serve --poui-app ./meu-app-web --port 9000
+  advplc serve --poui-app app.zip ./fonte-rest
   advplc build program.prw -o myapp --db-path ./data.db
   advplc build app.prw -o MyApp --gui
   advplc bytecode program.prw`)

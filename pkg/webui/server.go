@@ -320,6 +320,19 @@ func (srv *Server) Serve(addr string) error {
 	return hs.ListenAndServe()
 }
 
+// ServeHandler sobe o servidor com um http.Handler externo no lugar do
+// Handler() padrão — ex.: o redirect da raiz do `advplc serve --poui-app`.
+func (srv *Server) ServeHandler(addr string, h http.Handler) error {
+	fmt.Printf("AdvPP web: http://%s  (fonte: %s)\n", addr, srv.sourceName)
+	hs := &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 10 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+	return hs.ListenAndServe()
+}
+
 // Handler monta as rotas do modo web (com a checagem de origem); Serve o
 // usa, e testes podem montá-lo num httptest.Server.
 func (srv *Server) Handler() http.Handler {
