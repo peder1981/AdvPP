@@ -41,7 +41,7 @@ func TestRawRecebeTudo(t *testing.T) {
 	if got.PathParams["id"] != "42" {
 		t.Errorf("PathParams[id] = %q", got.PathParams["id"])
 	}
-	wantOrder := []string{"x", "y"}
+	wantOrder := []string{"x", "y", "x"} // uma entrada por par, repetições preservadas
 	if len(got.QueryOrder) != len(wantOrder) {
 		t.Fatalf("QueryOrder = %v", got.QueryOrder)
 	}
@@ -52,6 +52,15 @@ func TestRawRecebeTudo(t *testing.T) {
 	}
 	if got.Query.Get("x") != "1" || got.Query.Get("y") != "2" {
 		t.Errorf("Query = %v", got.Query)
+	}
+	wantPairs := []QueryPair{{Key: "x", Value: "1"}, {Key: "y", Value: "2"}, {Key: "x", Value: "3"}}
+	if len(got.QueryPairs) != len(wantPairs) {
+		t.Fatalf("QueryPairs = %v", got.QueryPairs)
+	}
+	for i := range wantPairs {
+		if got.QueryPairs[i] != wantPairs[i] {
+			t.Fatalf("QueryPairs = %v", got.QueryPairs)
+		}
 	}
 	if got.Header.Get("X-K") != "v" {
 		t.Errorf("Header[X-K] = %q", got.Header.Get("X-K"))
@@ -187,6 +196,124 @@ func TestRotaComDoisPontosAtende(t *testing.T) {
 	}
 	if got == nil || got.PathParams["InternalID"] != "A1" {
 		t.Fatalf("PathParams = %v", got.PathParams)
+	}
+}
+
+// TestHandlerDoisPontosAtende verifica que Route.Handler (map de params)
+// também resolve path params declarados no estilo ":param" — o dispatch
+// normaliza o path antes de extrair os nomes.
+func TestHandlerDoisPontosAtende(t *testing.T) {
+	s := NewServer("t", "1")
+	s.AddRoute(Route{
+		Method: "GET",
+		Path:   "/item/:InternalID",
+		Handler: func(params map[string]any) (any, error) {
+			return map[string]any{"id": params["INTERNALID"]}, nil
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/item/B2", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, body %q", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"id":"B2"`) {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+}
+
+// TestRawTemPrecedenciaSobreHandler garante que, quando Route tem Raw e
+// Handler preenchidos, só o Raw é chamado.
+func TestRawTemPrecedenciaSobreHandler(t *testing.T) {
+	rawCalled, handlerCalled := false, false
+	s := NewServer("t", "1")
+	s.AddRoute(Route{
+		Method: "GET",
+		Path:   "/p",
+		Handler: func(map[string]any) (any, error) {
+			handlerCalled = true
+			return "handler", nil
+		},
+		Raw: func(r *Request) *Response {
+			rawCalled = true
+			return &Response{Body: []byte(`{"raw":true}`)}
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/p", nil))
+	if !rawCalled || handlerCalled {
+		t.Fatalf("rawCalled=%v handlerCalled=%v", rawCalled, handlerCalled)
+	}
+	if !strings.Contains(rec.Body.String(), `"raw":true`) {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+}
+
+// TestCorpoAcimaDoLimiteDevolve400 garante que um corpo maior que
+// maxBodyBytes é rejeitado pelo limitBody antes de chegar ao Raw.
+func TestCorpoAcimaDoLimiteDevolve400(t *testing.T) {
+	rawCalled := false
+	s := NewServer("t", "1")
+	s.AddRoute(Route{
+		Method: "POST",
+		Path:   "/up",
+		Raw: func(r *Request) *Response {
+			rawCalled = true
+			return &Response{Body: []byte(`{}`)}
+		},
+	})
+
+	big := strings.Repeat("a", maxBodyBytes+1)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("POST", "/up", strings.NewReader(big)))
+
+	if rec.Code != 400 {
+		t.Fatalf("status = %d, esperava 400", rec.Code)
+	}
+	if rawCalled {
+		t.Fatal("Raw não deveria ter sido chamado com corpo acima do limite")
+	}
+}
+
+// TestAddRouteESubstituiRota garante que registrar de novo o mesmo
+// método+path via AddRouteE substitui o handler, sem erro.
+func TestAddRouteESubstituiRota(t *testing.T) {
+	s := NewServer("t", "1")
+	if err := s.AddRouteE(Route{Method: "GET", Path: "/r", Handler: okHandler("v1")}); err != nil {
+		t.Fatalf("1ª AddRouteE: %v", err)
+	}
+	if err := s.AddRouteE(Route{Method: "GET", Path: "/r", Handler: okHandler("v2")}); err != nil {
+		t.Fatalf("2ª AddRouteE: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/r", nil))
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "v2") {
+		t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "v1") {
+		t.Fatalf("handler antigo ainda ativo: %q", rec.Body.String())
+	}
+}
+
+// TestAddRouteEIgnoraConflitoAntigo garante que um par de rotas
+// conflitantes introduzido via AddRoute (que não valida) não impede o
+// AddRouteE de registrar uma rota nova e independente.
+func TestAddRouteEIgnoraConflitoAntigo(t *testing.T) {
+	s := NewServer("t", "1")
+	// Conflito introduzido "por baixo" via AddRoute: a 2ª é descartada
+	// na montagem do mux, mas fica em s.routes.
+	s.AddRoute(Route{Method: "GET", Path: "/api/x/{a}", Handler: okHandler("a")})
+	s.AddRoute(Route{Method: "GET", Path: "/api/{b}/y", Handler: okHandler("b")})
+
+	if err := s.AddRouteE(Route{Method: "GET", Path: "/ok", Handler: okHandler("ok")}); err != nil {
+		t.Fatalf("AddRouteE de rota independente falhou por conflito antigo: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/ok", nil))
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "ok") {
+		t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
 	}
 }
 

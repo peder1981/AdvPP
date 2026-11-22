@@ -57,6 +57,12 @@ type Route struct {
 	Raw func(*Request) *Response
 }
 
+// QueryPair é um par chave=valor da query string já decodificado.
+type QueryPair struct {
+	Key   string
+	Value string
+}
+
 // Request é a visão de baixo nível de uma requisição HTTP entregue a um
 // Route.Raw.
 type Request struct {
@@ -64,7 +70,12 @@ type Request struct {
 	Path       string
 	PathParams map[string]string // nomes como declarados no path da rota
 	Query      url.Values        // pares chave=valor da query string
-	QueryOrder []string          // chaves da query na ordem original da URL
+	// QueryOrder tem uma entrada por par da query, na ordem exata em que
+	// aparecem na URL — chaves repetidas aparecem repetidas (ex.:
+	// "?x=1&y=2&x=3" -> ["x","y","x"]). Para chave+valor juntos use
+	// QueryPairs, que preserva cada par decodificado na mesma ordem.
+	QueryOrder []string
+	QueryPairs []QueryPair
 	Header     http.Header
 	Body       []byte
 }
@@ -152,23 +163,19 @@ func (s *Server) AddRouteE(r Route) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Monta a lista candidata: mesma substituição por method+path de
-	// addRouteLocked, aplicada sobre uma cópia.
-	candidate := make([]Route, 0, len(s.routes)+1)
-	replaced := false
-	for _, existing := range s.routes {
-		if existing.Method == r.Method && existing.Path == r.Path {
-			candidate = append(candidate, r)
-			replaced = true
-		} else {
-			candidate = append(candidate, existing)
+	// existing = rotas atuais sem a que seria substituída (mesmo
+	// método+path). A validação cobre APENAS a candidata contra elas:
+	// conflitos antigos entre rotas já registradas via AddRoute (que não
+	// valida) não podem impedir o registro de uma rota nova e sadia.
+	existing := make([]Route, 0, len(s.routes))
+	for _, e := range s.routes {
+		if e.Method == r.Method && e.Path == r.Path {
+			continue // será substituída por r
 		}
-	}
-	if !replaced {
-		candidate = append(candidate, r)
+		existing = append(existing, e)
 	}
 
-	if err := checkRouteConflicts(candidate); err != nil {
+	if err := checkCandidateConflict(existing, r); err != nil {
 		return err
 	}
 
@@ -176,25 +183,29 @@ func (s *Server) AddRouteE(r Route) error {
 	return nil
 }
 
-// checkRouteConflicts simula o registro de todas as rotas num ServeMux de
-// prova (com recover, já que o mux entra em pânico em conflito) e devolve
-// um erro citando as rotas envolvidas. Patterns normalizados idênticos são
-// detectados antes, com erro próprio citando as duas declarações.
-func checkRouteConflicts(routes []Route) error {
+// checkCandidateConflict valida a rota candidata contra as já
+// registradas: monta um ServeMux de prova registrando as existentes na
+// ordem (falhas entre elas são ignoradas, como no buildMux — a primeira
+// vence) e tenta registrar a candidata por último. Um pânico do mux
+// (conflito de patterns) vira erro citando as rotas. Patterns
+// normalizados idênticos são detectados antes, com erro próprio citando
+// as duas declarações.
+func checkCandidateConflict(existing []Route, cand Route) error {
+	candPattern := routePattern(cand)
 	mux := http.NewServeMux()
-	seen := map[string]Route{} // pattern normalizado -> rota declarada
-	for _, route := range routes {
-		pattern := routePattern(route)
-		if prev, dup := seen[pattern]; dup {
+	noop := func(http.ResponseWriter, *http.Request) {}
+	for _, e := range existing {
+		p := routePattern(e)
+		if p == candPattern {
 			return fmt.Errorf("rest: rotas conflitantes %s %q e %s %q (mesmo pattern %q)",
-				prev.Method, prev.Path, route.Method, route.Path, pattern)
+				e.Method, e.Path, cand.Method, cand.Path, p)
 		}
-		seen[pattern] = route
-		ok, panicMsg := tryHandle(mux, pattern, func(http.ResponseWriter, *http.Request) {})
-		if !ok {
-			return fmt.Errorf("rest: rota %s %q conflita com outra rota registrada: %s",
-				route.Method, route.Path, panicMsg)
-		}
+		tryHandle(mux, p, noop) // conflito antigo: ignora, como no buildMux
+	}
+	ok, panicMsg := tryHandle(mux, candPattern, noop)
+	if !ok {
+		return fmt.Errorf("rest: rota %s %q conflita com outra rota registrada: %s",
+			cand.Method, cand.Path, panicMsg)
 	}
 	return nil
 }
@@ -302,7 +313,9 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request, route Route) {
 	}
 
 	// Path params: Go 1.22+ expõe cada `{nome}` do pattern via r.PathValue.
-	for _, name := range pathParamNames(route.Path) {
+	// O path é normalizado antes (:param -> {param}) porque o mux registra
+	// o pattern normalizado — sem isso, rotas ":param" não populam params.
+	for _, name := range pathParamNames(NormalizaPath(route.Path)) {
 		params[strings.ToUpper(name)] = r.PathValue(name)
 	}
 
@@ -354,12 +367,14 @@ func (s *Server) dispatchRaw(w http.ResponseWriter, r *http.Request, route Route
 		}
 	}
 
+	queryOrder, queryPairs := parseQueryOrder(r.URL.RawQuery)
 	req := &Request{
 		Method:     r.Method,
 		Path:       r.URL.Path,
 		PathParams: pathParams,
 		Query:      r.URL.Query(),
-		QueryOrder: queryOrder(r.URL.RawQuery),
+		QueryOrder: queryOrder,
+		QueryPairs: queryPairs,
 		Header:     r.Header.Clone(),
 		Body:       body,
 	}
@@ -371,32 +386,35 @@ func (s *Server) dispatchRaw(w http.ResponseWriter, r *http.Request, route Route
 	writeResponse(w, resp)
 }
 
-// queryOrder devolve as chaves da query string na ordem em que aparecem
-// pela primeira vez na URL (deduplicadas) — url.Values é um mapa e perde
-// essa informação, que o WSRESTFUL clássico precisa para aQueryString.
-func queryOrder(rawQuery string) []string {
+// parseQueryOrder percorre a query string crua e devolve, na ordem exata
+// em que os pares aparecem na URL: (1) uma lista com a chave de cada par
+// (repetições preservadas — "?x=1&y=2&x=3" -> ["x","y","x"]) e (2) a lista
+// de QueryPair decodificados. url.Values é um mapa e perde repetição e
+// intercalação — informação que o WSRESTFUL clássico precisa para
+// montar aQueryString.
+func parseQueryOrder(rawQuery string) (order []string, pairs []QueryPair) {
 	if rawQuery == "" {
-		return nil
+		return nil, nil
 	}
-	var order []string
-	seen := map[string]bool{}
 	for _, part := range strings.Split(rawQuery, "&") {
 		if part == "" {
 			continue
 		}
-		key := part
+		key, value := part, ""
 		if i := strings.IndexByte(key, '='); i >= 0 {
+			value = key[i+1:]
 			key = key[:i]
 		}
 		if decoded, err := url.QueryUnescape(key); err == nil {
 			key = decoded
 		}
-		if !seen[key] {
-			seen[key] = true
-			order = append(order, key)
+		if decoded, err := url.QueryUnescape(value); err == nil {
+			value = decoded
 		}
+		order = append(order, key)
+		pairs = append(pairs, QueryPair{Key: key, Value: value})
 	}
-	return order
+	return order, pairs
 }
 
 // writeResponse escreve um Response de Route.Raw: status (0 = 200),
