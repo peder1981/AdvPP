@@ -528,7 +528,7 @@ func TestApiManagerToExecAutoErroClaro(t *testing.T) // erro contém "não supor
   - `serve` sem nenhuma rota REST não monta nada, então o comportamento atual se
     mantém.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [X] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestServeMontaRestNoPrefixo(t *testing.T)     // serve de tests/rest_totvs/ -> GET /rest/api/est/v1/armazens -> 200 com "items"
@@ -537,13 +537,13 @@ func TestServeRestRespeitaHost(t *testing.T)       // Host: evil.example -> 403 
 func TestServeSemRestInalterado(t *testing.T)      // serve de tests/webui_test.prw -> GET /rest/x -> 404 e SPA normal em /
 ```
 
-- [ ] **Step 2:** `go test ./cmd/advplc -run TestServe -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar conforme Interfaces.
-- [ ] **Step 4:** `go test ./...`, mais um teste manual:
+- [X] **Step 2:** `go test ./cmd/advplc -run TestServe -v`. Esperado: FAIL.
+- [X] **Step 3:** Implementar conforme Interfaces.
+- [X] **Step 4:** `go test ./...`, mais um teste manual:
   `./advplc serve tests/rest_totvs --port 8099` e
   `curl -s localhost:8099/rest/api/est/v1/armazens | head -c 200`. Esperado: JSON com
   `items` e `hasNext`.
-- [ ] **Step 5: Commit** — `feat(serve): REST TOTVS na mesma origem do advplc serve`
+- [X] **Step 5: Commit** — `feat(serve): REST TOTVS na mesma origem do advplc serve`
 
 ---
 
