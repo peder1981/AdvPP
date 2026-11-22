@@ -952,22 +952,37 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 			return nil, err
 		}
 	}
+	// WSRESTFUL é o DSL de serviço REST do Protheus: o compilador precisa
+	// saber disso para montar as rotas (verbo+PATH de cada WSMETHOD vão em
+	// anotações da classe — ClassInfo.Annotations no bytecode).
+	isRESTFUL := p.isWord(startTok, "WSRESTFUL")
 	class := &ast.ClassDecl{
 		Loc:        p.posFromToken(startTok),
 		Name:       nameTok.Value,
 		Properties: make([]*ast.PropertyDecl, 0),
 		Methods:    make([]*ast.MethodDecl, 0),
 	}
+	if isRESTFUL {
+		class.Annotations = append(class.Annotations, &ast.Annotation{
+			Loc:  class.Loc,
+			Name: "WSRESTFUL",
+		})
+	}
 
 	for !p.isEndWSClient() && p.peek().Type != lexer.TOKEN_EOF {
 		tok := p.peek()
 		if p.isWord(tok, "WSMETHOD") || p.isWord(tok, "WSDATA") {
 			p.advance()
+			isWSMethod := strings.EqualFold(tok.Value, "WSMETHOD")
 			// WSRESTFUL spells a method `WSMETHOD GET hasAPI ...` — the
 			// HTTP verb (all reserved keywords) comes before the name.
-			if strings.EqualFold(tok.Value, "WSMETHOD") {
-				for _, verb := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
-					if p.isKeyword(p.peek(), verb) {
+			// O verbo é guardado: método sem nome chama-se por ele e ele
+			// vai para a anotação WSMETHOD.
+			var verb string
+			if isWSMethod {
+				for _, v := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
+					if p.isKeyword(p.peek(), v) {
+						verb = v
 						p.advance()
 						break
 					}
@@ -980,20 +995,48 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 			// happens to collide with a WSMETHOD clause word like
 			// "Description" (`WSDATA Description As String`).
 			nameTok := tok
+			named := true
 			if strings.EqualFold(tok.Value, "WSDATA") || !p.isRestMethodClauseWord(p.peek()) {
 				var err error
 				nameTok, err = p.expectName()
 				if err != nil {
 					return nil, err
 				}
+			} else {
+				named = false
 			}
-			if strings.EqualFold(tok.Value, "WSMETHOD") {
-				// Optional REST metadata clauses: DESCRIPTION/PATH <expr>,
+			// Método REST sem nome chama-se pelo verbo ("GET", "POST"...) —
+			// antes virava "WSMETHOD" aqui e "REST" na implementação, o que
+			// fazia dois métodos sem nome colidirem.
+			declName := nameTok.Value
+			if isWSMethod && !named && verb != "" {
+				declName = verb
+			}
+			var path string
+			if isWSMethod {
+				// Optional REST metadata clauses: DESCRIPTION/WSSYNTAX
+				// <expr>, PATH <expr> (só literal string é guardado),
 				// PRODUCES/CONSUMES <ident> — parsed and dropped, like the
 				// SOAP WSSEND/WSRECEIVE clauses above.
 				for {
 					switch {
-					case p.isWord(p.peek(), "DESCRIPTION"), p.isWord(p.peek(), "PATH"), p.isWord(p.peek(), "WSSYNTAX"):
+					case p.isWord(p.peek(), "PATH"):
+						pathTok := p.peek()
+						p.advance()
+						expr, err := p.parseOr()
+						if err != nil {
+							return nil, err
+						}
+						if lit, ok := expr.(*ast.StringLit); ok {
+							path = lit.Value
+						} else {
+							p.avisos = append(p.avisos, Aviso{
+								Line:    pathTok.Line,
+								Col:     pathTok.Col,
+								Message: "PATH de WSMETHOD não é literal string (ignorado)",
+							})
+						}
+					case p.isWord(p.peek(), "DESCRIPTION"), p.isWord(p.peek(), "WSSYNTAX"):
 						p.advance()
 						if _, err := p.parseOr(); err != nil {
 							return nil, err
@@ -1040,9 +1083,18 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 			} else {
 				class.Methods = append(class.Methods, &ast.MethodDecl{
 					Loc:    p.posFromToken(nameTok),
-					Name:   nameTok.Value,
+					Name:   declName,
 					Params: make([]*ast.Parameter, 0),
 				})
+				if isRESTFUL {
+					// "<VERBO>|<NomeDoMetodo>|<PATH>" — o dispatch REST lê
+					// estas anotações (ClassInfo.Annotations no bytecode).
+					class.Annotations = append(class.Annotations, &ast.Annotation{
+						Loc:   p.posFromToken(tok),
+						Name:  "WSMETHOD",
+						Value: verb + "|" + declName + "|" + path,
+					})
+				}
 			}
 			continue
 		}
@@ -1073,20 +1125,27 @@ func (p *Parser) parseWSMethodImpl() (*ast.MethodImpl, error) {
 	startTok := p.advance() // WSMETHOD
 	// WSRESTFUL spells an implementation `WSMETHOD GET hasAPI WSSERVICE
 	// ...` too — same HTTP-verb-before-name shape as the declaration.
-	for _, verb := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
-		if p.isKeyword(p.peek(), verb) {
+	// O verbo é guardado: método REST sem nome chama-se por ele.
+	verb := ""
+	for _, v := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
+		if p.isKeyword(p.peek(), v) {
+			verb = v
 			p.advance()
 			break
 		}
 	}
 	// `WSMETHOD GET WSRECEIVE a,b WSSERVICE X` — REST sem nome próprio
 	// (só o verbo HTTP): se o que vem depois do verbo já é uma cláusula,
-	// o nome do método é o próprio verbo.
+	// o nome do método é o próprio verbo (antes era "REST", o que fazia
+	// dois métodos sem nome na mesma classe colidirem).
 	var methodName string
 	if p.isWord(p.peek(), "WSRECEIVE") || p.isWord(p.peek(), "WSSEND") ||
 		p.isWord(p.peek(), "PATHPARAM") || p.isWord(p.peek(), "QUERYPARAM") ||
 		p.isWSClientOpener(p.peek()) || p.isWord(p.peek(), "WSREST") {
-		methodName = "REST"
+		methodName = verb
+		if methodName == "" {
+			methodName = "REST"
+		}
 	} else {
 		nameTok, err := p.expectName()
 		if err != nil {
