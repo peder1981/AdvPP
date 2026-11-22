@@ -367,7 +367,16 @@ ENDWSRESTFUL` continua **apenas parseado** — ver limitação abaixo.
   `AddRoute`, path params, dispatch para a função AdvPL via
   `v.RunFunction` — mesmo padrão do `MCPServer`; o DSL clássico
   `WSRESTFUL`/`WSMETHOD` continua só parseado (ver "Recursos REST 2.0")
-- ⚠️ Locks de registro (RecLock/MsUnlock) são no-ops — sem controle de
+- ✅ **Camada de compatibilidade PO-UI (onda 1)**: `oRest` nas rotas
+  anotadas, DSL clássico `WSRESTFUL`/`WSMETHOD` executando de verdade,
+  filtro OData parametrizado, `TamSx3`, `FWAdapterBaseV2` e
+  `FwApiManager` (somente leitura) — detalhes no plano
+  `docs/superpowers/plans/2026-11-22-poui-onda1-rest.md`
+- ⚠️ **`FwApiManager:ToExecAuto` não implementado**: retorna erro
+  explícito ("não suportado no AdvPP — requer ExecAuto/MVC").
+  `SetApiRelation` aceita e ignora: o formato mestre-detalhe depende
+  do corpus TOTVS, indisponível na validação atual
+- ⚠️ **Locks de registro (RecLock/MsUnlock) são no-ops** — sem controle de
   concorrência em escrita entre processos
 
 ## Resumo

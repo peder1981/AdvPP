@@ -1984,6 +1984,7 @@ func (v *VM) registerNatives() {
 	v.registerSegurancaGenericaNatives(natives)
 	v.registerWSRestfulNatives(natives)
 	v.registerTamSx3Native(natives)
+	v.registerApiManagerNative(natives)
 
 	for name, fn := range natives {
 		v.natives[name] = &advplrt.FunctionValue{Name: name, Fn: fn}
