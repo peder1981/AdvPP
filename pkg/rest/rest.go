@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -47,6 +48,34 @@ type Route struct {
 	// que o RawResponse pedir — usado por rotas que servem HTML/texto
 	// puro em vez de uma API JSON (ex.: uma página de login).
 	Handler func(params map[string]any) (any, error)
+
+	// Raw é o handler de baixo nível: recebe a requisição HTTP crua
+	// (método, path, path params, query com ordem original, headers e
+	// corpo) e devolve a resposta completa (status, headers, Content-Type
+	// e corpo). Quando não-nil, tem precedência sobre Handler — é o que
+	// o dispatch do WSRESTFUL clássico (pkg/vm/wsrestful.go) usa.
+	Raw func(*Request) *Response
+}
+
+// Request é a visão de baixo nível de uma requisição HTTP entregue a um
+// Route.Raw.
+type Request struct {
+	Method     string
+	Path       string
+	PathParams map[string]string // nomes como declarados no path da rota
+	Query      url.Values        // pares chave=valor da query string
+	QueryOrder []string          // chaves da query na ordem original da URL
+	Header     http.Header
+	Body       []byte
+}
+
+// Response é a resposta completa escrita por um Route.Raw.
+// Status 0 vira 200; ContentType "" vira "application/json".
+type Response struct {
+	Status      int
+	ContentType string
+	Header      map[string]string
+	Body        []byte
 }
 
 // RawResponse é um corpo de resposta HTTP que não passa pelo
@@ -70,6 +99,13 @@ type Server struct {
 	mu     sync.Mutex
 	routes []Route
 
+	// version incrementa a cada AddRoute/AddRouteE bem-sucedido; o mux
+	// cacheado (cachedMux) é remontado na próxima requisição quando a
+	// versão muda — rotas registradas depois do primeiro uso de
+	// Handler() passam a responder sem precisar recriar o handler.
+	version    uint64
+	cachedMux  *http.ServeMux
+	cachedVer  uint64
 	httpServer *http.Server
 }
 
@@ -79,18 +115,112 @@ func NewServer(name, version string) *Server {
 }
 
 // AddRoute registra (ou substitui, se method+path já existirem) uma rota.
+// Mantida sem retorno de erro por compatibilidade: conflitos de pattern
+// que o ServeMux rejeitaria são ignorados na montagem do mux (a primeira
+// rota registrada vence) — para validação explícita use AddRouteE.
 func (s *Server) AddRoute(r Route) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.addRouteLocked(r)
+}
+
+// addRouteLocked aplica a normalização (método em maiúsculas) e a
+// semântica de substituição por method+path. s.mu deve estar travado.
+func (s *Server) addRouteLocked(r Route) {
 	method := strings.ToUpper(strings.TrimSpace(r.Method))
 	r.Method = method
 	for i, existing := range s.routes {
 		if existing.Method == r.Method && existing.Path == r.Path {
 			s.routes[i] = r
+			s.version++
 			return
 		}
 	}
 	s.routes = append(s.routes, r)
+	s.version++
+}
+
+// AddRouteE registra uma rota como AddRoute, mas antes valida se o pattern
+// resultante conflita com alguma rota já registrada (o http.ServeMux do
+// Go entra em pânico em conflitos — ex.: "/api/x/{a}" e "/api/{b}/y" no
+// mesmo verbo). Em caso de conflito, devolve um erro citando as duas
+// rotas e NÃO registra a nova. Rotas idênticas (mesmo método e path já
+// registrado) são substituídas, como em AddRoute.
+func (s *Server) AddRouteE(r Route) error {
+	r.Method = strings.ToUpper(strings.TrimSpace(r.Method))
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Monta a lista candidata: mesma substituição por method+path de
+	// addRouteLocked, aplicada sobre uma cópia.
+	candidate := make([]Route, 0, len(s.routes)+1)
+	replaced := false
+	for _, existing := range s.routes {
+		if existing.Method == r.Method && existing.Path == r.Path {
+			candidate = append(candidate, r)
+			replaced = true
+		} else {
+			candidate = append(candidate, existing)
+		}
+	}
+	if !replaced {
+		candidate = append(candidate, r)
+	}
+
+	if err := checkRouteConflicts(candidate); err != nil {
+		return err
+	}
+
+	s.addRouteLocked(r)
+	return nil
+}
+
+// checkRouteConflicts simula o registro de todas as rotas num ServeMux de
+// prova (com recover, já que o mux entra em pânico em conflito) e devolve
+// um erro citando as rotas envolvidas. Patterns normalizados idênticos são
+// detectados antes, com erro próprio citando as duas declarações.
+func checkRouteConflicts(routes []Route) error {
+	mux := http.NewServeMux()
+	seen := map[string]Route{} // pattern normalizado -> rota declarada
+	for _, route := range routes {
+		pattern := routePattern(route)
+		if prev, dup := seen[pattern]; dup {
+			return fmt.Errorf("rest: rotas conflitantes %s %q e %s %q (mesmo pattern %q)",
+				prev.Method, prev.Path, route.Method, route.Path, pattern)
+		}
+		seen[pattern] = route
+		ok, panicMsg := tryHandle(mux, pattern, func(http.ResponseWriter, *http.Request) {})
+		if !ok {
+			return fmt.Errorf("rest: rota %s %q conflita com outra rota registrada: %s",
+				route.Method, route.Path, panicMsg)
+		}
+	}
+	return nil
+}
+
+// tryHandle registra pattern no mux capturando o pânico do ServeMux
+// (conflito de patterns). Devolve ok=false e a mensagem do pânico em caso
+// de conflito.
+func tryHandle(mux *http.ServeMux, pattern string, h http.HandlerFunc) (ok bool, panicMsg string) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			panicMsg = fmt.Sprint(rec)
+			ok = false
+		}
+	}()
+	mux.HandleFunc(pattern, h)
+	return true, ""
+}
+
+// routePattern monta o pattern do ServeMux para a rota: "METHOD /path"
+// (ou só "/path" quando Method é vazio), com o path normalizado.
+func routePattern(route Route) string {
+	path := NormalizaPath(route.Path)
+	if route.Method != "" {
+		return route.Method + " " + path
+	}
+	return path
 }
 
 // Routes devolve uma cópia ordenada das rotas registradas — usado por
@@ -110,24 +240,26 @@ func (s *Server) Routes() []Route {
 }
 
 // buildMux monta o http.ServeMux nativo do Go (padrões "METHOD /path/{p}"
-// suportados desde 1.22) a partir das rotas registradas.
+// suportados desde 1.22) a partir das rotas registradas. s.mu deve estar
+// travado. Registros que o mux rejeitaria (conflito de patterns vindos de
+// AddRoute, que não valida) são pulados — a primeira rota registrada
+// vence — para que uma rota ruim nunca tire o servidor do ar.
 func (s *Server) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
-	for _, route := range s.Routes() {
+	for _, route := range s.routes {
 		route := route
-		pattern := route.Path
-		if route.Method != "" {
-			pattern = route.Method + " " + route.Path
-		}
-		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+		pattern := routePattern(route)
+		handler := func(w http.ResponseWriter, r *http.Request) {
 			s.dispatch(w, r, route)
-		})
+		}
+		tryHandle(mux, pattern, handler)
 	}
 	// Introspecção: lista as rotas registradas, útil para debug manual e
 	// para o cliente descobrir a API sem precisar da doc externa.
-	mux.HandleFunc("GET /_routes", func(w http.ResponseWriter, r *http.Request) {
-		list := make([]map[string]string, 0, len(s.routes))
-		for _, route := range s.Routes() {
+	tryHandle(mux, "GET /_routes", func(w http.ResponseWriter, r *http.Request) {
+		registered := s.Routes()
+		list := make([]map[string]string, 0, len(registered))
+		for _, route := range registered {
 			list = append(list, map[string]string{"method": route.Method, "path": route.Path})
 		}
 		writeJSON(w, http.StatusOK, list)
@@ -135,10 +267,32 @@ func (s *Server) buildMux() *http.ServeMux {
 	return mux
 }
 
-// dispatch mescla path params + query string + corpo JSON num único mapa
-// (nessa ordem de precedência — o corpo, por ser o payload mais específico,
-// vence em caso de colisão de chave) e chama o Handler da rota.
+// Handler devolve o http.Handler do servidor (mux + limitBody), pronto
+// para ser montado por outro roteador — ex.: o mux do pkg/webui no
+// "advplc serve". O mux é remontado sob demanda quando uma rota nova é
+// registrada depois do primeiro uso (mutex interno), então o mesmo
+// handler pode ser capturado uma única vez.
+func (s *Server) Handler() http.Handler {
+	return limitBody(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		if s.cachedMux == nil || s.cachedVer != s.version {
+			s.cachedMux = s.buildMux()
+			s.cachedVer = s.version
+		}
+		mux := s.cachedMux
+		s.mu.Unlock()
+		mux.ServeHTTP(w, r)
+	}))
+}
+
+// dispatch despacha a requisição para a rota. Route.Raw recebe o Request
+// de baixo nível e escreve o Response direto; Route.Handler recebe o mapa
+// de parâmetros mesclado (path + query + corpo JSON) como antes.
 func (s *Server) dispatch(w http.ResponseWriter, r *http.Request, route Route) {
+	if route.Raw != nil {
+		s.dispatchRaw(w, r, route)
+		return
+	}
 	params := map[string]any{}
 
 	for k, v := range r.URL.Query() {
@@ -181,6 +335,125 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request, route Route) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+// dispatchRaw monta o Request de baixo nível e chama route.Raw, depois
+// escreve o Response devolvido. Corpo maior que maxBodyBytes (já limitado
+// por limitBody no Handler) vira 400 sem chamar o handler.
+func (s *Server) dispatchRaw(w http.ResponseWriter, r *http.Request, route Route) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo da requisição inválido: " + err.Error()})
+		return
+	}
+
+	pathParams := map[string]string{}
+	for _, name := range pathParamNames(NormalizaPath(route.Path)) {
+		if v := r.PathValue(name); v != "" {
+			pathParams[name] = v
+		}
+	}
+
+	req := &Request{
+		Method:     r.Method,
+		Path:       r.URL.Path,
+		PathParams: pathParams,
+		Query:      r.URL.Query(),
+		QueryOrder: queryOrder(r.URL.RawQuery),
+		Header:     r.Header.Clone(),
+		Body:       body,
+	}
+
+	resp := route.Raw(req)
+	if resp == nil {
+		resp = &Response{}
+	}
+	writeResponse(w, resp)
+}
+
+// queryOrder devolve as chaves da query string na ordem em que aparecem
+// pela primeira vez na URL (deduplicadas) — url.Values é um mapa e perde
+// essa informação, que o WSRESTFUL clássico precisa para aQueryString.
+func queryOrder(rawQuery string) []string {
+	if rawQuery == "" {
+		return nil
+	}
+	var order []string
+	seen := map[string]bool{}
+	for _, part := range strings.Split(rawQuery, "&") {
+		if part == "" {
+			continue
+		}
+		key := part
+		if i := strings.IndexByte(key, '='); i >= 0 {
+			key = key[:i]
+		}
+		if decoded, err := url.QueryUnescape(key); err == nil {
+			key = decoded
+		}
+		if !seen[key] {
+			seen[key] = true
+			order = append(order, key)
+		}
+	}
+	return order
+}
+
+// writeResponse escreve um Response de Route.Raw: status (0 = 200),
+// headers extras e corpo cru. Content-Type vazio vira application/json.
+func writeResponse(w http.ResponseWriter, resp *Response) {
+	status := resp.Status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	contentType := resp.ContentType
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	w.Header().Set("Content-Type", contentType)
+	for k, v := range resp.Header {
+		w.Header().Set(k, v)
+	}
+	w.WriteHeader(status)
+	_, _ = w.Write(resp.Body)
+}
+
+// NormalizaPath converte um path de rota para o formato do ServeMux do
+// Go: garante "/" inicial e traduz segmentos ":param" (estilo Gin/TOTVS)
+// para "{param}". Paths já no formato "{param}" passam intactos.
+func NormalizaPath(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+
+	var b strings.Builder
+	b.Grow(len(p) + 8)
+	for i := 0; i < len(p); {
+		c := p[i]
+		if c == '/' && i+1 < len(p) && p[i+1] == ':' {
+			// Segmento ":nome": copia o "/" e emite "{nome}".
+			j := i + 2
+			for j < len(p) && p[j] != '/' {
+				j++
+			}
+			name := p[i+2 : j]
+			if name != "" {
+				b.WriteByte('/')
+				b.WriteByte('{')
+				b.WriteString(name)
+				b.WriteByte('}')
+				i = j
+				continue
+			}
+		}
+		b.WriteByte(c)
+		i++
+	}
+	return b.String()
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -226,15 +499,13 @@ func pathParamNames(path string) []string {
 
 // Serve sobe o servidor HTTP em addr (ex.: "127.0.0.1:8080" ou ":8080") e
 // bloqueia até Shutdown ser chamado ou ocorrer um erro fatal de I/O.
+// Usa Handler(): o mux é montado sob demanda na primeira requisição e
+// remontado quando rotas novas são registradas.
 func (s *Server) Serve(addr string) error {
-	// buildMux() -> Routes() precisa de s.mu — montar o mux ANTES de
-	// travar para gravar s.httpServer, senão é deadlock (mutex não é
-	// reentrante).
-	mux := s.buildMux()
 	s.mu.Lock()
 	s.httpServer = &http.Server{
 		Addr:              addr,
-		Handler:           limitBody(mux),
+		Handler:           s.Handler(),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,
