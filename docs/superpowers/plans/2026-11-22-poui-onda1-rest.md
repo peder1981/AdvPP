@@ -111,7 +111,7 @@ e 8, linha "Onda 1").
   fábrica da raiz. Método não achado no bytecode cai em `callNativeMethod` usando o
   nome da raiz.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [X] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestSuperChamaMetodoDoPai(t *testing.T) {
@@ -126,15 +126,15 @@ func TestSuperNativoRegistrado(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2:** `go test ./pkg/vm -run 'TestSuper' -v`. Esperado: FAIL ("cannot call
+- [X] **Step 2:** `go test ./pkg/vm -run 'TestSuper' -v`. Esperado: FAIL ("cannot call
   method New on non-object").
-- [ ] **Step 3:** Implementar o opcode, o codegen e a VM conforme Interfaces. O
+- [X] **Step 3:** Implementar o opcode, o codegen e a VM conforme Interfaces. O
   codegen conhece a classe que está sendo compilada (`MethodImpl.ClassName`). Quem
   resolve o pai é a VM em tempo de execução, porque o pai pode estar em outro fonte
   (Task 2) ou ser nativo.
-- [ ] **Step 4:** Rodar `go test ./pkg/vm -run 'TestSuper' -v` e `go test ./...`.
+- [X] **Step 4:** Rodar `go test ./pkg/vm -run 'TestSuper' -v` e `go test ./...`.
   Esperado: PASS, sem regressão no `bytecode_determinism_test`.
-- [ ] **Step 5: Commit** — `feat(vm): _Super: e herança de classe nativa`
+- [X] **Step 5: Commit** — `feat(vm): _Super: e herança de classe nativa`
 
 ---
 
@@ -165,7 +165,7 @@ func TestSuperNativoRegistrado(t *testing.T) {
     `cmd/advplc`: preprocessa e parseia cada `.prw`/`.prx`/`.tlpp` (não recursivo) com
     `dir` no include path. Ordem dos arquivos: alfabética, para manter o determinismo.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [X] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestProjetoStaticPorArquivo(t *testing.T) {
@@ -180,14 +180,14 @@ func TestProjetoUserFunctionDuplicadaErro(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2:** `go test ./pkg/compiler -run TestProjeto -v`. Esperado: FAIL (função
+- [X] **Step 2:** `go test ./pkg/compiler -run TestProjeto -v`. Esperado: FAIL (função
   indefinida).
-- [ ] **Step 3:** Implementar `CompileProject` e `compilaDiretorio`. No `serve`, se o
+- [X] **Step 3:** Implementar `CompileProject` e `compilaDiretorio`. No `serve`, se o
   argumento for diretório, usar `compilaDiretorio`; se for arquivo, nada muda. O
   `--watch` sobre diretório observa o mtime de todos os arquivos.
-- [ ] **Step 4:** `go test ./pkg/compiler ./cmd/advplc -v` e `go test ./...`. Esperado:
+- [X] **Step 4:** `go test ./pkg/compiler ./cmd/advplc -v` e `go test ./...`. Esperado:
   PASS.
-- [ ] **Step 5: Commit** — `feat(compiler): CompileProject (vários fontes, Static por
+- [X] **Step 5: Commit** — `feat(compiler): CompileProject (vários fontes, Static por
   arquivo) e advplc serve <diretório>`
 
 ---
@@ -211,7 +211,7 @@ func TestProjetoUserFunctionDuplicadaErro(t *testing.T) {
 - O `PATH` que não for um literal string (expressão) é guardado vazio, com aviso do
   parser (`parser.Aviso`).
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [X] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestWSRestfulGuardaVerboEPath(t *testing.T) {
@@ -228,12 +228,12 @@ func TestWSRestfulGuardaVerboEPath(t *testing.T) {
 func TestWSRestfulDoisVerbosSemNomeNaoColidem(t *testing.T) { /* GET e POST sem nome -> métodos "GET" e "POST" */ }
 ```
 
-- [ ] **Step 2:** `go test ./pkg/parser -run TestWSRestful -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar. O AST leva as anotações em `ClassDecl.Annotations`
+- [X] **Step 2:** `go test ./pkg/parser -run TestWSRestful -v`. Esperado: FAIL.
+- [X] **Step 3:** Implementar. O AST leva as anotações em `ClassDecl.Annotations`
   (`MethodDecl` não precisa mudar).
-- [ ] **Step 4:** `go test ./...` e `go test ./cmd/advplc -run Determinism`. Esperado:
+- [X] **Step 4:** `go test ./...` e `go test ./cmd/advplc -run Determinism`. Esperado:
   PASS.
-- [ ] **Step 5: Commit** — `feat(parser): WSRESTFUL guarda verbo e PATH de cada
+- [X] **Step 5: Commit** — `feat(parser): WSRESTFUL guarda verbo e PATH de cada
   WSMETHOD`
 
 ---
@@ -274,7 +274,7 @@ func NormalizaPath(p string) string         // "/a/:id/b" -> "/a/{id}/b"; garant
 - O `Handler()` é montado uma vez por `Server`. As rotas registradas depois de montado
   causam a remontagem na próxima requisição (mutex).
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [X] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestRawRecebeTudo(t *testing.T) // GET /a/{id}?x=1&y=2 com header X-K e corpo -> Request com PathParams["id"], QueryOrder ["x","y"], Header, Body
@@ -284,10 +284,10 @@ func TestAddRouteConflitoNaoEntraEmPanico(t *testing.T) // "/api/x/{a}" e "/api/
 func TestRotasAntigasIntactas(t *testing.T) // Route.Handler (map params) responde igual a hoje
 ```
 
-- [ ] **Step 2:** `go test ./pkg/rest -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar conforme Interfaces.
-- [ ] **Step 4:** `go test ./pkg/rest ./pkg/vm -v`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(rest): handler de baixo nível, rotas :param e
+- [X] **Step 2:** `go test ./pkg/rest -v`. Esperado: FAIL.
+- [X] **Step 3:** Implementar conforme Interfaces.
+- [X] **Step 4:** `go test ./pkg/rest ./pkg/vm -v`. Esperado: PASS.
+- [X] **Step 5: Commit** — `feat(rest): handler de baixo nível, rotas :param e
   conflito sem pânico`
 
 ---
@@ -329,7 +329,7 @@ func TestRotasAntigasIntactas(t *testing.T) // Route.Handler (map params) respon
   - Erro de runtime dá 500 `{"code":500,"message":<erro>}`.
   - A resposta é UTF-8 (as strings da VM já são UTF-8 depois do preprocessador).
 
-- [ ] **Step 1: Escrever os testes que falham** (servidor via
+- [X] **Step 1: Escrever os testes que falham** (servidor via
   `httptest.NewServer(s.Handler())`, fonte em `tests/rest_totvs/clientes_classico.prw`)
 
 ```go
@@ -343,11 +343,11 @@ func TestWSRestConcorrenteIsolado(t *testing.T)          // 50 goroutines com id
 func TestWSRestServerAntigoIntacto(t *testing.T)         // tests/rest_server_test.prw segue respondendo igual
 ```
 
-- [ ] **Step 2:** `go test ./pkg/vm -run 'TestWSRest|TestWSData' -race -v`. Esperado:
+- [X] **Step 2:** `go test ./pkg/vm -run 'TestWSRest|TestWSData' -race -v`. Esperado:
   FAIL.
-- [ ] **Step 3:** Implementar conforme Interfaces.
-- [ ] **Step 4:** Repetir o comando do Step 2 e rodar `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(vm): WSRESTFUL clássico de ponta a ponta`
+- [X] **Step 3:** Implementar conforme Interfaces.
+- [X] **Step 4:** Repetir o comando do Step 2 e rodar `go test ./...`. Esperado: PASS.
+- [X] **Step 5: Commit** — `feat(vm): WSRESTFUL clássico de ponta a ponta`
 
 ---
 
