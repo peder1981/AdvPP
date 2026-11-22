@@ -2255,6 +2255,12 @@ func (v *VM) callNativeMethodOn(obj *advplrt.ObjectValue, className, method stri
 	if req, ok := obj.Native.(*wsRestReq); ok {
 		return v.callWSRestReqMethod(obj, req, upperMethod, args)
 	}
+	// Objeto oRest das rotas anotadas (@Get/@Post...): métodos
+	// getQueryRequest/setResponse/... despachados pelo estado da requisição
+	// — ver pkg/vm/orest.go.
+	if st, ok := obj.Native.(*oRestState); ok {
+		return v.callORestMethod(obj, st, upperMethod, args)
+	}
 	if isPoClass(className) {
 		return v.callPoMethod(obj, upperMethod, args)
 	}

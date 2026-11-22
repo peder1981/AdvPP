@@ -123,9 +123,13 @@ func (v *VM) callWSRestServerMethod(obj *advplrt.ObjectValue, method string, arg
 }
 
 // autoRegisterAnnotatedRoutes varre as funções do bytecode carregado
-// procurando anotações @Get/@Post/@Put/@Patch/@Delete("/path") — o estilo
-// REST 2.0 moderno do TLPP — e registra cada uma como rota. Anotações sem
-// path explícito viram "/" + nome da função em minúsculas.
+// procurando anotações @Get/@Post/@Put/@Patch/@Delete — o estilo REST 2.0
+// moderno do TLPP — e registra cada uma como rota Raw (pkg/vm/orest.go),
+// que dá à função acesso ao objeto oRest do TOTVS e ao Request de baixo
+// nível. Aceita as formas "@Get(\"/path\")", "@Get('/path')",
+// "@Get(endpoint=\"/path\", description=\"...\")" e "@Get(\"/a/:id\")"
+// (":param" vira "{param}" via rest.NormalizaPath). Anotações sem path
+// explícito viram "/" + nome da função em minúsculas.
 func (v *VM) autoRegisterAnnotatedRoutes(server *rest.Server) {
 	for fname, info := range v.bc.Functions {
 		for _, ann := range info.Annotations {
@@ -133,17 +137,47 @@ func (v *VM) autoRegisterAnnotatedRoutes(server *rest.Server) {
 			if !ok {
 				continue
 			}
-			path := ann.Value
-			if strings.TrimSpace(path) == "" {
+			path := restAnnotationPath(ann.Value)
+			if path == "" {
 				path = "/" + strings.ToLower(strings.TrimPrefix(strings.ToUpper(fname), "U_"))
 			}
 			server.AddRoute(rest.Route{
-				Method:  httpMethod,
-				Path:    normalizeRestPath(path),
-				Handler: v.restHandlerFor(fname),
+				Method: httpMethod,
+				Path:   rest.NormalizaPath(path),
+				Raw:    v.orestRawHandlerFor(fname),
 			})
 		}
 	}
+}
+
+// restAnnotationPath extrai o path de uma anotação @Get/@Post.... O parser
+// concatena os tokens do argumento sem espaços e sem aspas, então as formas
+// possíveis são: "/path" (literal), "endpoint=/path,description=..."
+// (argumentos nomeados TOTVS) ou "path,description=..." (literal seguido de
+// outros argumentos — corta no primeiro ",").
+func restAnnotationPath(value string) string {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return ""
+	}
+	lower := strings.ToLower(v)
+	if idx := strings.Index(lower, "endpoint"); idx >= 0 &&
+		(idx == 0 || v[idx-1] == ',' || v[idx-1] == ' ' || v[idx-1] == '\t') {
+		tail := strings.TrimLeft(v[idx+len("endpoint"):], " \t")
+		if strings.HasPrefix(tail, ":=") {
+			tail = tail[2:]
+		} else {
+			tail = strings.TrimPrefix(tail, "=")
+		}
+		if i := strings.IndexByte(tail, ','); i >= 0 {
+			tail = tail[:i]
+		}
+		return strings.TrimSpace(tail)
+	}
+	if i := strings.IndexByte(v, ','); i >= 0 {
+		v = v[:i]
+	}
+	return strings.TrimSpace(v)
 }
 
 // normalizeRestPath garante que o path começa com "/" — o roteador nativo

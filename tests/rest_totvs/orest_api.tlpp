@@ -1,0 +1,34 @@
+// Fixture do objeto oRest nas rotas anotadas (plano PO-UI onda 1, Task 6).
+// Cobre getQueryRequest/getPathParamsRequest/setResponse/setStatusCode/
+// setKeyHeaderResponse/setFault e a forma @Get(endpoint=..., description=...).
+
+@Get("/api/t/v1/item/:code")
+User Function ORestItem(oParam)
+Local oQ := oRest:getQueryRequest()
+Local oP := oRest:getPathParamsRequest()
+Local oOut := JsonObject():New()
+oOut["code"] := oP:CODE
+oOut["x"] := oQ:X
+oRest:setResponse(oOut)
+Return Nil
+
+@Get("/api/t/v1/status")
+User Function ORestStatus(oParam)
+oRest:setStatusCode(201)
+oRest:setKeyHeaderResponse("X-Total", "7")
+oRest:setResponse("criado")
+Return Nil
+
+@Get(endpoint="/api/t/v1/n", description="rota nomeada")
+User Function ORestNomeada(oParam)
+Return {"ok": .T.}
+
+@Get("/api/t/v1/falha")
+User Function ORestFalha(oParam)
+oRest:setFault({"code": 422, "message": "invalido"})
+Return Nil
+
+@Post("/api/t/v1/eco")
+User Function ORestEco(oParam)
+oRest:setResponse(oRest:getBodyRequest())
+Return Nil
