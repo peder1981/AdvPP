@@ -378,7 +378,7 @@ func TestWSRestServerAntigoIntacto(t *testing.T)         // tests/rest_server_te
 - Uma variável local chamada `oRest` (o corpus usa esse nome também para cliente
   `FWRest`) sombreia a `Private`, sem conflito.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [X] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestORestQueryEPath(t *testing.T)      // @Get("/api/t/v1/item/:code") ?x=1 -> corpo {"code":"A1","x":"1"} montado com getPathParamsRequest/getQueryRequest
@@ -388,11 +388,11 @@ func TestAnotacaoEndpointNomeado(t *testing.T)    // @Get(endpoint="/api/t/v1/n"
 func TestAnotadoSemORestIntacto(t *testing.T)     // tests/tlpp_oop_rest_test.tlpp segue igual
 ```
 
-- [ ] **Step 2:** `go test ./pkg/vm -run 'TestORest|TestAnotac|TestAnotado' -v`.
+- [X] **Step 2:** `go test ./pkg/vm -run 'TestORest|TestAnotac|TestAnotado' -v`.
   Esperado: FAIL.
-- [ ] **Step 3:** Implementar conforme Interfaces.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(vm): objeto oRest e @Get(endpoint=..., :param)`
+- [X] **Step 3:** Implementar conforme Interfaces.
+- [X] **Step 4:** `go test ./...`. Esperado: PASS.
+- [X] **Step 5: Commit** — `feat(vm): objeto oRest e @Get(endpoint=..., :param)`
 
 ---
 
