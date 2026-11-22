@@ -249,6 +249,10 @@ type Server struct {
 	resolve    AppResolver
 	mu         sync.Mutex
 	sessions   map[string]*session
+
+	restMu      sync.RWMutex
+	restPrefix  string
+	restHandler http.Handler
 }
 
 // New cria o servidor do modo web. run é chamado uma vez por sessão.
@@ -279,6 +283,19 @@ func (srv *Server) Broadcast(kind, text string) {
 		default: // sessão com canal cheio: descarta em vez de travar o watcher
 		}
 	}
+}
+
+// MountREST monta um handler REST sob prefixo (ex.: "/rest") no mesmo
+// servidor do modo web — as rotas passam pela mesma checagem de
+// host/origem (sameOrigin) das demais. h deve ser um handler estável que
+// delega para o servidor REST corrente (o --watch troca o servidor por
+// baixo via ponteiro atômico do chamador). Deve ser chamado antes de
+// Serve/Handler.
+func (srv *Server) MountREST(prefixo string, h http.Handler) {
+	srv.restMu.Lock()
+	srv.restPrefix = "/" + strings.Trim(prefixo, "/")
+	srv.restHandler = h
+	srv.restMu.Unlock()
 }
 
 // Serve sobe o servidor HTTP e bloqueia.
@@ -468,6 +485,17 @@ func (srv *Server) Handler() http.Handler {
 		mu.Unlock()
 		handleUIPost(s, w, r)
 	})
+
+	srv.restMu.RLock()
+	if srv.restHandler != nil && srv.restPrefix != "" {
+		// O prefixo é removido antes do dispatch: as rotas REST são
+		// registradas com paths absolutos ("/api/est/v1/...") e chegam
+		// como "/rest/api/est/v1/...".
+		prefix := srv.restPrefix
+		mux.Handle(prefix+"/", http.StripPrefix(prefix, srv.restHandler))
+		mux.Handle(prefix, http.RedirectHandler(prefix+"/", http.StatusMovedPermanently))
+	}
+	srv.restMu.RUnlock()
 
 	return sameOrigin(mux)
 }

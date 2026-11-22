@@ -654,8 +654,14 @@ func serveFile(sourceFile string, opts *Options) error {
 			return err
 		})
 
+	// REST TOTVS (@Get/... e WSRESTFUL) montado sob shared.ResolveRestPrefix
+	// ("/rest" por padrão). O ponteiro atômico é trocado pelo --watch.
+	restSrv := montaRESTNoServe(bc, opts, srv)
+
 	if opts.watch {
-		go watchSource(sourceFile, compile, &deps, &current, srv)
+		go watchSource(sourceFile, compile, &deps, &current, srv, func(bc *compiler.Bytecode) {
+			registraRest(bc, opts, restSrv)
+		})
 	}
 
 	if opts.debugPort != "" {
@@ -735,7 +741,7 @@ func assinaturaFonte(sourceFile string, deps []string) (string, error) {
 // conjunto de fontes e seus #include, quando o alvo é um diretório — e, a
 // cada alteração, recompila e manda as sessões do browser recarregarem.
 // Erro de compilação vai para o console do browser em vez de recarregar.
-func watchSource(sourceFile string, compile func() (*compiler.Bytecode, error), deps *atomic.Value, current *atomic.Pointer[compiler.Bytecode], srv *webui.Server) {
+func watchSource(sourceFile string, compile func() (*compiler.Bytecode, error), deps *atomic.Value, current *atomic.Pointer[compiler.Bytecode], srv *webui.Server, onRecompiled ...func(*compiler.Bytecode)) {
 	sig := func() string {
 		d, _ := deps.Load().([]string)
 		s, err := assinaturaFonte(sourceFile, d)
@@ -759,6 +765,9 @@ func watchSource(sourceFile string, compile func() (*compiler.Bytecode, error), 
 			continue
 		}
 		current.Store(bc)
+		if len(onRecompiled) > 0 && onRecompiled[0] != nil {
+			onRecompiled[0](bc)
+		}
 		fmt.Printf("watch: %s recompilado, recarregando sessões\n", filepath.Base(sourceFile))
 		srv.Broadcast("reload", "fonte alterado")
 	}

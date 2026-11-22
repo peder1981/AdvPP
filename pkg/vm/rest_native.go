@@ -122,6 +122,16 @@ func (v *VM) callWSRestServerMethod(obj *advplrt.ObjectValue, method string, arg
 	return nil
 }
 
+// RegisterRestRoutes registra no servidor rest.Server todas as rotas do
+// bytecode: anotações @Get/@Post/@Put/@Patch/@Delete (Route.Raw com oRest)
+// e o DSL clássico WSRESTFUL/WSMETHOD. Devolve os erros de registro sem
+// abortar as demais rotas — é o que o `advplc serve` usa para montar o
+// REST na mesma origem do modo web (serve_rest.go).
+func (v *VM) RegisterRestRoutes(server *rest.Server) []error {
+	v.autoRegisterAnnotatedRoutes(server)
+	return v.RegistrarWSRestful(server, "")
+}
+
 // autoRegisterAnnotatedRoutes varre as funções do bytecode carregado
 // procurando anotações @Get/@Post/@Put/@Patch/@Delete — o estilo REST 2.0
 // moderno do TLPP — e registra cada uma como rota Raw (pkg/vm/orest.go),
