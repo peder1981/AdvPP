@@ -277,6 +277,82 @@ EndClass
 	}
 }
 
+// _Super numa classe RAIZ (sem pai) chamado sobre instância de subclasse:
+// a busca NÃO pode cair no pai da classe concreta do objeto — isso
+// reentraria no mesmo método para sempre (stack overflow). Tem que dar
+// erro limpo de "super não encontrado".
+func TestSuperEmClasseRaizDaErroLimpo(t *testing.T) {
+	_, _, err := rodaPrg(t, `
+Class BaseS
+	Method New()
+	Method Quem()
+EndClass
+Method New() Class BaseS
+	Return Self
+Method Quem() Class BaseS
+	Return _Super:Quem()
+
+Class FilhoS From BaseS
+EndClass
+
+User Function Main()
+	Local o := FilhoS():New()
+	ConOut(o:Quem())
+Return
+`)
+	if err == nil || !strings.Contains(err.Error(), "_Super") {
+		t.Fatalf("esperava erro limpo de _Super, got err=%v", err)
+	}
+}
+
+// _Super dentro de codeblock avaliado por uma FUNÇÃO (não método) cujo
+// primeiro parâmetro é um objeto: Locals[0] do frame da função é o objeto,
+// mas não é `self` de classe — selfObjectOf não pode aceitá-lo, senão o
+// _Super resolveria contra a classe errada. Tem que dar erro de self
+// ausente.
+func TestSuperEmFuncaoComObjetoNaoViraSelf(t *testing.T) {
+	_, _, err := rodaPrg(t, `
+Class BaseF
+	Method Quem()
+EndClass
+Method Quem() Class BaseF
+	Return "F"
+
+Class FilhoF From BaseF
+	Method New()
+EndClass
+Method New() Class FilhoF
+	Return Self
+
+Static Function Avalia(o, b)
+	Return Eval(b)
+
+User Function Main()
+	Local o := FilhoF():New()
+	Local b := {|| _Super:Quem()}
+	ConOut(Avalia(o, b))
+Return
+`)
+	if err == nil || !strings.Contains(err.Error(), "_Super") {
+		t.Fatalf("esperava erro limpo de _Super fora de metodo, got err=%v", err)
+	}
+}
+
+// Classe de usuário herdando de componente PoUI (PoApp): PoUI é estado por
+// ClassName exato — sub classe de usuário NÃO é raiz nativa válida.
+// rootNativeClass devolve "" e o método nativo dá erro limpo (sem criar
+// estado poComp/poAppState errado).
+func TestHerancaDeClassePoUIRestrita(t *testing.T) {
+	bc := compilarPrg(t, `
+Class MinhaApp From PoApp
+EndClass
+`)
+	v := NewVM(bc, false)
+	if got := v.rootNativeClass("MinhaApp"); got != "" {
+		t.Fatalf("PoApp nao deveria ser raiz nativa: rootNativeClass = %q", got)
+	}
+}
+
 // Instância de classe de usuário com raiz nativa: método que não existe no
 // bytecode de nenhum ancestral é atendido pelo estado nativo da raiz,
 // mesmo sem _Super no caminho.

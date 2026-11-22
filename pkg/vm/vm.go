@@ -60,7 +60,8 @@ type CallFrame struct {
 	Locals     []advplrt.Value
 	StackBase  int
 	Self       advplrt.Value
-	ArgCount   int // nº de argumentos passados na chamada (para PCount())
+	IsMethod   bool // frame de método de classe (self é objeto); funções/codeblocks não
+	ArgCount   int  // nº de argumentos passados na chamada (para PCount())
 	TryDepth   int
 	TryCatches []*TryCatch
 	dynRestore []dynBinding // bindings dinâmicos a restaurar quando este frame retornar
@@ -1756,6 +1757,7 @@ func (v *VM) invokeMethodFrame(o *advplrt.ObjectValue, funcName string, info *co
 		Locals:    locals,
 		StackBase: len(v.stack),
 		Self:      o,
+		IsMethod:  true,
 		ArgCount:  argCount,
 	}
 	v.frames = append(v.frames, frame)
@@ -1843,14 +1845,30 @@ type nativeBaseDef struct {
 // nativeBaseFactories: mapa global das classes nativas que classes de
 // usuário podem herdar (`Class X FROM FWAdapterBaseV2`). Chave = nome em
 // maiúsculas. As Tasks 7 e 8 do plano registram FWAdapterBaseV2 e
-// FwApiManager aqui.
-var nativeBaseFactories = map[string]*nativeBaseDef{}
+// FwApiManager aqui. O RWMutex é obrigatório: o mapa é escrito por
+// registerNativeBase e lido por TODAS as VMs — inclusive filhas
+// concorrentes do `advplc serve` — e mapa Go não é seguro para
+// leitura/escrita simultânea.
+var nativeBaseFactories = struct {
+	sync.RWMutex
+	m map[string]*nativeBaseDef
+}{m: map[string]*nativeBaseDef{}}
+
+// lookupNativeBase: leitura sob RLock (todas as VMs leem este mapa).
+func lookupNativeBase(upper string) (*nativeBaseDef, bool) {
+	nativeBaseFactories.RLock()
+	def, ok := nativeBaseFactories.m[upper]
+	nativeBaseFactories.RUnlock()
+	return def, ok
+}
 
 // registerNativeBase declara uma classe nativa herdável. A fábrica cria o
 // objeto de estado nativo que vai para obj.Native das instâncias (da própria
 // base e das sub classes de usuário).
 func registerNativeBase(name string, factory func() *advplrt.ObjectValue) {
-	nativeBaseFactories[strings.ToUpper(name)] = &nativeBaseDef{name: name, factory: factory}
+	nativeBaseFactories.Lock()
+	nativeBaseFactories.m[strings.ToUpper(name)] = &nativeBaseDef{name: name, factory: factory}
+	nativeBaseFactories.Unlock()
 }
 
 // nativeHeritageNames: classes nativas que podem ser raiz de herança E têm
@@ -1912,19 +1930,25 @@ func (v *VM) bcClassInfo(name string) (*compiler.ClassInfo, bool) {
 // guarda classes de usuário e built-ins sem handler de método, o que
 // desviado o dispatch para um case inexistente.
 func (v *VM) isNativeClassName(upper string) bool {
-	if _, ok := nativeBaseFactories[upper]; ok {
+	if _, ok := lookupNativeBase(upper); ok {
 		return true
 	}
 	if _, ok := nativeHeritageNames[upper]; ok {
 		return true
 	}
-	return isPoClass(upper)
+	// Classes PoUI (PoApp, PoPage...) NÃO são raiz nativa: a VM as trata por
+	// ClassName exato + estado poComp/poAppState em obj.Native, e uma sub
+	// classe de usuário teria ClassName próprio — despachar por ela criaria
+	// estado errado. `Class X FROM PoApp` fica como limitação conhecida:
+	// resolve como classe sem raiz nativa (erro "unknown method" limpo,
+	// igual a antes do suporte a herança nativa).
+	return false
 }
 
 // canonicalNativeName: nome canônico (o usado nos cases de callNativeMethodOn)
 // de uma classe nativa conhecida, a partir do nome em maiúsculas.
 func (v *VM) canonicalNativeName(upper string) string {
-	if def, ok := nativeBaseFactories[upper]; ok {
+	if def, ok := lookupNativeBase(upper); ok {
 		return def.name
 	}
 	if cls, ok := v.classes[upper]; ok {
@@ -2002,19 +2026,16 @@ func (v *VM) parentClassName(className string) string {
 	return ""
 }
 
-// selfObjectOf: o objeto `self` de um frame de método (Self do frame ou
-// Locals[0]); nil em frames de função/codeblock/main.
+// selfObjectOf: o objeto `self` de um frame de MÉTODO de classe. Frames de
+// função comum, main e codeblock têm IsMethod falso — neles Locals[0] pode
+// ser um objeto (primeiro parâmetro) sem ser `self`, e aceitá-lo faria um
+// _Super espúrio resolver contra a classe errada.
 func selfObjectOf(f *CallFrame) *advplrt.ObjectValue {
-	if f == nil {
+	if f == nil || !f.IsMethod {
 		return nil
 	}
 	if s, ok := f.Self.(*advplrt.ObjectValue); ok && s != nil {
 		return s
-	}
-	if len(f.Locals) > 0 {
-		if o, ok := f.Locals[0].(*advplrt.ObjectValue); ok {
-			return o
-		}
 	}
 	return nil
 }
@@ -2054,10 +2075,17 @@ func (v *VM) callSuper(str string, argCount int) error {
 		return fmt.Errorf("_Super:Metodo fora de metodo de classe (self ausente)")
 	}
 
-	// Ponto de partida: pai da classe que define o método. Se ela não for
-	// achada no bytecode, cai no pai da classe concreta do objeto.
-	start := v.parentClassName(defClass)
-	if start == "" && defClass != "" {
+	// Ponto de partida: pai da classe que define o método. Distingue os
+	// três casos — (a) classe existe no bytecode: usa o Parent dela mesmo
+	// quando "" (classe raiz); NUNCA cai no fallback, senão um _Super sem
+	// superclasse real reentraria no mesmo método via subclasse do objeto
+	// (recursão infinita -> stack overflow). (b) defClass vazio (uso fora
+	// de método): fallback no pai da classe concreta do objeto. (c)
+	// defClass que não resolve: erro limpo abaixo.
+	var start string
+	if _, ok := v.bcClassInfo(defClass); ok {
+		start = v.parentClassName(defClass)
+	} else if defClass == "" {
 		start = v.parentClassName(o.ClassName)
 	}
 
@@ -2369,7 +2397,7 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 		}
 		// Classe nativa registrada via registerNativeBase (ex_library do
 		// plano PO-UI): instância direta da base recebe o estado nativo.
-		if def, ok := nativeBaseFactories[upperName]; ok {
+		if def, ok := lookupNativeBase(upperName); ok {
 			obj := advplrt.NewObject(def.name, nil)
 			if def.factory != nil {
 				obj.Native = def.factory()
@@ -2541,7 +2569,7 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 	// a instância carrega o estado nativo da raiz em obj.Native, e os métodos
 	// que o bytecode não define caem nela via callNativeMethod.
 	if root := v.rootNativeClass(className); root != "" {
-		if def, ok := nativeBaseFactories[strings.ToUpper(root)]; ok && def.factory != nil {
+		if def, ok := lookupNativeBase(strings.ToUpper(root)); ok && def.factory != nil {
 			obj.Native = def.factory()
 		}
 	}
@@ -2570,6 +2598,7 @@ func (v *VM) callConstructor(className string, obj *advplrt.ObjectValue, args []
 		Locals:    locals,
 		StackBase: len(v.stack),
 		Self:      obj,
+		IsMethod:  true,
 	}
 	v.frames = append(v.frames, frame)
 	v.current = frame
