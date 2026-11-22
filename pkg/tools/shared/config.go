@@ -11,9 +11,12 @@ import (
 // Config representa a configuração compartilhada entre as ferramentas
 // (~/.advpp/advpp_config.json — editável à mão; ver ResolveDatabasePath)
 type Config struct {
-	DefaultDatabase string `json:"default_database"`
-	WebUIPort       string `json:"webui_port,omitempty"`  // porta do advplc serve (padrão 8080)
-	RestPrefix      string `json:"rest_prefix,omitempty"` // prefixo do REST no advplc serve (padrão /rest)
+	DefaultDatabase   string   `json:"default_database"`
+	WebUIPort         string   `json:"webui_port,omitempty"`          // porta do advplc serve (padrão 8080)
+	RestPrefix        string   `json:"rest_prefix,omitempty"`         // prefixo do REST no advplc serve (padrão /rest)
+	PouiAppsDirs      []string `json:"poui_apps_dirs,omitempty"`      // diretórios de busca de apps PO-UI (FwCallApp/--poui-app)
+	PouiDesconexaoSeg int      `json:"poui_desconexao_seg,omitempty"` // segundos sem a aba do app antes de fechar o FwCallApp (padrão 10)
+	PouiAppMaxMB      int64    `json:"poui_app_max_mb,omitempty"`     // limite do .app em MB (padrão 64)
 }
 
 // ResolveWebUIPort resolve a porta do modo web: explícita (--port) →

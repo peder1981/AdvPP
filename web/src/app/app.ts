@@ -374,6 +374,9 @@ export class App {
       case 'open': // PoApp:Open: outro app numa janela nova
         if (/^[A-Za-z0-9_-]{1,64}$/.test(p.app)) { window.open('/app/' + p.app, '_blank'); }
         break;
+      case 'open-tab': // FwCallApp: aba nova com o app PO-UI (url vem do servidor)
+        if (typeof p.url === 'string' && p.url.startsWith('/poui/')) { window.open(p.url, '_blank'); }
+        break;
     }
   }
 
