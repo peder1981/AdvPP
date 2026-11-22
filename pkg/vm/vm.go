@@ -1895,14 +1895,18 @@ func registerNativeBase(name string, factory func() *advplrt.ObjectValue) {
 // registerNativeBase. Os valores são os nomes canônicos EXATOS dos cases do
 // switch de callNativeMethodOn (case-sensitive); mantidos em sincronia com
 // builtinNativeObject/newInstance. Classes de UI sem handler de método
-// (FWForm*, FWPanel, FWTabs...) ficam DE FORA de propósito: tratá-las como
-// raiz desviado o dispatch para um case inexistente. Cobertura:
+// (FWForm*, FWPanel, FWTabs...) e as que não têm estado instanciável por
+// subclasse (MSDIALOG — ver comentário no mapa) ficam DE FORA de propósito:
+// tratá-las como raiz desviado o dispatch para um case inexistente ou
+// entregaria obj.Native nil. Cobertura:
 // TestNativeHeritageNamesBatemComDispatch.
 var nativeHeritageNames = map[string]string{
-	"JSONOBJECT":        "JsonObject",
-	"FWGRIDPROCESS":     "FWGridProcess",
-	"FWMBROWSE":         "FWMBrowse",
-	"MSDIALOG":          "MsDialog",
+	"JSONOBJECT":    "JsonObject",
+	"FWGRIDPROCESS": "FWGridProcess",
+	"FWMBROWSE":     "FWMBrowse",
+	// MSDIALOG fora de propósito: o estado webDialog nasce na função nativa
+	// MSDIALOG() (e prende v.curDialog), não existe fábrica para subclasse —
+	// `Class X FROM MSDIALOG` não teria como receber obj.Native viável.
 	"LLM":               "LLM",
 	"MCPSERVER":         "MCPServer",
 	"WSRESTSERVER":      "WSRestServer",
@@ -2015,6 +2019,11 @@ func (v *VM) rootNativeClass(className string) string {
 //   - `obj.ClassName` é a classe CONCRETA do objeto (ex.: "Repo"), NÃO a
 //     raiz; para comportamento da base, faça type-assert em obj.Native.
 //   - `method` chega em maiúsculas; args já vêm dereferenciados.
+//   - LIMITAÇÃO: args nomeados (`Metodo(c := 1)`) NÃO chegam ao handler —
+//     métodos nativos não têm ParamNames para reordenar, então o dispatch
+//     limpa v.namedArgs antes de chamar. Tasks 7/8 devem documentar a
+//     assinatura posicional dos métodos da base ou tratar named args na
+//     camada AdvPL (método de bytecode que repassa posicionalmente).
 //   - O retorno é empurrado como valor do método (mesma convenção das
 //     natives); para devolver nada, retorne advplrt.Nil.
 type nativeBaseMethodHandler interface {
@@ -2110,6 +2119,17 @@ func (v *VM) callSuper(str string, argCount int) error {
 		args[i] = v.pop()
 	}
 
+	// defClass vazio significa _Super emitido fora de método de classe —
+	// o codegen rejeita isso, mas bytecode de outra origem pode chegar aqui.
+	// Erro limpo: NUNCA cair num fallback que despacharia contra o self
+	// dinâmico de um frame pai (executaria o método do "pai" da classe do
+	// objeto errado, silenciosamente).
+	if defClass == "" {
+		v.namedArgs = v.namedArgs[:0]
+		v.argCounter = 0
+		return fmt.Errorf("_Super:%s fora de metodo de classe (defClass vazio)", methodName)
+	}
+
 	// self do frame atual; dentro de codeblock/closure o frame não tem Self
 	// (Locals[0] é o próprio CodeBlockValue), então sobe a pilha de frames
 	// até o método que contém o bloco — escopo dinâmico, como o resto da VM.
@@ -2132,27 +2152,20 @@ func (v *VM) callSuper(str string, argCount int) error {
 	// ancestral dela. Fora disso é uso indevido — erro limpo em vez de
 	// despachar contra a classe errada. A validação só roda quando defClass
 	// existe no bytecode (caso contrário já é erro adiante).
-	if defClass != "" {
-		if _, ok := v.bcClassInfo(defClass); ok && !v.classInHierarchy(o.ClassName, strings.ToUpper(defClass)) {
-			v.namedArgs = v.namedArgs[:0]
-			v.argCounter = 0
-			return fmt.Errorf("_Super:%s: classe %s nao pertence a hierarquia de %s", methodName, defClass, o.ClassName)
-		}
+	if _, ok := v.bcClassInfo(defClass); ok && !v.classInHierarchy(o.ClassName, strings.ToUpper(defClass)) {
+		v.namedArgs = v.namedArgs[:0]
+		v.argCounter = 0
+		return fmt.Errorf("_Super:%s: classe %s nao pertence a hierarquia de %s", methodName, defClass, o.ClassName)
 	}
 
 	// Ponto de partida: pai da classe que define o método. Distingue os
-	// três casos — (a) classe existe no bytecode: usa o Parent dela mesmo
+	// dois casos — (a) classe existe no bytecode: usa o Parent dela mesmo
 	// quando "" (classe raiz); NUNCA cai no fallback, senão um _Super sem
 	// superclasse real reentraria no mesmo método via subclasse do objeto
-	// (recursão infinita -> stack overflow). (b) defClass vazio (uso fora
-	// de método): fallback no pai da classe concreta do objeto. (c)
-	// defClass que não resolve: erro limpo abaixo.
-	var start string
-	if _, ok := v.bcClassInfo(defClass); ok {
-		start = v.parentClassName(defClass)
-	} else if defClass == "" {
-		start = v.parentClassName(o.ClassName)
-	}
+	// (recursão infinita -> stack overflow). (b) defClass que não resolve
+	// no bytecode: parentClassName devolve "" e o loop é pulado — erro
+	// limpo abaixo.
+	start := v.parentClassName(defClass)
 
 	seen := make(map[string]bool)
 	for cur := start; cur != ""; {
@@ -2496,6 +2509,15 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			obj.Native = def.factory()
 		} else if builtin, ok := v.builtinNativeObject(strings.ToUpper(root)); ok {
 			obj.Native = builtin.Native
+			// Props pré-semeadas da base (ex.: ErrorClass DESCRIPTION/GENCODE)
+			// valem como default da subclasse — SetProp só preenche chave
+			// ausente, então um Data/Property declarado na subclasse vence.
+			// Os valores são frescos por chamada de builtinNativeObject.
+			for k, val := range builtin.Props {
+				if _, exists := obj.Props[k]; !exists {
+					obj.SetProp(k, val)
+				}
+			}
 		}
 	}
 

@@ -987,7 +987,9 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 		}
 	case *ast.SelfMethodCall:
 		c.emit(OP_LOAD_SELF, 0, 0, "", e.Loc.Line)
-		c.compileArgs(e.Args) // via compileArgs p/ tratar NamedParam como nos demais calls
+		if err := c.compileArgs(e.Args); err != nil { // via compileArgs p/ tratar NamedParam como nos demais calls
+			return err
+		}
 		c.emit(OP_CALL_METHOD, 0, len(e.Args), e.Method, e.Loc.Line)
 	case *ast.FieldAccess:
 		c.emit(OP_FIELD_GET, 0, 0, e.Field, e.Loc.Line)
@@ -1009,7 +1011,9 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 	case *ast.CodeBlock:
 		return c.compileCodeBlock(e)
 	case *ast.NewExpr:
-		c.compileArgs(e.Args) // via compileArgs p/ tratar NamedParam como nos demais calls
+		if err := c.compileArgs(e.Args); err != nil { // via compileArgs p/ tratar NamedParam como nos demais calls
+			return err
+		}
 		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), e.ClassName, e.Loc.Line)
 	case *ast.MacroExp:
 		if err := c.compileExpr(e.Expr); err != nil {
@@ -1146,17 +1150,23 @@ func (c *Compiler) compileCallExpr(e *ast.CallExpr) error {
 
 	// Check if this is a class constructor call (e.g., Calculator():New())
 	if _, isClass := c.bc.Classes[e.Name]; isClass {
-		c.compileArgs(e.Args)
+		if err := c.compileArgs(e.Args); err != nil {
+			return err
+		}
 		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), e.Name, e.Loc.Line)
 		return nil
 	}
 	// Check known built-in classes
 	if isBuiltinClass(e.Name) || (isPoClassName(e.Name) && !c.hasFunction(e.Name)) {
-		c.compileArgs(e.Args)
+		if err := c.compileArgs(e.Args); err != nil {
+			return err
+		}
 		c.emit(OP_NEW_INSTANCE, 0, len(e.Args), e.Name, e.Loc.Line)
 		return nil
 	}
-	c.compileArgs(e.Args)
+	if err := c.compileArgs(e.Args); err != nil {
+		return err
+	}
 	if strings.ToUpper(e.Name) == "EVAL" {
 		c.emit(OP_EVAL_CODEBLOCK, 0, len(e.Args)-1, "", e.Loc.Line)
 		return nil
@@ -1169,16 +1179,25 @@ func (c *Compiler) compileCallExpr(e *ast.CallExpr) error {
 	return nil
 }
 
-func (c *Compiler) compileArgs(args []ast.Expression) {
+// compileArgs compila a lista de argumentos de uma chamada. Propaga o
+// primeiro erro de compileExpr — antes o retorno era descartado, o que
+// permitia que um argumento inválido (ex.: _Super: fora de método) sumisse
+// silenciosamente e corrompesse a pilhaa de operandos do bytecode.
+func (c *Compiler) compileArgs(args []ast.Expression) error {
 	for _, arg := range args {
 		if np, ok := arg.(*ast.NamedParam); ok {
 			c.emit(OP_NAMED_ARG, 0, 0, np.Name, np.Loc.Line)
-			c.compileExpr(np.Value)
+			if err := c.compileExpr(np.Value); err != nil {
+				return err
+			}
 		} else {
 			c.emit(OP_NAMED_ARG, 0, 0, "", arg.Pos().Line)
-			c.compileExpr(arg)
+			if err := c.compileExpr(arg); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func (c *Compiler) compileMethodCall(e *ast.MethodCall) error {
@@ -1192,14 +1211,25 @@ func (c *Compiler) compileMethodCall(e *ast.MethodCall) error {
 		if c.currentFunc != nil {
 			className = c.currentFunc.className
 		}
-		c.compileArgs(e.Args)
+		// _Super: só existe dentro de método de classe. Em função comum,
+		// codeblock solto ou corpo top-level não há "classe que define o
+		// método" — rejeitar aqui evita que a VM precise adivinhar um defClass
+		// e despachar contra o self dinâmico de um frame pai.
+		if className == "" {
+			return fmt.Errorf("_Super: so pode ser usado dentro de metodo de classe (linha %d)", e.Loc.Line)
+		}
+		if err := c.compileArgs(e.Args); err != nil {
+			return err
+		}
 		c.emit(OP_CALL_SUPER, 0, len(e.Args), className+":"+e.Method, e.Loc.Line)
 		return nil
 	}
 	if err := c.compileExpr(e.Object); err != nil {
 		return err
 	}
-	c.compileArgs(e.Args)
+	if err := c.compileArgs(e.Args); err != nil {
+		return err
+	}
 	c.emit(OP_CALL_METHOD, 0, len(e.Args), e.Method, e.Loc.Line)
 	return nil
 }

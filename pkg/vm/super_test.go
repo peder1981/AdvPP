@@ -6,8 +6,34 @@ import (
 	"testing"
 
 	"github.com/advpl/compiler/pkg/compiler"
+	"github.com/advpl/compiler/pkg/lexer"
+	"github.com/advpl/compiler/pkg/parser"
+	"github.com/advpl/compiler/pkg/preprocessor"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
+
+// erroDeCompilacao roda o mesmo pipeline de compilarPrg mas devolve o erro
+// em vez de falhar o teste — para casos que devem ser rejeitados na
+// compilação.
+func erroDeCompilacao(src string) error {
+	pp := preprocessor.NewPreprocessor(nil)
+	processed, err := pp.Process(src, "teste.prw")
+	if err != nil {
+		return err
+	}
+	tokens, err := lexer.Tokenize(processed, "teste.prw")
+	if err != nil {
+		return err
+	}
+	p := parser.NewParser(tokens, "teste.prw", pp.GetDefines())
+	prog, err := p.Parse()
+	if err != nil {
+		return err
+	}
+	prog.RootBoundaryLine = pp.RootBoundaryLine
+	_, err = compiler.Compile(prog)
+	return err
+}
 
 // _Super: chama o método de mesma assinatura na superclasse, sobre o mesmo
 // self — idioma do Protheus (`_Super:New()` na primeira linha do construtor
@@ -306,13 +332,13 @@ Return
 	}
 }
 
-// _Super dentro de codeblock avaliado por uma FUNÇÃO (não método) cujo
-// primeiro parâmetro é um objeto: Locals[0] do frame da função é o objeto,
-// mas não é `self` de classe — selfObjectOf não pode aceitá-lo, senão o
-// _Super resolveria contra a classe errada. Tem que dar erro de self
-// ausente.
+// _Super dentro de codeblock declarado em FUNÇÃO (não método) avaliado por
+// outra função: não há classe que define o método — o codegen rejeita na
+// compilação. Antes da rejeição, a VM podia resolver contra o self dinâmico
+// do frame do chamador (Locals[0] de uma função comum pode ser um objeto
+// sem ser `self` de classe).
 func TestSuperEmFuncaoComObjetoNaoViraSelf(t *testing.T) {
-	_, _, err := rodaPrg(t, `
+	err := erroDeCompilacao(`
 Class BaseF
 	Method Quem()
 EndClass
@@ -335,7 +361,7 @@ User Function Main()
 Return
 `)
 	if err == nil || !strings.Contains(err.Error(), "_Super") {
-		t.Fatalf("esperava erro limpo de _Super fora de metodo, got err=%v", err)
+		t.Fatalf("esperava erro de compilação de _Super fora de metodo, got err=%v", err)
 	}
 }
 
@@ -531,5 +557,122 @@ Return
 `)
 	if !strings.Contains(out, "direto") {
 		t.Fatalf("got %q", out)
+	}
+}
+
+// _Super: dentro de uma FUNÇÃO COMUM chamada por um método: não existe
+// "classe que define o método" — o codegen rejeita na compilação, antes de
+// qualquer execução. Sem a rejeição, a VM poderia despachar contra o self
+// dinâmico do frame do chamador (o objeto do método que chamou a função).
+func TestSuperEmFuncaoComumErroDeCompilacao(t *testing.T) {
+	err := erroDeCompilacao(`
+Class BaseF
+	Method Quem()
+EndClass
+Method Quem() Class BaseF
+	Return "base"
+
+User Function Auxiliar()
+	_Super:Quem()
+
+User Function Main()
+	Local o := BaseF():New()
+	ConOut(Auxiliar())
+Return
+`)
+	if err == nil || !strings.Contains(err.Error(), "_Super") {
+		t.Fatalf("esperava erro de compilação de _Super, got %v", err)
+	}
+}
+
+// _Super: no corpo top-level (fora de qualquer função): mesma rejeição.
+// Os statements top-level vão ANTES das declarações de função.
+func TestSuperNoCorpoTopLevelErroDeCompilacao(t *testing.T) {
+	err := erroDeCompilacao(`
+ConOut(_Super:Quem())
+
+User Function Main()
+Return
+`)
+	if err == nil || !strings.Contains(err.Error(), "_Super") {
+		t.Fatalf("esperava erro de compilação de _Super, got %v", err)
+	}
+}
+
+// Bytecode de outra origem pode emitir OP_CALL_SUPER com defClass vazio
+// (Str ":Metodo"): a VM rejeita limpo em vez de cair num fallback que
+// despacharia contra o self dinâmico de um frame pai.
+func TestSuperDefClassVazioErroLimpo(t *testing.T) {
+	v := NewVM(compilarPrg(t, `
+Class A2
+	Method Quem()
+EndClass
+Method Quem() Class A2
+	Return "A2"
+Class B2 From A2
+EndClass
+`), false)
+	objB := advplrt.NewObject("B2", nil)
+	frame := &CallFrame{
+		FuncName:  "B2::Quem",
+		Code:      v.bc.Code,
+		IP:        0,
+		Locals:    newLocals(4),
+		StackBase: len(v.stack),
+		Self:      objB,
+		IsMethod:  true,
+	}
+	v.frames = append(v.frames, frame)
+	v.current = frame
+	err := v.callSuper(":Quem", 0)
+	if err == nil || !strings.Contains(err.Error(), "_Super") {
+		t.Fatalf("esperava erro limpo de _Super sem defClass, got %v", err)
+	}
+}
+
+// MSDIALOG não é raiz nativa viável: o webDialog nasce na função nativa
+// MSDIALOG() (que ainda prende v.curDialog), não existe fábrica para uma
+// subclasse receber obj.Native. Tem que ficar fora de nativeHeritageNames.
+func TestMsDialogNaoEhRaizNativa(t *testing.T) {
+	bc := compilarPrg(t, `
+Class MeuDlg From MSDIALOG
+EndClass
+`)
+	v := NewVM(bc, false)
+	if got := v.rootNativeClass("MeuDlg"); got != "" {
+		t.Fatalf("rootNativeClass(MeuDlg) = %q, esperava \"\" (MSDIALOG sem estado herdável)", got)
+	}
+}
+
+// Subclasse de built-in com Props pré-semeadas (ErrorClass DESCRIPTION/
+// GENCODE): a instância da subclasse recebe os defaults da base, e uma
+// propriedade declarada na subclasse não é sobrescrita.
+func TestHerancaBuiltinMesclaPropsDaBase(t *testing.T) {
+	bc := compilarPrg(t, `
+Class MeuErro From ErrorClass
+EndClass
+`)
+	v := NewVM(bc, false)
+	if err := v.newInstance("MeuErro", nil); err != nil {
+		t.Fatalf("newInstance: %v", err)
+	}
+	obj, ok := v.stack[len(v.stack)-1].(*advplrt.ObjectValue)
+	if !ok {
+		t.Fatalf("topo da pilha não é objeto: %T", v.stack[len(v.stack)-1])
+	}
+	for _, key := range []string{"DESCRIPTION", "GENCODE"} {
+		if _, exists := obj.Props[key]; !exists {
+			t.Fatalf("prop %s da base ErrorClass não foi mesclada em %s", key, obj.ClassName)
+		}
+	}
+	// SetProp mantém Keys em sincronia (ordem de inserção p/ GetNames).
+	found := false
+	for _, k := range obj.Keys {
+		if k == "DESCRIPTION" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("Keys não contém DESCRIPTION após merge")
 	}
 }
