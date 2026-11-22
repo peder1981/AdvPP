@@ -142,6 +142,22 @@ func TestPouiAppIndexCaixa(t *testing.T) {
 	}
 }
 
+func TestPouiAppIndexComShim(t *testing.T) {
+	dir := t.TempDir()
+	escreveApp(t, dir)
+	a, err := AbrePouiApp(dir, 0)
+	if err != nil {
+		t.Fatalf("AbrePouiApp: %v", err)
+	}
+	if rec := getApp(t, a, "/"); !strings.Contains(rec.Body.String(), "poui_sid") {
+		t.Fatal("index servido sem o shim injetado")
+	}
+	// Asset não-index não recebe shim.
+	if rec := getApp(t, a, "/assets/data/appConfig.json"); strings.Contains(rec.Body.String(), "poui_sid") {
+		t.Fatal("asset recebeu shim indevidamente")
+	}
+}
+
 func TestPouiAppSemIndexErro(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "foo.txt"), []byte("x"), 0o644); err != nil {

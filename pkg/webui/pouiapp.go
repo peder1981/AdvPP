@@ -255,19 +255,28 @@ func (a *PouiApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nome := strings.TrimPrefix(p, "/")
+	servingIndex := false
 	if nome == "" || strings.HasSuffix(nome, "/") {
 		nome += a.index
+		servingIndex = true
 	}
 	data, err := readFSFile(a.fsys, nome)
 	if err != nil {
 		// SPA fallback: caminho sem extensão -> index.html.
 		if path.Ext(nome) == "" {
-			data, err = readFSFile(a.fsys, a.index)
+			if data, err = readFSFile(a.fsys, a.index); err == nil {
+				servingIndex = true
+			}
 		}
 		if err != nil {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
+	}
+	if servingIndex {
+		// Ponte JS<->AdvPL da protheus-lib-core (Task 2.2 do plano).
+		data = InjetaShim(data)
+		nome = a.index // Content-Type do index, não do caminho pedido
 	}
 	if ct := mime.TypeByExtension(path.Ext(nome)); ct != "" {
 		if strings.HasPrefix(ct, "text/") || strings.Contains(ct, "javascript") || strings.Contains(ct, "json") || strings.Contains(ct, "svg") {
