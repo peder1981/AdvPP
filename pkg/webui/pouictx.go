@@ -41,11 +41,13 @@ func NovoPouiCtx(app, empresa, filial, modulo, usuario, idioma, restPrefix, orig
 func (c *PouiCtx) SessionStorage() map[string]string {
 	appConfig, _ := json.Marshal(map[string]string{
 		"name":           c.App,
+		"productLine":    "protheus",
 		"api_baseUrl":    c.Origem + c.RestPrefix,
 		"serverBackend":  c.Origem,
 		"restEntryPoint": c.RestPrefix,
 	})
 	proAppConfig, _ := json.Marshal(map[string]string{
+		"productLine":    "protheus",
 		"api_baseUrl":    c.Origem + c.RestPrefix,
 		"serverBackend":  c.Origem,
 		"restEntryPoint": c.RestPrefix,

@@ -309,6 +309,11 @@ export class App {
       case 'reload': // hot reload do --watch: fonte recompilado no servidor
         location.reload();
         break;
+      case 'open-tab': { // FwCallApp: aba nova com o app PO-UI (url vem do servidor)
+        const d = ev.data as { url?: string } | undefined;
+        if (typeof d?.url === 'string' && d.url.startsWith('/poui/')) { window.open(d.url, '_blank'); }
+        break;
+      }
     }
   }
 
@@ -373,9 +378,6 @@ export class App {
         break;
       case 'open': // PoApp:Open: outro app numa janela nova
         if (/^[A-Za-z0-9_-]{1,64}$/.test(p.app)) { window.open('/app/' + p.app, '_blank'); }
-        break;
-      case 'open-tab': // FwCallApp: aba nova com o app PO-UI (url vem do servidor)
-        if (typeof p.url === 'string' && p.url.startsWith('/poui/')) { window.open(p.url, '_blank'); }
         break;
     }
   }

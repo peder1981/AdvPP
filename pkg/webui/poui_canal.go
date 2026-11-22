@@ -282,6 +282,8 @@ func (p *Provider) PouiEnvia(tipo, conteudo string) {
 
 // FechaPouiApp desregistra o app: o laço do FwCallApp deve chamá-lo ao
 // sair, e requisições seguintes a /poui/{app} passam a responder 410.
+// Antes de encerrar o canal, entrega um advpltojs "close" à aba — o shim
+// (poui_shim.js) o traduz em window.close(), como no Protheus.
 func (p *Provider) FechaPouiApp() {
 	s := p.s
 	s.mu.Lock()
@@ -290,6 +292,12 @@ func (p *Provider) FechaPouiApp() {
 	s.pouiGone = true
 	s.mu.Unlock()
 	if canal != nil {
+		data, _ := json.Marshal(map[string]string{"type": "close", "content": ""})
+		select {
+		case canal.tab <- event{Type: "advpltojs", Data: data}:
+		case <-canal.closed:
+		case <-s.quit:
+		}
 		canal.fecha()
 	}
 }

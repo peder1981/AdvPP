@@ -29,13 +29,19 @@
     }).catch(function () {});
   };
 
+  // O servidor emite tudo como evento SSE "message" (só data:); o tipo
+  // real vem no JSON: {type:"advpltojs", data:{type, content}}.
   var es = new EventSource('/events?s=' + encodeURIComponent(sid) + '&canal=poui');
   es.onopen = function () { tc.gotConnection = true; };
-  es.addEventListener('advpltojs', function (ev) {
-    var d = JSON.parse(ev.data);
-    var e = new Event(d.type || 'message');
-    e.protheusResponse = d.content;
-    e.subscriber = tc[d.type] && tc[d.type].subscriber;
-    tc.eventTarget.dispatchEvent(e);
-  });
+  es.onmessage = function (m) {
+    var d;
+    try { d = JSON.parse(m.data); } catch (e) { return; }
+    if (!d || d.type !== 'advpltojs' || !d.data) { return; }
+    var p = d.data;
+    if (p.type === 'close') { window.close(); return; }
+    var ev = new Event(p.type || 'message');
+    ev.protheusResponse = p.content;
+    ev.subscriber = tc[p.type] && tc[p.type].subscriber;
+    tc.eventTarget.dispatchEvent(ev);
+  };
 })();
