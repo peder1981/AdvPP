@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -34,7 +35,8 @@ func TestPFXPKCS12ComCadeia(t *testing.T) {
 	if got, _ := segGenericaCall(natives, "PFXKEY2PEM", []advplrt.Value{s(pfx), s(chave), s(""), s("teste")}); !advplrt.ToBool(got) {
 		t.Fatal("PFXKey2PEM deveria extrair a chave do PKCS#12")
 	}
-	if st, _ := os.Stat(chave); st.Mode().Perm() != 0o600 {
+	// Permissão Unix: o Windows não tem (devolve 0666).
+	if st, _ := os.Stat(chave); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Fatalf("chave privada gravada com %v, esperado 0600", st.Mode().Perm())
 	}
 	cert := filepath.Join(dir, "cert.pem")
