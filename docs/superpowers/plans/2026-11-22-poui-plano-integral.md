@@ -253,7 +253,7 @@ func (a *PouiApp) ServeHTTP(w http.ResponseWriter, r *http.Request) // r.URL.Pat
     `index.html`, com o shim injetado (Task 2.2);
   - `Content-Type` pela extensão (`mime.TypeByExtension`).
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestPouiAppPasta(t *testing.T)            // dir com index.html e assets/data/appConfig.json -> GET / e GET /assets/data/appConfig.json servem
@@ -264,11 +264,11 @@ func TestPouiAppRotaSpa(t *testing.T)          // GET /clientes/123 -> index.htm
 func TestLocalizaPouiAppOrdem(t *testing.T)    // nome.app e nome/ no mesmo dir -> .app vence; nome inválido "a/b" -> erro
 ```
 
-- [ ] **Step 2:** `go test ./pkg/webui -run 'TestPouiApp|TestLocaliza' -v`. Esperado:
+- [x] **Step 2:** `go test ./pkg/webui -run 'TestPouiApp|TestLocaliza' -v`. Esperado:
   FAIL.
-- [ ] **Step 3:** Implementar conforme Interfaces.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(webui): servir app PO-UI de pasta ou .app em
+- [x] **Step 3:** Implementar conforme Interfaces.
+- [x] **Step 4:** `go test ./...`. Esperado: PASS.
+- [x] **Step 5: Commit** — `feat(webui): servir app PO-UI de pasta ou .app em
   memória`
 
 ### Task 2.2: shim e contexto da sessão
@@ -296,7 +296,7 @@ func InjetaShim(index []byte) []byte                 // insere <script>…poui_s
   Antes do Step 3, conferir no `.mjs` quais campos a lib lê desses objetos
   (`getCompany`/`getBranch`) e ajustar o formato para exatamente esses.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestSessionStorageChaves(t *testing.T) // contém exatamente as chaves da seção 3.2.4; ERPAPPCONFIG.api_baseUrl == origem+restPrefix
@@ -306,12 +306,12 @@ func TestInjetaShimSemScript(t *testing.T)  // vai antes de </body>
 func TestShimSemIdentificadores(t *testing.T) // poui_shim.js não contém "advpp", "claude", URLs externas nem caracteres U+200B..U+200D/U+2060/U+FEFF
 ```
 
-- [ ] **Step 2:** `go test ./pkg/webui -run 'TestSession|TestToken|TestInjeta|TestShim'
+- [x] **Step 2:** `go test ./pkg/webui -run 'TestSession|TestToken|TestInjeta|TestShim'
   -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar o Go e o `poui_shim.js` conforme a seção 3.2, em JS puro
+- [x] **Step 3:** Implementar o Go e o `poui_shim.js` conforme a seção 3.2, em JS puro
   sem build e com no máximo 120 linhas.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(webui): shim twebchannel e contexto de sessão do app
+- [x] **Step 4:** `go test ./...`. Esperado: PASS.
+- [x] **Step 5: Commit** — `feat(webui): shim twebchannel e contexto de sessão do app
   PO-UI`
 
 ### Task 2.3: canal do app no servidor (`/poui/`, `/poui-ui`, `/poui-ctx`, SSE `advpltojs`)
@@ -349,7 +349,7 @@ func (p *Provider) FechaPouiApp()                                               
   (`shared.Config.PouiDesconexaoSeg`, padrão 10), faz o `PouiNext` devolver
   `fechou=true`. O mesmo acontece no fim da sessão chamadora.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestPouiCanalIdaEVolta(t *testing.T)        // POST /poui-ui {type:"preLoad"} -> PouiNext devolve "preLoad"; PouiEnvia("x","1") -> SSE canal=poui recebe advpltojs {"type":"x","content":"1"}
@@ -361,11 +361,11 @@ func TestPouiDepoisDeFechar410(t *testing.T)
 func TestPouiCorpoGrande413(t *testing.T)
 ```
 
-- [ ] **Step 2:** `go test ./pkg/webui -run TestPoui -race -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar o canal e o `open-tab` na SPA. Rodar `make web` e
+- [x] **Step 2:** `go test ./pkg/webui -run TestPoui -race -v`. Esperado: FAIL.
+- [x] **Step 3:** Implementar o canal e o `open-tab` na SPA. Rodar `make web` e
   versionar o `pkg/webui/dist`.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(webui): canal do app PO-UI (aba nova, jsToAdvpl,
+- [x] **Step 4:** `go test ./...`. Esperado: PASS.
+- [x] **Step 5: Commit** — `feat(webui): canal do app PO-UI (aba nova, jsToAdvpl,
   advpltojs)`
 
 ### Task 2.4: `FwCallApp` e `oWebChannel` na VM
