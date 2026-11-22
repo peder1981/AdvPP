@@ -27,6 +27,14 @@ web:
 	rm -rf pkg/webui/dist && mkdir -p pkg/webui/dist
 	cp -r web/dist/advpp-web/browser/. pkg/webui/dist/
 
+# App PO-UI de teste (plano onda 2, Task 2.7): compila
+# tests/poui/fixture-app-src (Angular + @totvs/protheus-lib-core 21.1.4)
+# e achata o dist/browser em tests/poui/apps/fixture-app — onde o
+# FwCallApp("fixture-app") procura o app. Requer Node 20+.
+fixture-app:
+	cd tests/poui/fixture-app-src && (test -d node_modules || npm ci) && npx ng build
+	cd tests/poui/apps/fixture-app && mv browser/* . && rmdir browser
+
 # Build
 build:
 	$(GO) build -o $(BINARY) ./cmd/advplc

@@ -528,18 +528,18 @@ func TestServePouiAppSemFonte(t *testing.T)        // só o app -> framework end
   `oWebChannel:AdvPLToJS(cContent, "pong")`.
 - `assets/data/appConfig.json` traz `api_baseUrl` vazio (o shim fornece o valor).
 
-- [ ] **Step 1:** Criar o projeto, compilar com `make fixture-app`, e versionar
+- [x] **Step 1:** Criar o projeto, compilar com `make fixture-app`, e versionar
   `tests/poui/apps/fixture-app/`.
-- [ ] **Step 2:** Com `poui_apps_dirs` apontando para `tests/poui/apps`, rodar
+- [x] **Step 2:** Com `poui_apps_dirs` apontando para `tests/poui/apps`, rodar
   `./advplc serve tests/poui/fixture-app.prw --port 8098` e abrir
   no navegador (Chrome com a extensão claude-in-chrome). Verificar: a lista mostra os 25
   armazéns paginados; "Pingar" mostra "pong"; "Fechar" faz o `FwCallApp` retornar (o
   console da SPA mostra a linha seguinte do fonte).
-- [ ] **Step 3:** Estender `tests/poui/ao_vivo.mjs` com o cenário acima, para que
+- [x] **Step 3:** Estender `tests/poui/ao_vivo.mjs` com o cenário acima, para que
   `tests/poui/ao-vivo.sh fixture-app` o automatize.
-- [ ] **Step 4:** `tests/poui/ao-vivo.sh fixture-app`. Esperado: saída `OK` nos 3
+- [x] **Step 4:** `tests/poui/ao-vivo.sh fixture-app`. Esperado: saída `OK` nos 3
   passos.
-- [ ] **Step 5: Commit** — `test: app de teste PO-UI com protheus-lib-core
+- [x] **Step 5: Commit** — `test: app de teste PO-UI com protheus-lib-core
   (FwCallApp de ponta a ponta)`
 
 ### Task 2.8: validação no corpus, documentação e encerramento
