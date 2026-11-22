@@ -1305,6 +1305,7 @@ func (c *Compiler) compileCodeBlock(e *ast.CodeBlock) error {
 
 	c.currentFunc = &funcContext{
 		name:      funcName,
+		className: savedFunc.className, // _Super: dentro de closure resolve a classe do método que a contém
 		locals:    make(map[string]int),
 		nextLocal: 1,
 		parent:    savedFunc, // escopo envolvente, para capturar upvalues (closures)

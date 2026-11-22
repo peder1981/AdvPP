@@ -1730,9 +1730,15 @@ func (v *VM) callMethod(methodName string, argCount int) error {
 // resolvida (função `funcName`, metadados `info`) sobre o objeto `o`.
 // Compartilhado por callMethod (dispatch normal) e callSuper (_Super:).
 func (v *VM) invokeMethodFrame(o *advplrt.ObjectValue, funcName string, info *compiler.FunctionInfo, args []advplrt.Value, argCount int) error {
-	// Reorder named args
+	// Reorder named args. ParamNames[0] é "self" (não recebe argumento),
+	// então a reorder usa ParamNames[1:] — sem esse deslocamento o arg
+	// nomeado caía um slot adiante (bug que afetava callMethod também).
 	if len(v.namedArgs) > 0 {
-		args = v.reorderNamedArgs(args, info.ParamNames)
+		paramNames := info.ParamNames
+		if len(paramNames) > 0 {
+			paramNames = paramNames[1:]
+		}
+		args = v.reorderNamedArgs(args, paramNames)
 	}
 	v.namedArgs = v.namedArgs[:0]
 	v.argCounter = 0
@@ -1847,14 +1853,18 @@ func registerNativeBase(name string, factory func() *advplrt.ObjectValue) {
 	nativeBaseFactories[strings.ToUpper(name)] = &nativeBaseDef{name: name, factory: factory}
 }
 
-// nativeHeritageNames: classes nativas conhecidas da VM (as mesmas do
-// newInstance/callNativeMethod) que podem ser raiz de herança, com o nome
-// canônico usado no dispatch de callNativeMethodOn. As embutidas em
-// v.classes (ErrorClass, FWForm*) são reconhecidas pela consulta direta.
+// nativeHeritageNames: classes nativas que podem ser raiz de herança E têm
+// dispatch real em callNativeMethodOn (um case próprio no switch) — mais as
+// registradas via registerNativeBase e as PoUI (isPoClass). Classes de UI
+// sem handler de método (FWForm*, FWPanel, FWTabs...) ficam DE FORA de
+// propósito: tratá-las como raiz desviaria o dispatch de callNativeMethod
+// para um case inexistente e mascararia o erro "unknown method" que já
+// existia — sem handler real, não são raiz nativa.
 var nativeHeritageNames = map[string]string{
 	"JSONOBJECT":        "JsonObject",
 	"FWGRIDPROCESS":     "FWGridProcess",
 	"FWMBROWSE":         "FWMBrowse",
+	"MSDIALOG":          "MsDialog",
 	"LLM":               "LLM",
 	"MCPSERVER":         "MCPServer",
 	"WSRESTSERVER":      "WSRestServer",
@@ -1878,17 +1888,6 @@ var nativeHeritageNames = map[string]string{
 	"FWTOTVSLINKCLIENT": "FwTotvsLinkClient",
 	"GRPCSERVER":        "GRPCServer",
 	"ERRORCLASS":        "ErrorClass",
-	"FWFORMMODEL":       "FWFormModel",
-	"FWFORMVIEW":        "FWFormView",
-	"FWFORMBROWSE":      "FWFormBrowse",
-	"FWWIZARDCONTROL":   "FWWizardControl",
-	"FWDYNDIALOG":       "FWDynDialog",
-	"FWPANEL":           "FWPanel",
-	"FWGROUPBOX":        "FWGroupBox",
-	"FWTABS":            "FWTabs",
-	"FWSPLITTER":        "FWSplitter",
-	"FWTREEVIEW":        "FWTreeView",
-	"FWLISTVIEW":        "FWListView",
 }
 
 // bcClassInfo localiza uma classe de bytecode pelo nome, sem diferenciar
@@ -1907,14 +1906,13 @@ func (v *VM) bcClassInfo(name string) (*compiler.ClassInfo, bool) {
 	return nil, false
 }
 
-// isNativeClassName: `upper` (já em maiúsculas) é uma classe nativa
-// conhecida — registrada via registerNativeBase, embutida em v.classes,
-// da lista do newInstance ou classe PoUI.
+// isNativeClassName: `upper` (já em maiúsculas) é uma classe nativa que pode
+// ser raiz de herança — registrada via registerNativeBase ou com dispatch
+// real (nativeHeritageNames/isPoClass). NÃO consulta v.classes: ela também
+// guarda classes de usuário e built-ins sem handler de método, o que
+// desviado o dispatch para um case inexistente.
 func (v *VM) isNativeClassName(upper string) bool {
 	if _, ok := nativeBaseFactories[upper]; ok {
-		return true
-	}
-	if _, ok := v.classes[upper]; ok {
 		return true
 	}
 	if _, ok := nativeHeritageNames[upper]; ok {
@@ -2004,6 +2002,23 @@ func (v *VM) parentClassName(className string) string {
 	return ""
 }
 
+// selfObjectOf: o objeto `self` de um frame de método (Self do frame ou
+// Locals[0]); nil em frames de função/codeblock/main.
+func selfObjectOf(f *CallFrame) *advplrt.ObjectValue {
+	if f == nil {
+		return nil
+	}
+	if s, ok := f.Self.(*advplrt.ObjectValue); ok && s != nil {
+		return s
+	}
+	if len(f.Locals) > 0 {
+		if o, ok := f.Locals[0].(*advplrt.ObjectValue); ok {
+			return o
+		}
+	}
+	return nil
+}
+
 // callSuper implementa OP_CALL_SUPER (`_Super:Metodo(args)`). O Str é
 // "Classe:Metodo" da classe que define o método; a busca começa no PAI dela
 // (não na classe concreta do objeto), como no Protheus. Método de bytecode
@@ -2011,20 +2026,31 @@ func (v *VM) parentClassName(className string) string {
 // nativa, cai em callNativeMethodOn com o nome canônico da raiz.
 func (v *VM) callSuper(str string, argCount int) error {
 	defClass, methodName, _ := strings.Cut(str, ":")
+	// Mesma convenção de callMethod: args vêm crus (RefValue de @var é
+	// preservado para o frame; o deref acontece só no dispatch nativo, em
+	// callNativeMethodOn) e namedArgs/argCounter NÃO são zerados aqui —
+	// invokeMethodFrame os consome no reorderNamedArgs, como no caminho
+	// normal. Nos retornos que não passam por invokeMethodFrame (nativo ou
+	// erro) eles são limpos explicitamente.
 	args := make([]advplrt.Value, argCount)
 	for i := argCount - 1; i >= 0; i-- {
-		args[i] = advplrt.Deref(v.pop())
+		args[i] = v.pop()
 	}
-	v.namedArgs = v.namedArgs[:0]
-	v.argCounter = 0
 
-	var o *advplrt.ObjectValue
-	if s, isObj := v.current.Self.(*advplrt.ObjectValue); isObj && s != nil {
-		o = s
-	} else if len(v.current.Locals) > 0 {
-		o, _ = v.current.Locals[0].(*advplrt.ObjectValue)
+	// self do frame atual; dentro de codeblock/closure o frame não tem Self
+	// (Locals[0] é o próprio CodeBlockValue), então sobe a pilha de frames
+	// até o método que contém o bloco — escopo dinâmico, como o resto da VM.
+	o := selfObjectOf(v.current)
+	if o == nil {
+		for i := len(v.frames) - 2; i >= 0; i-- {
+			if o = selfObjectOf(v.frames[i]); o != nil {
+				break
+			}
+		}
 	}
 	if o == nil {
+		v.namedArgs = v.namedArgs[:0]
+		v.argCounter = 0
 		return fmt.Errorf("_Super:Metodo fora de metodo de classe (self ausente)")
 	}
 
@@ -2046,6 +2072,8 @@ func (v *VM) callSuper(str string, argCount int) error {
 			if fname := methodInClassInfo(cls, methodName); fname != "" {
 				info, ok := v.bc.Functions[fname]
 				if !ok {
+					v.namedArgs = v.namedArgs[:0]
+					v.argCounter = 0
 					return v.callNativeMethodOn(o, v.canonicalNativeName(upper), methodName, args)
 				}
 				return v.invokeMethodFrame(o, fname, info, args, argCount)
@@ -2054,10 +2082,14 @@ func (v *VM) callSuper(str string, argCount int) error {
 			continue
 		}
 		if v.isNativeClassName(upper) {
+			v.namedArgs = v.namedArgs[:0]
+			v.argCounter = 0
 			return v.callNativeMethodOn(o, v.canonicalNativeName(upper), methodName, args)
 		}
 		break
 	}
+	v.namedArgs = v.namedArgs[:0]
+	v.argCounter = 0
 	return fmt.Errorf("_Super:%s nao encontrado na cadeia de %s", methodName, defClass)
 }
 

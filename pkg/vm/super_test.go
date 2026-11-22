@@ -37,7 +37,7 @@ Return
 
 func TestSuperChamaMetodoDoPai(t *testing.T) {
 	out := saidaDe(t, srcSuperDoisNiveis)
-	if !strings.Contains(out, "base|filho") {
+	if out != "base|filho\n" {
 		t.Fatalf("got %q", out)
 	}
 }
@@ -147,6 +147,133 @@ Return
 `)
 	if !strings.Contains(out, "oi") {
 		t.Fatalf("got %q", out)
+	}
+}
+
+// _Super com argumentos nomeados (`ident := valor`): o reorderNamedArgs de
+// invokeMethodFrame precisa enxergar os namedArgs — callSuper não pode
+// zerá-los antes, senão a ligação posicional troca os parâmetros.
+func TestSuperComArgsNomeados(t *testing.T) {
+	out := saidaDe(t, `
+Class BaseN
+	Method Conf(cA, nB)
+EndClass
+Method Conf(cA, nB) Class BaseN
+	::cA := cA
+	::nB := nB
+	Return Self
+
+Class FilhoN2 From BaseN
+	Method Conf(cA, nB)
+EndClass
+Method Conf(cA, nB) Class FilhoN2
+	_Super:Conf(nB := nB, cA := cA)
+	Return Self
+
+User Function Main()
+	Local o := FilhoN2():Conf("a", 2)
+	ConOut(o:cA + "|" + cValToChar(o:nB))
+Return
+`)
+	if !strings.Contains(out, "a|2") {
+		t.Fatalf("got %q", out)
+	}
+}
+
+// _Super com @var: o argumento vai cru (RefValue) para o método do pai,
+// que grava de volta na variável do chamador — mesmo comportamento de
+// callMethod. Com Deref no callSuper a escrita se perderia (n fica 1).
+func TestSuperComReferencia(t *testing.T) {
+	out := saidaDe(t, `
+Class BaseR
+	Method Bump(nAlvo)
+EndClass
+Method Bump(nAlvo) Class BaseR
+	nAlvo += 10
+	Return .T.
+
+Class FilhoR From BaseR
+	Method Bump(nAlvo)
+	Method New()
+EndClass
+Method Bump(nAlvo) Class FilhoR
+	_Super:Bump(@nAlvo)
+	Return Self
+Method New() Class FilhoR
+	Return Self
+
+User Function Main()
+	Local n := 1
+	Local o := FilhoR():New()
+	o:Bump(@n)
+	ConOut("n=" + cValToChar(n))
+Return
+`)
+	if !strings.Contains(out, "n=11") {
+		t.Fatalf("got %q", out)
+	}
+}
+
+// _Super dentro de codeblock/closure: o className do funcContext tem que
+// ser propagado, senão o Str sai ":Quem" e a resolução cai no pai da classe
+// CONCRETA do objeto — aqui NetoK, que reentraria em MeioK:Quem para
+// sempre (stack overflow) em vez de achar BaseK:Quem.
+func TestSuperDentroDeClosure(t *testing.T) {
+	out := saidaDe(t, `
+Class BaseK
+	Method Quem()
+EndClass
+Method Quem() Class BaseK
+	Return "K"
+
+Class MeioK From BaseK
+	Method Quem()
+EndClass
+Method Quem() Class MeioK
+	Local b := {|| _Super:Quem()}
+	Return Eval(b)
+
+Class NetoK From MeioK
+	Method New()
+EndClass
+Method New() Class NetoK
+	Return Self
+
+User Function Main()
+	ConOut(NetoK():New():Quem())
+Return
+`)
+	if !strings.Contains(out, "K") {
+		t.Fatalf("got %q", out)
+	}
+}
+
+// Raiz nativa só vale para classe com dispatch real: built-in de UI sem
+// handler (FWPanel) NÃO é raiz — rootNativeClass devolve "" e o dispatch de
+// método continua erro "unknown method" como antes da herança nativa.
+// Já JsonObject (case real em callNativeMethodOn) e as registradas via
+// registerNativeBase são raiz.
+func TestRootNativeClassSoComHandlerReal(t *testing.T) {
+	registerNativeBase("TESTBASE3", func() *advplrt.ObjectValue {
+		return advplrt.NewObject("TESTBASE3", nil)
+	})
+	bc := compilarPrg(t, `
+Class PainelX From FWPanel
+EndClass
+Class ObjX From JsonObject
+EndClass
+Class RegX From TestBase3
+EndClass
+`)
+	v := NewVM(bc, false)
+	if got := v.rootNativeClass("PainelX"); got != "" {
+		t.Fatalf("FWPanel nao e raiz nativa real: rootNativeClass = %q", got)
+	}
+	if got := v.rootNativeClass("ObjX"); got != "JsonObject" {
+		t.Fatalf("JsonObject deveria ser raiz: %q", got)
+	}
+	if got := v.rootNativeClass("RegX"); got != "TESTBASE3" {
+		t.Fatalf("registerNativeBase deveria ser raiz: %q", got)
 	}
 }
 
