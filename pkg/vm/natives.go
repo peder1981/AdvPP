@@ -1194,27 +1194,42 @@ func (v *VM) registerNatives() {
 		// bem-sucedido não fazia TCSQLQUERY bater no banco externo sem um
 		// DBSetDriver("TOPCONN") explícito, e a consulta caía no SQLite local
 		// (erro "no such table: pg_tables" no GEBAN, 07/11/2026).
+		//
+		// Erro de SQL (restrição violada, RAISE(ABORT) de gatilho, tabela
+		// inexistente) volta para o programa: TCSqlExec devolve .F. e
+		// TCSqlQuery devolve {}, com a mensagem em TCSqlError() -- como no
+		// Protheus, onde o erro de TCSqlExec também é tratável pelo fonte.
+		// Até a 4.8.5 o erro saía da nativa e encerrava o programa, sem
+		// Try/Catch nem ErrorBlock que o pegasse (achado no GesCon). O
+		// retorno segue lógico (.T./.F.), não o número do Protheus: todo o
+		// código AdvPP existente testa `If !TCSqlExec(...)`.
 		"TCSQLEXEC": func(args []advplrt.Value) (advplrt.Value, error) {
 			query := advplrt.ToString(getArg(args, 0))
 			sqlEng, ok := v.tcSQLEngine()
 			if !ok {
-				return advplrt.False, fmt.Errorf("TCSqlExec: nenhum banco de dados conectado")
+				dbaccessSetSQLErr("TCSqlExec: nenhum banco de dados conectado")
+				return advplrt.False, nil
 			}
 			if err := sqlEng.Exec(query); err != nil {
-				return advplrt.False, err
+				dbaccessSetSQLErr(err.Error())
+				return advplrt.False, nil
 			}
+			dbaccessSetSQLErr("")
 			return advplrt.True, nil
 		},
 		"TCSQLQUERY": func(args []advplrt.Value) (advplrt.Value, error) {
 			query := advplrt.ToString(getArg(args, 0))
 			sqlEng, ok := v.tcSQLEngine()
 			if !ok {
-				return advplrt.NewArray([]advplrt.Value{}), fmt.Errorf("TCSqlQuery: nenhum banco de dados conectado")
+				dbaccessSetSQLErr("TCSqlQuery: nenhum banco de dados conectado")
+				return advplrt.NewArray([]advplrt.Value{}), nil
 			}
 			rows, err := sqlEng.QueryRows(query)
 			if err != nil {
-				return advplrt.NewArray([]advplrt.Value{}), err
+				dbaccessSetSQLErr(err.Error())
+				return advplrt.NewArray([]advplrt.Value{}), nil
 			}
+			dbaccessSetSQLErr("")
 			elems := make([]advplrt.Value, 0, len(rows))
 			for _, row := range rows {
 				obj := advplrt.NewObject("JsonObject", nil)

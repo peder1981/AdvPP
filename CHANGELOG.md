@@ -2,6 +2,24 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.8.6] - 2026-11-21
+
+### Fixed
+- **Erro de SQL em `TCSqlExec`/`TCSqlQuery` encerrava o programa**: restrição
+  violada (NOT NULL, índice único), `RAISE(ABORT)` de gatilho ou tabela
+  inexistente saíam da função nativa como erro fatal, que nem `Try/Catch` nem
+  `ErrorBlock` + `Begin Sequence` capturavam. Agora o erro volta para o
+  programa: `TCSqlExec` devolve `.F.`, `TCSqlQuery` devolve `{}`, e a mensagem
+  fica em `TCSqlError()` (limpa a cada chamada bem-sucedida). O retorno segue
+  lógico, não o número negativo do Protheus, porque o código AdvPP existente
+  testa `If !TCSqlExec(...)`. Achado no GesCon (as travas por gatilho da
+  tabela de cobranças derrubavam a operação).
+- **`BEGIN; ...; COMMIT;` que falhava no meio deixava a transação aberta**:
+  a conexão voltava ao pool com a transação pendente, e as escritas seguintes
+  que pegavam essa conexão caíam dentro dela (nunca confirmadas: sumiam no fim
+  do processo). `Exec` dos motores SQLite e remoto agora roda numa conexão
+  dedicada e emite `ROLLBACK` nela quando o comando falha.
+
 ## [4.8.5] - 2026-11-21
 
 ### Fixed

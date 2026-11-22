@@ -768,7 +768,7 @@ existindo para diálogos tradicionais).
 | `FIELDPOS(field)` | string | Number | Position of field |
 | `FIELDNAME()` | — | String | (stub) |
 | `XFILIAL(alias)` | optional string | string | Filial filter |
-| `TCSQLEXEC(query)` | string | Bool | Raw SQL execute |
+| `TCSQLEXEC(query)` | string | Bool | Raw SQL execute. Erro de SQL devolve `.F.` (não encerra o programa) e a mensagem fica em `TCSqlError()`; um `BEGIN; ...; COMMIT;` que falha no meio é desfeito (4.8.6) |
 | `TCSQLQUERY(query)` | string | array | Raw SQL query → JsonObject[] |
 
 #### MVC Functions
