@@ -124,6 +124,13 @@ const (
 	OP_REF_UPVAL
 	OP_REF_GLOBAL
 	OP_REF_DYN
+
+	// `_Super:Metodo(args)` — chamada ao método de mesma assinatura na
+	// superclasse, sobre o self do frame atual. Str = "Classe:Metodo" da
+	// classe que define o método (quem resolve o pai é a VM, em runtime,
+	// porque o pai pode estar em outro fonte ou ser nativo). Arg2 = nº de
+	// args; o receptor não é empilhado (é o self do frame).
+	OP_CALL_SUPER
 )
 
 var opcodeNames = map[Opcode]string{
@@ -171,6 +178,7 @@ var opcodeNames = map[Opcode]string{
 	OP_REF_UPVAL:            "REF_UPVAL",
 	OP_REF_GLOBAL:           "REF_GLOBAL",
 	OP_REF_DYN:              "REF_DYN",
+	OP_CALL_SUPER:           "CALL_SUPER",
 }
 
 func (op Opcode) String() string {

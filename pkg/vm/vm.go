@@ -1075,6 +1075,8 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		return v.callNative(instr.Str, instr.Arg2)
 	case compiler.OP_CALL_METHOD:
 		return v.callMethod(instr.Str, instr.Arg2)
+	case compiler.OP_CALL_SUPER:
+		return v.callSuper(instr.Str, instr.Arg2)
 	case compiler.OP_RETURN:
 		return v.doReturn(advplrt.Nil)
 	case compiler.OP_RETURN_VALUE:
@@ -1721,7 +1723,13 @@ func (v *VM) callMethod(methodName string, argCount int) error {
 		v.argCounter = 0
 		return v.callNativeMethod(o, methodName, args)
 	}
+	return v.invokeMethodFrame(o, funcName, info, args, argCount)
+}
 
+// invokeMethodFrame monta o frame de uma chamada de método em bytecode já
+// resolvida (função `funcName`, metadados `info`) sobre o objeto `o`.
+// Compartilhado por callMethod (dispatch normal) e callSuper (_Super:).
+func (v *VM) invokeMethodFrame(o *advplrt.ObjectValue, funcName string, info *compiler.FunctionInfo, args []advplrt.Value, argCount int) error {
 	// Reorder named args
 	if len(v.namedArgs) > 0 {
 		args = v.reorderNamedArgs(args, info.ParamNames)
@@ -1816,6 +1824,243 @@ func (v *VM) findMethod(className, methodName string) string {
 	return ""
 }
 
+// ---------------------------------------------------------------------------
+// _Super: e herança de classe nativa (plano PO-UI onda 1, Task 1)
+// ---------------------------------------------------------------------------
+
+// nativeBaseDef: classe nativa herdável declarada via registerNativeBase.
+type nativeBaseDef struct {
+	name    string // nome canônico, como registrado
+	factory func() *advplrt.ObjectValue
+}
+
+// nativeBaseFactories: mapa global das classes nativas que classes de
+// usuário podem herdar (`Class X FROM FWAdapterBaseV2`). Chave = nome em
+// maiúsculas. As Tasks 7 e 8 do plano registram FWAdapterBaseV2 e
+// FwApiManager aqui.
+var nativeBaseFactories = map[string]*nativeBaseDef{}
+
+// registerNativeBase declara uma classe nativa herdável. A fábrica cria o
+// objeto de estado nativo que vai para obj.Native das instâncias (da própria
+// base e das sub classes de usuário).
+func registerNativeBase(name string, factory func() *advplrt.ObjectValue) {
+	nativeBaseFactories[strings.ToUpper(name)] = &nativeBaseDef{name: name, factory: factory}
+}
+
+// nativeHeritageNames: classes nativas conhecidas da VM (as mesmas do
+// newInstance/callNativeMethod) que podem ser raiz de herança, com o nome
+// canônico usado no dispatch de callNativeMethodOn. As embutidas em
+// v.classes (ErrorClass, FWForm*) são reconhecidas pela consulta direta.
+var nativeHeritageNames = map[string]string{
+	"JSONOBJECT":        "JsonObject",
+	"FWGRIDPROCESS":     "FWGridProcess",
+	"FWMBROWSE":         "FWMBrowse",
+	"LLM":               "LLM",
+	"MCPSERVER":         "MCPServer",
+	"WSRESTSERVER":      "WSRestServer",
+	"TMAILMESSAGE":      "TMailMessage",
+	"DBCONNECTION":      "DbConnection",
+	"TENSOR":            "Tensor",
+	"VARIABLE":          "Variable",
+	"SGD":               "SGD",
+	"ADAM":              "Adam",
+	"LINEAR":            "Linear",
+	"EMBEDDING":         "Embedding",
+	"TRUNDLL":           "TRunDll",
+	"TPBKDF2":           "TPBKDF2",
+	"TJWT":              "TJWT",
+	"TAMQP":             "TAMQP",
+	"THASHMAP":          "THashMap",
+	"TJSONPARSER":       "TJsonParser",
+	"TUNICODE":          "TUnicode",
+	"TFTPCLIENT":        "TFtpClient",
+	"TGRPC":             "TGrpc",
+	"FWTOTVSLINKCLIENT": "FwTotvsLinkClient",
+	"GRPCSERVER":        "GRPCServer",
+	"ERRORCLASS":        "ErrorClass",
+	"FWFORMMODEL":       "FWFormModel",
+	"FWFORMVIEW":        "FWFormView",
+	"FWFORMBROWSE":      "FWFormBrowse",
+	"FWWIZARDCONTROL":   "FWWizardControl",
+	"FWDYNDIALOG":       "FWDynDialog",
+	"FWPANEL":           "FWPanel",
+	"FWGROUPBOX":        "FWGroupBox",
+	"FWTABS":            "FWTabs",
+	"FWSPLITTER":        "FWSplitter",
+	"FWTREEVIEW":        "FWTreeView",
+	"FWLISTVIEW":        "FWListView",
+}
+
+// bcClassInfo localiza uma classe de bytecode pelo nome, sem diferenciar
+// maiúsculas (o Parent gravado no ClassInfo pode ter caixa diferente da
+// declarada, e o mesmo nome existe sob a chave simples e a qualificada).
+func (v *VM) bcClassInfo(name string) (*compiler.ClassInfo, bool) {
+	if cls, ok := v.bc.Classes[name]; ok {
+		return cls, true
+	}
+	upper := strings.ToUpper(name)
+	for k, cls := range v.bc.Classes {
+		if strings.ToUpper(k) == upper {
+			return cls, true
+		}
+	}
+	return nil, false
+}
+
+// isNativeClassName: `upper` (já em maiúsculas) é uma classe nativa
+// conhecida — registrada via registerNativeBase, embutida em v.classes,
+// da lista do newInstance ou classe PoUI.
+func (v *VM) isNativeClassName(upper string) bool {
+	if _, ok := nativeBaseFactories[upper]; ok {
+		return true
+	}
+	if _, ok := v.classes[upper]; ok {
+		return true
+	}
+	if _, ok := nativeHeritageNames[upper]; ok {
+		return true
+	}
+	return isPoClass(upper)
+}
+
+// canonicalNativeName: nome canônico (o usado nos cases de callNativeMethodOn)
+// de uma classe nativa conhecida, a partir do nome em maiúsculas.
+func (v *VM) canonicalNativeName(upper string) string {
+	if def, ok := nativeBaseFactories[upper]; ok {
+		return def.name
+	}
+	if cls, ok := v.classes[upper]; ok {
+		return cls.Name
+	}
+	if canon, ok := nativeHeritageNames[upper]; ok {
+		return canon
+	}
+	return upper
+}
+
+// rootNativeClass sobe a cadeia Parent de `className` (classe de usuário em
+// bytecode) até achar a classe nativa conhecida na raiz, devolvendo o nome
+// canônico dela; "" quando a hierarquia não tem raiz nativa.
+func (v *VM) rootNativeClass(className string) string {
+	seen := make(map[string]bool)
+	cur := className
+	for cur != "" {
+		upper := strings.ToUpper(cur)
+		if seen[upper] {
+			return ""
+		}
+		seen[upper] = true
+		if cls, ok := v.bcClassInfo(cur); ok {
+			cur = cls.Parent
+			continue
+		}
+		// fora do bytecode: só é raiz se for nativa conhecida
+		if v.isNativeClassName(upper) {
+			return v.canonicalNativeName(upper)
+		}
+		return ""
+	}
+	return ""
+}
+
+// nativeBaseHandler: estado nativo de uma classe-base registrada que atende
+// métodos por conta própria (sem caso no switch de callNativeMethodOn).
+// A fábrica devolve um *ObjectValue; o handler pode estar nele mesmo ou no
+// .Native dele.
+type nativeBaseMethodHandler interface {
+	NativeCallMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) (advplrt.Value, error)
+}
+
+func nativeBaseHandler(obj *advplrt.ObjectValue) (nativeBaseMethodHandler, bool) {
+	if h, ok := obj.Native.(nativeBaseMethodHandler); ok {
+		return h, true
+	}
+	if o, ok := obj.Native.(*advplrt.ObjectValue); ok {
+		if h, ok := o.Native.(nativeBaseMethodHandler); ok {
+			return h, true
+		}
+	}
+	return nil, false
+}
+
+// methodInClassInfo: método `methodName` (caixa original ou maiúscula) numa
+// classe de bytecode; devolve o nome da função "Classe::Metodo".
+func methodInClassInfo(cls *compiler.ClassInfo, methodName string) string {
+	if m, ok := cls.Methods[methodName]; ok {
+		return m.Name
+	}
+	if m, ok := cls.Methods[strings.ToUpper(methodName)]; ok {
+		return m.Name
+	}
+	return ""
+}
+
+// parentClassName: nome do pai de `className` na hierarquia de bytecode;
+// "" na raiz ou quando a classe não é de bytecode.
+func (v *VM) parentClassName(className string) string {
+	if cls, ok := v.bcClassInfo(className); ok {
+		return cls.Parent
+	}
+	return ""
+}
+
+// callSuper implementa OP_CALL_SUPER (`_Super:Metodo(args)`). O Str é
+// "Classe:Metodo" da classe que define o método; a busca começa no PAI dela
+// (não na classe concreta do objeto), como no Protheus. Método de bytecode
+// encontrado vira frame normal sobre o mesmo self; chegando numa classe
+// nativa, cai em callNativeMethodOn com o nome canônico da raiz.
+func (v *VM) callSuper(str string, argCount int) error {
+	defClass, methodName, _ := strings.Cut(str, ":")
+	args := make([]advplrt.Value, argCount)
+	for i := argCount - 1; i >= 0; i-- {
+		args[i] = advplrt.Deref(v.pop())
+	}
+	v.namedArgs = v.namedArgs[:0]
+	v.argCounter = 0
+
+	var o *advplrt.ObjectValue
+	if s, isObj := v.current.Self.(*advplrt.ObjectValue); isObj && s != nil {
+		o = s
+	} else if len(v.current.Locals) > 0 {
+		o, _ = v.current.Locals[0].(*advplrt.ObjectValue)
+	}
+	if o == nil {
+		return fmt.Errorf("_Super:Metodo fora de metodo de classe (self ausente)")
+	}
+
+	// Ponto de partida: pai da classe que define o método. Se ela não for
+	// achada no bytecode, cai no pai da classe concreta do objeto.
+	start := v.parentClassName(defClass)
+	if start == "" && defClass != "" {
+		start = v.parentClassName(o.ClassName)
+	}
+
+	seen := make(map[string]bool)
+	for cur := start; cur != ""; {
+		upper := strings.ToUpper(cur)
+		if seen[upper] {
+			break
+		}
+		seen[upper] = true
+		if cls, ok := v.bcClassInfo(cur); ok {
+			if fname := methodInClassInfo(cls, methodName); fname != "" {
+				info, ok := v.bc.Functions[fname]
+				if !ok {
+					return v.callNativeMethodOn(o, v.canonicalNativeName(upper), methodName, args)
+				}
+				return v.invokeMethodFrame(o, fname, info, args, argCount)
+			}
+			cur = cls.Parent
+			continue
+		}
+		if v.isNativeClassName(upper) {
+			return v.callNativeMethodOn(o, v.canonicalNativeName(upper), methodName, args)
+		}
+		break
+	}
+	return fmt.Errorf("_Super:%s nao encontrado na cadeia de %s", methodName, defClass)
+}
+
 // gravaRefArg grava val no argumento i da chamada nativa em curso, se ele foi
 // passado por referência (@var); sem referência, não faz nada.
 func (v *VM) gravaRefArg(i int, val advplrt.Value) {
@@ -1825,14 +2070,29 @@ func (v *VM) gravaRefArg(i int, val advplrt.Value) {
 }
 
 func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
+	// Classe de usuário com raiz nativa (ex.: `Class X FROM FWAdapterBaseV2`):
+	// método que não existe no bytecode de nenhum ancestral é atendido pela
+	// classe nativa da raiz, não pelo nome da subclasse.
+	className := obj.ClassName
+	if _, isUser := v.bcClassInfo(className); isUser {
+		if root := v.rootNativeClass(className); root != "" {
+			className = root
+		}
+	}
+	return v.callNativeMethodOn(obj, className, method, args)
+}
+
+// callNativeMethodOn despacha o método nativo usando `className` (a raiz
+// nativa quando o objeto é de classe de usuário que herda de nativa).
+func (v *VM) callNativeMethodOn(obj *advplrt.ObjectValue, className, method string, args []advplrt.Value) error {
 	for i, a := range args {
 		args[i] = advplrt.Deref(a)
 	}
 	upperMethod := strings.ToUpper(method)
-	if isPoClass(obj.ClassName) {
+	if isPoClass(className) {
 		return v.callPoMethod(obj, upperMethod, args)
 	}
-	switch obj.ClassName {
+	switch className {
 	case "ErrorClass":
 		return v.callErrorClassMethod(obj, upperMethod, args)
 	case "JsonObject":
@@ -1888,7 +2148,18 @@ func (v *VM) callNativeMethod(obj *advplrt.ObjectValue, method string, args []ad
 	case "GRPCSERVER":
 		return v.callGRPCServerMethod(obj, upperMethod, args)
 	default:
-		return fmt.Errorf("unknown method %s on object %s", method, obj.ClassName)
+		// Classe nativa registrada via registerNativeBase (Tasks 7/8 do plano
+		// PO-UI): o estado nativo pode atender o método por conta própria,
+		// sem caso próprio neste switch.
+		if h, ok := nativeBaseHandler(obj); ok {
+			res, err := h.NativeCallMethod(obj, upperMethod, args)
+			if err != nil {
+				return err
+			}
+			v.push(res)
+			return nil
+		}
+		return fmt.Errorf("unknown method %s on object %s", method, className)
 	}
 }
 
@@ -2064,6 +2335,16 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 			v.push(newPoObject(upperName))
 			return nil
 		}
+		// Classe nativa registrada via registerNativeBase (ex_library do
+		// plano PO-UI): instância direta da base recebe o estado nativo.
+		if def, ok := nativeBaseFactories[upperName]; ok {
+			obj := advplrt.NewObject(def.name, nil)
+			if def.factory != nil {
+				obj.Native = def.factory()
+			}
+			v.push(obj)
+			return nil
+		}
 		switch upperName {
 		case "JSONOBJECT":
 			obj := advplrt.NewObject("JsonObject", nil)
@@ -2222,6 +2503,15 @@ func (v *VM) newInstance(className string, _ []advplrt.Value) error {
 	// Initialize properties with defaults
 	for propName, propType := range cls.Properties {
 		obj.Props[strings.ToUpper(propName)] = defaultValueForType(propType)
+	}
+
+	// Classe de usuário com raiz nativa (`Class X FROM FWAdapterBaseV2`):
+	// a instância carrega o estado nativo da raiz em obj.Native, e os métodos
+	// que o bytecode não define caem nela via callNativeMethod.
+	if root := v.rootNativeClass(className); root != "" {
+		if def, ok := nativeBaseFactories[strings.ToUpper(root)]; ok && def.factory != nil {
+			obj.Native = def.factory()
+		}
 	}
 
 	// Don't auto-call constructor here - :New() will be called explicitly

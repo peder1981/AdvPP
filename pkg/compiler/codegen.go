@@ -37,6 +37,7 @@ type loopContext struct {
 
 type funcContext struct {
 	name      string
+	className string // classe do método em compilação ("" em funções); base do _Super:
 	params    []string
 	locals    map[string]int
 	nextLocal int
@@ -276,6 +277,7 @@ func (c *Compiler) compileMethod(m *ast.MethodImpl) error {
 
 	ctx := &funcContext{
 		name:      funcName,
+		className: m.ClassName,
 		locals:    make(map[string]int),
 		nextLocal: len(m.Params) + 1,
 	}
@@ -1180,6 +1182,20 @@ func (c *Compiler) compileArgs(args []ast.Expression) {
 }
 
 func (c *Compiler) compileMethodCall(e *ast.MethodCall) error {
+	// `_Super:Metodo(args)` — chamada ao método da superclasse sobre o self
+	// do frame atual. Str leva "Classe:Metodo" da classe que define o método
+	// (c.currentFunc.className); a resolução do pai fica para a VM, que a faz
+	// em runtime porque o pai pode estar em outro fonte (CompileProject) ou
+	// ser uma classe nativa (registerNativeBase).
+	if id, ok := e.Object.(*ast.Ident); ok && strings.EqualFold(id.Name, "_SUPER") {
+		className := ""
+		if c.currentFunc != nil {
+			className = c.currentFunc.className
+		}
+		c.compileArgs(e.Args)
+		c.emit(OP_CALL_SUPER, 0, len(e.Args), className+":"+e.Method, e.Loc.Line)
+		return nil
+	}
 	if err := c.compileExpr(e.Object); err != nil {
 		return err
 	}
