@@ -22,6 +22,10 @@ type Parser struct {
 	defines        map[string]string
 	recursionDepth int
 	avisos         []Aviso
+	// wsClassKind registra o opener (WSCLIENT/WSSTRUCT/WSRESTFUL/WSSERVICE)
+	// de cada classe WS* já declarada no arquivo — parseWSMethodImpl usa
+	// para saber se a implementação é REST antes de consumir o verbo HTTP.
+	wsClassKind map[string]string
 }
 
 // Aviso é um problema que não impede a compilação (o Protheus também aceita),
@@ -49,10 +53,11 @@ func (p *Parser) ignoraOrfao() {
 func NewParser(tokens []lexer.Token, fileName string, defines map[string]string) *Parser {
 	tokens = lexer.FilterTokens(tokens)
 	return &Parser{
-		tokens:   tokens,
-		pos:      0,
-		fileName: fileName,
-		defines:  defines,
+		tokens:      tokens,
+		pos:         0,
+		fileName:    fileName,
+		defines:     defines,
+		wsClassKind: make(map[string]string),
 	}
 }
 
@@ -956,6 +961,9 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 	// saber disso para montar as rotas (verbo+PATH de cada WSMETHOD vão em
 	// anotações da classe — ClassInfo.Annotations no bytecode).
 	isRESTFUL := p.isWord(startTok, "WSRESTFUL")
+	// Registra o tipo da classe para parseWSMethodImpl decidir se a
+	// implementação é REST (verbo HTTP) ou WSCLIENT/WSSTRUCT comum.
+	p.wsClassKind[strings.ToUpper(nameTok.Value)] = strings.ToUpper(startTok.Value)
 	class := &ast.ClassDecl{
 		Loc:        p.posFromToken(startTok),
 		Name:       nameTok.Value,
@@ -974,12 +982,11 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 		if p.isWord(tok, "WSMETHOD") || p.isWord(tok, "WSDATA") {
 			p.advance()
 			isWSMethod := strings.EqualFold(tok.Value, "WSMETHOD")
-			// WSRESTFUL spells a method `WSMETHOD GET hasAPI ...` — the
-			// HTTP verb (all reserved keywords) comes before the name.
-			// O verbo é guardado: método sem nome chama-se por ele e ele
-			// vai para a anotação WSMETHOD.
+			// Só WSRESTFUL tem verbo HTTP na frente do nome
+			// (`WSMETHOD GET hasAPI ...`). Em WSCLIENT/WSSTRUCT/WSSERVICE,
+			// GET/POST/etc. são nomes de método comuns — não consumir.
 			var verb string
-			if isWSMethod {
+			if isWSMethod && isRESTFUL {
 				for _, v := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
 					if p.isKeyword(p.peek(), v) {
 						verb = v
@@ -993,10 +1000,12 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 			// `WSMETHOD POST DESCRIPTION "..." WSSYNTAX "..."`. WSDATA has
 			// no such form — a field is always named, even when that name
 			// happens to collide with a WSMETHOD clause word like
-			// "Description" (`WSDATA Description As String`).
+			// "Description" (`WSDATA Description As String`). Fora de
+			// WSRESTFUL não existe forma sem nome: toda palavra (mesmo
+			// PATH/DESCRIPTION) é o nome do método.
 			nameTok := tok
 			named := true
-			if strings.EqualFold(tok.Value, "WSDATA") || !p.isRestMethodClauseWord(p.peek()) {
+			if strings.EqualFold(tok.Value, "WSDATA") || !(isRESTFUL && p.isRestMethodClauseWord(p.peek())) {
 				var err error
 				nameTok, err = p.expectName()
 				if err != nil {
@@ -1026,6 +1035,11 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 						expr, err := p.parseOr()
 						if err != nil {
 							return nil, err
+						}
+						// Só WSRESTFUL guarda PATH (vira anotação); nos demais
+						// DSLs a cláusula é descartada como antes, sem aviso.
+						if !isRESTFUL {
+							break
 						}
 						if lit, ok := expr.(*ast.StringLit); ok {
 							path = lit.Value
@@ -1113,6 +1127,37 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 	return class, nil
 }
 
+// wsImplIsREST determina, antes de consumir qualquer token do cabeçalho,
+// se a implementação WSMETHOD em curso é REST: procura o primeiro
+// linking de classe à frente (WSREST / WSSERVICE / WSCLIENT / WSSTRUCT /
+// WSRESTFUL) e resolve o tipo da classe alvo em wsClassKind. WSREST é
+// sempre REST; WSCLIENT/WSSTRUCT nunca são; WSSERVICE/WSRESTFUL dependem
+// do tipo declarado da classe — desconhecida (outro arquivo), assume REST,
+// que é o caso de uso majoritário do linkage WSSERVICE.
+func (p *Parser) wsImplIsREST() bool {
+	for i := p.pos; i < len(p.tokens); i++ {
+		tok := p.tokens[i]
+		if tok.Type == lexer.TOKEN_EOF {
+			return false
+		}
+		if p.isWord(tok, "WSREST") {
+			return true
+		}
+		if p.isWord(tok, "WSCLIENT") || p.isWord(tok, "WSSTRUCT") {
+			return false
+		}
+		if p.isWord(tok, "WSSERVICE") || p.isWord(tok, "WSRESTFUL") {
+			if i+1 < len(p.tokens) {
+				if kind, ok := p.wsClassKind[strings.ToUpper(p.tokens[i+1].Value)]; ok {
+					return kind == "WSRESTFUL"
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
 // parseWSMethodImpl handles a WSMETHOD implementation:
 //
 //	WSMETHOD Init WSCLIENT MyService
@@ -1123,15 +1168,21 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 // and WSCLIENT and (in practice) no parameter list.
 func (p *Parser) parseWSMethodImpl() (*ast.MethodImpl, error) {
 	startTok := p.advance() // WSMETHOD
-	// WSRESTFUL spells an implementation `WSMETHOD GET hasAPI WSSERVICE
-	// ...` too — same HTTP-verb-before-name shape as the declaration.
-	// O verbo é guardado: método REST sem nome chama-se por ele.
+	// Só implementação REST (classe WSRESTFUL, ou linkage WSREST/WSSERVICE
+	// apontando para ela) tem verbo HTTP antes do nome —
+	// `WSMETHOD GET hasAPI WSSERVICE ...`. Em WSCLIENT/WSSTRUCT, GET/POST
+	// etc. são nomes de método comuns e não podem ser consumidos aqui
+	// (`WSMETHOD GET(...) WSCLIENT Foo` é um método chamado GET).
 	verb := ""
-	for _, v := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
-		if p.isKeyword(p.peek(), v) {
-			verb = v
-			p.advance()
-			break
+	if p.wsImplIsREST() {
+		for _, v := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
+			// `WSMETHOD GET(...)` — o verbo seguido de "(" é o próprio nome
+			// do método com lista de parâmetros, não um verbo HTTP.
+			if p.isKeyword(p.peek(), v) && p.peekAt(1).Type != lexer.TOKEN_LPAREN {
+				verb = v
+				p.advance()
+				break
+			}
 		}
 	}
 	// `WSMETHOD GET WSRECEIVE a,b WSSERVICE X` — REST sem nome próprio

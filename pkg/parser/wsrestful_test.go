@@ -151,6 +151,113 @@ Return .T.
 	}
 }
 
+// Regressão: dentro de WSCLIENT/WSSTRUCT/WSSERVICE, GET/POST/PATH são
+// nomes de método comuns — o parser não pode tratá-los como verbo HTTP
+// nem como cláusula REST.
+func TestWSClientMetodosComNomeDeVerboEOuClause(t *testing.T) {
+	src := `WSCLIENT SoapService
+	WSMETHOD GET
+	WSMETHOD POST
+	WSMETHOD PATH
+	WSMETHOD DeleteItem
+END WSCLIENT
+
+WSMETHOD GET WSCLIENT SoapService
+Return .T.
+
+WSMETHOD POST WSCLIENT SoapService
+Return .T.
+
+WSMETHOD PATH WSCLIENT SoapService
+Return .T.
+
+WSMETHOD DeleteItem WSCLIENT SoapService
+Return .T.
+`
+	prog, _ := parseWSRestfulSrc(t, src)
+	var cls *ast.ClassDecl
+	for _, c := range prog.Classes {
+		if strings.EqualFold(c.Name, "SoapService") {
+			cls = c
+		}
+	}
+	if cls == nil {
+		t.Fatal("classe SoapService não encontrada")
+	}
+	metodos := nomesDosMetodos(cls)
+	for _, nome := range []string{"GET", "POST", "PATH", "DeleteItem"} {
+		if !metodos[nome] {
+			t.Errorf("método %s não declarado: %v", nome, metodos)
+		}
+	}
+	// Nenhuma anotação REST em classe WSCLIENT.
+	if anns := anotacoesDe(cls); len(anns["WSMETHOD"]) != 0 || len(anns["WSRESTFUL"]) != 0 {
+		t.Errorf("WSCLIENT não devia ter anotações REST: %+v", cls.Annotations)
+	}
+	impls := map[string]bool{}
+	for _, m := range prog.Methods {
+		impls[m.Name] = true
+	}
+	for _, nome := range []string{"GET", "POST", "PATH", "DeleteItem"} {
+		if !impls[nome] {
+			t.Errorf("implementação %s não encontrada: %v", nome, impls)
+		}
+	}
+}
+
+// Regressão: `WSMETHOD GET(...) WSCLIENT Foo` é um método chamado GET com
+// lista de parâmetros — o verbo não pode ser consumido antes de saber que
+// a implementação não é REST.
+func TestWSMethodImplVerboComoNomeComParams(t *testing.T) {
+	src := `WSCLIENT Foo
+	WSMETHOD Get
+END WSCLIENT
+
+WSMETHOD GET(cX, nY) WSCLIENT Foo
+Return .T.
+`
+	prog, _ := parseWSRestfulSrc(t, src)
+	var m *ast.MethodImpl
+	for _, mm := range prog.Methods {
+		if strings.EqualFold(mm.ClassName, "Foo") {
+			m = mm
+		}
+	}
+	if m == nil {
+		t.Fatal("implementação não encontrada")
+	}
+	if !strings.EqualFold(m.Name, "GET") {
+		t.Errorf("nome do método: got %q want GET", m.Name)
+	}
+	if len(m.Params) != 2 {
+		t.Errorf("params: got %d want 2", len(m.Params))
+	}
+}
+
+// Implementações REST continuam corretas: verbo+nome, verbo sem nome
+// (chama-se pelo verbo) e linkage WSSERVICE/WSREST.
+func TestWSRestfulImplVerboNomeESemNome(t *testing.T) {
+	src := `WSRESTFUL Clientes
+	WSMETHOD GET lista PATH "/a"
+	WSMETHOD POST PATH "/b"
+END WSRESTFUL
+
+WSMETHOD GET lista WSRECEIVE x WSREST Clientes
+Return .T.
+
+WSMETHOD POST WSRECEIVE y WSSERVICE Clientes
+Return .T.
+`
+	prog, _ := parseWSRestfulSrc(t, src)
+	impls := map[string]bool{}
+	for _, m := range prog.Methods {
+		impls[m.Name] = true
+	}
+	if !impls["lista"] || !impls["POST"] {
+		t.Errorf("implementações REST erradas: %v", impls)
+	}
+}
+
 // PATH que não é literal string (expressão/identificador) é guardado
 // vazio e gera aviso do parser — não derruba o parse.
 func TestWSRestfulPathNaoLiteralVazioComAviso(t *testing.T) {
