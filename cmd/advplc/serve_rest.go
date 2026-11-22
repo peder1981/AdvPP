@@ -34,6 +34,10 @@ func montaRest(bc *compiler.Bytecode, opts *Options) (*rest.Server, []error) {
 	attachDatabase(regVM, opts)
 	srv := rest.NewServer("advpl-serve", "1.0")
 	errs := regVM.RegisterRestRoutes(srv)
+	// O engine aberto por SetDBFactory no regVM não é usado pelas filhas
+	// (cada requisição abre o seu via dbFactory) — fecha para não vazar
+	// handle a cada recompilação do --watch.
+	regVM.CloseDBEngine()
 	if len(srv.Routes()) == 0 {
 		return nil, errs
 	}

@@ -118,6 +118,7 @@ type VM struct {
 	mvcBrowses            map[int]*mvc.FWFormBrowse
 	mvcNextID             int
 	dbFactory             func() DBEngine               // cria um engine próprio por job (StartJob)
+	ownedLocalEngine      DBEngine                      // engine local criado pela fábrica DESTA VM-filha — fechado no releaseChild
 	jobs                  sync.WaitGroup                // jobs em background pendentes
 	outWriter             io.Writer                     // espelho opcional da saída de console (modo web)
 	curDialog             *webDialog                    // MSDIALOG em construção (fase 4 do renderer web)
@@ -359,6 +360,14 @@ func (v *VM) newChildVM() (*VM, func(), error) {
 		job.dbEngine = clone
 	} else if v.dbFactory != nil {
 		job.dbEngine = v.dbFactory()
+		// Engine local criado para esta filha: fecha no releaseChild — sem
+		// isso cada requisição REST/job vazava um handle de arquivo (no
+		// Windows isso trava o TempDir do teste). Se a fábrica devolveu o
+		// MESMO engine do pai (padrão dos testes), é compartilhado — não
+		// fecha.
+		if job.dbEngine != nil && job.dbEngine != v.dbEngine {
+			job.ownedLocalEngine = job.dbEngine
+		}
 	}
 	return job, job.releaseChild, nil
 }
@@ -375,10 +384,33 @@ func (v *VM) newChildVMShared() (*VM, func()) {
 	return job, job.releaseChild
 }
 
+// CloseDBEngine fecha o engine desta VM quando ele implementa Close()
+// (ex.: SQLiteEngine) e o zera. Uso: VM de registro REST descartada após
+// RegisterRestRoutes — os filhos abrem conexão própria via dbFactory, e
+// sem isto cada recompilação do --watch vazava um handle de arquivo.
+// Não usar em VM cujo dbEngine é conexão remota compartilhável (essas são
+// fechadas por CloseOwnedConnections).
+func (v *VM) CloseDBEngine() {
+	if eng := v.dbEngine; eng != nil {
+		if c, ok := eng.(interface{ Close() error }); ok {
+			_ = c.Close()
+		}
+	}
+	v.dbEngine = nil
+	v.localDBEngine = nil
+	v.localDBEngineCaptured = false
+}
+
 // releaseChild fecha as conexões da filha e solta o estado DB* dela do
 // mapa global dbGenStates (senão cada requisição/job ficava na memória).
 func (v *VM) releaseChild() {
 	v.CloseOwnedConnections()
+	if eng := v.ownedLocalEngine; eng != nil {
+		v.ownedLocalEngine = nil
+		if c, ok := eng.(interface{ Close() error }); ok {
+			_ = c.Close()
+		}
+	}
 	dbGenStatesMu.Lock()
 	delete(dbGenStates, v)
 	dbGenStatesMu.Unlock()
