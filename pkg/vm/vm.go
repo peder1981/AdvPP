@@ -141,6 +141,7 @@ type VM struct {
 	legacyProxyUser       string                        // usuário do proxy HTTP (SetProxy)
 	legacyProxyPass       string                        // senha do proxy HTTP (SetProxy)
 	legacyNoProxyFor      []string                      // domínios que não usam proxy (SetNoProxyFor), com curingas *
+	wsRestReq             *wsRestReq                    // requisição WSRESTFUL clássica em curso nesta VM (nil fora de dispatch REST)
 	filialAtiva           string                        // filial ativa da sessão (RpcSetEnv/FWxFilial), 6 chars GG+UU+FF; "" = nenhuma definida ainda
 	stdinReader           *bufio.Reader                 // leitor de linha do stdin (ConIn), lazy
 	inputHistory          []string                      // histórico de linhas do ConIn (setas up/down), últimas inputHistoryLimit
@@ -2248,6 +2249,12 @@ func (v *VM) callNativeMethodOn(obj *advplrt.ObjectValue, className, method stri
 		args[i] = advplrt.Deref(a)
 	}
 	upperMethod := strings.ToUpper(method)
+	// Objeto de serviço WSRESTFUL clássico (obj.Native = *wsRestReq): os
+	// métodos SetResponse/SetHeader/GetContent/... são nativos do dispatch
+	// REST, não do bytecode — ver pkg/vm/wsrestful.go.
+	if req, ok := obj.Native.(*wsRestReq); ok {
+		return v.callWSRestReqMethod(obj, req, upperMethod, args)
+	}
 	if isPoClass(className) {
 		return v.callPoMethod(obj, upperMethod, args)
 	}

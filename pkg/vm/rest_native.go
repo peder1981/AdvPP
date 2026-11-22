@@ -17,6 +17,10 @@ import (
 // Function pelo nome numa VM isolada).
 type restState struct {
 	server *rest.Server
+	// regErrors acumula os erros de registro das rotas WSRESTFUL
+	// (RegistrarWSRestful devolve []error; WSRestServer:New não tem como
+	// propagá-los — ficam aqui para diagnóstico futuro).
+	regErrors []error
 }
 
 func newWSRestServerObject() *advplrt.ObjectValue {
@@ -42,13 +46,9 @@ var restVerbAnnotations = map[string]string{
 // (pkg/rest).
 //
 // Cobre o estilo moderno de REST 2.0 do TLPP (anotações sobre `User
-// Function`), que carrega verbo+path completos até o bytecode
-// (FunctionInfo.Annotations). O DSL clássico `WSRESTFUL ... WSMETHOD GET
-// path("...") ... ENDWSRESTFUL` já é reconhecido pelo parser, que guarda
-// verbo e PATH de cada WSMETHOD em ClassInfo.Annotations (anotações
-// "WSRESTFUL"/"WSMETHOD" no formato "<VERBO>|<Nome>|<PATH>") — o dispatch
-// dessas rotas ainda não existe (trabalho futuro). Para esse estilo,
-// use AddRoute() para registrar a rota manualmente.
+// Function`) e o DSL clássico WSRESTFUL (verbo+PATH de cada WSMETHOD em
+// ClassInfo.Annotations, formato "<VERBO>|<Nome>|<PATH>") — este último é
+// despachado por pkg/vm/wsrestful.go via Route.Raw.
 func (v *VM) callWSRestServerMethod(obj *advplrt.ObjectValue, method string, args []advplrt.Value) error {
 	st, ok := obj.Native.(*restState)
 	if !ok {
@@ -64,6 +64,7 @@ func (v *VM) callWSRestServerMethod(obj *advplrt.ObjectValue, method string, arg
 		}
 		st.server = rest.NewServer(name, version)
 		v.autoRegisterAnnotatedRoutes(st.server)
+		st.regErrors = append(st.regErrors, v.RegistrarWSRestful(st.server, "")...)
 		v.push(obj)
 
 	case "ADDROUTE":
