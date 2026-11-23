@@ -8,6 +8,7 @@ import { dynAntes } from './dyn-hooks';
 import {
   PoAccordionModule, PoModalModule, PoModalComponent, PoSlideModule, PoStepperModule,
   PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
+  PoBreadcrumbModule, PoLinkModule, PoContextTabsModule,
   PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoDynamicModule, PoDynamicFormField, PoFieldModule, PoSearchModule,
   PoGaugeModule, PoInfoModule, PoListViewModule, PoPageAction, PoPageModule, PoProgressModule,
   PoTableModule, PoTabsModule, PoTagModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
@@ -66,6 +67,7 @@ export class AppModalOpen implements AfterViewInit {
     PoListViewModule, PoInfoModule, PoProgressModule, PoGaugeModule, PoChartModule, PoDynamicModule,
     PoAccordionModule, PoModalModule, PoSlideModule, PoStepperModule, AppModalOpen,
   PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
+  PoBreadcrumbModule, PoLinkModule, PoContextTabsModule,
   ],
   styles: [`
     .advpp-ui-grid { display: flex; flex-wrap: wrap; margin: 0 -8px; }
@@ -387,6 +389,24 @@ export class AppModalOpen implements AfterViewInit {
                       [p-profile]="node.props['profile']" [p-notification-number]="node.props['notificationNumber'] || 0"
                       [p-show-notification]="true"></po-toolbar>
         }
+        @case ('link') {
+          <po-link [p-label]="node.props['label']" [p-url]="node.props['url']"
+                   [p-open-new-tab]="!!node.props['openNewTab']"
+                   (p-action)="post(node.id, 'click', null)"></po-link>
+        }
+        @case ('breadcrumb') {
+          <po-breadcrumb [p-items]="navItems(node)"></po-breadcrumb>
+        }
+        @case ('contexttabs') {
+          <!-- po-context-tabs estende po-tabs: filhos são po-tab; o botão
+               de fechar é interno do PO-UI (CloseTab/OnClose ficam para
+               quando o output for exposto). -->
+          <po-context-tabs>
+            @for (t of node.props['tabs'] || []; track $index) {
+              <po-tab [p-label]="t['label']"></po-tab>
+            }
+          </po-context-tabs>
+        }
         @case ('accordion') {
           <po-accordion [p-show-manager-accordion]="!!node.props['showManager']"
                         [p-allow-expand-all-items]="!!node.props['allowExpandAll']">
@@ -662,6 +682,22 @@ export class UiHostComponent {
   protected stepIndex(node: UiNode): number {
     const s = node.props['step'];
     return typeof s === 'number' ? s : 0;
+  }
+
+  // ---- Onda 3b.3: navegação ----
+
+  // Itens do breadcrumb: {label, link} passa direto; {label, page:id}
+  // vira action que posta "navigate" para o AdvPL resolver a página.
+  protected navItems(node: UiNode): any[] {
+    const lst = (node.props['items'] ?? []) as Record<string, unknown>[];
+    return lst.map(it => {
+      if (it['page'] != null) {
+        const pg = it['page'];
+        const lb = it['label'];
+        return { label: lb, action: () => this.post(node.id, 'navigate', { page: pg, label: lb }) };
+      }
+      return { label: it['label'], link: it['link'] };
+    });
   }
 
   // ---- Onda 3b.2: ações ----

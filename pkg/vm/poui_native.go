@@ -81,6 +81,10 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POPOPOVER":     {"PoPopover", "popover"},
 	"POCONTEXTMENU": {"PoContextMenu", "contextmenu"},
 	"POTOOLBAR":     {"PoToolbar", "toolbar"},
+	// onda 3b.3: navegação
+	"POLINK":        {"PoLink", "link"},
+	"POBREADCRUMB":  {"PoBreadcrumb", "breadcrumb"},
+	"POCONTEXTTABS": {"PoContextTabs", "contexttabs"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -300,7 +304,8 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		case "modal":
 			ok = p.app.isPage(p)
 		case "accordion", "stepper", "slide",
-			"buttongroup", "dropdown", "popup", "popover", "contextmenu", "toolbar":
+			"buttongroup", "dropdown", "popup", "popover", "contextmenu", "toolbar",
+			"link", "breadcrumb", "contexttabs":
 			ok = p.app.isContainer(p)
 		default:
 			if info.typ == "tab" {
@@ -376,6 +381,17 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c.props["title"] = advplrt.ToString(getArg(args, 1))
 			c.props["actions"] = []map[string]any{}
 			c.props["notificationNumber"] = 0
+		// onda 3b.3: navegação
+		case "link":
+			// New(oPai, cLabel, cUrl)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["url"] = advplrt.ToString(getArg(args, 2))
+			c.props["openNewTab"] = false
+		case "breadcrumb":
+			// New(oPai, aItens) — {{cLabel, cLinkOuPagina}}
+			c.props["items"] = po3bNavItems(p.app, c, getArg(args, 1))
+		case "contexttabs":
+			c.props["tabs"] = []map[string]any{}
 		case "button":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			if b, ok := getArg(args, 2).(*advplrt.CodeBlockValue); ok {
@@ -666,6 +682,13 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3bGroup2Method(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bNavMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}

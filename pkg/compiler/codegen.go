@@ -1795,6 +1795,8 @@ var poClassNames = map[string]bool{
 	// Onda 3b.2 — ações
 	"POBUTTONGROUP": true, "PODROPDOWN": true, "POPOPUP": true,
 	"POPOPOVER": true, "POCONTEXTMENU": true, "POTOOLBAR": true,
+	// Onda 3b.3 — navegação
+	"POLINK": true, "POBREADCRUMB": true, "POCONTEXTTABS": true,
 }
 
 func isPoClassName(name string) bool {

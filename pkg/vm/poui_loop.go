@@ -217,6 +217,23 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 				return
 			}
 			h, args = c.handlers[fmt.Sprintf("action:%d", i)], []advplrt.Value{c.obj}
+		case "navigate":
+			// PoBreadcrumb:OnNavigate(oPagina) — {page:id} resolve para o
+			// objeto da página; {label} vai como 2º argumento.
+			var nav struct {
+				Page  int    `json:"page"`
+				Label string `json:"label"`
+			}
+			_ = json.Unmarshal(val, &nav)
+			var navArgs []advplrt.Value
+			navArgs = append(navArgs, c.obj)
+			if alvo, ok := a.byID[nav.Page]; ok {
+				navArgs = append(navArgs, alvo.obj)
+			} else {
+				navArgs = append(navArgs, advplrt.Nil)
+			}
+			navArgs = append(navArgs, advplrt.NewString(nav.Label))
+			h, args = c.handlers["navigate"], navArgs
 		default:
 			// Eventos genéricos registrados via On* (onda 3b em diante):
 			// expand/collapse/close/changestep/click:* recebem (oComp, valor).
