@@ -30,27 +30,6 @@ type PouiAppUI interface {
 	FechaPouiApp()
 }
 
-// tWebChannelState é o estado do objeto nativo oWebChannel entregue ao
-// JsToAdvpl: AdvPLToJS(cType, cContent) vira um advpltojs no canal.
-type tWebChannelState struct {
-	ui PouiAppUI
-}
-
-// NativeCallMethod despacha os métodos do TWebChannel.
-func (st *tWebChannelState) NativeCallMethod(v *VM, obj *advplrt.ObjectValue, method string, args []advplrt.Value) (advplrt.Value, error) {
-	switch method {
-	case "ADVPLTOJS":
-		if st.ui == nil {
-			return advplrt.Nil, nil
-		}
-		tipo := advplrt.ToString(getArg(args, 0))
-		conteudo := advplValToString(getArg(args, 1))
-		st.ui.PouiEnvia(tipo, conteudo)
-		return advplrt.Nil, nil
-	}
-	return advplrt.Nil, fmt.Errorf("TWebChannel: método desconhecido %q", method)
-}
-
 // advplValToString serializa o conteúdo do AdvPLToJS: string passa direto,
 // demais tipos viram JSON (o shim entrega protheusResponse como string).
 func advplValToString(val advplrt.Value) string {
@@ -117,6 +96,35 @@ func (v *VM) callFuncSync(name string, args ...advplrt.Value) (advplrt.Value, er
 	return advplrt.Nil, nil
 }
 
+// tWebChannelStateOf extrai o estado nativo de um TWebChannel, aceitando
+// as duas formas de obj.Native: o estado direto (newTWebChannelObject) e o
+// *ObjectValue da fábrica registerNativeBase (instância via :New()).
+func tWebChannelStateOf(o *advplrt.ObjectValue) *tWebChannelState {
+	if st, ok := o.Native.(*tWebChannelState); ok {
+		return st
+	}
+	if inner, ok := o.Native.(*advplrt.ObjectValue); ok {
+		if st, ok := inner.Native.(*tWebChannelState); ok {
+			return st
+		}
+	}
+	return nil
+}
+
+// tWebEngineStateOf extrai o estado nativo de um TWebEngine, aceitando as
+// mesmas duas formas de obj.Native do tWebChannelStateOf.
+func tWebEngineStateOf(o *advplrt.ObjectValue) *tWebEngineState {
+	if st, ok := o.Native.(*tWebEngineState); ok {
+		return st
+	}
+	if inner, ok := o.Native.(*advplrt.ObjectValue); ok {
+		if st, ok := inner.Native.(*tWebEngineState); ok {
+			return st
+		}
+	}
+	return nil
+}
+
 // resolveJsToAdvpl acha a Static Function JsToAdvpl do fonte indicado por
 // cSource ("STATIC:<ARQ>:JSTOADVPL" em projeto; em fonte único a Static
 // compila com o nome puro "JSTOADVPL"). Sem cSource, aceita qualquer
@@ -139,7 +147,8 @@ func resolveJsToAdvpl(bc *compiler.Bytecode, cSource string) string {
 	}
 	var estaticas []string
 	for k := range bc.Functions {
-		if strings.HasSuffix(strings.ToUpper(k), ":JSTOADVPL") {
+		uk := strings.ToUpper(k)
+		if strings.HasSuffix(uk, ":JSTOADVPL") || strings.HasSuffix(uk, ".JSTOADVPL") {
 			estaticas = append(estaticas, k)
 		}
 	}
@@ -154,11 +163,11 @@ func resolveJsToAdvpl(bc *compiler.Bytecode, cSource string) string {
 }
 
 // fwCallApp implementa FwCallApp(cApp, oOwner, oEngine, oChannel, cHost,
-// cSource, ...): abre o app PO-UI numa aba da sessão web e despacha os
-// jsToAdvpl para a Static Function JsToAdvpl do fonte (ou U_JSTOADVPL).
-// Parâmetro 6 (cSource) seleciona o fonte que hospeda o JsToAdvpl;
-// os demais (2-5, 7+) são aceitos e ignorados — o corpus 12.1.2510 só
-// usa cApp (ex.: VEIA372 passa a assinatura completa comentada + ".t.").
+// cSource, p7, p8, p9, lParam10) — assinatura completa documentada no
+// corpus 12.1.2510 (VEIA372.prw). O corpus só usa cApp; quando o chamador
+// passa um TWebChannel próprio no parâmetro 4 (oChannel) ele é reutilizado
+// como canal do JsToAdvpl; oEngine/oOwner/cHost são objetos de desktop sem
+// equivalente web e p7-p10 são aceitos e ignorados.
 func (v *VM) fwCallApp(args []advplrt.Value) (advplrt.Value, error) {
 	ui, ok := v.uiProvider.(PouiAppUI)
 	if !ok {
@@ -177,19 +186,59 @@ func (v *VM) fwCallApp(args []advplrt.Value) (advplrt.Value, error) {
 	if cfg, err := shared.LoadConfig(); err == nil {
 		dirs = append(dirs, cfg.PouiAppsDirs...)
 	}
-	if _, err := ui.AbrePouiAppPorNome(nome, dirs); err != nil {
+	appURL, err := ui.AbrePouiAppPorNome(nome, dirs)
+	if err != nil {
 		return advplrt.Nil, fmt.Errorf("FwCallApp: %v (dirs: %s)", err, strings.Join(dirs, ", "))
 	}
 	defer ui.FechaPouiApp()
 
-	channel := advplrt.NewObject("TWebChannel", nil)
-	channel.Native = &tWebChannelState{ui: ui}
+	// oEngine (parâmetro 2): no desktop é o TWebEngine que hospeda a página
+	// do app; no modo web a "página" é a aba aberta acima. Quando o caller
+	// passa um TWebEngine, registramos a URL navegada no CURL dele — o
+	// estado observável do engine permanece fiel (navigate posterior
+	// sobrescreve, como no desktop).
+	if o, ok := advplrt.Deref(getArg(args, 2)).(*advplrt.ObjectValue); ok {
+		if tWebEngineStateOf(o) != nil && appURL != "" {
+			o.SetProp("CURL", advplrt.NewString(appURL))
+		}
+	}
+
+	// Canal do JsToAdvpl: o TWebChannel passado pelo chamador (parâmetro
+	// oChannel) tem precedência — o código pode ter configurado
+	// lConnected/nPort/bJsToAdvpl nele. Sem ele, criamos um ligado à
+	// sessão, igual ao canal que o Protheus entrega ao JsToAdvpl.
+	var channel *advplrt.ObjectValue
+	if o, ok := advplrt.Deref(getArg(args, 3)).(*advplrt.ObjectValue); ok {
+		// obj.Native de uma base registrada é o *ObjectValue da fábrica —
+		// o estado real fica no .Native dele (mesmo desembrulho de
+		// nativeBaseHandler).
+		if st := tWebChannelStateOf(o); st != nil {
+			channel = o
+			if st.ui == nil {
+				st.ui = ui
+			}
+		}
+	}
+	if channel == nil {
+		channel = newTWebChannelObject()
+		tWebChannelStateOf(channel).ui = ui
+	}
 	jsName := resolveJsToAdvpl(v.bc, cSource)
 
 	for {
 		tipo, conteudo, fechou := ui.PouiNext(0)
 		if fechou {
 			return advplrt.Nil, nil
+		}
+		// bJsToAdvpl tem precedência sobre a função JsToAdvpl: o corpus
+		// registra o callback no canal ({|self,codeType,codeContent| ...}),
+		// que é quem o SmartClient invocaria — quando setado, ele É o
+		// handler (e tipicamente delega à JsToAdvpl por conta própria).
+		if cb, ok := channel.Props["BJSTOADVPL"].(*advplrt.CodeBlockValue); ok && cb != nil {
+			if _, err := v.callBlockSync(cb, channel, advplrt.NewString(tipo), advplrt.NewString(conteudo)); err != nil {
+				v.writeOut(fmt.Sprintf("[FwCallApp] bJsToAdvpl(%s): %v\n", tipo, err))
+			}
+			continue
 		}
 		if jsName == "" {
 			continue // sem callback: eventos descartados

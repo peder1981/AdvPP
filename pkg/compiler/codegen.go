@@ -1732,6 +1732,10 @@ var builtinClasses = map[string]bool{
 	"FWTOTVSLINKCLIENT": true,
 	"GRPCSERVER":        true,
 	"DBCONNECTION":      true,
+	// Canal SmartClient↔Navegador do Protheus (corpus 12.1.2510):
+	// TWebChannel():New() / TWebEngine():New(...) — ver pkg/vm/twebengine.go.
+	"TWEBCHANNEL": true,
+	"TWEBENGINE":  true,
 }
 
 // soDeclaracoesStatic: o corpo de nível superior só declara Static de
