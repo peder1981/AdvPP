@@ -1806,6 +1806,8 @@ var poClassNames = map[string]bool{
 	// Onda 3b.5 — páginas especiais
 	"POPAGELOGIN": true, "POPAGECHANGEPASSWORD": true, "POPAGEBLOCKEDUSER": true,
 	"POPAGESLIDE": true, "POPAGEJOBSCHEDULER": true,
+	// Complementos do catálogo do llms.txt
+	"PODYNAMICFORM": true, "POLOGIN": true, "POMODALPASSWORDRECOVERY": true,
 }
 
 func isPoClassName(name string) bool {

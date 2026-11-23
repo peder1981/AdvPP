@@ -34,6 +34,7 @@ const principal = {
   PoSkeleton: 'po-skeleton', PoHelper: 'po-helper', PoCalendar: 'po-calendar',
   PoDynamicView: 'po-dynamic-view', PoDisclaimerGroup: 'po-disclaimer-group',
   PoFilterChip: 'po-filter-chip',
+  PoDynamicForm: 'po-dynamic-form', PoLogin: 'po-login',
 };
 // Páginas especiais, na ordem dos botões "ir:N" do catálogo.
 const paginas = [
@@ -104,6 +105,19 @@ await js(`(()=>{const i=document.querySelector('po-input input');i.focus();i.val
 await espera(1500);
 if (!(await js("[...document.querySelectorAll('po-tag')].some(t=>t.innerText.includes('eco:abc'))"))) falhas.push('evento change do PoInput não voltou do AdvPL');
 
+// PoDynamicForm: digitar num campo chama OnChange(oForm, cCampo, xValor).
+// Digitação real + Tab: o po-dynamic-form só valida com o form "dirty".
+await js("(()=>{const i=document.querySelector('po-dynamic-form input');i.focus();i.select()})()");
+await cmd('Input.insertText', { text: 'Zeca' });
+for (const type of ['keyDown', 'keyUp']) await cmd('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+await espera(2000);
+if (!(await js("[...document.querySelectorAll('po-tag')].some(t=>t.innerText.includes('form:nome=Zeca'))"))) falhas.push('evento do PoDynamicForm não voltou do AdvPL');
+
+// PoModalPasswordRecovery: só existe quando aberto (Open() pelo botão).
+await clica('recuperar');
+await espera(2000);
+await confere({ PoModalPasswordRecovery: 'po-modal-password-recovery' }, falhas);
+
 // Cada página especial: recarrega (sessão nova), navega e confere.
 for (let n = 0; n < paginas.length; n++) {
   const [classe, v] = paginas[n];
@@ -119,7 +133,7 @@ if (await carrega() && await clica('ir:4')) {
   if (!txt.includes('Armazem')) falhas.push('PoPageDynamicTable: sem dados do REST /rest/api/est/v1/armazens');
 }
 
-const total = Object.keys(principal).length + paginas.length;
+const total = Object.keys(principal).length + paginas.length + 1; // + PoModalPasswordRecovery
 for (const f of falhas) console.log('FALHA: ' + f);
 for (const e of [...new Set(erros)]) console.log('ERRO-CONSOLE: ' + e);
 if (falhas.length || erros.length) {

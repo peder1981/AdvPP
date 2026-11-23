@@ -105,6 +105,10 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POPAGEBLOCKEDUSER":    {"PoPageBlockedUser", "pageblockeduser"},
 	"POPAGESLIDE":          {"PoPageSlide", "pageslide"},
 	"POPAGEJOBSCHEDULER":   {"PoPageJobScheduler", "pagejobscheduler"},
+	// complementos do catálogo do llms.txt (poui_complementos.go)
+	"PODYNAMICFORM":           {"PoDynamicForm", "dynamicform"},
+	"POLOGIN":                 {"PoLogin", "login"},
+	"POMODALPASSWORDRECOVERY": {"PoModalPasswordRecovery", "passwordrecovery"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -465,9 +469,13 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			if b, ok := getArg(args, 2).(*advplrt.CodeBlockValue); ok {
 				c.handlers["click"] = b
 			}
-		case "input":
+		case "input", "login":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			c.props["value"] = argTexto(args, 2, "")
+		case "dynamicform", "passwordrecovery":
+			if err := poComplementoNew(c, args); err != nil {
+				return err
+			}
 		case "table":
 			c.props["columns"] = []map[string]any{}
 			c.props["items"] = []map[string]any{}
@@ -778,6 +786,13 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3bDispMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := poComplementoMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}

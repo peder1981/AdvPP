@@ -1,4 +1,4 @@
-import { Component, Directive, Input, inject, signal, forwardRef, AfterViewInit } from '@angular/core';
+import { Component, Directive, Input, inject, signal, forwardRef, AfterViewInit, OnChanges } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { AdvCodeEditorComponent } from './adv-code-editor';
@@ -10,6 +10,7 @@ import { from } from 'rxjs';
 import {
   PoPageBlockedUserModule, PoPageChangePasswordModule, PoPageDynamicDetailModule, PoPageDynamicEditModule,
   PoPageDynamicSearchModule, PoPageDynamicTableModule, PoPageJobSchedulerModule, PoPageLoginModule,
+  PoModalPasswordRecoveryComponent, PoModalPasswordRecoveryModule,
 } from '@po-ui/ng-templates';
 import {
   PoAccordionModule, PoModalModule, PoModalComponent, PoSlideModule, PoStepperModule,
@@ -56,6 +57,32 @@ export function descarregaPendentes() {
 
 // O po-modal só exibe após open(): a diretiva abre na criação do elemento
 // (o @if do template só o monta quando a prop "open" do servidor é true).
+// PoModalPasswordRecovery: criado quando o AdvPL chama Open(); abre ao
+// nascer e mostra a tela de concluído quando o AdvPL chama Completed().
+@Directive({ selector: 'po-modal-password-recovery[appRecOpen]', standalone: true })
+export class AppRecOpen implements AfterViewInit, OnChanges {
+  private modal = inject(PoModalPasswordRecoveryComponent);
+  @Input() appRecCompleted = false;
+  private aberto = false;
+  // open() lê emailForm.controls: os controles (ngModel) só se registram
+  // depois do primeiro ciclo — abrir no mesmo ciclo deixava o controle
+  // indefinido e o envio quebrava (markAsPristine de undefined).
+  ngAfterViewInit() {
+    setTimeout(() => {
+      this.modal.open();
+      this.aberto = true;
+      if (this.appRecCompleted) {
+        this.modal.completed();
+      }
+    });
+  }
+  ngOnChanges() {
+    if (this.aberto && this.appRecCompleted) {
+      this.modal.completed();
+    }
+  }
+}
+
 @Directive({ selector: 'po-modal[appModalOpen]', standalone: true })
 export class AppModalOpen implements AfterViewInit {
   private modal = inject(PoModalComponent);
@@ -112,6 +139,7 @@ function listaTexto(x: unknown): string[] {
   PoCalendarModule, PoDisclaimerGroupModule, PoFilterChipModule,
     PoPageDynamicTableModule, PoPageDynamicEditModule, PoPageDynamicDetailModule, PoPageDynamicSearchModule,
     PoPageLoginModule, PoPageChangePasswordModule, PoPageBlockedUserModule, PoPageJobSchedulerModule,
+    PoModalPasswordRecoveryModule, AppRecOpen,
   ],
   styles: [`
     .po-login-wrap { display: flex; justify-content: center; padding: 3rem 1rem; }
@@ -214,6 +242,22 @@ function listaTexto(x: unknown): string[] {
         @case ('input') {
           <po-input [p-label]="node.props['label']" [p-disabled]="node.props['disabled'] ? 'true' : 'false'"
                     [ngModel]="node.props['value']" (ngModelChange)="onInput($event)"></po-input>
+        }
+        @case ('login') {
+          <po-login [p-label]="node.props['label']" [p-disabled]="node.props['disabled'] ? 'true' : 'false'"
+                    [ngModel]="node.props['value']" (ngModelChange)="onInput($event)"></po-login>
+        }
+        @case ('dynamicform') {
+          <po-dynamic-form [p-fields]="dynCamposTpl(node)" [p-value]="formValor(node)"
+                           [p-validate]="formValida(node)"></po-dynamic-form>
+        }
+        @case ('passwordrecovery') {
+          @if (node.props['open']) {
+            <po-modal-password-recovery appRecOpen [appRecCompleted]="!!node.props['completed']"
+                                        [p-type]="node.props['type']" [p-contact-email]="node.props['contactEmail'] || ''"
+                                        [p-phone-mask]="node.props['phoneMask'] || ''"
+                                        (p-submit)="post(node.id, 'recoverysubmit', $event)"></po-modal-password-recovery>
+          }
         }
         @case ('password') {
           <po-password [p-label]="node.props['label']" [ngModel]="node.props['value']"
@@ -833,6 +877,24 @@ export class UiHostComponent {
   // a resposta vem pelo round-trip síncrono (sem handler, a VM libera).
   protected podeAvancar(st: UiNode): any {
     return this.estavel(`can:${st.id}`, st.id, () => () => from(dynAntes(this.post, st.id, 'canactivate', null)));
+  }
+
+  // PoDynamicForm: o objeto do p-value é o modelo (o PO-UI grava nele o que
+  // é digitado); só é recriado quando o AdvPL troca o valor (SetValue).
+  protected formValor(node: UiNode): any {
+    return this.estavel(`fv:${node.id}`, node.props['value'], () => ({ ...(node.props['value'] ?? {}) }));
+  }
+
+  // p-validate recebe {property, value: valores do formulário}: o campo
+  // alterado vai ao AdvPL (OnChange(oForm, cCampo, xValor)).
+  protected formValida(node: UiNode): any {
+    return this.estavel(`fval:${node.id}`, node.id, () => (mudou: { property?: string; value?: Record<string, unknown> }) => {
+      const p = mudou?.property ?? '';
+      if (p) {
+        this.post(node.id, 'fieldchange', { property: p, value: mudou?.value?.[p] ?? null });
+      }
+      return {};
+    });
   }
 
   // ---- Onda 3b.5: páginas especiais (templates reais do PO-UI) ----

@@ -232,6 +232,17 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 			if c.typ == "dynsearch" {
 				args = append(args, poFromJSONPoEvent(val))
 			}
+		case "fieldchange":
+			// PoDynamicForm — p-validate {property, value}: guarda o valor
+			// (GetValue) e chama OnChange(oForm, cCampo, xValor).
+			cpo, valor, ok := poCampoAlterado(c, val)
+			if !ok {
+				return
+			}
+			h, args = c.handlers["change"], []advplrt.Value{c.obj, advplrt.NewString(cpo), valor}
+		case "recoverysubmit":
+			// PoModalPasswordRecovery:OnSubmit(oModal, jDados) — p-submit.
+			h, args = c.handlers["recoverysubmit"], []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
 		case "customaction":
 			// PoPageDynamicTable:OnCustomAction(oSelf, cAcao, oLinha) —
 			// ações do po-page-dynamic-table chegam como {acao, linha}.

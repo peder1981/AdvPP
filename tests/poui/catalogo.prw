@@ -9,6 +9,7 @@ User Function Catalogo()
 	Local oCt, oWg, oTabs, oAc, oSt, oMd, oTb
 	Local oDd, oBg, oCm, oTl, oCh, oTr, oDv
 	Local jDv := JsonObject():New()
+	Local oRc, oFm
 	Local aPaginas := {}
 	Local nI
 
@@ -115,6 +116,15 @@ User Function Catalogo()
 	oDv:SetValue(jDv)
 	PoDisclaimerGroup():New(oPg, "Avisos", {"Termo 1", "Termo 2"})
 	PoFilterChip():New(oPg, "Importante")
+
+	// complementos do catálogo do llms.txt
+	oFm := PoDynamicForm():New(oPg, {{"nome", "Nome", "string"}, {"idade", "Idade", "number"}}, jDv)
+	oFm:OnChange({|o, cCampo, xValor| oTagInp:SetValue("form:" + cCampo + "=" + xValor) })
+	PoLogin():New(oPg, "Usuário", "ana")
+	oRc := PoModalPasswordRecovery():New(oPg, "email")
+	oRc:SetContactEmail("suporte@exemplo.com")
+	// abre por botão: aberto desde o início, o modal prenderia o foco
+	PoButton():New(oPg, "recuperar"):OnClick({|| oRc:Open() })
 
 	// páginas especiais (uma navegação para cada)
 	AAdd(aPaginas, PoPageList():New(oApp, "Lista"))
