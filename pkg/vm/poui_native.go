@@ -67,6 +67,13 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POPAGEDYNAMICEDIT":   {"PoPageDynamicEdit", "dynedit"},
 	"POPAGEDYNAMICDETAIL": {"PoPageDynamicDetail", "dyndetail"},
 	"POPAGEDYNAMICSEARCH": {"PoPageDynamicSearch", "dynsearch"},
+	// onda 3b.1: agrupamento e sobreposição
+	"POACCORDION":      {"PoAccordion", "accordion"},
+	"POACCORDIONITEM":  {"PoAccordionItem", "accordionitem"},
+	"POMODAL":          {"PoModal", "modal"},
+	"POSTEPPER":        {"PoStepper", "stepper"},
+	"POSTEP":           {"PoStep", "step"},
+	"POSLIDE":          {"PoSlide", "slide"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -274,10 +281,25 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		}
 	default:
 		p, ok := paiNative[*poComp](pai)
-		if info.typ == "tab" {
-			ok = ok && p.typ == "tabs"
-		} else {
-			ok = ok && p.app.isContainer(p)
+		if !ok {
+			return fmt.Errorf("%s: pai inválido", obj.ClassName)
+		}
+		// onda 3b.1: pais específicos dos componentes de agrupamento.
+		switch info.typ {
+		case "accordionitem":
+			ok = p.typ == "accordion"
+		case "step":
+			ok = p.typ == "stepper"
+		case "modal":
+			ok = p.app.isPage(p)
+		case "accordion", "stepper", "slide":
+			ok = p.app.isContainer(p)
+		default:
+			if info.typ == "tab" {
+				ok = p.typ == "tabs"
+			} else {
+				ok = p.app.isContainer(p)
+			}
 		}
 		if !ok {
 			return fmt.Errorf("%s: pai inválido", obj.ClassName)
@@ -289,6 +311,27 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		}
 		p.children = append(p.children, c)
 		switch info.typ {
+		// onda 3b.1: props iniciais dos componentes de agrupamento.
+		case "accordion":
+			c.props["showManager"] = false
+			c.props["allowExpandAll"] = false
+		case "accordionitem":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["expanded"] = false
+		case "modal":
+			c.props["title"] = advplrt.ToString(getArg(args, 1))
+			c.props["open"] = false
+			c.props["size"] = "md"
+		case "stepper":
+			c.props["step"] = 0
+			c.props["orientation"] = "horizontal"
+		case "step":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+		case "slide":
+			// New(oPai, aSlides) — intervalo/altura via SetInterval/SetHeight.
+			c.props["slides"] = poSlideItems(getArg(args, 1))
+			c.props["interval"] = 0
+			c.props["height"] = 0
 		case "button":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			if b, ok := getArg(args, 2).(*advplrt.CodeBlockValue); ok {
@@ -565,6 +608,13 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3aDynMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bGroupMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}

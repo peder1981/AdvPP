@@ -1789,6 +1789,9 @@ var poClassNames = map[string]bool{
 	// Onda 3a.6 — templates dinâmicos
 	"POPAGEDYNAMICTABLE": true, "POPAGEDYNAMICEDIT": true,
 	"POPAGEDYNAMICDETAIL": true, "POPAGEDYNAMICSEARCH": true,
+	// Onda 3b.1 — agrupamento e sobreposição
+	"POACCORDION": true, "POACCORDIONITEM": true, "POMODAL": true,
+	"POSTEPPER": true, "POSTEP": true, "POSLIDE": true,
 }
 
 func isPoClassName(name string) bool {

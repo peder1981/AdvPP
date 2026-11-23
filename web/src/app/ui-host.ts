@@ -1,4 +1,4 @@
-import { Component, Input, inject, signal, forwardRef } from '@angular/core';
+import { Component, Directive, Input, inject, signal, forwardRef, AfterViewInit } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { AdvCodeEditorComponent } from './adv-code-editor';
@@ -6,6 +6,7 @@ import { AdvTerminalComponent } from './adv-terminal';
 import { FormsModule } from '@angular/forms';
 import { dynAntes } from './dyn-hooks';
 import {
+  PoAccordionModule, PoModalModule, PoModalComponent, PoSlideModule, PoStepperModule,
   PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoDynamicModule, PoDynamicFormField, PoFieldModule, PoSearchModule,
   PoGaugeModule, PoInfoModule, PoListViewModule, PoPageAction, PoPageModule, PoProgressModule,
   PoTableModule, PoTabsModule, PoTagModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
@@ -42,6 +43,16 @@ export function descarregaPendentes() {
   }
 }
 
+// O po-modal só exibe após open(): a diretiva abre na criação do elemento
+// (o @if do template só o monta quando a prop "open" do servidor é true).
+@Directive({ selector: 'po-modal[appModalOpen]', standalone: true })
+export class AppModalOpen implements AfterViewInit {
+  private modal = inject(PoModalComponent);
+  ngAfterViewInit() {
+    this.modal.open();
+  }
+}
+
 // Renderiza um nó da árvore e, recursivamente, os filhos. Genérico: não
 // conhece nenhum aplicativo, só o mapeamento tipo -> componente PO-UI.
 @Component({
@@ -51,6 +62,7 @@ export function descarregaPendentes() {
     PoPageModule, PoButtonModule, PoFieldModule, PoSearchModule, PoTableModule, PoTagModule,
     PoContainerModule, PoDividerModule, PoWidgetModule, PoTabsModule, PoTreeViewModule,
     PoListViewModule, PoInfoModule, PoProgressModule, PoGaugeModule, PoChartModule, PoDynamicModule,
+    PoAccordionModule, PoModalModule, PoSlideModule, PoStepperModule, AppModalOpen,
   ],
   styles: [`
     .advpp-ui-grid { display: flex; flex-wrap: wrap; margin: 0 -8px; }
@@ -341,6 +353,48 @@ export function descarregaPendentes() {
         @case ('tag') {
           <po-tag [p-value]="node.props['value']" [p-type]="node.props['type']"></po-tag>
         }
+        @case ('accordion') {
+          <po-accordion [p-show-manager-accordion]="!!node.props['showManager']"
+                        [p-allow-expand-all-items]="!!node.props['allowExpandAll']">
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-accordion>
+        }
+        @case ('accordionitem') {
+          <po-accordion-item [p-label]="node.props['label']"
+                             (p-expand)="post(node.id, 'expand', null)"
+                             (p-collapse)="post(node.id, 'collapse', null)">
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-accordion-item>
+        }
+        @case ('modal') {
+          <!-- O po-modal nasce oculto: só é criado quando o servidor abre,
+               e a diretiva chama open() na inicialização. Fechar = remover
+               o elemento via @if — sem chamada close() que reemitiria p-close. -->
+          @if (node.props['open']) {
+            <po-modal appModalOpen
+                     [p-title]="node.props['title']" [p-size]="node.props['size']"
+                     [p-primary-action]="modalAction(node, 'primaryAction')"
+                     [p-secondary-action]="modalAction(node, 'secondaryAction')"
+                     (p-close)="post(node.id, 'close', null)">
+              <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+            </po-modal>
+          }
+        }
+        @case ('stepper') {
+          <po-stepper [p-step]="stepIndex(node) + 1" [p-orientation]="node.props['orientation'] || 'horizontal'"
+                      (p-change-step)="post(node.id, 'changestep', $event)">
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-stepper>
+        }
+        @case ('step') {
+          <po-step [p-label]="node.props['label']">
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-step>
+        }
+        @case ('slide') {
+          <po-slide [p-slides]="node.props['slides']" [p-interval]="node.props['interval']"
+                    [p-height]="node.props['height']"></po-slide>
+        }
       }
     }
   `,
@@ -566,5 +620,23 @@ export class UiHostComponent {
       this.http.delete(this.dynUrl(node) + '/' + encodeURIComponent(id))
         .subscribe({ next: () => { this.dynLoad(node); this.post(node.id, 'back', null); }, error: () => {} });
     }
+  }
+
+  // ---- Onda 3b.1: agrupamento ----
+
+  // po-stepper é 1-based no PO-UI; o AdvPL guarda 0-based.
+  protected stepIndex(node: UiNode): number {
+    const s = node.props['step'];
+    return typeof s === 'number' ? s : 0;
+  }
+
+  // p-primary-action/p-secondary-action do po-modal esperam {label, action}.
+  // O backend guarda {label, action:"click:primaryaction"} — aqui viram
+  // função que posta o evento de volta ao AdvPL.
+  protected modalAction(node: UiNode, key: string): { label: string; action: () => void } | undefined {
+    const a = node.props[key] as { label?: string; action?: string } | undefined;
+    if (!a?.action) return undefined;
+    const ev = a.action;
+    return { label: a.label ?? '', action: () => this.post(node.id, ev, null) };
   }
 }

@@ -141,7 +141,8 @@ func (a *poAppState) isPage(c *poComp) bool {
 func (a *poAppState) isContainer(c *poComp) bool {
 	switch c.typ {
 	case "page", "container", "widget", "tab", "pagelist", "pageedit", "pagedetail",
-		"dyntable", "dynedit", "dyndetail", "dynsearch":
+		"dyntable", "dynedit", "dyndetail", "dynsearch",
+		"accordionitem", "step", "modal": // onda 3b.1: holders de conteúdo
 		return true
 	}
 	return false

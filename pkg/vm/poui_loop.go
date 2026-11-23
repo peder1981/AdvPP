@@ -203,7 +203,7 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		case "savenew", "cancel", "edit", "remove", "back":
 			// PoPageEdit/PoPageDetail: OnSaveNew/OnCancel/OnEdit/OnRemove/OnBack
 			h, args = c.handlers[ev], []advplrt.Value{c.obj}
-		case "beforesave", "beforeremove":
+		case "beforesave", "beforeremove", "canactivate":
 			// Onda 3a.6 — round-trip síncrono: o frontend espera
 			// {"op":"beforeResult","reqId":N,"ok":bool} antes de gravar.
 			// O handler roda na goroutine do laço e o resultado sai no
@@ -218,6 +218,12 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 			}
 			h, args = c.handlers[fmt.Sprintf("action:%d", i)], []advplrt.Value{c.obj}
 		default:
+			// Eventos genéricos registrados via On* (onda 3b em diante):
+			// expand/collapse/close/changestep/click:* recebem (oComp, valor).
+			if hb, ok2 := c.handlers[ev].(*advplrt.CodeBlockValue); ok2 {
+				h, args = hb, []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
+				break
+			}
 			return
 		}
 	}
