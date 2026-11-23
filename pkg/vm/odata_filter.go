@@ -376,14 +376,14 @@ func TraduzOrdem(ordem string, mapa map[string]MapaCampo) (string, error) {
 		}
 		desc := strings.HasPrefix(item, "-")
 		name := strings.TrimPrefix(item, "-")
-		mc, err := filtroCampoLookup(mapa, name)
+		col, ordena, err := colunaOrdem(mapa, name)
 		if err != nil {
 			return "", err
 		}
-		if !mc.Ordena {
+		if !ordena {
 			return "", fmt.Errorf("campo %q não é ordenável", name)
 		}
-		s := mc.Coluna
+		s := col
 		if desc {
 			s += " DESC"
 		} else {
@@ -392,6 +392,55 @@ func TraduzOrdem(ordem string, mapa map[string]MapaCampo) (string, error) {
 		parts = append(parts, s)
 	}
 	return strings.Join(parts, ", "), nil
+}
+
+// colunaOrdem resolve um termo de ORDER BY para a coluna física. Ordem de
+// tentativa: Prop do mapa (case-insensitive) → coluna física mapeada
+// (com ou sem prefixo "ALIAS.") → coluna qualificada crua "ALIAS.COL"
+// (padrão estrito de identificadores, sem risco de injeção — SetOrder do
+// corpus ordena por colunas fora do mapa, ex.: "QLG.R_E_C_N_O_").
+func colunaOrdem(mapa map[string]MapaCampo, nome string) (coluna string, ordena bool, err error) {
+	if mc, e := filtroCampoLookup(mapa, nome); e == nil {
+		return mc.Coluna, mc.Ordena, nil
+	}
+	upper := strings.ToUpper(strings.TrimSpace(nome))
+	// Remove qualificação "ALIAS." para comparar com mc.Coluna.
+	bare := upper
+	if i := strings.LastIndex(bare, "."); i >= 0 {
+		bare = bare[i+1:]
+	}
+	for _, mc := range mapa {
+		if strings.EqualFold(mc.Coluna, bare) || strings.EqualFold(mc.Coluna, upper) {
+			return mc.Coluna, mc.Ordena, nil
+		}
+	}
+	if strings.Contains(upper, ".") && isQualifiedColumn(upper) {
+		return upper, true, nil
+	}
+	return "", false, fmt.Errorf("campo %q não mapeado", nome)
+}
+
+// isQualifiedColumn aceita apenas "IDENT" ou "ALIAS.IDENT" — letras,
+// dígitos e underscore, começando por letra/underscore. Qualquer outra
+// forma (espaços, pontuação, comentários) é rejeitada para não deixar
+// ORDER BY arbitrário vazar para o SQL via parâmetro de URL.
+func isQualifiedColumn(s string) bool {
+	parts := strings.Split(s, ".")
+	if len(parts) > 2 {
+		return false
+	}
+	for _, p := range parts {
+		if p == "" {
+			return false
+		}
+		for i, r := range p {
+			ok := r == '_' || (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (i > 0 && r >= '0' && r <= '9')
+			if !ok {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // filtroCampoLookup resolve prop no mapa (case-insensitive, pela chave ou
