@@ -2,6 +2,22 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.9.1] - 2026-11-23
+
+### Fixed
+- Variável com nome de palavra-chave (`oF`, `In`, `On`, `Is`, `Size`,
+  `Title`, `Menu`...) indexada com `[ ]`: o lexer lia o `[` como string
+  literal `[texto]` do Clipper (erro de parser dentro de argumentos;
+  "unsupported assignment target: StringLit" em atribuição). Palavra-chave
+  colada no `[` agora é indexação; com espaço (`SAY [texto]`) continua
+  string. Corpus 811R4: resultado idêntico ao da 4.9.0 nos 10.452 fontes.
+
+### Changed
+- `AdvCodeEditor` (CodeMirror) e `AdvTerminal` (xterm.js) carregam sob
+  demanda: pacote inicial do frontend de 4,29 MB para 3,52 MB.
+- Os 67 fontes de teste e exemplo restantes convertidos para CP-1252;
+  `tests/encoding` barra fonte em UTF-8 no repositório.
+
 ## [4.9.0] - 2026-11-23
 
 ### Added
