@@ -40,6 +40,10 @@ type poAppState struct {
 	pages     []*poComp
 	cur       *poComp // página corrente (a que vai no mount)
 	menu      *poComp
+	// onda 3b.3: chrome do app — únicos por PoApp como o PoMenu.
+	navbar    *poComp
+	header    *poComp
+	menupanel *poComp
 	remount   bool // Navigate durante um handler: reenvia o mount ao fim dele
 	byID      map[int]*poComp
 	nextID    int
@@ -108,10 +112,25 @@ func (a *poAppState) mountJSON() []byte {
 		Title string  `json:"title"`
 		Menu  *poNode `json:"menu"`
 		Tree  *poNode `json:"tree"`
+		Nav   *poNode `json:"nav,omitempty"`
+		Head  *poNode `json:"head,omitempty"`
+		Panel *poNode `json:"panel,omitempty"`
 	}{Op: "mount", Title: a.title}
 	if a.menu != nil {
 		n := a.menu.node()
 		op.Menu = &n
+	}
+	if a.navbar != nil {
+		n := a.navbar.node()
+		op.Nav = &n
+	}
+	if a.header != nil {
+		n := a.header.node()
+		op.Head = &n
+	}
+	if a.menupanel != nil {
+		n := a.menupanel.node()
+		op.Panel = &n
 	}
 	if a.cur != nil {
 		n := a.cur.node()

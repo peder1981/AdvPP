@@ -9,6 +9,7 @@ import {
   PoAccordionModule, PoModalModule, PoModalComponent, PoSlideModule, PoStepperModule,
   PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
   PoBreadcrumbModule, PoLinkModule, PoContextTabsModule,
+  PoNavbarModule, PoHeaderModule, PoMenuPanelModule,
   PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoDynamicModule, PoDynamicFormField, PoFieldModule, PoSearchModule,
   PoGaugeModule, PoInfoModule, PoListViewModule, PoPageAction, PoPageModule, PoProgressModule,
   PoTableModule, PoTabsModule, PoTagModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
@@ -68,6 +69,7 @@ export class AppModalOpen implements AfterViewInit {
     PoAccordionModule, PoModalModule, PoSlideModule, PoStepperModule, AppModalOpen,
   PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
   PoBreadcrumbModule, PoLinkModule, PoContextTabsModule,
+  PoNavbarModule, PoHeaderModule, PoMenuPanelModule,
   ],
   styles: [`
     .advpp-ui-grid { display: flex; flex-wrap: wrap; margin: 0 -8px; }
@@ -389,6 +391,16 @@ export class AppModalOpen implements AfterViewInit {
                       [p-profile]="node.props['profile']" [p-notification-number]="node.props['notificationNumber'] || 0"
                       [p-show-notification]="true"></po-toolbar>
         }
+        @case ('navbar') {
+          <po-navbar [p-items]="chromeItems(node, 'items')" [p-logo]="node.props['logo'] || ''"
+                     [p-icon-actions]="chromeItems(node, 'iconActions')"></po-navbar>
+        }
+        @case ('header') {
+          <po-header [p-header-user]="node.props['user']" [p-actions-tools]="chromeItems(node, 'actions')"></po-header>
+        }
+        @case ('menupanel') {
+          <po-menu-panel [p-menus]="chromeItems(node, 'items')" [p-logo]="node.props['logo'] || ''"></po-menu-panel>
+        }
         @case ('link') {
           <po-link [p-label]="node.props['label']" [p-url]="node.props['url']"
                    [p-open-new-tab]="!!node.props['openNewTab']"
@@ -682,6 +694,20 @@ export class UiHostComponent {
   protected stepIndex(node: UiNode): number {
     const s = node.props['step'];
     return typeof s === 'number' ? s : 0;
+  }
+
+  // ---- Onda 3b.3: chrome do app ----
+
+  // Itens do chrome (navbar/header/menupanel): {label, icon?, action:"act:N"}
+  // -> {label, icon?, action: () => post} — mesmo contrato do po-menu.
+  protected chromeItems(node: UiNode, prop: string): any[] {
+    const lst = (node.props[prop] ?? []) as { label?: string; icon?: string; action?: string }[];
+    return lst.map((a): any => ({
+      label: a.label ?? '',
+      icon: a.icon || undefined,
+      shortLabel: a.label ?? '',
+      action: a.action ? () => this.post(node.id, a.action!, null) : undefined,
+    }));
   }
 
   // ---- Onda 3b.3: navegação ----

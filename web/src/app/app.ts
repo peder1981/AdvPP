@@ -63,6 +63,9 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
   template: `
     <!-- Componentes Po* (PoApp:Activate): tela montada pelo programa -->
     @if (uiTree(); as t) {
+      @if (uiHead(); as h) { <adv-ui-host [node]="h" [post]="postUI"></adv-ui-host> }
+      @if (uiNav(); as nv) { <adv-ui-host [node]="nv" [post]="postUI"></adv-ui-host> }
+      @if (uiPanel(); as pn) { <adv-ui-host [node]="pn" [post]="postUI"></adv-ui-host> }
       @if (uiMenu()) {
         <!-- PoMenu: layout padrão do PO-UI (menu lateral + conteúdo) -->
         <div class="po-wrapper">
@@ -204,6 +207,11 @@ export class App {
   protected consoleOpen = signal(false);
   protected uiTree = signal<UiNode | null>(null);
   protected uiMenu = signal<UiNode | null>(null);
+  // Onda 3b.3: chrome do PoApp (navbar/header/menupanel), renderizado
+  // acima do conteúdo — nós avulsos do mount, não filhos da página.
+  protected uiNav = signal<UiNode | null>(null);
+  protected uiHead = signal<UiNode | null>(null);
+  protected uiPanel = signal<UiNode | null>(null);
   // Patches mudam objetos comuns, que o Angular não observa: cada lote
   // incrementa esta versão (lida no template) para agendar a renderização.
   protected uiVersion = signal(0);
@@ -333,7 +341,13 @@ export class App {
         const indexa = (n: UiNode) => { this.uiNodes.set(n.id, n); n.children.forEach(indexa); };
         if (op.tree) { indexa(op.tree); }
         if (op.menu) { indexa(op.menu); }
+        if (op.nav) { indexa(op.nav); }
+        if (op.head) { indexa(op.head); }
+        if (op.panel) { indexa(op.panel); }
         this.uiMenu.set(op.menu ?? null);
+        this.uiNav.set(op.nav ?? null);
+        this.uiHead.set(op.head ?? null);
+        this.uiPanel.set(op.panel ?? null);
         document.title = op.title || 'AdvPP Web';
         this.uiTree.set(op.tree ?? null);
         break;
@@ -354,6 +368,9 @@ export class App {
       case 'close':
         this.uiTree.set(null);
         this.uiMenu.set(null);
+        this.uiNav.set(null);
+        this.uiHead.set(null);
+        this.uiPanel.set(null);
         this.uiLoading.set(null);
         this.uiNodes.clear();
         break;

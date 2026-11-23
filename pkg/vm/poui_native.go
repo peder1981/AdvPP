@@ -85,6 +85,10 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POLINK":        {"PoLink", "link"},
 	"POBREADCRUMB":  {"PoBreadcrumb", "breadcrumb"},
 	"POCONTEXTTABS": {"PoContextTabs", "contexttabs"},
+	// onda 3b.3: chrome do app
+	"PONAVBAR":    {"PoNavbar", "navbar"},
+	"POHEADER":    {"PoHeader", "header"},
+	"POMENUPANEL": {"PoMenuPanel", "menupanel"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -256,7 +260,8 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 	pai, _ := getArg(args, 0).(*advplrt.ObjectValue)
 	var c *poComp
 	switch info.typ {
-	case "page", "menu", "pagelist", "pageedit", "pagedetail", "dyntable", "dynedit", "dyndetail", "dynsearch":
+	case "page", "menu", "pagelist", "pageedit", "pagedetail", "dyntable", "dynedit", "dyndetail", "dynsearch",
+		"navbar", "header", "menupanel":
 		a, ok := paiNative[*poAppState](pai)
 		if !ok {
 			return fmt.Errorf("%s: pai inválido (esperado PoApp)", obj.ClassName)
@@ -268,6 +273,16 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c = a.add("menu", obj)
 			a.menu = c
 			c.props["items"] = []map[string]any{}
+			break
+		}
+		if po3bChromeType(info.typ) {
+			// PoNavbar/PoHeader/PoMenuPanel: chrome único do PoApp.
+			cc, err := po3bChromeNew(a, info.class, info.typ, obj, args)
+			if err != nil {
+				return err
+			}
+			c = cc
+			po3bChromeProps(c, args)
 			break
 		}
 		// info.typ "page" ou template 3a.5 (pagelist/pageedit/pagedetail):
@@ -689,6 +704,13 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3bNavMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bChromeMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}
