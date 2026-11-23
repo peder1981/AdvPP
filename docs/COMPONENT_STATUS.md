@@ -75,6 +75,13 @@
   `PoContextMenu` (`OnSelect`/`OnChangeExpanded`), `PoToolbar`
   (`SetProfile`, `SetNotifications`). Ações = eventos `act:N` pelo
   dispatch genérico de handlers.
+- ◐ **Onda 3b.3 — navegação (parcial)**: `PoLink` (`SetOpenNewTab`,
+  `OnClick`), `PoBreadcrumb` (`SetItems` com `{{cLabel,cLinkOuPagina}}` —
+  página vira `{page:id}` e o evento `navigate` resolve o objeto para
+  `OnNavigate(oComp, cLabel)`), `PoContextTabs` (`AddTab`/`CloseTab`;
+  render via filhos `po-tab` — o close interno do PO-UI ainda não expõe
+  output). **Pendentes:** `PoNavbar`/`PoHeader`/`PoMenuPanel` — chrome do
+  `PoApp`, exigem nó próprio no `mountJSON`.
 
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 
