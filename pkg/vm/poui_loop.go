@@ -197,6 +197,12 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		case "upload":
 			// PoUpload:OnUpload(aArquivos) — resposta do POST /poui-upload.
 			h, args = c.handlers["upload"], []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
+		case "advancedsearch":
+			// PoPageList:OnAdvancedSearch()
+			h, args = c.handlers["advancedsearch"], []advplrt.Value{c.obj}
+		case "savenew", "cancel", "edit", "remove", "back":
+			// PoPageEdit/PoPageDetail: OnSaveNew/OnCancel/OnEdit/OnRemove/OnBack
+			h, args = c.handlers[ev], []advplrt.Value{c.obj}
 		case "action":
 			i, ok := poJSONIndice(val)
 			if !ok {

@@ -80,6 +80,27 @@ export function descarregaPendentes() {
             <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
           </po-page-default>
         }
+        @case ('pagelist') {
+          <po-page-list [p-title]="node.props['title']" [p-actions]="pageActions()"
+                        [p-filter]="pageFilter()"
+                        (p-change-disclaimers)="post(node.id, 'changedisclaimers', $event)">
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-page-list>
+        }
+        @case ('pageedit') {
+          <po-page-edit [p-title]="node.props['title']"
+                        (p-save)="post(node.id, 'save', null)" (p-save-new)="post(node.id, 'savenew', null)"
+                        (p-cancel)="post(node.id, 'cancel', null)">
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-page-edit>
+        }
+        @case ('pagedetail') {
+          <po-page-detail [p-title]="node.props['title']"
+                          (p-back)="post(node.id, 'back', null)" (p-edit)="post(node.id, 'edit', null)"
+                          (p-remove)="post(node.id, 'remove', null)">
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-page-detail>
+        }
         @case ('container') {
           <po-container [p-title]="node.props['title']">
             <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
@@ -350,6 +371,17 @@ export class UiHostComponent {
   protected onImediato(value: unknown) {
     this.node.props['value'] = value;
     this.post(this.node.id, 'change', value);
+  }
+
+  // PoPageList:p-filter é um PoPageFilter {placeholder, action,
+  // advancedAction} — as ações chamam o AdvPL (OnFilter/OnAdvancedSearch).
+  protected pageFilter(): any {
+    if (this.node.type !== 'pagelist' || !this.node.props['filterPlaceholder']) return undefined;
+    return {
+      placeholder: this.node.props['filterPlaceholder'],
+      action: (texto: string) => this.post(this.node.id, 'filter', texto),
+      advancedAction: () => this.post(this.node.id, 'advancedsearch', null),
+    };
   }
 
   // PoUpload:p-success traz a resposta do POST /poui-upload

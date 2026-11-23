@@ -58,6 +58,10 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POSEARCH":  {"PoSearch", "search"},
 	// onda 3a.4: upload
 	"POUPLOAD": {"PoUpload", "upload"},
+	// onda 3a.5: templates estáticos (páginas filhas do PoApp)
+	"POPAGELIST":   {"PoPageList", "pagelist"},
+	"POPAGEEDIT":   {"PoPageEdit", "pageedit"},
+	"POPAGEDETAIL": {"PoPageDetail", "pagedetail"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -185,7 +189,7 @@ func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []adv
 		a.killTimer(int(advplrt.ToFloat(getArg(args, 0))))
 	case "NAVIGATE":
 		pg, ok := paiNative[*poComp](asObj(getArg(args, 0)))
-		if !ok || pg.typ != "page" || pg.app != a {
+		if !ok || !a.isPage(pg) || pg.app != a {
 			return fmt.Errorf("PoApp:Navigate: página de outra aplicação")
 		}
 		a.cur = pg
@@ -229,7 +233,7 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 	pai, _ := getArg(args, 0).(*advplrt.ObjectValue)
 	var c *poComp
 	switch info.typ {
-	case "page", "menu":
+	case "page", "menu", "pagelist", "pageedit", "pagedetail":
 		a, ok := paiNative[*poAppState](pai)
 		if !ok {
 			return fmt.Errorf("%s: pai inválido (esperado PoApp)", obj.ClassName)
@@ -243,7 +247,9 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c.props["items"] = []map[string]any{}
 			break
 		}
-		c = a.add("page", obj)
+		// info.typ "page" ou template 3a.5 (pagelist/pageedit/pagedetail):
+		// todos são páginas do PoApp — Navigate e isContainer os tratam igual.
+		c = a.add(info.typ, obj)
 		a.pages = append(a.pages, c)
 		if a.cur == nil {
 			a.cur = c
@@ -529,6 +535,13 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3aUploadMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3aPageMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}

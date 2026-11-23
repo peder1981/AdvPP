@@ -1784,6 +1784,8 @@ var poClassNames = map[string]bool{
 	"POEMAIL": true, "POURL": true, "PODECIMAL": true, "PORICHTEXT": true, "POSEARCH": true,
 	// Onda 3a.4 — upload
 	"POUPLOAD": true,
+	// Onda 3a.5 — templates estáticos
+	"POPAGELIST": true, "POPAGEEDIT": true, "POPAGEDETAIL": true,
 }
 
 func isPoClassName(name string) bool {

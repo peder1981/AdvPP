@@ -127,10 +127,19 @@ func (a *poAppState) addOp(op map[string]any) {
 	a.batch = append(a.batch, op)
 }
 
+// isPage: tipos que o PoApp:Navigate aceita (página e templates 3a.5).
+func (a *poAppState) isPage(c *poComp) bool {
+	switch c.typ {
+	case "page", "pagelist", "pageedit", "pagedetail":
+		return true
+	}
+	return false
+}
+
 // isContainer: tipos que aceitam componentes de conteúdo como filhos.
 func (a *poAppState) isContainer(c *poComp) bool {
 	switch c.typ {
-	case "page", "container", "widget", "tab":
+	case "page", "container", "widget", "tab", "pagelist", "pageedit", "pagedetail":
 		return true
 	}
 	return false
