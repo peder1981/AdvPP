@@ -61,6 +61,20 @@
   `OnBeforeRemove`: round-trip síncrono browser→AdvPL via op
   `beforeResult` {reqId,ok} com timeout de 30 s = recusa. Fixture:
   `tests/poui/3a_crud.prw` (compila; serve verificado com REST real).
+- ✅ **Onda 3b.1 — agrupamento**: `PoAccordion`/`PoAccordionItem`
+  (`SetShowManager`, `Expand`/`Collapse`, `OnExpand`/`OnCollapse`),
+  `PoModal` (`Open`/`Close`/`SetPrimaryAction`/`SetSecondaryAction`/
+  `SetSize`/`OnClose`; ações = eventos `click:*`), `PoStepper`/`PoStep`
+  (`Next`/`Previous`/`GetStep`/`SetOrientation`/`OnChangeStep`;
+  `OnCanActivate` via round-trip `beforeResult`), `PoSlide` (`aSlides`
+  → `{image,alt,link}`, `SetInterval`/`SetHeight`). Modal renderizado
+  sob `@if open` com diretiva `appModalOpen`.
+- ✅ **Onda 3b.2 — ações**: `PoButtonGroup` (`AddButton(cLabel,cIcone,
+  bAcao)`, `SetSelected`, toggle `none|single|multiple`), `PoDropdown`,
+  `PoPopup`/`PoPopover` (alvo = componente, resolvido via `data-poid`),
+  `PoContextMenu` (`OnSelect`/`OnChangeExpanded`), `PoToolbar`
+  (`SetProfile`, `SetNotifications`). Ações = eventos `act:N` pelo
+  dispatch genérico de handlers.
 
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 
