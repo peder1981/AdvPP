@@ -382,21 +382,22 @@ compatibilidade PO-UI" na seção de recursos executados.
 - ⚠️ **`TWebEngine`/desktop não implementado**: `FwCallApp` fora do modo
   web (`advplc serve`) retorna o erro exato
   `FwCallApp: requer o modo web (advplc serve)`
-- ⚠️ **Endpoints OAuth2/MFA do framework**: respondem HTTP 501 — não há
-  fluxo de autenticação real no AdvPP
+- ✅ **OAuth2/MFA do framework (sessão local)**: `POST/GET
+  /api/oauth2/v1/token` emite JWT `header.payload.` com `userid`/`exp`
+  (formato que `getTokenPayload()` do `@totvs/protheus-lib-core`
+  decodifica); MFA responde `hasSecret=false` — a lib pula o fluxo.
+  MFA real (TOTP) não existe: não há segredo/servidor de segundo fator.
 - ⚠️ **`FwApiManager:ToExecAuto` não implementado**: retorna erro
   explícito ("não suportado no AdvPP — requer ExecAuto/MVC").
-  `SetApiRelation` aceita e ignora: o formato mestre-detalhe depende
-  do corpus TOTVS, indisponível na validação atual
-- ⚠️ **Validação no corpus TOTVS 12.1.2510 pendente**:
-  `ADVPP_CORPUS_2510` não está disponível neste ambiente, então a
-  compatibilidade foi verificada apenas com fixtures próprias
-  (`tests/rest_totvs/`). Os testes de corpus em
-  `tests/rest_totvs/corpus_test.go` existem e fazem SKIP sem a
-  variável — a seleção dos 5 fontes HTTP e os formatos exatos de
-  `aMapa`/`SetApiRelation` ficam pendentes de confirmação real.
-  `tests/poui/corpus_test.go` faz o mesmo para fontes com
-  `FwCallApp`/`JsToAdvpl`
+  `SetApiRelation` implementado no formato real do corpus (pares
+  `{colFilho, colPai}` + aninhamento pai→filho no JSON).
+- ✅ **Corpus TOTVS 12.1.2510 validado** (`ADVPP_CORPUS_2510`):
+  0 falhas em 110 fontes `FwCallApp`/`JsToAdvpl`, 225 `FWAdapterBaseV2`
+  e 500 `WSRESTFUL` (amostra). Parser/preprocessor/lexer estendidos
+  para as formas reais (macros função-like, `[...]` repetidos, flags
+  de GUI, cláusulas WS arbitrárias, nomes `1xxx`, `json` como
+  identificador, `#define` quote-aware). Pendente apenas a seleção dos
+  5 fontes HTTP com fixtures SQL (`TestCorpusCincoFontesHTTP`).
 - ⚠️ **Locks de registro (RecLock/MsUnlock) são no-ops** — sem controle de
   concorrência em escrita entre processos
 
@@ -459,6 +460,6 @@ Isso exibirá uma janela com:
 ## Recomendações
 
 1. **Para Componentes UI**: Implementar sistema de renderização de widgets Fyne ou documentar como apenas dados
-2. **Para REST**: ~~DSL clássico `WSRESTFUL`/`WSMETHOD`~~ — implementado na onda 1 PO-UI (`pkg/vm/wsrestful.go`); pendente apenas a validação no corpus TOTVS (`ADVPP_CORPUS_2510`)
+2. **Para REST**: ~~DSL clássico `WSRESTFUL`/`WSMETHOD`~~ — implementado na onda 1 PO-UI (`pkg/vm/wsrestful.go`) e validado no corpus TOTVS 12.1.2510 (0 falhas em 500 fontes da amostra)
 3. **Para Serviços**: Adicionar geração de código ou integração de cliente HTTP
 4. **Documentação**: Atualizar README para separar claramente recursos "parseados" de "executados"

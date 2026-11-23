@@ -40,17 +40,32 @@ Todas as mudanças relevantes no projeto AdvPP.
   `@totvs/protheus-lib-core` 21.1.4 fixada) validado de ponta a ponta por
   `tests/poui/ao-vivo.sh fixture-app`: tabela REST, ping/pong via
   JsToAdvpl e fechamento de aba.
+- **Validação contra o corpus real Protheus 12.1.2510**
+  (`ADVPP_CORPUS_2510`): parser, preprocessor e lexer estendidos até
+  **0 falhas** em 110 fontes com `FwCallApp`/`JsToAdvpl`, 225 com
+  `FWAdapterBaseV2` e 500 `WSRESTFUL` na amostra — macros `#define`
+  função-like e multilinha, grupos opcionais `[...]` repetidos, flags
+  de GUI sem vírgula (`20 MEMO`, `)HSCROLL`), cláusulas WS em ordem
+  arbitrária (`WSRECEIVE`/`WSSEND`/`QUERYPARAM`/`PATHPARAM`/
+  `HEADERPARAM`), nomes de método iniciando com dígito (`1customers`),
+  `json` como identificador AdvPL, `#define` sem expansão dentro de
+  strings e `\` solto tolerado.
+- `FwApiManager` no formato real do corpus: `aApiMap` aninhado
+  (structs em `aApiMap[5]`, fields `{apiName, campo}`), `SetApiRelation`
+  com pares `{colFilho, colPai}` e aninhamento pai→filho no JSON de
+  resposta; `SetApiQString` interpreta `page`/`pageSize`/`order`/`fields`.
+- OAuth2/MFA do framework em modo sessão local: `POST/GET
+  /api/oauth2/v1/token` emite JWT `header.payload.` (userid/exp) no
+  formato que `getTokenPayload()` do lib-core decodifica; MFA responde
+  "desconfigurado" (`hasSecret=false`) para a lib pular o fluxo.
 
 ### Known limitations
 - `FwApiManager:ToExecAuto` retorna erro explícito (requer ExecAuto/MVC).
-- `FwApiManager:SetApiRelation` aceita sem efeito (formato pendente do
-  corpus TOTVS).
-- Validação contra o corpus Protheus 12.1.2510 pendente:
-  `ADVPP_CORPUS_2510` indisponível; testes em
-  `tests/rest_totvs/corpus_test.go` e `tests/poui/corpus_test.go`
-  (FwCallApp/JsToAdvpl) fazem SKIP sem a variável.
-- `FwCallApp` aceita e ignora os parâmetros 2–5 e 7 em diante; fora do
-  modo web retorna erro. Endpoints OAuth2/MFA do framework respondem 501.
+- `FwCallApp` aceita e ignora os parâmetros 2–5 e 7 em diante — o corpus
+  12.1.2510 só usa `cApp` (posição 1) e `cSource` (posição 6); fora do
+  modo web retorna erro. `TWebEngine`/desktop não existe.
+- MFA real (TOTP/segredo) não é implementado — os endpoints respondem
+  "desconfigurado", o que é o comportamento correto para sessão local.
 
 ## [4.8.7] - 2026-11-22
 
