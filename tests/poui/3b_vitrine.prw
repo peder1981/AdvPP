@@ -1,6 +1,6 @@
-// Vitrine da Onda 3b ‚Äî app de navega√ß√£o completo: chrome (PoHeader,
+// Vitrine da Onda 3b ó app de navegaÁ„o completo: chrome (PoHeader,
 // PoNavbar, PoMenuPanel), PoMenu, PoBreadcrumb, PoContextTabs, PoStepper,
-// PoModal e componentes de exibi√ß√£o (3b.4). Compila com advplc check.
+// PoModal e componentes de exibiÁ„o (3b.4). Compila com advplc check.
 
 User Function Vitrine3B()
 	Local oApp := PoApp():New("Vitrine 3b")
@@ -23,21 +23,21 @@ User Function Vitrine3B()
 	oMenu:AddItem("Principal", "an an-home", {|| oApp:Navigate(oPg1)})
 	oMenu:AddItem("Detalhes", "an an-list", {|| oApp:Navigate(oPg2)})
 
-	// p√°gina 1: navega√ß√£o + agrupamento + exibi√ß√£o
+	// p·gina 1: navegaÁ„o + agrupamento + exibiÁ„o
 	Local oBc := PoBreadcrumb():New(oPg1, {{"Home", oPg1}, {"Principal", "https://doc"}})
 	Local oCt := PoContextTabs():New(oPg1)
 	oCt:AddTab("Aba 1", oPg1)
 	oCt:AddTab("Aba 2", oPg2)
 	Local oSt := PoStepper():New(oPg1)
 	Local oSt1 := PoStep():New(oSt, "Dados")
-	Local oSt2 := PoStep():New(oSt, "Revis√£o")
-	Local oMd := PoModal():New(oPg1, "Confirma√ß√£o")
+	Local oSt2 := PoStep():New(oSt, "Revis„o")
+	Local oMd := PoModal():New(oPg1, "ConfirmaÁ„o")
 	Local oBtn := PoButton():New(oPg1, "Abrir modal")
 	oBtn:OnClick({|| oMd:Open()})
 	Local oModalBtn := PoButton():New(oMd, "Fechar")
 	oModalBtn:OnClick({|| oMd:Close()})
 
-	// exibi√ß√£o
+	// exibiÁ„o
 	Local oAv := PoAvatar():New(oPg1, "avatar.png", "medium")
 	Local oBd := PoBadge():New(oPg1, 3, "caption-tag-01")
 	Local oSk := PoSkeleton():New(oPg1, "text", "medium")
@@ -47,10 +47,10 @@ User Function Vitrine3B()
 	oFc:OnChange({|o, l| ConOut("chip=" + cValToChar(l))})
 	Local oIm := PoImage():New(oPg1, "foto.png", "foto")
 
-	// p√°gina 2: conte√∫do simples
+	// p·gina 2: conte˙do simples
 	Local oLbl := PoTag():New(oPg2, "Detalhes do registro", "info")
 
-	oApp:Notify("Bem-vindo √† vitrine 3b", "success", 4000, "top")
+	oApp:Notify("Bem-vindo ‡ vitrine 3b", "success", 4000, "top")
 	oApp:Activate()
 Return
 

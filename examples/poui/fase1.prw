@@ -1,6 +1,6 @@
 /*/{Protheus.doc} fase1.prw
-Exemplo dos componentes PO-UI do AdvPP (fase 1): p√°gina com a√ß√£o, campo,
-bot√£o, tabela e tag atualizada por timer.
+Exemplo dos componentes PO-UI do AdvPP (fase 1): p·gina com aÁ„o, campo,
+bot„o, tabela e tag atualizada por timer.
 
 Rodar: advplc serve examples/poui/fase1.prw
 @type file
@@ -9,7 +9,7 @@ Rodar: advplc serve examples/poui/fase1.prw
 /*/
 
 User Function Main()
-	Local oApp  := PoApp():New("Componentes PO-UI ‚Äî fase 1")
+	Local oApp  := PoApp():New("Componentes PO-UI ó fase 1")
 	Local oPg   := PoPage():New(oApp, "Contatos")
 	Local oHora := PoTag():New(oPg, Time(), "info")
 	Local oNome := PoInput():New(oPg, "Nome do contato")

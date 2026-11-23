@@ -1,6 +1,6 @@
-// Endpoints REST do adapter de armazÃ©ns (plano PO-UI onda 1, Task 7).
-// A query string (page/pageSize/filter/order/fields) Ã© lida da requisiÃ§Ã£o
-// corrente pelo prÃ³prio adapter â€” o oRest sÃ³ devolve a resposta.
+// Endpoints REST do adapter de armazéns (plano PO-UI onda 1, Task 7).
+// A query string (page/pageSize/filter/order/fields) é lida da requisição
+// corrente pelo próprio adapter — o oRest só devolve a resposta.
 
 @Get("/api/est/v1/armazens")
 User Function ArmazensList(oParam)
@@ -16,8 +16,8 @@ Return Nil
 
 @Get("/api/est/v1/armazensfix")
 User Function ArmazensFix(oParam)
-	// Mesma lista, mas com WHERE/ORDER explÃ­citos do fonte â€” a URL sÃ³
-	// controla paginaÃ§Ã£o.
+	// Mesma lista, mas com WHERE/ORDER explícitos do fonte — a URL só
+	// controla paginação.
 	Local oRepo := ArmazensRepo():New("GET", .T.)
 	oRepo:SetQuery("SELECT #QueryFields# FROM NNR #QueryWhere#")
 	oRepo:SetWhere("NNR_DESCRI <> ''")
