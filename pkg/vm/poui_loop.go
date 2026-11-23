@@ -188,6 +188,9 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 				return
 			}
 			h, args = c.handlers["select"], []advplrt.Value{c.obj, c.rows[i]}
+		case "selected":
+			// PoLookup:OnSelected(oLinha) — a linha vem do REST como objeto.
+			h, args = c.handlers["selected"], []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
 		case "action":
 			i, ok := poJSONIndice(val)
 			if !ok {
@@ -211,7 +214,8 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 }
 
 // poValorDoBrowser converte o valor de um "change" conforme o componente:
-// number -> N, checkbox/switch -> L, demais -> C.
+// number -> N, checkbox/switch -> L, multiselect/checkboxgroup -> array
+// de strings, demais -> C.
 func poValorDoBrowser(typ string, val []byte) advplrt.Value {
 	txt := poJSONTexto(val)
 	switch typ {
@@ -220,8 +224,36 @@ func poValorDoBrowser(typ string, val []byte) advplrt.Value {
 		return advplrt.NewNumber(f)
 	case "checkbox", "switch":
 		return advplrt.NewBool(txt == "true")
+	case "multiselect", "checkboxgroup", "lookup":
+		var xs []any
+		if json.Unmarshal(val, &xs) != nil {
+			if typ == "lookup" {
+				break
+			}
+			return advplrt.NewArray(nil)
+		}
+		el := make([]advplrt.Value, len(xs))
+		for i, e := range xs {
+			if m, ok := e.(map[string]any); ok {
+				if v, has := m["value"]; has {
+					e = v
+				}
+			}
+			el[i] = poFromJSON(e)
+		}
+		return advplrt.NewArray(el)
 	}
 	return advplrt.NewString(txt)
+}
+
+// poFromJSONPoEvent: o "value" do POST /ui como valor AdvPL — objetos e
+// arrays viram estruturas AdvPL; escalares caem no poFromJSON comum.
+func poFromJSONPoEvent(val []byte) advplrt.Value {
+	var x any
+	if json.Unmarshal(val, &x) != nil || x == nil {
+		return advplrt.Nil
+	}
+	return poFromJSON(x)
 }
 
 // poJSONTexto: valor JSON do browser como texto ("abc" -> abc, 42 -> 42).

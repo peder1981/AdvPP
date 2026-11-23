@@ -20,6 +20,14 @@
   VM por janela, compilação sob demanda) e `PoApp:Open`.
 - ✅ **Fase 4**: `AdvCodeEditor` (CodeMirror 6, marcações via `check --format json`)
   e `AdvTerminal` (xterm.js + pty; Windows: erro claro nesta versão).
+- ✅ **Onda 3a.1 — seleção**: `PoCombo`/`PoMultiselect`/`PoRadioGroup`/
+  `PoCheckboxGroup`/`PoLookup` (`pkg/vm/poui3a_select.go`). `aOpcoes` no formato
+  `{{cValor, cLabel}}`; URL de filtro prefixada com `RestPrefix`; o PO-UI chama o
+  REST direto do navegador (`p-filter-service` string + `p-field-label`/
+  `p-field-value`, contrato `{items, hasNext}` da onda 1). Métodos: `SetOptions`,
+  `SetFilterService`, `SetFilterParams` (pares → objeto plano), `SetColumns`
+  (número nos grupos; `{cProp, cRotulo[, cTipo]}` no lookup). Eventos: `OnChange`
+  (valor; array em multiselect/checkboxgroup) e `OnSelected(oLinha)` no lookup.
 
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 

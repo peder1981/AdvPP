@@ -39,6 +39,12 @@ var poClasses = map[string]struct{ class, typ string }{
 	// fase 4: componentes próprios do AdvPP
 	"ADVCODEEDITOR": {"AdvCodeEditor", "editor"},
 	"ADVTERMINAL":   {"AdvTerminal", "terminal"},
+	// onda 3a.1: seleção
+	"POCOMBO":         {"PoCombo", "combo"},
+	"POMULTISELECT":   {"PoMultiselect", "multiselect"},
+	"PORADIOGROUP":    {"PoRadioGroup", "radiogroup"},
+	"POCHECKBOXGROUP": {"PoCheckboxGroup", "checkboxgroup"},
+	"POLOOKUP":        {"PoLookup", "lookup"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -300,6 +306,37 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		case "checkbox", "switch":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			c.props["value"] = advplrt.ToBool(getArg(args, 2))
+		case "combo":
+			// New(oPai, cLabel, aOpcoes, cValor)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["options"] = poOpcoesValorLabel(getArg(args, 2))
+			c.props["value"] = argTexto(args, 3, "")
+		case "multiselect":
+			// New(oPai, cLabel, aOpcoes, aValores)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["options"] = poOpcoesValorLabel(getArg(args, 2))
+			c.props["value"] = poValores(getArg(args, 3))
+		case "radiogroup":
+			// New(oPai, cLabel, aOpcoes, cValor) — po-radio-group não tem
+			// p-label no PO-UI; o rótulo fica só na prop para Get().
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["options"] = poOpcoesValorLabel(getArg(args, 2))
+			c.props["value"] = argTexto(args, 3, "")
+			c.props["columns"] = 1
+		case "checkboxgroup":
+			// New(oPai, cLabel, aOpcoes, aValores)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["options"] = poOpcoesValorLabel(getArg(args, 2))
+			c.props["value"] = poValores(getArg(args, 3))
+			c.props["columns"] = 1
+		case "lookup":
+			// New(oPai, cLabel, cUrlServico, cCampoValor, cCampoLabel)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["filterUrl"] = poFilterURL(getArg(args, 2))
+			c.props["fieldValue"] = advplrt.ToString(getArg(args, 3))
+			c.props["fieldLabel"] = advplrt.ToString(getArg(args, 4))
+			c.props["columns"] = []map[string]any{}
+			c.props["value"] = ""
 		case "terminal":
 			if !ptyDisponivel {
 				return fmt.Errorf("AdvTerminal: terminal indisponível no Windows nesta versão")
@@ -412,6 +449,14 @@ func argTexto(args []advplrt.Value, i int, def string) string {
 func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) error {
 	a := c.app
 	var ret advplrt.Value = advplrt.Nil
+	// Onda 3a: métodos dos componentes de seleção/campos.
+	if ok, err := v.po3aMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(ret)
+		return nil
+	}
 	switch method {
 	case "SET":
 		a.setProp(c, advplrt.ToString(getArg(args, 0)), poToJSON(getArg(args, 1)))

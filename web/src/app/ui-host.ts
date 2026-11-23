@@ -136,6 +136,46 @@ export function descarregaPendentes() {
           <po-switch [p-label]="node.props['label']" [p-hide-label-status]="true" [ngModel]="node.props['value']"
                      (ngModelChange)="onImediato($event)"></po-switch>
         }
+        @case ('combo') {
+          <po-combo [p-label]="node.props['label']" [p-options]="node.props['options']"
+                    [p-filter-service]="node.props['filterUrl'] || undefined"
+                    [p-field-label]="node.props['fieldLabel'] || 'label'"
+                    [p-field-value]="node.props['fieldValue'] || 'value'"
+                    [p-placeholder]="node.props['placeholder']"
+                    [p-required]="!!node.props['required']" [p-disabled]="!!node.props['disabled']"
+                    [ngModel]="node.props['value']" (p-change)="onImediato($event)"></po-combo>
+        }
+        @case ('multiselect') {
+          <po-multiselect [p-label]="node.props['label']" [p-options]="node.props['options']"
+                          [p-filter-service]="node.props['filterUrl'] || undefined"
+                          [p-field-label]="node.props['fieldLabel'] || 'label'"
+                          [p-field-value]="node.props['fieldValue'] || 'value'"
+                          [p-placeholder]="node.props['placeholder']"
+                          [p-required]="!!node.props['required']" [p-disabled]="!!node.props['disabled']"
+                          [ngModel]="node.props['value']" (p-change)="onImediato($event)"></po-multiselect>
+        }
+        @case ('radiogroup') {
+          <!-- po-radio-group não tem p-label: o rótulo do campo não existe no PO-UI. -->
+          <po-radio-group [p-options]="node.props['options']" [p-columns]="node.props['columns'] || 1"
+                          [p-required]="!!node.props['required']" [p-disabled]="!!node.props['disabled']"
+                          [ngModel]="node.props['value']" (p-change)="onImediato($event)"></po-radio-group>
+        }
+        @case ('checkboxgroup') {
+          <po-checkbox-group [p-label]="node.props['label']" [p-options]="node.props['options']"
+                             [p-columns]="node.props['columns'] || 1" [p-indeterminate]="!!node.props['indeterminate']"
+                             [p-required]="!!node.props['required']" [p-disabled]="!!node.props['disabled']"
+                             [ngModel]="node.props['value']" (p-change)="onImediato($event)"></po-checkbox-group>
+        }
+        @case ('lookup') {
+          <po-lookup [p-label]="node.props['label']" [p-columns]="node.props['columns']"
+                     [p-field-label]="node.props['fieldLabel'] || 'label'"
+                     [p-field-value]="node.props['fieldValue'] || 'value'"
+                     [p-filter-service]="node.props['filterUrl'] || undefined"
+                     [p-filter-params]="node.props['filterParams']"
+                     [p-required]="!!node.props['required']" [p-disabled]="!!node.props['disabled']"
+                     [ngModel]="node.props['value']" (p-change)="onImediato($event)"
+                     (p-selected)="onLookupSelected($event)"></po-lookup>
+        }
         @case ('table') {
           <po-table [p-columns]="node.props['columns']" [p-items]="node.props['items']"
                     [p-selectable]="true" [p-single-select]="true" [p-striped]="true"
@@ -264,5 +304,11 @@ export class UiHostComponent {
 
   protected onTree(item: PoTreeViewItem) {
     this.post(this.node.id, 'select', item.value);
+  }
+
+  // PoLookup:p-selected devolve a linha inteira vinda do REST — vai como
+  // objeto JSON para o handler OnSelected(oLinha) do AdvPL.
+  protected onLookupSelected(row: unknown) {
+    this.post(this.node.id, 'selected', row);
   }
 }

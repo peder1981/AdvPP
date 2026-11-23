@@ -1776,6 +1776,8 @@ var poClassNames = map[string]bool{
 	"POTREE": true, "POLIST": true, "POINFO": true, "POPROGRESS": true, "POGAUGE": true, "POCHART": true,
 	"POPASSWORD": true, "POTEXTAREA": true, "PONUMBER": true, "POSELECT": true, "POCHECKBOX": true, "POSWITCH": true,
 	"ADVCODEEDITOR": true, "ADVTERMINAL": true,
+	// Onda 3a.1 — seleção
+	"POCOMBO": true, "POMULTISELECT": true, "PORADIOGROUP": true, "POCHECKBOXGROUP": true, "POLOOKUP": true,
 }
 
 func isPoClassName(name string) bool {
