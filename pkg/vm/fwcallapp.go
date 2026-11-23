@@ -156,7 +156,9 @@ func resolveJsToAdvpl(bc *compiler.Bytecode, cSource string) string {
 // fwCallApp implementa FwCallApp(cApp, oOwner, oEngine, oChannel, cHost,
 // cSource, ...): abre o app PO-UI numa aba da sessão web e despacha os
 // jsToAdvpl para a Static Function JsToAdvpl do fonte (ou U_JSTOADVPL).
-// Os parâmetros 2 a 5 e 7 em diante são aceitos e ignorados.
+// Parâmetro 6 (cSource) seleciona o fonte que hospeda o JsToAdvpl;
+// os demais (2-5, 7+) são aceitos e ignorados — o corpus 12.1.2510 só
+// usa cApp (ex.: VEIA372 passa a assinatura completa comentada + ".t.").
 func (v *VM) fwCallApp(args []advplrt.Value) (advplrt.Value, error) {
 	ui, ok := v.uiProvider.(PouiAppUI)
 	if !ok {
