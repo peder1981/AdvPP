@@ -1,12 +1,12 @@
 /*/{Protheus.doc} fase4.prw
-Exemplo dos componentes pr√≥prios do AdvPP (fase 4): uma "mini IDE".
+Exemplo dos componentes prÛprios do AdvPP (fase 4): uma "mini IDE".
 Aba Editor: AdvCodeEditor com realce AdvPL; Ctrl+S grava o fonte, roda
 `advplc check --format json` (Spawn) e marca o erro na linha/coluna.
-Aba Terminal: AdvTerminal com o shell do usu√°rio (pty real; no Windows,
-erro claro nesta vers√£o).
+Aba Terminal: AdvTerminal com o shell do usu·rio (pty real; no Windows,
+erro claro nesta vers„o).
 
 Rodar: advplc serve examples/poui/fase4.prw
-(o `advplc` usado na verifica√ß√£o vem de $ADVPLC, ou do PATH)
+(o `advplc` usado na verificaÁ„o vem de $ADVPLC, ou do PATH)
 @type file
 @author Peder Munksgaard
 @since 20/11/2026
@@ -26,7 +26,7 @@ User Function Main()
 	oEd:SetHeight("60vh")
 	oTerm:SetHeight("60vh")
 	oEd:OnSave({|o, cTexto| Verifica(oApp, oEd, oSt, cArq, cTexto)})
-	oTerm:OnExit({|o, n| oApp:Notify("Terminal encerrado (c√≥digo " + cValToChar(n) + ")", "warning")})
+	oTerm:OnExit({|o, n| oApp:Notify("Terminal encerrado (cÛdigo " + cValToChar(n) + ")", "warning")})
 	oApp:Activate()
 Return
 
@@ -48,7 +48,7 @@ Static Function Verifica(oApp, oEd, oSt, cArq, cTexto)
 Return
 
 /*/{Protheus.doc} Resultado
-Aplica o resultado do check: marca√ß√£o no editor e a mensagem na tag.
+Aplica o resultado do check: marcaÁ„o no editor e a mensagem na tag.
 @type function
 @author Peder Munksgaard
 @since 20/11/2026
@@ -59,7 +59,7 @@ Static Function Resultado(oEd, oSt, aOut)
 	Local nCol  := 1 as Numeric
 
 	If Len(aOut) == 0
-		oSt:SetValue("N√£o consegui rodar o advplc (defina ADVPLC ou ponha no PATH)")
+		oSt:SetValue("N„o consegui rodar o advplc (defina ADVPLC ou ponha no PATH)")
 		oSt:Set("type", "warning")
 		Return
 	EndIf
@@ -93,12 +93,12 @@ Static Function FonteExemplo()
 	cF += "// Edite e pressione Ctrl+S para verificar" + Chr(10)
 	cF += "User Function Ola()" + Chr(10)
 	cF += Chr(9) + 'Local cNome := "AdvPP" as Character' + Chr(10)
-	cF += Chr(9) + 'ConOut("Ol√°, " + cNome)' + Chr(10)
+	cF += Chr(9) + 'ConOut("Ol·, " + cNome)' + Chr(10)
 	cF += "Return" + Chr(10)
 Return cF
 
 /*/{Protheus.doc} ArqTemp
-Arquivo tempor√°rio do fonte desta sess√£o.
+Arquivo tempor·rio do fonte desta sess„o.
 @type function
 @author Peder Munksgaard
 @since 20/11/2026
@@ -112,7 +112,7 @@ Static Function ArqTemp()
 Return cDir + "/advpp-ide-" + StrTran(cValToChar(Seconds()), ".", "") + ".prw"
 
 /*/{Protheus.doc} Shell
-Shell do usu√°rio, ou /bin/sh.
+Shell do usu·rio, ou /bin/sh.
 @type function
 @author Peder Munksgaard
 @since 20/11/2026
@@ -126,7 +126,7 @@ Static Function Shell()
 Return cSh
 
 /*/{Protheus.doc} Advplc
-Execut√°vel do compilador: $ADVPLC ou "advplc" (PATH).
+Execut·vel do compilador: $ADVPLC ou "advplc" (PATH).
 @type function
 @author Peder Munksgaard
 @since 20/11/2026

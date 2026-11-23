@@ -1,5 +1,73 @@
 # Relatório de Status dos Componentes
 
+## Compatibilidade PO-UI no padrão TOTVS — cobertura do llms.txt (atualizado 2026-11-23)
+
+### Status Atual: verificado no navegador (Chromium headless) e no corpus 12.1.2510
+
+Fonte da lista: `https://po-ui.io/llms.txt` (PO-UI 21.23). Verificação ao vivo:
+`tests/poui/ao-vivo.sh catalogo` monta as 80 classes `Po*` num projeto
+(`advplc serve <dir> --main U_Catalogo`, com o REST de armazéns da onda 1) e
+exige, para cada uma, o componente PO-UI real com conteúdo, mais clique,
+digitação (PoInput e PoDynamicForm) voltando ao AdvPL, dados do REST na
+tabela dinâmica e console sem erro. Os outros cenários (`fixture-app`,
+`servicos-3c` e o padrão) também passam.
+
+**Componentes (`ng-components`)**
+
+| PO-UI | Classe AdvPP |
+|---|---|
+| po-accordion / po-accordion-item | `PoAccordion` / `PoAccordionItem` |
+| po-avatar, po-badge, po-image, po-skeleton, po-helper | `PoAvatar`, `PoBadge`, `PoImage`, `PoSkeleton`, `PoHelper` |
+| po-breadcrumb, po-link, po-context-tabs | `PoBreadcrumb`, `PoLink`, `PoContextTabs` |
+| po-button, po-button-group, po-dropdown, po-popup, po-popover, po-context-menu, po-toolbar | `PoButton`, `PoButtonGroup`, `PoDropdown`, `PoPopup`, `PoPopover`, `PoContextMenu`, `PoToolbar` |
+| po-calendar, po-chart, po-gauge | `PoCalendar`, `PoChart`, `PoGauge` (obsoleto no PO-UI; mantido, sem evolução) |
+| po-checkbox, po-checkbox-group, po-radio-group, po-switch, po-select, po-combo, po-multiselect, po-lookup | `PoCheckbox`, `PoCheckboxGroup`, `PoRadioGroup`, `PoSwitch`, `PoSelect`, `PoCombo`, `PoMultiselect`, `PoLookup` |
+| po-input, po-login, po-password, po-number, po-decimal, po-email, po-url, po-textarea, po-rich-text, po-search | `PoInput`, `PoLogin`, `PoPassword`, `PoNumber`, `PoDecimal`, `PoEmail`, `PoUrl`, `PoTextarea`, `PoRichText`, `PoSearch` |
+| po-datepicker, po-datepicker-range, po-datetimepicker, po-timepicker | `PoDatepicker`, `PoDatepickerRange`, `PoDatetimepicker`, `PoTimepicker` |
+| po-container, po-widget, po-divider, po-tabs/po-tab, po-stepper/po-step, po-slide | `PoContainer`, `PoWidget`, `PoDivider`, `PoTabs`/`PoTab`, `PoStepper`/`PoStep`, `PoSlide` |
+| po-dynamic-form, po-dynamic-view, po-disclaimer-group, po-filter-chip | `PoDynamicForm`, `PoDynamicView`, `PoDisclaimerGroup`, `PoFilterChip` |
+| po-info, po-progress, po-tag, po-table, po-tree-view, po-list-view | `PoInfo`, `PoProgress`, `PoTag`, `PoTable`, `PoTree`, `PoList` |
+| po-menu, po-menu-panel, po-navbar, po-header | `PoMenu`, `PoMenuPanel`, `PoNavbar`, `PoHeader` |
+| po-modal (+ po-modal-footer) | `PoModal` (rodapé = `SetPrimaryAction`/`SetSecondaryAction`) |
+| po-page-default, po-page-list, po-page-edit, po-page-detail, po-page-slide (+ footer) | `PoPage`, `PoPageList`, `PoPageEdit`, `PoPageDetail`, `PoPageSlide` |
+| po-upload | `PoUpload` |
+| po-loading-overlay, po-toaster | `PoApp:Loading`, `PoApp:Notify` |
+| po-code-editor | fora de escopo — `AdvCodeEditor` (CodeMirror) já cobre; decisão 3c.4 |
+| po-grid | fora de escopo — marcado "em desenvolvimento" pelo próprio PO-UI |
+| po-search-ai | fora de escopo — exige decisão de produto/infra de IA (3c.4) |
+| bases (`Po*BaseComponent`) | não se aplica — classes abstratas do PO-UI |
+
+**Templates (`ng-templates`, componentes oficiais desde 2026-11-23)**
+
+| PO-UI | Classe AdvPP |
+|---|---|
+| po-page-dynamic-table / -edit / -detail / -search | `PoPageDynamicTable` / `Edit` / `Detail` / `Search` (`SetId` em Detail/Edit) |
+| po-page-login, po-page-change-password, po-page-blocked-user, po-page-job-scheduler | `PoPageLogin`, `PoPageChangePassword`, `PoPageBlockedUser`, `PoPageJobScheduler` |
+| po-modal-password-recovery | `PoModalPasswordRecovery` |
+
+**Serviços e diretivas**
+
+| PO-UI | AdvPP |
+|---|---|
+| PoDialogService, PoNotificationService | `MsgInfo`/`MsgYesNo`/`PoApp:Confirm`, `PoApp:Notify` |
+| PoThemeService, PoI18nService, PoMediaQueryService, PoNetworkService, PoStorageService, PoUserGuideService | `PoApp:SetTheme`, `SetLanguage`, `OnMediaChange`, `OnNetworkChange`, `StorageSet/Get/Remove`, `StartGuide` |
+| p-tooltip, p-drag / p-drop-list | `SetTooltip`, `SetDraggable` / `OnDrop` |
+| PoSyncService | fora de escopo — sincronização offline exige backend próprio (3c.4) |
+| PoCodeEditorRegister | fora de escopo — acompanha o po-code-editor |
+| PoHttpInterceptorService / PoHttpRequestInterceptorService | fora de escopo como API AdvPL: são infraestrutura do app Angular; o AdvPP já usa um interceptador próprio para os hooks dos templates |
+| diretivas de template (`p-table-cell-template`, `p-list-view-content-template`, `p-combo-option-template` etc.) | fora de escopo — conteúdo Angular projetado; a tela é declarada em AdvPL, não em HTML |
+
+**Padrão TOTVS (apps PO-UI do Protheus)**
+- `FwCallApp` + `JsToAdvpl`/`AdvPLToJS` com `@totvs/protheus-lib-core` real
+  (`ao-vivo.sh fixture-app`); `--poui-app` para apps externos.
+- `advplc serve <diretório> --main <Função>`: o programa (tela) e os fontes
+  REST em arquivos separados, como num RPO.
+- REST: `WSRESTFUL`, `@Get`+`oRest` (`getPathParamsRequest`/`getQueryRequest`/
+  `getHeaderRequest` com as chaves originais), `FWAdapterBaseV2`,
+  `FwApiManager`, `TamSx3` devolvendo `{nTamanho, nDecimais, cTipo}`.
+- JSON literal do TLPP (`{"chave": v}`) mantém a caixa da chave na resposta
+  (antes saía em MAIÚSCULAS, que o PO-UI não lê).
+
 ## Componentes PO-UI orientados a eventos — fase 1 (atualizado 2026-11-20)
 
 ### Status Atual: Funcional e testado ponta a ponta (HTTP real + captura no Chromium)
@@ -56,11 +124,18 @@
   cTitulo[, cUrl])` — url relativa ganha `RestPrefix`; CRUD direto no
   navegador contra o REST da onda 1 (`GET {items,hasNext}`, POST/PUT/
   DELETE `<url>/<id>`). `aFields={{cProp,cLabel,cTipo,lKey,lFilter,lVisible}}`
-  → `{property,label,type,key,filter,visible}` do `po-dynamic-form`/
-  `po-table` (frontend `dyn*` em `ui-host.ts`). `OnBeforeSave`/
-  `OnBeforeRemove`: round-trip síncrono browser→AdvPL via op
-  `beforeResult` {reqId,ok} com timeout de 30 s = recusa. Fixture:
-  `tests/poui/3a_crud.prw` (compila; serve verificado com REST real).
+  → `{property,label,type,key,filter,visible}` dos templates oficiais
+  `po-page-dynamic-*` (`@po-ui/ng-templates`, desde 2026-11-23; antes eram
+  imitações com `po-table`/`po-dynamic-form`). `OnBeforeSave`/
+  `OnBeforeRemove`: ação "before" como URL reservada
+  (`/__advpp/antes/<nó>/<evento>`), respondida no navegador por um
+  interceptador com o round-trip ao AdvPL (op `beforeResult` {reqId,ok};
+  timeout de 30 s = recusa). `SetId(cId)` (Detail/Edit): registro a
+  carregar, entregue ao template como parâmetro de rota (`adv-rota`).
+  Ações da tabela: `new`/`detail`/`edit`/`duplicate` →
+  `OnCustomAction(oSelf, cAcao, oLinha)`; chaves desconhecidas viram
+  ações de linha; `remove`/`removeAll` ficam com o PO-UI. Fixture:
+  `tests/poui/3a_crud.prw`; verificação ao vivo no `catalogo`.
 - ✅ **Onda 3b.1 — agrupamento**: `PoAccordion`/`PoAccordionItem`
   (`SetShowManager`, `Expand`/`Collapse`, `OnExpand`/`OnCollapse`),
   `PoModal` (`Open`/`Close`/`SetPrimaryAction`/`SetSecondaryAction`/
@@ -75,6 +150,37 @@
   `PoContextMenu` (`OnSelect`/`OnChangeExpanded`), `PoToolbar`
   (`SetProfile`, `SetNotifications`). Ações = eventos `act:N` pelo
   dispatch genérico de handlers.
+- ✅ **Onda 3b.3 — navegação**: `PoLink` (`SetOpenNewTab`, `OnClick`),
+  `PoBreadcrumb` (`SetItems` com `{{cLabel,cLinkOuPagina}}` — página vira
+  `{page:id}` e o evento `navigate` resolve o objeto para
+  `OnNavigate(oComp, cLabel)`), `PoContextTabs` (`AddTab`/`CloseTab`;
+  render via filhos `po-tab`), e o chrome do app: `PoNavbar`
+  (`SetLogo`/`AddItem`/`AddIconAction`), `PoHeader` (`SetUser`/
+  `AddAction`) e `PoMenuPanel` (`AddItem`/`SetLogo`) — singletons
+  serializados como nós `nav`/`head`/`panel` do `mountJSON`, renderizados
+  acima do conteúdo no `app.ts`; ações = `act:N` pelo dispatch genérico.
+- ✅ **Onda 3b.4 — exibição**: `PoAvatar`, `PoBadge` (`SetValue`/
+  `SetColor`/`SetStatus`), `PoImage` (`SetSrc`/`SetHeight`),
+  `PoSkeleton` (`SetVariant`), `PoHelper` (`SetType`), `PoCalendar`
+  (`SetMode`/`SetValue`/`GetValue`, `OnChange(d)`), `PoDynamicView`
+  (`SetValue`/`SetFields`/`SetLoad`), `PoDisclaimerGroup` (`SetItems`/
+  `SetTitle`, `OnChange`/`OnRemoveAll`), `PoFilterChip` (`SetSelected`,
+  `OnChange`). `PoToaster` = `PoNotificationService`: `PoApp:Notify`
+  estendido `(cMsg, cTipo, nDuracao, cOrientacao, cAcaoLabel, bAcao)` —
+  ação volta ao AdvPL via evento `notifyact`. `GET /poui-asset?sid=&p=`
+  serve src relativa de imagem com a mesma checagem de caminho do upload
+  (`DirUploadPermitido` + rejeição de traversal + limite 10 MB).
+- ✅ **Onda 3b.5 — páginas especiais**: `PoPageLogin` (`SetLiterals`/
+  `SetRecovery`, `OnLogin(cUsuario,cSenha)→lOk` síncrono via
+  `beforeResult`), `PoPageChangePassword` (`SetRequirements`,
+  `OnSubmit(cAtual,cNova)→lOk`), `PoPageBlockedUser` (`SetContactEmail`),
+  `PoPageSlide` (`Open`/`Close`, `OnClose`, aceita filhos) e
+  `PoPageJobScheduler` (`SetParameters`, `cUrlServico` com RestPrefix).
+  Senhas trafegam só no payload do evento — nunca em props, console,
+  log ou `Get()` (`TestLoginSenhaNaoFicaNaProp`).
+- ✅ **Aceite 3b**: `tests/poui/3b_vitrine.prw` — app com header,
+  navbar, menu panel, menu, breadcrumb, context tabs, stepper, modal e
+  componentes de exibição (compila e passa no `advplc check`).
 - ✅ **Onda 3c — serviços e diretivas**: `PoApp:SetTheme` (`light`/`dark`
   ou JSON de tokens → `PoThemeService`), `PoApp:SetLanguage`
   (`pt`/`en`/`es`/`ru` → `PoLanguageService`), `PoApp:OnMediaChange`
@@ -467,12 +573,16 @@ compatibilidade PO-UI" na seção de recursos executados.
   PO-UI, então navegação é no-op com estado fiel (URL/lang em `Props`).
   `FwCallApp` fora do modo web (`advplc serve`) retorna o erro exato
   `FwCallApp: requer o modo web (advplc serve)`.
-- ✅ **OAuth2/MFA do framework**: `POST/GET /api/oauth2/v1/token` emite
-  JWT `header.payload.` com `userid`/`exp` (formato que
-  `getTokenPayload()` do `@totvs/protheus-lib-core` decodifica); MFA
-  TOTP real (RFC 6238) — `hasSecret`/`TOTPURI`/`tok` com segredo por
-  usuário persistido em `~/.advpp/mfa_secrets.json` e confirmação por
-  primeiro código válido (fluxo de enrollment via QR).
+- ✅ **OAuth2 do framework**: `POST/GET /api/oauth2/v1/token` emite
+  JWT `header.payload.` sem assinatura, com `userid`/`exp` (formato que
+  `getTokenPayload()` do `@totvs/protheus-lib-core` decodifica). O REST
+  não valida o token: a proteção é a checagem de origem/host.
+- ⚠️ **MFA não suportado** (sessão local): `mfa/hasSecret` responde
+  `{hasSecret:false}`, o que faz a lib-core pular o fluxo; `mfa/tok`
+  responde `{tok:0}` e `mfa/TOTPURI` responde 501. Nenhum segredo é
+  gerado nem gravado. (Uma versão anterior, não publicada, gerava TOTP e
+  gravava `~/.advpp/mfa_secrets.json` sem que o REST exigisse o segundo
+  fator; foi removida por decisão do operador em 2026-11-23.)
 - ✅ **`FwApiManager:ToExecAuto` implementado**: fiel ao
   `FWAPIManager.prw` do corpus — `nTipo==1` anexa `{campo, valor, Nil}`
   por linha de `aDados` em `aRet`; demais tipos acumulam as triplas num
@@ -480,9 +590,17 @@ compatibilidade PO-UI" na seção de recursos executados.
   ExecAuto).
   `SetApiRelation` implementado no formato real do corpus (pares
   `{colFilho, colPai}` + aninhamento pai→filho no JSON).
-- ✅ **Corpus TOTVS 12.1.2510 validado** (`ADVPP_CORPUS_2510`):
-  0 falhas em 110 fontes `FwCallApp`/`JsToAdvpl`, 225 `FWAdapterBaseV2`
-  e 500 `WSRESTFUL` (amostra). Parser/preprocessor/lexer estendidos
+- ✅ **Corpus TOTVS 12.1.2510 validado** (`ADVPP_CORPUS_2510`, raiz do
+  corpus ou a pasta `fontes/`; medição de 2026-11-23): 0 falhas em 103
+  fontes `FwCallApp`/`JsToAdvpl` e em 500 `WSRESTFUL` (amostra); 213 de
+  214 `FWAdapterBaseV2` — o restante
+  (`backoffice.pif.fiscal.insight.purchaseorderssuggested.data.tlpp`) é
+  inválido no próprio corpus: o `/*{Protheus.doc}` da linha 899 não tem
+  fechamento, o `/*/` da linha 957 o fecha (a mesma regra de 1.616
+  comentários `/* ... /*/` do corpus) e o texto do Protheus.doc vira
+  código. O teste exige que ele continue falhando. (A versão anterior
+  deste item dizia "0 falhas em 110 e 225", números que não vieram de
+  uma execução.) Parser/preprocessor/lexer estendidos
   para as formas reais (macros função-like, `[...]` repetidos, flags
   de GUI, cláusulas WS arbitrárias, nomes `1xxx`, `json` como
   identificador, `#define` quote-aware). `TestCorpusCincoFontesHTTP`

@@ -3,6 +3,7 @@ package vm
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/advpl/compiler/pkg/compiler"
@@ -221,26 +222,26 @@ func (v *VM) callORestMethod(obj *advplrt.ObjectValue, st *oRestState, method st
 		m := make(map[string]any, len(st.req.Query))
 		for k, vals := range st.req.Query {
 			if len(vals) > 0 {
-				m[strings.ToUpper(k)] = vals[0]
+				m[k] = vals[0]
 			}
 		}
-		v.push(jsonMapToAdvplObject(m))
+		v.push(jsonObjectCaixa(m))
 	case "GETPATHPARAMSREQUEST":
 		m := make(map[string]any, len(st.req.PathParams))
 		for k, val := range st.req.PathParams {
-			m[strings.ToUpper(k)] = val
+			m[k] = val
 		}
-		v.push(jsonMapToAdvplObject(m))
+		v.push(jsonObjectCaixa(m))
 	case "GETBODYREQUEST":
 		v.push(advplrt.NewString(string(st.req.Body)))
 	case "GETHEADERREQUEST":
 		m := make(map[string]any, len(st.req.Header))
 		for k, vals := range st.req.Header {
 			if len(vals) > 0 {
-				m[strings.ToUpper(k)] = vals[0]
+				m[k] = vals[0]
 			}
 		}
-		v.push(jsonMapToAdvplObject(m))
+		v.push(jsonObjectCaixa(m))
 	case "SETRESPONSE":
 		st.resp.Body = orestBodyBytes(getArg(args, 0))
 		st.bodySet = true
@@ -266,4 +267,21 @@ func (v *VM) callORestMethod(obj *advplrt.ObjectValue, st *oRestState, method st
 		return fmt.Errorf("oRest: método desconhecido %q", method)
 	}
 	return nil
+}
+
+// jsonObjectCaixa: JsonObject com as chaves como vieram (rota, URL,
+// cabeçalho), como o oRest do Protheus: oP["codigo"] acha a chave; o
+// acesso por propriedade (oP:CODIGO) não diferencia maiúsculas (chaveProp).
+// Ordem alfabética das chaves: Keys determinístico.
+func jsonObjectCaixa(m map[string]any) *advplrt.ObjectValue {
+	obj := advplrt.NewObject("JsonObject", nil)
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	for _, k := range ks {
+		obj.SetProp(k, jsonValueToAdvpl(m[k]))
+	}
+	return obj
 }

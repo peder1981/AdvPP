@@ -159,6 +159,13 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		h, args = t.block, []advplrt.Value{a.obj}
 	case "line", "exit":
 		h, args = a.poSpawnEvento(id, ev, val)
+	case "notifyact":
+		cb, ok := a.notifyActs[id]
+		if !ok {
+			return
+		}
+		delete(a.notifyActs, id)
+		h, args = cb, []advplrt.Value{a.obj}
 	case "confirm":
 		cb, ok := a.confirms[id]
 		if !ok {
@@ -219,11 +226,46 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 			// PoUpload:OnUpload(aArquivos) — resposta do POST /poui-upload.
 			h, args = c.handlers["upload"], []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
 		case "advancedsearch":
-			// PoPageList:OnAdvancedSearch()
+			// PoPageList:OnAdvancedSearch(); PoPageDynamicSearch recebe
+			// também os filtros do p-advanced-search: (oSelf, oFiltros).
 			h, args = c.handlers["advancedsearch"], []advplrt.Value{c.obj}
+			if c.typ == "dynsearch" {
+				args = append(args, poFromJSONPoEvent(val))
+			}
+		case "fieldchange":
+			// PoDynamicForm — p-validate {property, value}: guarda o valor
+			// (GetValue) e chama OnChange(oForm, cCampo, xValor).
+			cpo, valor, ok := poCampoAlterado(c, val)
+			if !ok {
+				return
+			}
+			h, args = c.handlers["change"], []advplrt.Value{c.obj, advplrt.NewString(cpo), valor}
+		case "recoverysubmit":
+			// PoModalPasswordRecovery:OnSubmit(oModal, jDados) — p-submit.
+			h, args = c.handlers["recoverysubmit"], []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
+		case "customaction":
+			// PoPageDynamicTable:OnCustomAction(oSelf, cAcao, oLinha) —
+			// ações do po-page-dynamic-table chegam como {acao, linha}.
+			var body struct {
+				Acao  string          `json:"acao"`
+				Linha json.RawMessage `json:"linha"`
+			}
+			if json.Unmarshal(val, &body) != nil {
+				return
+			}
+			linha := advplrt.Value(advplrt.Nil)
+			if len(body.Linha) > 0 {
+				linha = poFromJSONPoEvent(body.Linha)
+			}
+			h, args = c.handlers["customaction"], []advplrt.Value{c.obj, advplrt.NewString(body.Acao), linha}
 		case "savenew", "cancel", "edit", "remove", "back":
 			// PoPageEdit/PoPageDetail: OnSaveNew/OnCancel/OnEdit/OnRemove/OnBack
 			h, args = c.handlers[ev], []advplrt.Value{c.obj}
+		case "login", "submit":
+			// Onda 3b.5 — PoPageLogin/PoPageChangePassword: credenciais
+			// síncronas; a senha não é gravada em props.
+			v.poLoginHook(a, c, ev, val)
+			return
 		case "beforesave", "beforeremove", "canactivate":
 			// Onda 3a.6 — round-trip síncrono: o frontend espera
 			// {"op":"beforeResult","reqId":N,"ok":bool} antes de gravar.
@@ -253,6 +295,23 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 				return
 			}
 			h, args = c.handlers[fmt.Sprintf("action:%d", i)], []advplrt.Value{c.obj}
+		case "navigate":
+			// PoBreadcrumb:OnNavigate(oPagina) — {page:id} resolve para o
+			// objeto da página; {label} vai como 2º argumento.
+			var nav struct {
+				Page  int    `json:"page"`
+				Label string `json:"label"`
+			}
+			_ = json.Unmarshal(val, &nav)
+			var navArgs []advplrt.Value
+			navArgs = append(navArgs, c.obj)
+			if alvo, ok := a.byID[nav.Page]; ok {
+				navArgs = append(navArgs, alvo.obj)
+			} else {
+				navArgs = append(navArgs, advplrt.Nil)
+			}
+			navArgs = append(navArgs, advplrt.NewString(nav.Label))
+			h, args = c.handlers["navigate"], navArgs
 		default:
 			// Eventos genéricos registrados via On* (onda 3b em diante):
 			// expand/collapse/close/changestep/click:* recebem (oComp, valor).
@@ -284,10 +343,13 @@ func poValorDoBrowser(typ string, val []byte) advplrt.Value {
 	case "number", "decimal":
 		f, _ := strconv.ParseFloat(strings.TrimSpace(txt), 64)
 		return advplrt.NewNumber(f)
-	case "checkbox", "switch":
+	case "checkbox", "switch", "filterchip":
 		return advplrt.NewBool(txt == "true")
-	case "datepicker":
+	case "datepicker", "calendar":
 		return poDataDeValor(advplrt.NewString(txt))
+	case "disclaimergroup":
+		// OnChange(a) — array de disclaimers vem do browser.
+		return poFromJSONPoEvent(val)
 	case "daterange":
 		return poRangeDoBrowser(val)
 	case "multiselect", "checkboxgroup", "lookup":

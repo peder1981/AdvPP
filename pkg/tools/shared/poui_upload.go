@@ -108,26 +108,47 @@ func (s pouiUploadSpec) PermiteExt(ext string) bool {
 
 // DirUploadPermitido diz se dir (já absoluto) está dentro do diretório
 // de trabalho do processo ou de um dos poui_upload_dirs do config.
-// Fora disso -> 403 no upload.
+// Fora disso -> 403 no upload. A comparação usa o caminho real (links
+// simbólicos resolvidos): um link dentro da área que aponta para fora
+// não serve de destino nem de origem do /poui-asset.
 func DirUploadPermitido(dir string) bool {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return false
 	}
+	abs = caminhoReal(abs)
 	cwd, err := os.Getwd()
 	if err == nil {
-		if dentroDe(abs, cwd) {
+		if dentroDe(abs, caminhoReal(cwd)) {
 			return true
 		}
 	}
 	if cfg, err := LoadConfig(); err == nil {
 		for _, d := range cfg.PouiUploadDirs {
-			if ad, err := filepath.Abs(d); err == nil && dentroDe(abs, ad) {
+			if ad, err := filepath.Abs(d); err == nil && dentroDe(abs, caminhoReal(ad)) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// caminhoReal resolve os links simbólicos do maior prefixo existente de p
+// (absoluto) e reanexa o resto, que ainda não existe (ex.: o diretório de
+// upload antes do MkdirAll).
+func caminhoReal(p string) string {
+	resto := ""
+	for cur := p; ; {
+		if r, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(r, resto)
+		}
+		pai := filepath.Dir(cur)
+		if pai == cur {
+			return p
+		}
+		resto = filepath.Join(filepath.Base(cur), resto)
+		cur = pai
+	}
 }
 
 func dentroDe(path, root string) bool {

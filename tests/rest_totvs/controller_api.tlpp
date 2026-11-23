@@ -1,5 +1,5 @@
-// Fixture de controlador REST TLPP no padrÃ£o do corpus Protheus 12.1.2510:
-// `class X` com @GET/@Post em `public method` + implementaÃ§Ãµes `Method ...
+// Fixture de controlador REST TLPP no padrão do corpus Protheus 12.1.2510:
+// `class X` com @GET/@Post em `public method` + implementações `Method ...
 // Class X`. Cobre path param (:datebase), oRest, construtor `new` e Data.
 namespace tr.teste
 

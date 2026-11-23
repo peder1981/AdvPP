@@ -90,8 +90,7 @@ func (srv *Server) handlePouiUpload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "falha ao ler upload", http.StatusInternalServerError)
 			return
 		}
-		dst := filepath.Join(spec.Dir(), nome)
-		out, err := os.Create(dst)
+		out, dst, err := criaArquivoNovo(spec.Dir(), nome)
 		if err != nil {
 			src.Close()
 			http.Error(w, "falha ao gravar", http.StatusInternalServerError)
@@ -105,8 +104,31 @@ func (srv *Server) handlePouiUpload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "falha ao gravar", http.StatusInternalServerError)
 			return
 		}
-		gravados = append(gravados, pouiUploadArquivo{Nome: nome, Caminho: dst, Bytes: n})
+		gravados = append(gravados, pouiUploadArquivo{Nome: filepath.Base(dst), Caminho: dst, Bytes: n})
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(gravados)
+}
+
+// criaArquivoNovo cria nome em dir sem nunca sobrescrever nem seguir link
+// simbólico (O_EXCL): se o nome já existe, tenta "nome (2).ext",
+// "nome (3).ext"... como o navegador faz ao baixar.
+func criaArquivoNovo(dir, nome string) (*os.File, string, error) {
+	ext := filepath.Ext(nome)
+	base := strings.TrimSuffix(nome, ext)
+	for i := 1; i <= 1000; i++ {
+		cand := nome
+		if i > 1 {
+			cand = fmt.Sprintf("%s (%d)%s", base, i, ext)
+		}
+		dst := filepath.Join(dir, cand)
+		f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err == nil {
+			return f, dst, nil
+		}
+		if !os.IsExist(err) {
+			return nil, "", err
+		}
+	}
+	return nil, "", fmt.Errorf("muitos arquivos com o nome %q", nome)
 }

@@ -120,7 +120,7 @@ func TestAnotacaoEndpointNomeado(t *testing.T) {
 		t.Fatalf("status = %d (body %q)", code, body)
 	}
 	m := orestJSON(t, body)
-	if m["OK"] != true {
+	if m["ok"] != true {
 		t.Fatalf("corpo = %v", m)
 	}
 }
@@ -132,7 +132,7 @@ func TestORestSetFault(t *testing.T) {
 		t.Fatalf("status = %d, quer 400 (body %q)", code, body)
 	}
 	m := orestJSON(t, body)
-	if m["CODE"] != float64(422) || m["MESSAGE"] != "invalido" {
+	if m["code"] != float64(422) || m["message"] != "invalido" {
 		t.Fatalf("fault = %v", m)
 	}
 }
@@ -169,8 +169,8 @@ Return {"v": oRest}
 		t.Fatalf("status = %d (body %q)", code, body)
 	}
 	m := orestJSON(t, body)
-	if m["V"] != "sou-local" {
-		t.Fatalf("corpo = %v, quer V=sou-local", m)
+	if m["v"] != "sou-local" {
+		t.Fatalf("corpo = %v, quer v=sou-local", m)
 	}
 }
 
@@ -194,7 +194,7 @@ Return {"id": oParam:ID, "q": oParam:Q}
 		t.Fatalf("status = %d (body %q)", code, body)
 	}
 	m := orestJSON(t, body)
-	if m["ID"] != "42" || m["Q"] != "oi" {
+	if m["id"] != "42" || m["q"] != "oi" {
 		t.Fatalf("corpo = %v", m)
 	}
 }
@@ -250,5 +250,36 @@ func TestORestControllerPost(t *testing.T) {
 	m := orestJSON(t, body)
 	if m["SIGLA"] != "BRL" && m["sigla"] != "BRL" {
 		t.Fatalf("eco do body falhou: %v", m)
+	}
+}
+
+// getPathParamsRequest/getQueryRequest devolvem JsonObject com as chaves
+// como na rota/URL (o corpus lê oP["codigo"], oQ["pageSize"]); o acesso por
+// propriedade (oP:CODIGO) continua funcionando.
+func TestORestParamsCaixaOriginal(t *testing.T) {
+	bc := compilarPrg(t, `
+@Get("/item/:codigo")
+User Function ItemCaixa(oParam)
+	Local oP := oRest:getPathParamsRequest()
+	Local oQ := oRest:getQueryRequest()
+	Local oOut := JsonObject():New()
+	oOut["porColchete"] := oP["codigo"]
+	oOut["porPropriedade"] := oP:CODIGO
+	oOut["pageSize"] := oQ["pageSize"]
+	oRest:setResponse(oOut)
+Return Nil
+`)
+	v := NewVM(bc, false)
+	s := rest.NewServer("t", "1")
+	v.autoRegisterAnnotatedRoutes(s)
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+	code, _, body := orestDo(t, "GET", srv.URL+"/item/00007?pageSize=5", "", nil)
+	if code != 200 {
+		t.Fatalf("status = %d (body %q)", code, body)
+	}
+	m := orestJSON(t, body)
+	if m["porColchete"] != "00007" || m["porPropriedade"] != "00007" || m["pageSize"] != "5" {
+		t.Fatalf("corpo = %v", m)
 	}
 }

@@ -1,6 +1,6 @@
-// Fixture da Onda 3c â€” serviÃ§os e diretivas PO-UI: tema, idioma,
-// mÃ­dia, storage (localStorage), rede, guia, tooltip e drag & drop.
-// BotÃµes disparam as APIs; os handlers ConOut logam o que voltou do
+// Fixture da Onda 3c — serviços e diretivas PO-UI: tema, idioma,
+// mídia, storage (localStorage), rede, guia, tooltip e drag & drop.
+// Botões disparam as APIs; os handlers ConOut logam o que voltou do
 // browser (storage, guideend) ou o que o servidor aplicou.
 
 User Function ServicosDemo()
@@ -10,21 +10,21 @@ User Function ServicosDemo()
 	oMenu := PoMenu():New(oApp)
 	oPg := PoPage():New(oApp, "Principal")
 
-	// 3c.1 â€” tema e idioma globais
+	// 3c.1 — tema e idioma globais
 	oApp:SetTheme("light")
 	oApp:SetLanguage("pt")
 
-	// 3c.1/3c.2 â€” eventos de app
+	// 3c.1/3c.2 — eventos de app
 	oApp:OnMediaChange({|oSelf, cM| ConOut("[3c] media=" + cM)})
 	oApp:OnNetworkChange({|oSelf, lOn| ConOut("[3c] rede=" + cValToChar(lOn))})
 
-	// 3c.3 â€” guia (passos apontam para componentes reais)
+	// 3c.3 — guia (passos apontam para componentes reais)
 	oApp:OnGuideEnd({|oSelf, bOk| ConOut("[3c] guia fim=" + cValToChar(bOk))})
 
-	// 3c.2 â€” storage: grava, lÃª de volta (round-trip sÃ­ncrono) e limpa
+	// 3c.2 — storage: grava, lê de volta (round-trip síncrono) e limpa
 	oApp:StorageSet("fixture", "onda3c")
 
-	// 3c.3 â€” tooltip em qualquer componente
+	// 3c.3 — tooltip em qualquer componente
 	oTema := PoButton():New(oPg, "Tema escuro", {|| oApp:SetTheme("dark")})
 	oTema:SetTooltip("Alterna para o tema escuro", "top")
 
@@ -33,14 +33,14 @@ User Function ServicosDemo()
 		ConOut("[3c] storage=" + cValToChar(x))
 		oApp:StorageRemove("fixture")
 	})
-	oStorage:SetTooltip("LÃª e remove a chave 'fixture'", "bottom")
+	oStorage:SetTooltip("Lê e remove a chave 'fixture'", "bottom")
 
 	Local oGuia := PoButton():New(oPg, "Guia", {||
-		oApp:StartGuide({{oTema, "Tema", "Este botÃ£o troca o tema."}, ;
-			{oStorage, "Storage", "LÃª o valor gravado no navegador."}})
+		oApp:StartGuide({{oTema, "Tema", "Este botão troca o tema."}, ;
+			{oStorage, "Storage", "Lê o valor gravado no navegador."}})
 	})
 
-	// 3c.3 â€” drag & drop: reordena os filhos do container
+	// 3c.3 — drag & drop: reordena os filhos do container
 	oBox := PoContainer():New(oPg, "Itens arrastaveis")
 	oB1 := PoButton():New(oBox, "Item 1")
 	oB2 := PoButton():New(oBox, "Item 2")

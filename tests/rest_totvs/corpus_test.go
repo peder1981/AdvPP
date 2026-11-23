@@ -38,6 +38,11 @@ func corpusDir(t *testing.T) string {
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 		t.Skipf("ADVPP_CORPUS_2510 inválida: %s", dir)
 	}
+	// Aceita a raiz do corpus ou a pasta fontes/: os caminhos dos testes
+	// são relativos a fontes/.
+	if st, err := os.Stat(filepath.Join(dir, "fontes")); err == nil && st.IsDir() {
+		return filepath.Join(dir, "fontes")
+	}
 	return dir
 }
 
@@ -105,8 +110,20 @@ func fontesCorpus(t *testing.T, root, needle string) []string {
 	return out
 }
 
+// fontesInvalidosNoCorpus são fontes do próprio corpus que não compilam
+// pela regra de comentário que o restante do corpus usa. Precisam
+// CONTINUAR falhando: aceitar um deles seria um bug do AdvPP.
+var fontesInvalidosNoCorpus = map[string]string{
+	// Linha 899: `/*{Protheus.doc} getPurchaseOrdersLinked` nunca é
+	// fechado; o `/*/` da linha 957 o fecha (regra C, a mesma de 1.616
+	// comentários `/* ... /*/` do corpus) e o texto do Protheus.doc das
+	// linhas 958-964 vira código.
+	"backoffice.pif.fiscal.insight.purchaseorderssuggested.data.tlpp": "comentário sem fechamento na linha 899",
+}
+
 // TestCorpusAdaptersCheck compila todo fonte do corpus que menciona
-// FWAdapterBaseV2 — cada erro é um bug real da camada de compatibilidade.
+// FWAdapterBaseV2 — cada erro é um bug real da camada de compatibilidade,
+// exceto os fontes de fontesInvalidosNoCorpus, que precisam falhar.
 func TestCorpusAdaptersCheck(t *testing.T) {
 	root := corpusDir(t)
 	fontes := fontesCorpus(t, root, "FWAdapterBaseV2")
@@ -114,15 +131,25 @@ func TestCorpusAdaptersCheck(t *testing.T) {
 		t.Skip("nenhum fonte com FWAdapterBaseV2 no corpus")
 	}
 	var fails []string
+	invalidos := 0
 	for _, f := range fontes {
-		if err := compilaCorpusFonte(f); err != nil {
+		err := compilaCorpusFonte(f)
+		if motivo, ok := fontesInvalidosNoCorpus[filepath.Base(f)]; ok {
+			invalidos++
+			if err == nil {
+				t.Errorf("%s: compilou, mas é inválido no corpus (%s)", filepath.Base(f), motivo)
+			}
+			continue
+		}
+		if err != nil {
 			fails = append(fails, filepath.Base(f)+": "+err.Error())
 		}
 	}
 	for _, f := range fails {
 		t.Errorf("%s", f)
 	}
-	t.Logf("%d fontes com FWAdapterBaseV2, %d falhas", len(fontes), len(fails))
+	t.Logf("%d fontes com FWAdapterBaseV2: %d falhas, %d inválidos no próprio corpus",
+		len(fontes), len(fails), invalidos)
 }
 
 // TestCorpusWSRestfulAmostra compila uma amostra determinística (semente

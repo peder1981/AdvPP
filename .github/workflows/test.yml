@@ -42,6 +42,13 @@ jobs:
         # versionado) ou do binário llama-cli de referência pulam sozinhos
         # via os.Stat — não é preciso -short para eles rodarem em CI.
         run: go test ./...
+      - name: go test -race (pacotes concorrentes)
+        # REST, webui e VM (SSE, canal PO-UI, VMs-filhas por requisição).
+        # -race exige CGO, por isso só no runner Linux x64. checkptr=0: o
+        # -race liga o checkptr, que acusa a aritmética de ponteiro do
+        # DynCall (mesma exceção do -unsafeptr=false do go vet acima).
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -race -gcflags=all=-d=checkptr=0 ./pkg/rest ./pkg/webui ./pkg/vm
       - name: Bytecode hashes (determinismo entre SOs)
         # Grava sha256 do bytecode de todo fonte em examples/ e tests/; o
         # job `determinism` abaixo exige que os 4 runners gerem o mesmo.

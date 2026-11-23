@@ -130,6 +130,11 @@ func (v *VM) po3aDynMethod(c *poComp, method string, args []advplrt.Value) (bool
 	case "SETDUPLICATES":
 		// PoPageDynamicEdit:SetDuplicates(a) — campos que não podem repetir.
 		a.setProp(c, "duplicates", poToJSON(getArg(args, 0)))
+	case "SETID":
+		// PoPageDynamicDetail/Edit:SetId(cId) — registro a carregar. O
+		// template do PO-UI lê o id da rota; o frontend entrega uma rota
+		// com ele. Vazio: detalhe sem registro, edição em modo inclusão.
+		a.setProp(c, "recordId", advplrt.ToString(getArg(args, 0)))
 	case "ONCUSTOMACTION":
 		c.handlers["customaction"] = getArg(args, 0)
 	case "ONQUICKSEARCH":

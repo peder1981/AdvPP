@@ -61,7 +61,12 @@ func poFilterURL(x advplrt.Value) string {
 	if !strings.HasPrefix(u, "/") {
 		u = "/" + u
 	}
-	return shared.ResolveRestPrefix() + u
+	// Já veio com o prefixo ("/rest/api/..."): não duplica.
+	pre := shared.ResolveRestPrefix()
+	if u == pre || strings.HasPrefix(u, pre+"/") {
+		return u
+	}
+	return pre + u
 }
 
 // poFilterParams normaliza o argumento de SetFilterParams: array de pares

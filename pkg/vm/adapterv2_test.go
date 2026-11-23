@@ -177,19 +177,21 @@ func TestAdapterCampoNaoMapeado400(t *testing.T) {
 	if code != 400 {
 		t.Fatalf("status = %d, quer 400", code)
 	}
-	msg, _ := m["MESSAGE"].(string)
+	msg, _ := m["message"].(string)
 	if !strings.Contains(msg, "senha") {
 		t.Fatalf("message = %q, quer menção a senha", msg)
 	}
 }
 
+// TamSx3 do Protheus devolve o array {nTamanho, nDecimais, cTipo}; o
+// corpus usa TamSx3("X")[1] e aTam[3] (ex.: aStruct do FWAdapterBaseV2).
 func TestTamSx3(t *testing.T) {
 	eng := adapterFixture(t)
 	bc := compilarPrg(t, `
 User Function TamSx3Tst()
-	Local oCod := TamSx3("NNR_CODIGO")
-	Local oNada := TamSx3("XXX_NADA")
-	Return {"cod": oCod, "nada": oNada}
+	Local aCod := TamSx3("NNR_CODIGO")
+	Local aNada := TamSx3("XXX_NADA")
+	Return {aCod[1], aCod[2], aCod[3], Len(aCod), aNada[1], aNada[3]}
 `)
 	v := NewVM(bc, false)
 	v.SetDBEngine(eng)
@@ -197,19 +199,16 @@ User Function TamSx3Tst()
 	if err != nil {
 		t.Fatalf("RunFunction: %v", err)
 	}
-	obj, ok := res.(*advplrt.ObjectValue)
-	if !ok {
-		t.Fatalf("retorno = %T", res)
+	arr, ok := res.(*advplrt.ArrayValue)
+	if !ok || len(arr.Elements) != 6 {
+		t.Fatalf("retorno = %#v", res)
 	}
-	cod := obj.Props["COD"].(*advplrt.ObjectValue)
-	if n := advplrt.ToFloat(cod.Props["NTAMANHO"]); n != 10 {
-		t.Fatalf("NTAMANHO = %v, quer 10", n)
+	e := arr.Elements
+	if advplrt.ToFloat(e[0]) != 10 || advplrt.ToFloat(e[1]) != 0 || advplrt.ToString(e[2]) != "C" || advplrt.ToFloat(e[3]) != 3 {
+		t.Fatalf("TamSx3(NNR_CODIGO) = {%v, %v, %q} len %v, quer {10, 0, \"C\"} len 3",
+			advplrt.ToFloat(e[0]), advplrt.ToFloat(e[1]), advplrt.ToString(e[2]), advplrt.ToFloat(e[3]))
 	}
-	if s := advplrt.ToString(cod.Props["CTIPO"]); s != "C" {
-		t.Fatalf("CTIPO = %q, quer C", s)
-	}
-	nada := obj.Props["NADA"].(*advplrt.ObjectValue)
-	if n := advplrt.ToFloat(nada.Props["NTAMANHO"]); n != 0 {
-		t.Fatalf("XXX_NADA NTAMANHO = %v, quer 0", n)
+	if advplrt.ToFloat(e[4]) != 0 || advplrt.ToString(e[5]) != "" {
+		t.Fatalf("TamSx3(XXX_NADA) = {%v, ..., %q}, quer {0, 0, \"\"}", advplrt.ToFloat(e[4]), advplrt.ToString(e[5]))
 	}
 }

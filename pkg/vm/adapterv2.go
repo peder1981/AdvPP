@@ -507,8 +507,11 @@ func adapterResponse(items []advplrt.Value, hasNext bool) *advplrt.ObjectValue {
 // dicionário SX3 local ({nTamanho, nDecimais, cTipo}). Campo inexistente
 // ou engine sem SQL devolve {0, 0, ""} — nunca erro.
 func (v *VM) registerTamSx3Native(natives map[string]func(args []advplrt.Value) (advplrt.Value, error)) {
+	// TamSx3(cCampo) -> {nTamanho, nDecimais, cTipo}, array como no
+	// Protheus (o corpus usa TamSx3("X")[1] e aTam[3]). Campo inexistente:
+	// {0, 0, ""}.
 	natives["TAMSX3"] = func(args []advplrt.Value) (advplrt.Value, error) {
-		out := map[string]any{"nTamanho": float64(0), "nDecimais": float64(0), "cTipo": ""}
+		tam, dec, tipo := 0, 0, ""
 		eng, ok := v.dbEngine.(SQLEngine)
 		if ok {
 			campo := strings.ToUpper(strings.TrimSpace(advplrt.ToString(getArg(args, 0))))
@@ -517,15 +520,15 @@ func (v *VM) registerTamSx3Native(natives map[string]func(args []advplrt.Value) 
 					"SELECT X3_TAMANHO, X3_DECIMAL, X3_TIPO FROM SX3 WHERE UPPER(X3_CAMPO) = ?",
 					campo); err == nil && len(rows) > 0 {
 					r := rows[0]
-					tam, _ := strconv.Atoi(strings.TrimSpace(r["X3_TAMANHO"]))
-					dec, _ := strconv.Atoi(strings.TrimSpace(r["X3_DECIMAL"]))
-					out["nTamanho"] = float64(tam)
-					out["nDecimais"] = float64(dec)
-					out["cTipo"] = strings.TrimSpace(r["X3_TIPO"])
+					tam, _ = strconv.Atoi(strings.TrimSpace(r["X3_TAMANHO"]))
+					dec, _ = strconv.Atoi(strings.TrimSpace(r["X3_DECIMAL"]))
+					tipo = strings.TrimSpace(r["X3_TIPO"])
 				}
 			}
 		}
-		return jsonMapToAdvplObject(out), nil
+		return advplrt.NewArray([]advplrt.Value{
+			advplrt.NewNumber(float64(tam)), advplrt.NewNumber(float64(dec)), advplrt.NewString(tipo),
+		}), nil
 	}
 }
 

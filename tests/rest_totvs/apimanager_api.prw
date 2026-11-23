@@ -1,4 +1,4 @@
-// Endpoint FwApiManager (leitura) â€” plano PO-UI onda 1, Task 8.
+// Endpoint FwApiManager (leitura) — plano PO-UI onda 1, Task 8.
 // A query string vira aQueryString {chave, valor} e alimenta
 // SetApiQString; a resposta sai por GetJsonSerialize.
 

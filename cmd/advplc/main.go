@@ -247,6 +247,7 @@ type Options struct {
 	format    string // check --format: "" (humano) ou "json" (um objeto por linha)
 	apps      string // serve --apps <dir>: vários programas (um por arquivo)
 	home      string // serve --home <nome>: app da página inicial
+	main      string // serve <diretório> --main <Função>: tela do "RPO"
 }
 
 func parseOptions(args []string) *Options {
@@ -298,6 +299,11 @@ func parseOptions(args []string) *Options {
 		case "--port":
 			if i+1 < len(args) {
 				opts.port = args[i+1]
+				i++
+			}
+		case "--main":
+			if i+1 < len(args) {
+				opts.main = args[i+1]
 				i++
 			}
 		case "--gui":
@@ -609,6 +615,11 @@ func mostraAvisos(sourceFile string, avisos []parser.Aviso) {
 // (fase 1: console + diálogos). Cada aba/recarga do browser cria uma
 // sessão com VM isolada — mesma semântica de work process do StartJob.
 func serveFile(sourceFile string, opts *Options) error {
+	if opts.main != "" {
+		if st, err := os.Stat(sourceFile); err != nil || !st.IsDir() {
+			return fmt.Errorf("--main só vale com diretório (advplc serve <diretório> --main <Função>)")
+		}
+	}
 	// Diretório vira projeto (todos os fontes num bytecode só, como um
 	// RPO); arquivo segue fonte único. compilaAlvoDeps decide pelo
 	// os.Stat e devolve as dependências (#include) para o --watch.
@@ -663,7 +674,7 @@ func serveFile(sourceFile string, opts *Options) error {
 			// defer: roda também quando a sessão é abandonada (webui encerra a
 			// goroutine com runtime.Goexit num diálogo pendente).
 			defer v.CloseOwnedConnections()
-			_, err := v.Run()
+			err := executaPrograma(v, opts.main)
 			if release != nil {
 				release(err)
 			}
@@ -1098,6 +1109,8 @@ Options:
                                 <dir>/<name>.prw|.tlpp is served at
                                 /app/<name> (no source argument)
   --home <name>                 serve --apps: app shown at "/"
+  --main <func>                 serve <dir>: run this function as the UI
+                                (e.g. U_MinhaTela); REST of all sources
   -w, --watch                   Web mode: recompile on source change and
                                 reload browser sessions (hot reload)
   --gui                         build: mark the program as a desktop app.
@@ -1116,10 +1129,24 @@ Examples:
   advplc check a.prw b.prw --format json
   advplc serve program.prw --port 9000 --watch
   advplc serve ./fontes --watch
+  advplc serve ./fontes --main U_MinhaTela
   advplc serve --apps ./apps --home inicio
   advplc serve --poui-app ./meu-app-web --port 9000
   advplc serve --poui-app app.zip ./fonte-rest
   advplc build program.prw -o myapp --db-path ./data.db
   advplc build app.prw -o MyApp --gui
   advplc bytecode program.prw`)
+}
+
+// executaPrograma roda o "main" do bytecode e, com --main, a função
+// pedida. No modo diretório (CompileProject) o main só inicializa os
+// Static de arquivo; a tela vem da função indicada, como num RPO do
+// Protheus em que o programa e os fontes REST ficam em arquivos
+// separados.
+func executaPrograma(v *vm.VM, main string) error {
+	if _, err := v.Run(); err != nil || main == "" {
+		return err
+	}
+	_, err := v.RunFunction(main, nil)
+	return err
 }

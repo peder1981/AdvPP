@@ -1,8 +1,6 @@
 package vm
 
 import (
-	"github.com/advpl/compiler/pkg/tools/shared"
-
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
@@ -51,17 +49,7 @@ func (v *VM) po3aTextMethod(c *poComp, method string, args []advplrt.Value) (boo
 	return true, advplrt.Nil, nil
 }
 
-// poRestPrefixURL: URL de upload/download — relativa ganha o RestPrefix.
+// poRestPrefixURL: URL de upload/download — mesma regra do poFilterURL.
 func poRestPrefixURL(x advplrt.Value) string {
-	u := advplrt.ToString(x)
-	if u == "" {
-		return ""
-	}
-	if len(u) > 8 && (u[:7] == "http://" || u[:8] == "https://") {
-		return u
-	}
-	if u[0] != '/' {
-		u = "/" + u
-	}
-	return shared.ResolveRestPrefix() + u
+	return poFilterURL(x)
 }

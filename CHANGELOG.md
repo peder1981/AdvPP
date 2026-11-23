@@ -2,9 +2,42 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
-## [Unreleased]
+## [4.9.0] - 2026-11-23
 
 ### Added
+- **Templates reais do PO-UI**: as 8 classes de template (dinâmicos, login,
+  troca de senha, usuário bloqueado, agendador) renderizam os componentes
+  oficiais de `@po-ui/ng-templates` 21.23.0 (antes eram imitações).
+  `PoPageDynamicDetail/Edit:SetId(cId)` define o registro.
+- **`PoDynamicForm`, `PoLogin` e `PoModalPasswordRecovery`**: completam o
+  catálogo do llms.txt.
+- **`advplc serve <diretório> --main <Função>`**: tela e fontes REST em
+  arquivos separados, como num RPO.
+- **Teste ao vivo do catálogo completo** (`tests/poui/ao-vivo.sh catalogo`):
+  80 classes no Chromium, com eventos e dados REST.
+
+### Fixed
+- JSON literal do TLPP gravava as chaves em MAIÚSCULAS: a resposta REST saía
+  `ITEMS`/`HASNEXT`/`MESSAGE`. **Mudança de comportamento**: a chave agora
+  sai como escrita; `o:chave` continua achando a chave sem diferenciar
+  maiúsculas.
+- `oRest:getPathParamsRequest/getQueryRequest/getHeaderRequest`: chaves
+  originais (`oP["codigo"]`).
+- `TamSx3` devolve o array `{nTamanho, nDecimais, cTipo}` do Protheus.
+- Laço infinito do `po-datepicker`/`po-datetimepicker` (CPU do navegador em
+  100%): `Date` novo a cada ciclo.
+- `NG0201` com `po-navbar`, `po-slide` e `po-link` interno: faltava o Router.
+- URL de serviço com `/rest` ganhava o prefixo de novo (`/rest/rest/...`).
+- `po-disclaimer-group` vazio, `po-accordion`/`po-stepper` sem itens,
+  `PoStep:OnCanActivate` não ligado, `OnCustomAction` sem `cAcao`/`oLinha`,
+  `OnAdvancedSearch` do `PoPageDynamicSearch` sem filtros.
+- `PoPageDynamicEdit/Detail` guardavam o `NgForm` como valor (estrutura
+  circular; Salvar/Excluir não enviavam o digitado).
+- Upload PO-UI não segue link simbólico nem sobrescreve arquivo; MFA
+  simulado removido; corrida no `StorageGet`; `-race` na CI.
+- Nove fontes PO-UI de teste/exemplo convertidos para CP-1252.
+
+### Added (ondas 1 a 3 do PO-UI)
 - **Onda 3c do catálogo PO-UI — serviços e diretivas**: `PoApp:SetTheme`
   (`light`/`dark` ou tokens JSON via `PoThemeService`), `SetLanguage`
   (`pt`/`en`/`es`/`ru`), `OnMediaChange` (breakpoints sm/md/lg/xl do grid
@@ -75,11 +108,10 @@ Todas as mudanças relevantes no projeto AdvPP.
 - `FwCallApp` com a assinatura completa do corpus: reutiliza o
   `TWebChannel`/`TWebEngine` passados pelo chamador (parâmetros 3 e 2) e
   dá precedência ao `bJsToAdvpl` do canal sobre a função `JsToAdvpl`.
-- OAuth2/MFA do framework: `POST/GET /api/oauth2/v1/token` emite JWT
+- OAuth2 do framework: `POST/GET /api/oauth2/v1/token` emite JWT
   `header.payload.` (userid/exp) no formato que `getTokenPayload()` do
-  lib-core decodifica; MFA TOTP real (RFC 6238) com segredo por usuário
-  em `~/.advpp/mfa_secrets.json`, URI `otpauth://` para o QR e
-  confirmação por primeiro código válido.
+  lib-core decodifica. MFA não suportado: `mfa/hasSecret` responde
+  `{hasSecret:false}` e a lib-core pula o fluxo; nada é gravado em disco.
 
 ### Known limitations
 - `FwCallApp` fora do modo web (`advplc serve`) retorna erro — não há
