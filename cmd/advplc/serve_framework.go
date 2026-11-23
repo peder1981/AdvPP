@@ -353,10 +353,9 @@ func registraFrameworkRoutes(srv *rest.Server, opts *Options) {
 		return resp
 	})
 
-	// OAuth2/MFA: a sessão já é local — o token emitido é um JWT sem
+	// OAuth2: a sessão já é local — o token emitido é um JWT sem
 	// assinatura (header.payload.) no formato que getTokenPayload() do
-	// lib-core decodifica (payload.userid/exp). MFA responde "desconfigurado"
-	// para a lib pular o fluxo.
+	// lib-core decodifica (payload.userid/exp).
 	add("POST", "/api/oauth2/v1/token", func(r *rest.Request) *rest.Response {
 		return fwToken()
 	})
@@ -369,15 +368,14 @@ func registraFrameworkRoutes(srv *rest.Server, opts *Options) {
 	add("GET", "/api/oauth2/v1/batch-close-tabs", func(r *rest.Request) *rest.Response {
 		return fwJSON(map[string]any{})
 	})
-	get("/api/framework/mfa/hasSecret", func(r *rest.Request) *rest.Response {
-		return fwJSON(false)
-	})
-	get("/api/framework/mfa/tok", func(r *rest.Request) *rest.Response {
-		return fwJSON(false)
-	})
-	get("/api/framework/mfa/TOTPURI", func(r *rest.Request) *rest.Response {
-		return fwJSON(map[string]any{})
-	})
+	// MFA TOTP real (RFC 6238): hasSecret reflete o enrollment confirmado
+	// do usuário da sessão; TOTPURI gera o otpauth:// para o QR; tok
+	// valida o código de 6 dígitos. Contratos das interfaces
+	// ProMfaHasSecretInterface/ProMfaQrCodeInterface/ProMfaValidCodeInterface
+	// do @totvs/protheus-lib-core.
+	get("/api/framework/mfa/hasSecret", handlerMFAHasSecret)
+	get("/api/framework/mfa/tok", handlerMFATok)
+	get("/api/framework/mfa/TOTPURI", handlerMFATOTPURI)
 }
 
 // fwToken emite o token de sessão local. O access_token é um JWT
