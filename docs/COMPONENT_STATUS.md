@@ -1,5 +1,73 @@
 # Relatório de Status dos Componentes
 
+## Compatibilidade PO-UI no padrão TOTVS — cobertura do llms.txt (atualizado 2026-11-23)
+
+### Status Atual: verificado no navegador (Chromium headless) e no corpus 12.1.2510
+
+Fonte da lista: `https://po-ui.io/llms.txt` (PO-UI 21.23). Verificação ao vivo:
+`tests/poui/ao-vivo.sh catalogo` monta as 80 classes `Po*` num projeto
+(`advplc serve <dir> --main U_Catalogo`, com o REST de armazéns da onda 1) e
+exige, para cada uma, o componente PO-UI real com conteúdo, mais clique,
+digitação (PoInput e PoDynamicForm) voltando ao AdvPL, dados do REST na
+tabela dinâmica e console sem erro. Os outros cenários (`fixture-app`,
+`servicos-3c` e o padrão) também passam.
+
+**Componentes (`ng-components`)**
+
+| PO-UI | Classe AdvPP |
+|---|---|
+| po-accordion / po-accordion-item | `PoAccordion` / `PoAccordionItem` |
+| po-avatar, po-badge, po-image, po-skeleton, po-helper | `PoAvatar`, `PoBadge`, `PoImage`, `PoSkeleton`, `PoHelper` |
+| po-breadcrumb, po-link, po-context-tabs | `PoBreadcrumb`, `PoLink`, `PoContextTabs` |
+| po-button, po-button-group, po-dropdown, po-popup, po-popover, po-context-menu, po-toolbar | `PoButton`, `PoButtonGroup`, `PoDropdown`, `PoPopup`, `PoPopover`, `PoContextMenu`, `PoToolbar` |
+| po-calendar, po-chart, po-gauge | `PoCalendar`, `PoChart`, `PoGauge` (obsoleto no PO-UI; mantido, sem evolução) |
+| po-checkbox, po-checkbox-group, po-radio-group, po-switch, po-select, po-combo, po-multiselect, po-lookup | `PoCheckbox`, `PoCheckboxGroup`, `PoRadioGroup`, `PoSwitch`, `PoSelect`, `PoCombo`, `PoMultiselect`, `PoLookup` |
+| po-input, po-login, po-password, po-number, po-decimal, po-email, po-url, po-textarea, po-rich-text, po-search | `PoInput`, `PoLogin`, `PoPassword`, `PoNumber`, `PoDecimal`, `PoEmail`, `PoUrl`, `PoTextarea`, `PoRichText`, `PoSearch` |
+| po-datepicker, po-datepicker-range, po-datetimepicker, po-timepicker | `PoDatepicker`, `PoDatepickerRange`, `PoDatetimepicker`, `PoTimepicker` |
+| po-container, po-widget, po-divider, po-tabs/po-tab, po-stepper/po-step, po-slide | `PoContainer`, `PoWidget`, `PoDivider`, `PoTabs`/`PoTab`, `PoStepper`/`PoStep`, `PoSlide` |
+| po-dynamic-form, po-dynamic-view, po-disclaimer-group, po-filter-chip | `PoDynamicForm`, `PoDynamicView`, `PoDisclaimerGroup`, `PoFilterChip` |
+| po-info, po-progress, po-tag, po-table, po-tree-view, po-list-view | `PoInfo`, `PoProgress`, `PoTag`, `PoTable`, `PoTree`, `PoList` |
+| po-menu, po-menu-panel, po-navbar, po-header | `PoMenu`, `PoMenuPanel`, `PoNavbar`, `PoHeader` |
+| po-modal (+ po-modal-footer) | `PoModal` (rodapé = `SetPrimaryAction`/`SetSecondaryAction`) |
+| po-page-default, po-page-list, po-page-edit, po-page-detail, po-page-slide (+ footer) | `PoPage`, `PoPageList`, `PoPageEdit`, `PoPageDetail`, `PoPageSlide` |
+| po-upload | `PoUpload` |
+| po-loading-overlay, po-toaster | `PoApp:Loading`, `PoApp:Notify` |
+| po-code-editor | fora de escopo — `AdvCodeEditor` (CodeMirror) já cobre; decisão 3c.4 |
+| po-grid | fora de escopo — marcado "em desenvolvimento" pelo próprio PO-UI |
+| po-search-ai | fora de escopo — exige decisão de produto/infra de IA (3c.4) |
+| bases (`Po*BaseComponent`) | não se aplica — classes abstratas do PO-UI |
+
+**Templates (`ng-templates`, componentes oficiais desde 2026-11-23)**
+
+| PO-UI | Classe AdvPP |
+|---|---|
+| po-page-dynamic-table / -edit / -detail / -search | `PoPageDynamicTable` / `Edit` / `Detail` / `Search` (`SetId` em Detail/Edit) |
+| po-page-login, po-page-change-password, po-page-blocked-user, po-page-job-scheduler | `PoPageLogin`, `PoPageChangePassword`, `PoPageBlockedUser`, `PoPageJobScheduler` |
+| po-modal-password-recovery | `PoModalPasswordRecovery` |
+
+**Serviços e diretivas**
+
+| PO-UI | AdvPP |
+|---|---|
+| PoDialogService, PoNotificationService | `MsgInfo`/`MsgYesNo`/`PoApp:Confirm`, `PoApp:Notify` |
+| PoThemeService, PoI18nService, PoMediaQueryService, PoNetworkService, PoStorageService, PoUserGuideService | `PoApp:SetTheme`, `SetLanguage`, `OnMediaChange`, `OnNetworkChange`, `StorageSet/Get/Remove`, `StartGuide` |
+| p-tooltip, p-drag / p-drop-list | `SetTooltip`, `SetDraggable` / `OnDrop` |
+| PoSyncService | fora de escopo — sincronização offline exige backend próprio (3c.4) |
+| PoCodeEditorRegister | fora de escopo — acompanha o po-code-editor |
+| PoHttpInterceptorService / PoHttpRequestInterceptorService | fora de escopo como API AdvPL: são infraestrutura do app Angular; o AdvPP já usa um interceptador próprio para os hooks dos templates |
+| diretivas de template (`p-table-cell-template`, `p-list-view-content-template`, `p-combo-option-template` etc.) | fora de escopo — conteúdo Angular projetado; a tela é declarada em AdvPL, não em HTML |
+
+**Padrão TOTVS (apps PO-UI do Protheus)**
+- `FwCallApp` + `JsToAdvpl`/`AdvPLToJS` com `@totvs/protheus-lib-core` real
+  (`ao-vivo.sh fixture-app`); `--poui-app` para apps externos.
+- `advplc serve <diretório> --main <Função>`: o programa (tela) e os fontes
+  REST em arquivos separados, como num RPO.
+- REST: `WSRESTFUL`, `@Get`+`oRest` (`getPathParamsRequest`/`getQueryRequest`/
+  `getHeaderRequest` com as chaves originais), `FWAdapterBaseV2`,
+  `FwApiManager`, `TamSx3` devolvendo `{nTamanho, nDecimais, cTipo}`.
+- JSON literal do TLPP (`{"chave": v}`) mantém a caixa da chave na resposta
+  (antes saía em MAIÚSCULAS, que o PO-UI não lê).
+
 ## Componentes PO-UI orientados a eventos — fase 1 (atualizado 2026-11-20)
 
 ### Status Atual: Funcional e testado ponta a ponta (HTTP real + captura no Chromium)
@@ -56,11 +124,18 @@
   cTitulo[, cUrl])` — url relativa ganha `RestPrefix`; CRUD direto no
   navegador contra o REST da onda 1 (`GET {items,hasNext}`, POST/PUT/
   DELETE `<url>/<id>`). `aFields={{cProp,cLabel,cTipo,lKey,lFilter,lVisible}}`
-  → `{property,label,type,key,filter,visible}` do `po-dynamic-form`/
-  `po-table` (frontend `dyn*` em `ui-host.ts`). `OnBeforeSave`/
-  `OnBeforeRemove`: round-trip síncrono browser→AdvPL via op
-  `beforeResult` {reqId,ok} com timeout de 30 s = recusa. Fixture:
-  `tests/poui/3a_crud.prw` (compila; serve verificado com REST real).
+  → `{property,label,type,key,filter,visible}` dos templates oficiais
+  `po-page-dynamic-*` (`@po-ui/ng-templates`, desde 2026-11-23; antes eram
+  imitações com `po-table`/`po-dynamic-form`). `OnBeforeSave`/
+  `OnBeforeRemove`: ação "before" como URL reservada
+  (`/__advpp/antes/<nó>/<evento>`), respondida no navegador por um
+  interceptador com o round-trip ao AdvPL (op `beforeResult` {reqId,ok};
+  timeout de 30 s = recusa). `SetId(cId)` (Detail/Edit): registro a
+  carregar, entregue ao template como parâmetro de rota (`adv-rota`).
+  Ações da tabela: `new`/`detail`/`edit`/`duplicate` →
+  `OnCustomAction(oSelf, cAcao, oLinha)`; chaves desconhecidas viram
+  ações de linha; `remove`/`removeAll` ficam com o PO-UI. Fixture:
+  `tests/poui/3a_crud.prw`; verificação ao vivo no `catalogo`.
 - ✅ **Onda 3b.1 — agrupamento**: `PoAccordion`/`PoAccordionItem`
   (`SetShowManager`, `Expand`/`Collapse`, `OnExpand`/`OnCollapse`),
   `PoModal` (`Open`/`Close`/`SetPrimaryAction`/`SetSecondaryAction`/
