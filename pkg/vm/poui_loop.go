@@ -224,6 +224,10 @@ func poValorDoBrowser(typ string, val []byte) advplrt.Value {
 		return advplrt.NewNumber(f)
 	case "checkbox", "switch":
 		return advplrt.NewBool(txt == "true")
+	case "datepicker":
+		return poDataDeValor(advplrt.NewString(txt))
+	case "daterange":
+		return poRangeDoBrowser(val)
 	case "multiselect", "checkboxgroup", "lookup":
 		var xs []any
 		if json.Unmarshal(val, &xs) != nil {

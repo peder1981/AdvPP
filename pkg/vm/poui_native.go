@@ -45,6 +45,11 @@ var poClasses = map[string]struct{ class, typ string }{
 	"PORADIOGROUP":    {"PoRadioGroup", "radiogroup"},
 	"POCHECKBOXGROUP": {"PoCheckboxGroup", "checkboxgroup"},
 	"POLOOKUP":        {"PoLookup", "lookup"},
+	// onda 3a.2: data e hora
+	"PODATEPICKER":      {"PoDatepicker", "datepicker"},
+	"PODATEPICKERRANGE": {"PoDatepickerRange", "daterange"},
+	"PODATETIMEPICKER":  {"PoDatetimepicker", "datetimepicker"},
+	"POTIMEPICKER":      {"PoTimepicker", "timepicker"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -337,6 +342,25 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c.props["fieldLabel"] = advplrt.ToString(getArg(args, 4))
 			c.props["columns"] = []map[string]any{}
 			c.props["value"] = ""
+		case "datepicker":
+			// New(oPai, cLabel, dValor) — data AdvPL na fronteira vira ISO.
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = poDataISO(getArg(args, 2))
+		case "daterange":
+			// New(oPai, cLabel, dIni, dFim)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = map[string]any{
+				"start": poDataISO(getArg(args, 2)),
+				"end":   poDataISO(getArg(args, 3)),
+			}
+		case "datetimepicker":
+			// New(oPai, cLabel, cIsoDataHora)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = argTexto(args, 2, "")
+		case "timepicker":
+			// New(oPai, cLabel, cHora) — "HH:MM[:SS]"
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = argTexto(args, 2, "")
 		case "terminal":
 			if !ptyDisponivel {
 				return fmt.Errorf("AdvTerminal: terminal indisponível no Windows nesta versão")
@@ -449,12 +473,19 @@ func argTexto(args []advplrt.Value, i int, def string) string {
 func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) error {
 	a := c.app
 	var ret advplrt.Value = advplrt.Nil
-	// Onda 3a: métodos dos componentes de seleção/campos.
-	if ok, err := v.po3aMethod(c, method, args); ok || err != nil {
+	// Onda 3a: métodos dos componentes de seleção/campos e data/hora.
+	if ok, r, err := v.po3aMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}
-		v.push(ret)
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3aDateMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
 		return nil
 	}
 	switch method {

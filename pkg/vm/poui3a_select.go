@@ -87,7 +87,7 @@ func poFilterParams(x advplrt.Value) any {
 
 // po3aMethod despacha os métodos específicos dos componentes de seleção
 // da onda 3a.1. Devolve true quando o método foi tratado.
-func (v *VM) po3aMethod(c *poComp, method string, args []advplrt.Value) (bool, error) {
+func (v *VM) po3aMethod(c *poComp, method string, args []advplrt.Value) (bool, advplrt.Value, error) {
 	a := c.app
 	switch method {
 	case "SETOPTIONS":
@@ -95,13 +95,13 @@ func (v *VM) po3aMethod(c *poComp, method string, args []advplrt.Value) (bool, e
 		case "combo", "multiselect", "radiogroup", "checkboxgroup":
 			a.setProp(c, "options", poOpcoesValorLabel(getArg(args, 0)))
 		default:
-			return false, nil
+			return false, advplrt.Nil, nil
 		}
 	case "SETFILTERSERVICE":
 		// PoCombo/PoMultiselect:SetFilterService(cUrl[, cCampoLabel, cCampoValor])
 		// — PoLookup recebe a URL no construtor, mas aceita o mesmo ajuste.
 		if c.typ != "combo" && c.typ != "multiselect" && c.typ != "lookup" {
-			return false, nil
+			return false, advplrt.Nil, nil
 		}
 		a.setProp(c, "filterUrl", poFilterURL(getArg(args, 0)))
 		if s := advplrt.ToString(getArg(args, 1)); s != "" {
@@ -114,7 +114,7 @@ func (v *VM) po3aMethod(c *poComp, method string, args []advplrt.Value) (bool, e
 		// PoLookup:SetFilterParams(o) — o PoLookupFilter do PO-UI só aceita
 		// objeto plano; {{cProp, xVal}} vira mapa {prop: valor}.
 		if c.typ != "lookup" {
-			return false, nil
+			return false, advplrt.Nil, nil
 		}
 		a.setProp(c, "filterParams", poFilterParams(getArg(args, 0)))
 	case "SETCOLUMNS":
@@ -123,7 +123,7 @@ func (v *VM) po3aMethod(c *poComp, method string, args []advplrt.Value) (bool, e
 			// SetColumns(n): quantidade de colunas do grupo.
 			n := int(advplrt.ToFloat(getArg(args, 0)))
 			if n < 1 {
-				return true, nil
+				return true, advplrt.Nil, nil
 			}
 			a.setProp(c, "columns", n)
 		case "lookup":
@@ -134,7 +134,7 @@ func (v *VM) po3aMethod(c *poComp, method string, args []advplrt.Value) (bool, e
 				for _, el := range arr.Elements {
 					col, ok := advplrt.Deref(el).(*advplrt.ArrayValue)
 					if !ok || len(col.Elements) < 2 {
-						return true, fmt.Errorf("SetColumns: cada coluna é {cProp, cRotulo[, cTipo]}")
+						return true, advplrt.Nil, fmt.Errorf("SetColumns: cada coluna é {cProp, cRotulo[, cTipo]}")
 					}
 					cols = append(cols, map[string]any{
 						"property": advplrt.ToString(col.Elements[0]),
@@ -145,16 +145,16 @@ func (v *VM) po3aMethod(c *poComp, method string, args []advplrt.Value) (bool, e
 			}
 			a.setProp(c, "columns", cols)
 		default:
-			return false, nil
+			return false, advplrt.Nil, nil
 		}
 	case "ONSELECTED":
 		// PoLookup:OnSelected(oLinha) — a linha vem do REST, não de c.rows.
 		if c.typ != "lookup" {
-			return false, nil
+			return false, advplrt.Nil, nil
 		}
 		c.handlers["selected"] = getArg(args, 0)
 	default:
-		return false, nil
+		return false, advplrt.Nil, nil
 	}
-	return true, nil
+	return true, advplrt.Nil, nil
 }

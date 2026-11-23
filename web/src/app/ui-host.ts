@@ -176,6 +176,36 @@ export function descarregaPendentes() {
                      [ngModel]="node.props['value']" (p-change)="onImediato($event)"
                      (p-selected)="onLookupSelected($event)"></po-lookup>
         }
+        @case ('datepicker') {
+          <po-datepicker [p-label]="node.props['label']" [p-format]="node.props['format']"
+                         [p-min-date]="isoDate(node.props['minDate'])" [p-max-date]="isoDate(node.props['maxDate'])"
+                         [p-required]="node.props['required'] ? 'true' : 'false'" [p-disabled]="node.props['disabled'] ? 'true' : 'false'"
+                         [p-readonly]="node.props['readonly'] ? 'true' : 'false'" [p-clean]="node.props['clean'] === false ? 'false' : 'true'"
+                         [ngModel]="isoDate(node.props['value'])" (p-change)="onImediato($event)"></po-datepicker>
+        }
+        @case ('daterange') {
+          <po-datepicker-range [p-label]="node.props['label']"
+                               [p-min-date]="isoDate(node.props['minDate'])" [p-max-date]="isoDate(node.props['maxDate'])"
+                               [p-required]="!!node.props['required']" [p-disabled]="!!node.props['disabled']"
+                               [p-readonly]="!!node.props['readonly']" [p-clean]="node.props['clean'] !== false"
+                               [ngModel]="node.props['value']" (p-change)="onImediato($event)"></po-datepicker-range>
+        }
+        @case ('datetimepicker') {
+          <po-datetimepicker [p-label]="node.props['label']"
+                             [p-min-date]="isoDate(node.props['minDate'])" [p-max-date]="isoDate(node.props['maxDate'])"
+                             [p-min-time]="node.props['minTime']" [p-max-time]="node.props['maxTime']"
+                             [p-format-date]="node.props['formatDate']" [p-format-time]="node.props['formatTime']"
+                             [p-required]="!!node.props['required']" [p-disabled]="!!node.props['disabled']"
+                             [p-readonly]="!!node.props['readonly']" [p-clean]="node.props['clean'] === false ? 'false' : 'true'"
+                             [ngModel]="isoDateTime(node.props['value'])" (p-change)="onImediato($event)"></po-datetimepicker>
+        }
+        @case ('timepicker') {
+          <po-timepicker [p-label]="node.props['label']" [p-format]="node.props['format']"
+                         [p-min-time]="node.props['minTime']" [p-max-time]="node.props['maxTime']"
+                         [p-required]="node.props['required'] ? 'true' : 'false'" [p-disabled]="node.props['disabled'] ? 'true' : 'false'"
+                         [p-readonly]="node.props['readonly'] ? 'true' : 'false'" [p-clean]="node.props['clean'] === false ? 'false' : 'true'"
+                         [ngModel]="node.props['value']" (p-change)="onImediato($event)"></po-timepicker>
+        }
         @case ('table') {
           <po-table [p-columns]="node.props['columns']" [p-items]="node.props['items']"
                     [p-selectable]="true" [p-single-select]="true" [p-striped]="true"
@@ -304,6 +334,23 @@ export class UiHostComponent {
 
   protected onTree(item: PoTreeViewItem) {
     this.post(this.node.id, 'select', item.value);
+  }
+
+  // "AAAA-MM-DD" -> Date local (meia-noite); vazio/inválido -> null.
+  // Retorna any: p-min-date/p-max-date do PO-UI são string|Date e null
+  // não é atribuível — o componente trata null como "sem limite".
+  protected isoDate(s: unknown): any {
+    if (typeof s !== 'string' || s.length < 10) return null;
+    const [y, m, d] = s.slice(0, 10).split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d);
+  }
+
+  // ISO 8601 -> Date; vazio/inválido -> null (mesmo motivo do isoDate).
+  protected isoDateTime(s: unknown): any {
+    if (typeof s !== 'string' || !s) return null;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
   }
 
   // PoLookup:p-selected devolve a linha inteira vinda do REST — vai como

@@ -28,6 +28,13 @@
   `SetFilterService`, `SetFilterParams` (pares → objeto plano), `SetColumns`
   (número nos grupos; `{cProp, cRotulo[, cTipo]}` no lookup). Eventos: `OnChange`
   (valor; array em multiselect/checkboxgroup) e `OnSelected(oLinha)` no lookup.
+- ✅ **Onda 3a.2 — data/hora**: `PoDatepicker`/`PoDatepickerRange`/
+  `PoDatetimepicker`/`PoTimepicker` (`pkg/vm/poui3a_datetime.go`). Fronteira:
+  `DateValue` sai como `AAAA-MM-DD` (vazio = `""`); evento ISO volta para
+  `DateValue`; range usa `{start,end}` ISO; datetime preserva ISO 8601; hora
+  `HH:MM[:SS]`. Métodos: `SetValue`/`GetValue`/`SetMinDate`/`SetMaxDate`/
+  `SetFormat`/`SetMinTime`/`SetMaxTime`/`SetFormatDate`/`SetFormatTime`.
+  Eventos: `OnChange`.
 
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 
