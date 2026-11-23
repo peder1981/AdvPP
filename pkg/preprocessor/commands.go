@@ -263,6 +263,15 @@ func isTwoCharOp(s string) bool {
 type matchResult struct {
 	vars  map[string]string
 	flags map[string]bool
+	// iterVars/repeatOpt implementam a semântica TOTVS de grupo
+	// opcional repetido: um "[...]" no padrão casa quantas vezes
+	// couber (ex.: #xcommand DEFAULT do AVERAGE.CH — `[, <uVarN> :=
+	// <uValN>]` repete para cada variável extra) e o "[...]"
+	// correspondente no resultado expande uma vez por iteração.
+	// repeatOpt é o ordinal do grupo opcional no padrão; -1 se nenhum
+	// repetiu.
+	iterVars  []map[string]string
+	repeatOpt int
 }
 
 // matchPattern tenta casar `pattern` inteiro contra os tokens de origem,
@@ -274,7 +283,7 @@ type matchResult struct {
 // parar em "VTGET", que só o chamador conhece). Retorna o número de tokens
 // consumidos e as capturas, ou ok=false se não bateu.
 func matchPattern(pattern []patToken, srcTokens []string, outerStops []string) (int, matchResult, bool) {
-	res := matchResult{vars: map[string]string{}, flags: map[string]bool{}}
+	res := matchResult{vars: map[string]string{}, flags: map[string]bool{}, repeatOpt: -1}
 	pos := 0
 	for pi := 0; pi < len(pattern); pi++ {
 		pt := pattern[pi]
@@ -302,10 +311,19 @@ func matchPattern(pattern []patToken, srcTokens []string, outerStops []string) (
 				runStops = append(runStops, outerStops...)
 			}
 			used := make([]bool, len(run))
+			iters := make([][]map[string]string, len(run))
+			// ordinal global do primeiro grupo opcional da corrida (para
+			// casar posicionalmente com o "[...]" do resultado).
+			optBase := 0
+			for _, pt := range pattern[:pi] {
+				if pt.kind == patOptional {
+					optBase++
+				}
+			}
 			for progress := true; progress; {
 				progress = false
 				for gi := range run {
-					if used[gi] {
+					if used[gi] && len(run[gi].flagLits) > 0 && len(run[gi].sub) == 1 {
 						continue
 					}
 					g := run[gi]
@@ -332,6 +350,7 @@ func matchPattern(pattern []patToken, srcTokens []string, outerStops []string) (
 					}
 					pos += consumed
 					used[gi] = true
+					iters[gi] = append(iters[gi], subRes.vars)
 					progress = true
 					for k, v := range subRes.vars {
 						res.vars[k] = v
@@ -339,6 +358,17 @@ func matchPattern(pattern []patToken, srcTokens []string, outerStops []string) (
 					for k, v := range subRes.flags {
 						res.flags[k] = v
 					}
+				}
+			}
+			// Grupo genérico que casou mais de uma vez é o "[...]"
+			// repetido do padrão (ex.: DEFAULT multi-var do AVERAGE.CH).
+			// O primeiro da corrida vence; capturas por iteração alimentam
+			// a expansão repetida do "[...]" correspondente no resultado.
+			for gi := range run {
+				if len(iters[gi]) > 1 {
+					res.repeatOpt = optBase + gi
+					res.iterVars = iters[gi]
+					break
 				}
 			}
 			// flags de grupos que não apareceram ficam explicitamente .F.
@@ -370,11 +400,26 @@ func matchPattern(pattern []patToken, srcTokens []string, outerStops []string) (
 				stops = outerStops
 			}
 			start := pos
+			depth := 0
 			for pos < len(srcTokens) {
-				if srcTokens[pos] == ";" {
+				t := srcTokens[pos]
+				if t == ";" && depth == 0 {
 					break
 				}
-				if matchesAnyFold(srcTokens[pos], stops) {
+				// Profundidade de {}, () e []: um literal de parada dentro
+				// de literal agregado NÃO encerra o marcador — ex.:
+				// `Default aTamFont := {5, 12}` (AVERAGE.CH via avgeral.prw
+				// 2510), onde a vírgula do array não é o separador do
+				// grupo opcional seguinte.
+				switch t {
+				case "{", "(", "[":
+					depth++
+				case "}", ")", "]":
+					if depth > 0 {
+						depth--
+					}
+				}
+				if depth == 0 && matchesAnyFold(t, stops) {
 					break
 				}
 				pos++
@@ -471,14 +516,17 @@ func matchesAnyFold(tok string, lits []string) bool {
 // marcador dentro capturou algo — sem os colchetes) e os colchetes
 // escapados (\[ \]) no molde de resultado.
 func expandResult(result string, m matchResult) string {
-	out, _, _ := expandResultSeg(result, m)
+	optCount := 0
+	out, _, _ := expandResultSeg(result, m, &optCount)
 	return out
 }
 
 // expandResultSeg faz a expansão de um trecho do molde e reporta se o trecho
 // continha marcadores e se algum deles capturou valor não-vazio — é o que
 // decide se um grupo opcional `[...]` do resultado aparece na saída.
-func expandResultSeg(result string, m matchResult) (string, bool, bool) {
+// optCount conta os "[...]" já vistos (DFS) para casar o grupo repetido
+// do padrão (m.repeatOpt) com o "[...]" correspondente do resultado.
+func expandResultSeg(result string, m matchResult, optCount *int) (string, bool, bool) {
 	var out strings.Builder
 	hasMarker := false
 	anyCaptured := false
@@ -532,7 +580,33 @@ func expandResultSeg(result string, m matchResult) (string, bool, bool) {
 			}
 			innerSeg := result[i+1 : j-1]
 			i = j
-			seg, segHas, segCap := expandResultSeg(innerSeg, m)
+			myOpt := *optCount
+			*optCount++
+			// Grupo opcional que repetiu no padrão: expande o miolo
+			// uma vez por iteração capturada (semântica TOTVS).
+			if myOpt == m.repeatOpt && len(m.iterVars) > 0 {
+				var rep strings.Builder
+				for _, iter := range m.iterVars {
+					merged := matchResult{vars: map[string]string{}, flags: m.flags, repeatOpt: -1}
+					for k, v := range m.vars {
+						merged.vars[k] = v
+					}
+					for k, v := range iter {
+						merged.vars[k] = v
+					}
+					seg, segHas, segCap := expandResultSeg(innerSeg, merged, optCount)
+					if segHas {
+						hasMarker = true
+					}
+					if segCap {
+						anyCaptured = true
+					}
+					rep.WriteString(seg)
+				}
+				out.WriteString(rep.String())
+				continue
+			}
+			seg, segHas, segCap := expandResultSeg(innerSeg, m, optCount)
 			if !segHas || segCap {
 				out.WriteString(seg)
 			}

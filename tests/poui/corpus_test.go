@@ -57,7 +57,15 @@ func compilaFonte(path string) error {
 func fontesCom(root, needle string) []string {
 	var out []string
 	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+		if err != nil {
+			return nil
+		}
+		// Diretórios ocultos (.vscode/.advpl etc.) não são fontes do
+		// corpus — são artefatos de IDE com sintaxe própria.
+		if info.IsDir() && strings.HasPrefix(info.Name(), ".") && info.Name() != "." {
+			return filepath.SkipDir
+		}
+		if info.IsDir() {
 			return nil
 		}
 		switch strings.ToLower(filepath.Ext(path)) {

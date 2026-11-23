@@ -1572,7 +1572,10 @@ func (p *Parser) parseOneDefault(tok lexer.Token) (*ast.DefaultExpr, error) {
 		}
 		name = "::" + propTok.Value
 	} else {
-		nameTok, err := p.expect(lexer.TOKEN_IDENT)
+		// expectName (IDENT ou KEYWORD): em AdvPL `.prw` nomes de variável
+		// podem colidir com palavras-chave TLPP — `Default json := ...`
+		// aparece no corpus 12.1.2510 (`Local json as OBJECT`).
+		nameTok, err := p.expectName()
 		if err != nil {
 			return nil, err
 		}
@@ -1591,6 +1594,17 @@ func (p *Parser) parseOneDefault(tok lexer.Token) (*ast.DefaultExpr, error) {
 				return nil, err
 			}
 			name = name + "->" + fieldTok.Value
+		}
+		// `Default oWS:Page := 1` — alvo propriedade de objeto (oWS é o
+		// self da WSMETHOD no DSL WS). Mesmo tratamento no-op dos alvos
+		// não endereçáveis acima.
+		if p.peek().Type == lexer.TOKEN_COLON {
+			p.advance()
+			propTok, err := p.expectName()
+			if err != nil {
+				return nil, err
+			}
+			name = name + ":" + propTok.Value
 		}
 		// `Default aArr[1] := val` / `Default oObj["key"] := val` — alvo pode
 		// ser um elemento indexado, não só a variável inteira. Mesmo
@@ -3015,6 +3029,29 @@ func (p *Parser) parseAtCommand() (ast.Statement, error) {
 	return &ast.ExprStmt{Loc: p.posFromToken(tok), Expr: call}, nil
 }
 
+// isGuiFlagKeyword reconhece as flags de GUI que o corpus 12.1.2510 cola
+// como argumento extra ou penduradas após ')' em chamadas de classe
+// (TSay/TGet/TGroup :New etc.): `..., 20 MEMO, ...` e `...)HSCROLL`.
+// Conjunto restrito de propósito — palavras que também são sintaxe real
+// (TO, ON, OF, FROM, VAR, VALUE, SIZE, WHEN, VALID, ACTION...) ficam de
+// fora para não quebrar FOR..TO, cláusulas @ e afins.
+func (p *Parser) isGuiFlagKeyword(tok lexer.Token) bool {
+	for _, kw := range []string{
+		"MEMO", "PIXEL", "HSCROLL", "VSCROLL", "CLICKFOCUS", "RESET",
+		"MULTILINE", "NOSCROLL", "NOBORDER", "PASSWORD", "LOWERED",
+		"READONLY", "VERTICAL", "HORIZONTAL", "HASBUTTON", "FIELDSIZES",
+		"COLSIZES", "BARCOLOR", "SIZES", "RESOLUTION", "MAXLENGTH",
+		"MASK", "PICTURE", "PICT", "PROMPT", "RESOURCE", "RESNAME",
+		"FILENAME", "FILE", "DISK", "HTML", "ADJUST", "SYMBOL",
+		"RIGHT", "CENTERED", "RAISED", "TOTAL",
+	} {
+		if p.isWord(tok, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *Parser) isAtClauseWord(tok lexer.Token) bool {
 	for _, kw := range []string{
 		"SIZE", "PICTURE", "PICT", "VALID", "WHEN", "COLOR", "COLORS", "FONT", "PIXEL",
@@ -3697,6 +3734,22 @@ func (p *Parser) parsePostfix() (ast.Expression, error) {
 			} else {
 				goto done
 			}
+		case lexer.TOKEN_KEYWORD:
+			// `TGet():New(...)HSCROLL` — flag de GUI colada logo após o
+			// ')' da chamada, sem espaço nem vírgula (mesmo idioma dos
+			// argumentos-flag acima). Só faz sentido pendurado numa
+			// chamada e na mesma linha — `FOR i := f() TO n` continua
+			// intacto porque TO não está no conjunto de flags.
+			if p.pos == 0 || p.tokens[p.pos-1].Line != tok.Line ||
+				!p.isGuiFlagKeyword(tok) {
+				goto done
+			}
+			switch expr.(type) {
+			case *ast.CallExpr, *ast.MethodCall:
+				p.advance()
+			default:
+				goto done
+			}
 		case lexer.TOKEN_INCREMENT, lexer.TOKEN_DECREMENT:
 			// `nParam++` used inline as a call argument, not just as its own
 			// statement. Desugars to `(expr := expr +/- 1)` — evaluates to
@@ -3764,9 +3817,22 @@ func (p *Parser) parseAssignableExpr() (ast.Expression, error) {
 	return expr, nil
 }
 
+// skipStraySemicolons consome `;` espúrios dentro de listas de argumentos:
+// o compilador real tolera `f(a ; , b)` / `f(a ;)` (o `;` vira separador
+// inócuo antes do delimitador real), idiom encontrado no corpus 12.1.2510
+// (ex.: avgeral.prw `If(AT("_", cAlias) ; ,cCampo)`). Só pula o `;` quando
+// o token seguinte é `,` ou `)` — `f(a ; b)` continua sendo erro.
+func (p *Parser) skipStraySemicolons() {
+	for p.peek().Type == lexer.TOKEN_SEMICOLON &&
+		(p.peekAt(1).Type == lexer.TOKEN_COMMA || p.peekAt(1).Type == lexer.TOKEN_RPAREN) {
+		p.advance()
+	}
+}
+
 func (p *Parser) parseArguments() ([]ast.Expression, error) {
 	args := make([]ast.Expression, 0)
 	for p.peek().Type != lexer.TOKEN_RPAREN && p.peek().Type != lexer.TOKEN_EOF {
+		p.skipStraySemicolons()
 		// `@nome` = passagem por referência. Outras formas com @ (ex.: @aArr[1])
 		// seguem por valor, como antes.
 		isRef := false
@@ -3808,9 +3874,18 @@ func (p *Parser) parseArguments() ([]ast.Expression, error) {
 		}
 		// Depois de cada argumento: "," ou ")" — argumentos colados ou um
 		// parêntese que nunca fecha são erro, como no Protheus.
+		p.skipStraySemicolons()
 		if p.peek().Type == lexer.TOKEN_COMMA {
 			p.advance()
 		} else if p.peek().Type != lexer.TOKEN_RPAREN {
+			// `TGet():New(..., 20 MEMO, ...)` / `bSETGET(cFiliais MEMO
+			// HSCROLL)` — flags de GUI coladas como argumentos extras SEM
+			// vírgula (idioma das classes TSay/TGet/TGroup e blocks
+			// bSETGET do corpus 12.1.2510). Cada flag vira um argumento.
+			if (p.peek().Type == lexer.TOKEN_KEYWORD || p.peek().Type == lexer.TOKEN_IDENT) &&
+				p.isGuiFlagKeyword(p.peek()) {
+				continue
+			}
 			if _, err := p.expect(lexer.TOKEN_RPAREN); err != nil {
 				return nil, err
 			}

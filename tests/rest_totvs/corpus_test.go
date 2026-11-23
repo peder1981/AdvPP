@@ -65,7 +65,15 @@ func fontesCorpus(t *testing.T, root, needle string) []string {
 	t.Helper()
 	var out []string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+		if err != nil {
+			return nil
+		}
+		// Diretórios ocultos (.vscode/.advpl etc.) não são fontes do
+		// corpus — são artefatos de IDE.
+		if info.IsDir() && strings.HasPrefix(info.Name(), ".") && info.Name() != "." {
+			return filepath.SkipDir
+		}
+		if info.IsDir() {
 			return nil
 		}
 		switch strings.ToLower(filepath.Ext(path)) {
