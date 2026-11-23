@@ -26,6 +26,11 @@ if [ "$CENARIO" = "fixture-app" ]; then
 elif [ "$CENARIO" = "servicos-3c" ]; then
   FONTE="tests/poui/3c_servicos.prw"
   PORTA=8097
+fi
+
+# fixture-app e servicos-3c usam a mesma preparação: apps PO-UI de teste e
+# SQLite com a fixture NNR/SX3 da onda 1 (25 armazéns).
+if [ "$CENARIO" = "fixture-app" ] || [ "$CENARIO" = "servicos-3c" ]; then
   mkdir -p "$D/home/.advpp"
   cat > "$D/home/.advpp/advpp_config.json" <<EOF
 {"poui_apps_dirs": ["$PWD/tests/poui/apps"]}
