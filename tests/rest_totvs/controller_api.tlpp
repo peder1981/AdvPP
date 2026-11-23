@@ -1,0 +1,34 @@
+// Fixture de controlador REST TLPP no padrão do corpus Protheus 12.1.2510:
+// `class X` com @GET/@Post em `public method` + implementações `Method ...
+// Class X`. Cobre path param (:datebase), oRest, construtor `new` e Data.
+namespace tr.teste
+
+class moedasController
+
+	Data pronto
+
+	public method New()
+
+	@GET('/api/v1/moedas/:datebase')
+	public method listar()
+
+	@Post('/api/v1/moedas')
+	public method criar()
+
+endclass
+
+Method new() class moedasController
+	::pronto := .T.
+	Return
+
+Method listar() Class moedasController
+	Local oP := oRest:getPathParamsRequest()
+	Local oOut := JsonObject():New()
+	oOut["datebase"] := oP:DATEBASE
+	oOut["pronto"] := ::pronto
+	oRest:setResponse(oOut)
+	Return
+
+Method criar() Class moedasController
+	oRest:setResponse(oRest:getBodyRequest())
+	Return

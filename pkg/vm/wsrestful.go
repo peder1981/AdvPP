@@ -420,12 +420,17 @@ func wsRestErrorResponse(status int, msg string) *rest.Response {
 // curso na VM-filha — e falham fora de um dispatch REST.
 func (v *VM) registerWSRestfulNatives(natives map[string]func(args []advplrt.Value) (advplrt.Value, error)) {
 	natives["SETRESTFAULT"] = func(args []advplrt.Value) (advplrt.Value, error) {
-		req := v.wsRestReq
-		if req == nil {
-			return advplrt.Nil, fmt.Errorf("SetRestFault fora de requisição WSRESTFUL")
+		// Dois consumidores: WSRESTFUL clássico usa como statement (grava o
+		// fault na resposta); serviços TLPP fazem `j := SetRestFault(c,m)`
+		// e esperam o objeto de erro de volta. Faz os dois: grava o fault
+		// quando há wsRestReq e SEMPRE devolve o JSON {code,error}.
+		if req := v.wsRestReq; req != nil {
+			req.setFault(int(advplrt.ToFloat(getArg(args, 0))), advplrt.ToString(getArg(args, 1)))
 		}
-		req.setFault(int(advplrt.ToFloat(getArg(args, 0))), advplrt.ToString(getArg(args, 1)))
-		return advplrt.Nil, nil
+		j := advplrt.NewObject("json", nil)
+		j.SetProp("code", getArg(args, 0))
+		j.SetProp("error", advplrt.NewString(advplrt.ToString(getArg(args, 1))))
+		return j, nil
 	}
 	natives["HTTPSETSTATUS"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		req := v.wsRestReq
@@ -436,10 +441,15 @@ func (v *VM) registerWSRestfulNatives(natives map[string]func(args []advplrt.Val
 		return advplrt.Nil, nil
 	}
 	natives["GETCONTENT"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		// Serve WSRESTFUL (wsRestReq.http) e controladores/funções anotadas
+		// (restReq) — ambos apontam para o mesmo *rest.Request.
 		req := v.wsRestReq
-		if req == nil {
-			return advplrt.Nil, fmt.Errorf("GetContent fora de requisição WSRESTFUL")
+		if req != nil {
+			return advplrt.NewString(string(req.http.Body)), nil
 		}
-		return advplrt.NewString(string(req.http.Body)), nil
+		if v.restReq != nil {
+			return advplrt.NewString(string(v.restReq.Body)), nil
+		}
+		return advplrt.Nil, fmt.Errorf("GetContent fora de requisição WSRESTFUL")
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/advpl/compiler/pkg/compiler"
 	"github.com/advpl/compiler/pkg/rest"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
@@ -67,6 +68,69 @@ func (v *VM) orestRawHandlerFor(funcName string) func(*rest.Request) *rest.Respo
 		}
 		return st.buildResponse(result)
 	}
+}
+
+// orestControllerHandlerFor cria o Route.Raw de um MÉTODO de classe
+// anotado (@GET em `public method` dentro de `class ... endclass`) — o
+// padrão de controlador REST do TOTVS. Por requisição: VM-filha isolada,
+// oRest injetado, instância nova da classe (com construtor `new` quando
+// existe) e invocação do método. A resposta segue o mesmo contrato de
+// orestRawHandlerFor: setResponse/setFault ou valor de retorno.
+func (v *VM) orestControllerHandlerFor(cls *compiler.ClassInfo, minfo *compiler.FunctionInfo) func(*rest.Request) *rest.Response {
+	return func(req *rest.Request) *rest.Response {
+		params, errResp := orestParams(req)
+		if errResp != nil {
+			return errResp
+		}
+		job, done, err := v.newChildVM()
+		if err != nil {
+			return wsRestErrorResponse(500, err.Error())
+		}
+		defer done()
+
+		oRestObj, st := newORestObject(req)
+		job.dynEnv["oRest"] = oRestObj
+		job.dynEnv["OREST"] = oRestObj
+		job.restReq = req
+		defer func() { job.restReq = nil }()
+
+		obj := advplrt.NewObject(cls.Name, job.classes[cls.Name])
+		if ctor := findClassMethod(cls, "new"); ctor != nil {
+			if err := job.invokeMethodFrame(obj, ctor.Name, ctor, nil, 0); err != nil {
+				return wsRestErrorResponse(500, err.Error())
+			}
+			if _, err := job.runLoop(); err != nil {
+				return wsRestErrorResponse(500, err.Error())
+			}
+		}
+
+		// Método com parâmetros recebe o objeto de params (mesmo formato
+		// da função anotada); método sem parâmetros é invocado direto.
+		var args []advplrt.Value
+		if minfo.NumParams > 1 {
+			args = []advplrt.Value{jsonMapToAdvplObject(params)}
+		}
+		if err := job.invokeMethodFrame(obj, minfo.Name, minfo, args, len(args)); err != nil {
+			return wsRestErrorResponse(500, err.Error())
+		}
+		result, err := job.runLoop()
+		if err != nil {
+			return wsRestErrorResponse(500, err.Error())
+		}
+		return st.buildResponse(result)
+	}
+}
+
+// findClassMethod localiza um método da classe por nome, case-insensitive
+// (o mapa Methods usa o nome como declarado — "new"/"New" variam).
+func findClassMethod(cls *compiler.ClassInfo, name string) *compiler.FunctionInfo {
+	upper := strings.ToUpper(name)
+	for mname, minfo := range cls.Methods {
+		if strings.ToUpper(mname) == upper {
+			return minfo
+		}
+	}
+	return nil
 }
 
 // orestParams replica o merge de parâmetros do dispatch legado de rotas

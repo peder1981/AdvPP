@@ -14,7 +14,14 @@ func (v *VM) registerVerificacaodostiposdevariaveisNatives(natives map[string]fu
 	// Type codes: A=Array, B=CodeBlock, C=Character, D=Date, L=Logical,
 	// N=Numeric, F=Fixed Decimal, O=Object, U=Undefined (nil)
 	natives["VALTYPE"] = func(args []advplrt.Value) (advplrt.Value, error) {
-		return advplrt.NewString(advplrt.ValType(getArg(args, 0))), nil
+		v := advplrt.Deref(getArg(args, 0))
+		// JsonObject é o tipo `json` do TLPP — ValType devolve "J", não "O"
+		// (o corpus testa ValType(jResposta:GetJsonText(...)) e variantes).
+		if ov, ok := v.(*advplrt.ObjectValue); ok &&
+			(strings.EqualFold(ov.ClassName, "JsonObject") || strings.EqualFold(ov.ClassName, "json")) {
+			return advplrt.NewString("J"), nil
+		}
+		return advplrt.NewString(advplrt.ValType(v)), nil
 	}
 
 	// TYPE(cExpr) -> cTypeCode
