@@ -375,20 +375,33 @@ compatibilidade PO-UI" na seção de recursos executados.
   `docs/superpowers/plans/2026-11-22-poui-plano-integral.md`. O app de
   teste `tests/poui/apps/fixture-app` (Angular + lib-core) valida o
   ciclo ponta a ponta via `tests/poui/ao-vivo.sh fixture-app`
-- ⚠️ **`FwCallApp` — parâmetros ignorados**: as posições 2 a 5 e 7 em
-  diante são aceitas e descartadas (oAdvEngine/oChannel/cHost não têm
-  efeito no modo web); `cSource` (posição 6) resolve a `Static Function
-  JsToAdvpl` do fonte que chamou
-- ⚠️ **`TWebEngine`/desktop não implementado**: `FwCallApp` fora do modo
-  web (`advplc serve`) retorna o erro exato
-  `FwCallApp: requer o modo web (advplc serve)`
-- ✅ **OAuth2/MFA do framework (sessão local)**: `POST/GET
-  /api/oauth2/v1/token` emite JWT `header.payload.` com `userid`/`exp`
-  (formato que `getTokenPayload()` do `@totvs/protheus-lib-core`
-  decodifica); MFA responde `hasSecret=false` — a lib pula o fluxo.
-  MFA real (TOTP) não existe: não há segredo/servidor de segundo fator.
-- ⚠️ **`FwApiManager:ToExecAuto` não implementado**: retorna erro
-  explícito ("não suportado no AdvPP — requer ExecAuto/MVC").
+- ✅ **`FwCallApp` — assinatura completa do corpus**: as 10 posições são
+  aceitas; `oChannel` (posição 4) quando é `TWebChannel` é reutilizado
+  como canal do `JsToAdvpl` (com `bJsToAdvpl`/`lConnected`/`nPort`
+  preservados), `oEngine` (posição 2) quando é `TWebEngine` recebe a URL
+  do app em `CURL`; `cSource` (posição 6) resolve a `JsToAdvpl` do fonte.
+  `bJsToAdvpl` setado no canal tem precedência sobre a função. Demais
+  posições são aceitas e ignoradas — o corpus 12.1.2510 só usa `cApp`
+  na prática (a forma completa aparece comentada em VEIA372.prw).
+- ✅ **`TWebChannel`/`TWebEngine` nativos** (dump binário do corpus
+  12.1.2510): `New`/`Connect`/`Disconnect`/`AdvPLToJS`/`lConnected`/
+  `nPort`/`bJsToAdvpl` no canal; `New(ownd,nrow,ncol,w,h,curl,nport)`/
+  `Navigate`/`RunJavaScript`/`GoBack`/`GoForward`/`SetAsMain`/`SetHtml`/
+  `ClearCache`/`Reload` no engine — o "navegador" do modo web é a aba
+  PO-UI, então navegação é no-op com estado fiel (URL/lang em `Props`).
+  `FwCallApp` fora do modo web (`advplc serve`) retorna o erro exato
+  `FwCallApp: requer o modo web (advplc serve)`.
+- ✅ **OAuth2/MFA do framework**: `POST/GET /api/oauth2/v1/token` emite
+  JWT `header.payload.` com `userid`/`exp` (formato que
+  `getTokenPayload()` do `@totvs/protheus-lib-core` decodifica); MFA
+  TOTP real (RFC 6238) — `hasSecret`/`TOTPURI`/`tok` com segredo por
+  usuário persistido em `~/.advpp/mfa_secrets.json` e confirmação por
+  primeiro código válido (fluxo de enrollment via QR).
+- ✅ **`FwApiManager:ToExecAuto` implementado**: fiel ao
+  `FWAPIManager.prw` do corpus — `nTipo==1` anexa `{campo, valor, Nil}`
+  por linha de `aDados` em `aRet`; demais tipos acumulam as triplas num
+  `aItem` único anexado a `aRet` (transformador puro, não executa
+  ExecAuto).
   `SetApiRelation` implementado no formato real do corpus (pares
   `{colFilho, colPai}` + aninhamento pai→filho no JSON).
 - ✅ **Corpus TOTVS 12.1.2510 validado** (`ADVPP_CORPUS_2510`):
@@ -396,8 +409,9 @@ compatibilidade PO-UI" na seção de recursos executados.
   e 500 `WSRESTFUL` (amostra). Parser/preprocessor/lexer estendidos
   para as formas reais (macros função-like, `[...]` repetidos, flags
   de GUI, cláusulas WS arbitrárias, nomes `1xxx`, `json` como
-  identificador, `#define` quote-aware). Pendente apenas a seleção dos
-  5 fontes HTTP com fixtures SQL (`TestCorpusCincoFontesHTTP`).
+  identificador, `#define` quote-aware). `TestCorpusCincoFontesHTTP`
+  executa 5 fontes reais de estilos distintos (WSRESTFUL clássico,
+  oRest, controlador TLPP `@Get`, `FWAdapterBaseV2`+SQLite) — 5/5.
 - ⚠️ **Locks de registro (RecLock/MsUnlock) são no-ops** — sem controle de
   concorrência em escrita entre processos
 

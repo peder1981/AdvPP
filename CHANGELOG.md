@@ -53,19 +53,28 @@ Todas as mudanças relevantes no projeto AdvPP.
 - `FwApiManager` no formato real do corpus: `aApiMap` aninhado
   (structs em `aApiMap[5]`, fields `{apiName, campo}`), `SetApiRelation`
   com pares `{colFilho, colPai}` e aninhamento pai→filho no JSON de
-  resposta; `SetApiQString` interpreta `page`/`pageSize`/`order`/`fields`.
-- OAuth2/MFA do framework em modo sessão local: `POST/GET
-  /api/oauth2/v1/token` emite JWT `header.payload.` (userid/exp) no
-  formato que `getTokenPayload()` do lib-core decodifica; MFA responde
-  "desconfigurado" (`hasSecret=false`) para a lib pular o fluxo.
+  resposta; `SetApiQString` interpreta `page`/`pageSize`/`order`/`fields`;
+  `ToExecAuto` reproduz o transformador real (`{campo, valor, Nil}` por
+  linha para `nTipo==1`, `aItem` único para os demais tipos).
+- `TWebChannel`/`TWebEngine` como classes nativas fiéis ao dump binário
+  do corpus 12.1.2510 (`connect`/`disconnect`/`advpltojs`/`lconnected`/
+  `nport`/`bjstoadvpl`; `navigate`/`runjavascript`/`sethtml`/etc.): no
+  modo web o "navegador" é a aba PO-UI e a navegação mantém o estado
+  observável sem superfície própria.
+- `FwCallApp` com a assinatura completa do corpus: reutiliza o
+  `TWebChannel`/`TWebEngine` passados pelo chamador (parâmetros 3 e 2) e
+  dá precedência ao `bJsToAdvpl` do canal sobre a função `JsToAdvpl`.
+- OAuth2/MFA do framework: `POST/GET /api/oauth2/v1/token` emite JWT
+  `header.payload.` (userid/exp) no formato que `getTokenPayload()` do
+  lib-core decodifica; MFA TOTP real (RFC 6238) com segredo por usuário
+  em `~/.advpp/mfa_secrets.json`, URI `otpauth://` para o QR e
+  confirmação por primeiro código válido.
 
 ### Known limitations
-- `FwApiManager:ToExecAuto` retorna erro explícito (requer ExecAuto/MVC).
-- `FwCallApp` aceita e ignora os parâmetros 2–5 e 7 em diante — o corpus
-  12.1.2510 só usa `cApp` (posição 1) e `cSource` (posição 6); fora do
-  modo web retorna erro. `TWebEngine`/desktop não existe.
-- MFA real (TOTP/segredo) não é implementado — os endpoints respondem
-  "desconfigurado", o que é o comportamento correto para sessão local.
+- `FwCallApp` fora do modo web (`advplc serve`) retorna erro — não há
+  SmartClient desktop; `oOwner`/`cHost`/`p7`-`p10` são aceitos e
+  ignorados (o corpus não os usa). Argumentos nomeados em nativos não
+  são reordenados (limitação geral dos nativos, sem `ParamNames`).
 
 ## [4.8.7] - 2026-11-22
 
