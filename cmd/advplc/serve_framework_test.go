@@ -1,9 +1,8 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -164,16 +163,43 @@ func TestFrameworkGenericQuery(t *testing.T) {
 	}
 }
 
-func TestFrameworkOauth501(t *testing.T) {
+// TestFrameworkOauthToken valida o token local: JWT "header.payload."
+// decodificável com userid/exp, e MFA respondendo "desconfigurado" para a
+// lib-core pular o fluxo.
+func TestFrameworkOauthToken(t *testing.T) {
 	srv := frameworkSrv(t)
-	for _, p := range []string{"/api/oauth2/v1/token", "/api/framework/mfa/hasSecret"} {
-		code, m := getJSON(t, srv, p)
-		if code != http.StatusNotImplemented {
-			t.Fatalf("GET %s = %d, want 501", p, code)
-		}
-		if !strings.Contains(fmt.Sprint(m["message"]), "não suportado") {
-			t.Fatalf("mensagem = %v", m)
-		}
+	req := httptest.NewRequest("GET", "/api/framework/mfa/hasSecret", nil)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != "false" {
+		t.Fatalf("hasSecret = %d %q", rec.Code, rec.Body.String())
+	}
+	// POST no token (fluxo password/refresh do lib-core).
+	req = httptest.NewRequest("POST", "/api/oauth2/v1/token", nil)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("POST token = %d", rec.Code)
+	}
+	var tm map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &tm); err != nil {
+		t.Fatalf("decode token: %v", err)
+	}
+	jwt, _ := tm["access_token"].(string)
+	parts := strings.Split(jwt, ".")
+	if len(parts) != 3 {
+		t.Fatalf("access_token não é JWT: %q", jwt)
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("payload não decodifica: %v", err)
+	}
+	var pj map[string]any
+	if err := json.Unmarshal(payload, &pj); err != nil {
+		t.Fatalf("payload não é JSON: %v", err)
+	}
+	if pj["userid"] == nil || pj["exp"] == nil {
+		t.Fatalf("payload sem userid/exp: %v", pj)
 	}
 }
 

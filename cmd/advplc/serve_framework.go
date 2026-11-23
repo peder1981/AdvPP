@@ -1,13 +1,14 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/advpl/compiler/pkg/db"
 	"github.com/advpl/compiler/pkg/rest"
@@ -352,17 +353,50 @@ func registraFrameworkRoutes(srv *rest.Server, opts *Options) {
 		return resp
 	})
 
-	// OAuth2/MFA: sem servidor de identidade — a sessão é local.
-	notImpl := func(r *rest.Request) *rest.Response {
-		return fwErro(http.StatusNotImplemented, "não suportado no AdvPP (sessão local)")
+	// OAuth2/MFA: a sessão já é local — o token emitido é um JWT sem
+	// assinatura (header.payload.) no formato que getTokenPayload() do
+	// lib-core decodifica (payload.userid/exp). MFA responde "desconfigurado"
+	// para a lib pular o fluxo.
+	add("POST", "/api/oauth2/v1/token", func(r *rest.Request) *rest.Response {
+		return fwToken()
+	})
+	add("GET", "/api/oauth2/v1/token", func(r *rest.Request) *rest.Response {
+		return fwToken()
+	})
+	add("POST", "/api/oauth2/v1/batch-close-tabs", func(r *rest.Request) *rest.Response {
+		return fwJSON(map[string]any{})
+	})
+	add("GET", "/api/oauth2/v1/batch-close-tabs", func(r *rest.Request) *rest.Response {
+		return fwJSON(map[string]any{})
+	})
+	get("/api/framework/mfa/hasSecret", func(r *rest.Request) *rest.Response {
+		return fwJSON(false)
+	})
+	get("/api/framework/mfa/tok", func(r *rest.Request) *rest.Response {
+		return fwJSON(false)
+	})
+	get("/api/framework/mfa/TOTPURI", func(r *rest.Request) *rest.Response {
+		return fwJSON(map[string]any{})
+	})
+}
+
+// fwToken emite o token de sessão local. O access_token é um JWT
+// "header.payload." (sem assinatura — o cliente só faz atob do payload)
+// com userid/exp, como o Protheus emite; refresh_token é opaco.
+func fwToken() *rest.Response {
+	_, _, _, usuario := frameworkSessao()
+	now := time.Now().Unix()
+	exp := now + 3600
+	b64 := func(v any) string {
+		b, _ := json.Marshal(v)
+		return base64.RawURLEncoding.EncodeToString(b)
 	}
-	for _, m := range []string{"GET", "POST"} {
-		add(m, "/api/oauth2/v1/token", notImpl)
-		add(m, "/api/oauth2/v1/batch-close-tabs", func(r *rest.Request) *rest.Response {
-			return fwJSON(map[string]any{})
-		})
-	}
-	get("/api/framework/mfa/hasSecret", notImpl)
-	get("/api/framework/mfa/tok", notImpl)
-	get("/api/framework/mfa/TOTPURI", notImpl)
+	jwt := b64(map[string]string{"alg": "none", "typ": "JWT"}) + "." +
+		b64(map[string]any{"userid": usuario, "iat": now, "exp": exp}) + "."
+	return fwJSON(map[string]any{
+		"access_token":  jwt,
+		"refresh_token": jwt,
+		"expires_in":    3600,
+		"token_type":    "Bearer",
+	})
 }
