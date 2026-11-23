@@ -169,6 +169,8 @@ advplc serve programa.prw               # http://localhost:8080
 advplc serve programa.prw --port 9000
 advplc serve programa.prw --watch       # hot reload ao salvar o fonte
 advplc serve --apps ./apps --home inicio  # vários programas num servidor
+advplc serve ./fontes --main U_MinhaTela  # projeto (RPO): tela + REST de todos os fontes
+advplc serve --poui-app ./meu-app ./fontes  # app PO-UI externo + REST dos fontes
 ```
 
 Com `--apps <dir>`, cada `<dir>/<nome>.prw` (ou `.tlpp`) vira o app

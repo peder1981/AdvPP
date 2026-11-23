@@ -684,7 +684,8 @@ existindo para diálogos tradicionais).
 | `FWHTTPCLEARHEADERS()` | — | Nil | Remove todos os headers customizados definidos via `FWHTTPHEADER` |
 | `FWLOADSM0()` | — | bool | .T. stub |
 | `FWJOINFILIAL(field, alias)` | 2 strings | string | Concat filial |
-| `FWRESTAREA/FWGETAREA/FWAPPSTACK/FWCALLAPP` | — | Nil/string | Stubs |
+| `FWRESTAREA/FWGETAREA/FWAPPSTACK` | — | Nil/string | Stubs |
+| `FWCALLAPP(cApp, oOwner, oEngine, oChannel, cHost, cSource, ...)` | app + canal | Nil | Real no `advplc serve`: abre o app PO-UI (pasta ou `.app`) em aba nova, ponte `JsToAdvpl`/`AdvPLToJS` com `@totvs/protheus-lib-core`; fora do modo web, erro claro |
 | `FWLIBVERSION()` | — | string | "1.0.0" |
 | `FWLISTBRANCHES()` | — | array | Empty array |
 | `FWCLEARHLP()` | — | Nil | Clear help (stub) |

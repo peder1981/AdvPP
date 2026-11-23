@@ -2,7 +2,7 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
-## [Unreleased]
+## [4.9.0] - 2026-11-23
 
 ### Added
 - **Templates reais do PO-UI**: as 8 classes de template (dinâmicos, login,
@@ -37,7 +37,7 @@ Todas as mudanças relevantes no projeto AdvPP.
   simulado removido; corrida no `StorageGet`; `-race` na CI.
 - Nove fontes PO-UI de teste/exemplo convertidos para CP-1252.
 
-### Added (ondas anteriores, ainda sem release)
+### Added (ondas 1 a 3 do PO-UI)
 - **Onda 3c do catálogo PO-UI — serviços e diretivas**: `PoApp:SetTheme`
   (`light`/`dark` ou tokens JSON via `PoThemeService`), `SetLanguage`
   (`pt`/`en`/`es`/`ru`), `OnMediaChange` (breakpoints sm/md/lg/xl do grid

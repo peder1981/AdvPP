@@ -344,6 +344,15 @@ fonte muda. `PoApp:Open(cNome)` abre outro app numa janela nova, e
 `ADVPP_APPS_DIR` traz o diretório para listar os apps com `Directory()`.
 Exemplo: `advplc serve --apps examples/poui/apps --home inicio`.
 
+**Cobertura completa do PO-UI e padrão TOTVS** — 80 classes `Po*` cobrem o
+`llms.txt` do PO-UI 21 (inclusive os templates oficiais `po-page-dynamic-*`,
+`po-page-login` etc., e `PoDynamicForm`); a tabela item a item, com o que fica
+fora de escopo e por quê, está em `docs/COMPONENT_STATUS.md`. Apps PO-UI do
+Protheus rodam com `FwCallApp` (ponte `JsToAdvpl` com `@totvs/protheus-lib-core`),
+e `advplc serve <dir> --main U_MinhaTela` serve a tela e o REST de todos os
+fontes do diretório, como num RPO. Verificação no navegador:
+`tests/poui/ao-vivo.sh catalogo`.
+
 Comuns a todos os componentes: `Set(cProp, xValor)`, `Get(cProp)`,
 `SetValue`/`GetValue`, `SetLabel`, `SetVisible`, `SetDisabled`, `SetCols`, `Id()`.
 `Get` de propriedades estruturadas (`columns`, `items`, `series`...) devolve

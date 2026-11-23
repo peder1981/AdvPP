@@ -125,7 +125,8 @@ All standard patterns work in AdvPP
 | Banco de Dados | ✅ Funcional | DBSelectArea/DBSeek/RecCount etc. sobre SQLite compartilhado (~/.advpp/ADVPP.db) |
 | Conectividade multi-provider (v4.0.0+) | ✅ Funcional | Classe `DbConnection` + DBSetDriver("TOPCONN"): PostgreSQL/Oracle/SQL Server reais, 100% Go, sem CGO |
 | Multi-thread | ✅ Funcional | StartJob (VM isolado por job) e FWGridProcess (pool de threads) |
-| Renderer web (PO-UI) | ✅ Funcional | advplc serve: console/diálogos, FWMBrowse→po-table (SX3), MSDIALOG legado→modal, hot reload --watch |
+| Renderer web (PO-UI) | ✅ Funcional | advplc serve: console/diálogos, FWMBrowse→po-table (SX3), MSDIALOG legado→modal, hot reload --watch; 80 classes `Po*` cobrindo o llms.txt do PO-UI 21, inclusive os templates oficiais (`@po-ui/ng-templates`) — cobertura item a item em `docs/COMPONENT_STATUS.md` |
+| Apps PO-UI do Protheus | ✅ Funcional | `FwCallApp` + `JsToAdvpl`/`AdvPLToJS` com `@totvs/protheus-lib-core` real; `serve <dir> --main` (RPO); REST TOTVS: `WSRESTFUL`, `@Get`+`oRest`, `FWAdapterBaseV2`, `FwApiManager`, `TamSx3`; validado no corpus 12.1.2510 |
 | Motor de inferência LLM | ✅ Funcional | Classe `LLM`: modelos GGUF I2_S (BitNet/Falcon3-1.58bit) e, desde v4.0.0, Q4_K/Q6_K (MiniCPM), 100% Go, SIMD AVX2 em amd64 |
 | Servidor MCP | ✅ Funcional | Classe `MCPServer`: JSON-RPC 2.0 real sobre stdio, expõe funções AdvPL como tools (execução real) |
 | Servidor REST (anotações @Get/@Post) | ✅ Funcional | Classe `WSRestServer`: HTTP real sobre `net/http`, auto-discovery de rotas por anotação, path params, dispatch para a função AdvPL |
