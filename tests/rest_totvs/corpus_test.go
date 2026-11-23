@@ -38,6 +38,11 @@ func corpusDir(t *testing.T) string {
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 		t.Skipf("ADVPP_CORPUS_2510 inválida: %s", dir)
 	}
+	// Aceita a raiz do corpus ou a pasta fontes/: os caminhos dos testes
+	// são relativos a fontes/.
+	if st, err := os.Stat(filepath.Join(dir, "fontes")); err == nil && st.IsDir() {
+		return filepath.Join(dir, "fontes")
+	}
 	return dir
 }
 
