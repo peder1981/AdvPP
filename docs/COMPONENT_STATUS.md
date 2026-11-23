@@ -511,9 +511,17 @@ compatibilidade PO-UI" na seção de recursos executados.
   ExecAuto).
   `SetApiRelation` implementado no formato real do corpus (pares
   `{colFilho, colPai}` + aninhamento pai→filho no JSON).
-- ✅ **Corpus TOTVS 12.1.2510 validado** (`ADVPP_CORPUS_2510`):
-  0 falhas em 110 fontes `FwCallApp`/`JsToAdvpl`, 225 `FWAdapterBaseV2`
-  e 500 `WSRESTFUL` (amostra). Parser/preprocessor/lexer estendidos
+- ✅ **Corpus TOTVS 12.1.2510 validado** (`ADVPP_CORPUS_2510`, raiz do
+  corpus ou a pasta `fontes/`; medição de 2026-11-23): 0 falhas em 103
+  fontes `FwCallApp`/`JsToAdvpl` e em 500 `WSRESTFUL` (amostra); 213 de
+  214 `FWAdapterBaseV2` — o restante
+  (`backoffice.pif.fiscal.insight.purchaseorderssuggested.data.tlpp`) é
+  inválido no próprio corpus: o `/*{Protheus.doc}` da linha 899 não tem
+  fechamento, o `/*/` da linha 957 o fecha (a mesma regra de 1.616
+  comentários `/* ... /*/` do corpus) e o texto do Protheus.doc vira
+  código. O teste exige que ele continue falhando. (A versão anterior
+  deste item dizia "0 falhas em 110 e 225", números que não vieram de
+  uma execução.) Parser/preprocessor/lexer estendidos
   para as formas reais (macros função-like, `[...]` repetidos, flags
   de GUI, cláusulas WS arbitrárias, nomes `1xxx`, `json` como
   identificador, `#define` quote-aware). `TestCorpusCincoFontesHTTP`
