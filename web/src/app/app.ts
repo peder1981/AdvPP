@@ -8,6 +8,7 @@ import {
 } from '@po-ui/ng-components';
 import { UiHostComponent, UiNode, descarregaPendentes } from './ui-host';
 import { entregaTerm } from './adv-terminal';
+import { dynAntesResultado } from './dyn-hooks';
 
 // Heurística de ícone pra item de menu (FWMenuSelect não carrega nenhuma
 // informação de ícone — só o texto do item) — genérico o bastante pra
@@ -381,6 +382,9 @@ export class App {
         break;
       case 'loading':
         this.uiLoading.set(p.on ? (p.text || 'Carregando') : null);
+        break;
+      case 'beforeResult': // hook síncrono OnBefore* dos PoPageDynamic*
+        dynAntesResultado(Number(p.reqId ?? 0), !!p.ok);
         break;
       case 'open': // PoApp:Open: outro app numa janela nova
         if (/^[A-Za-z0-9_-]{1,64}$/.test(p.app)) { window.open('/app/' + p.app, '_blank'); }

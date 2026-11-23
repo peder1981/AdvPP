@@ -1,10 +1,12 @@
-import { Component, Input, forwardRef } from '@angular/core';
+import { Component, Input, inject, signal, forwardRef } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { AdvCodeEditorComponent } from './adv-code-editor';
 import { AdvTerminalComponent } from './adv-terminal';
 import { FormsModule } from '@angular/forms';
+import { dynAntes } from './dyn-hooks';
 import {
-  PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoFieldModule, PoSearchModule,
+  PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoDynamicModule, PoDynamicFormField, PoFieldModule, PoSearchModule,
   PoGaugeModule, PoInfoModule, PoListViewModule, PoPageAction, PoPageModule, PoProgressModule,
   PoTableModule, PoTabsModule, PoTagModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
 } from '@po-ui/ng-components';
@@ -48,7 +50,7 @@ export function descarregaPendentes() {
     forwardRef(() => UiHostComponent), FormsModule, NgTemplateOutlet, AdvCodeEditorComponent, AdvTerminalComponent,
     PoPageModule, PoButtonModule, PoFieldModule, PoSearchModule, PoTableModule, PoTagModule,
     PoContainerModule, PoDividerModule, PoWidgetModule, PoTabsModule, PoTreeViewModule,
-    PoListViewModule, PoInfoModule, PoProgressModule, PoGaugeModule, PoChartModule,
+    PoListViewModule, PoInfoModule, PoProgressModule, PoGaugeModule, PoChartModule, PoDynamicModule,
   ],
   styles: [`
     .advpp-ui-grid { display: flex; flex-wrap: wrap; margin: 0 -8px; }
@@ -298,6 +300,44 @@ export function descarregaPendentes() {
         @case ('terminal') {
           <adv-terminal [node]="node" [post]="post"></adv-terminal>
         }
+        @case ('dyntable') {
+          <div class="dyn-page">
+            @if (node.props['title']) { <h3 class="dyn-title">{{ node.props['title'] }}</h3> }
+            @if (node.props['quickSearchField']) {
+              <po-search class="dyn-quick" (p-filter)="dynQuick(node, $event)"></po-search>
+            }
+            <po-table [p-columns]="dynCols(node)" [p-items]="dynItemsGet(node)"></po-table>
+          </div>
+        }
+        @case ('dynsearch') {
+          <div class="dyn-page">
+            @if (node.props['title']) { <h3 class="dyn-title">{{ node.props['title'] }}</h3> }
+            <po-search class="dyn-quick" (p-filter)="dynSearch(node, $event)"></po-search>
+            <po-table [p-columns]="dynCols(node)" [p-items]="dynItemsGet(node)"></po-table>
+          </div>
+        }
+        @case ('dynedit') {
+          <div class="dyn-page">
+            @if (node.props['title']) { <h3 class="dyn-title">{{ node.props['title'] }}</h3> }
+            <po-dynamic-form [p-fields]="dynFormFields(node)" [p-value]="dynVal(node)"
+                             (p-form)="dynSetVal(node, $event)"></po-dynamic-form>
+            <div class="dyn-actions">
+              <po-button p-label="Salvar" p-kind="primary" (p-click)="dynSave(node)"></po-button>
+              <po-button p-label="Cancelar" (p-click)="post(node.id, 'cancel', null)"></po-button>
+            </div>
+          </div>
+        }
+        @case ('dyndetail') {
+          <div class="dyn-page">
+            @if (node.props['title']) { <h3 class="dyn-title">{{ node.props['title'] }}</h3> }
+            <po-dynamic-form [p-fields]="dynFormFields(node)" [p-value]="dynVal(node)"
+                             (p-form)="dynSetVal(node, $event)"></po-dynamic-form>
+            <div class="dyn-actions">
+              <po-button p-label="Excluir" p-kind="danger" (p-click)="dynRemove(node)"></po-button>
+              <po-button p-label="Voltar" (p-click)="post(node.id, 'back', null)"></po-button>
+            </div>
+          </div>
+        }
         @case ('tag') {
           <po-tag [p-value]="node.props['value']" [p-type]="node.props['type']"></po-tag>
         }
@@ -427,5 +467,104 @@ export class UiHostComponent {
   // objeto JSON para o handler OnSelected(oLinha) do AdvPL.
   protected onLookupSelected(row: unknown) {
     this.post(this.node.id, 'selected', row);
+  }
+
+  // ---- Onda 3a.6: PoPageDynamic* — CRUD direto no REST (contrato onda 1) ----
+
+  private http = inject(HttpClient);
+  private dynTick = signal(0);
+  private dynVals = new Map<number, Record<string, unknown>>();
+  private dynItemsMap = new Map<number, unknown[]>();
+  private dynLoaded = new Set<number>();
+
+  // Campos visíveis do aFields -> colunas do po-table / fields do form.
+  private dynCampos(node: UiNode): Record<string, unknown>[] {
+    const f = node.props['fields'];
+    return Array.isArray(f) ? f.filter((x: Record<string, unknown>) => x['visible'] !== false) : [];
+  }
+
+  protected dynCols(node: UiNode): Record<string, unknown>[] {
+    this.dynTick();
+    return this.dynCampos(node).map(f => ({ property: f['property'], label: f['label'], type: f['type'] }));
+  }
+
+  protected dynFormFields(node: UiNode): PoDynamicFormField[] {
+    this.dynTick();
+    const ro = node.type === 'dyndetail';
+    return this.dynCampos(node).map(f => ({ ...f, disabled: ro || !!f['disabled'] })) as PoDynamicFormField[];
+  }
+
+  protected dynVal(node: UiNode): Record<string, unknown> {
+    this.dynTick();
+    return this.dynVals.get(node.id) ?? {};
+  }
+
+  protected dynSetVal(node: UiNode, v: unknown) {
+    this.dynVals.set(node.id, (v && typeof v === 'object' ? v : {}) as Record<string, unknown>);
+  }
+
+  private dynUrl(node: UiNode): string {
+    const u = String(node.props['url'] ?? '');
+    return u.startsWith('/') ? u : '/' + u;
+  }
+
+  // GET <url>?page&pageSize(&filter) -> {items} no po-table.
+  protected dynItemsGet(node: UiNode): unknown[] {
+    this.dynTick();
+    if (!this.dynLoaded.has(node.id)) {
+      this.dynLoaded.add(node.id);
+      this.dynLoad(node);
+    }
+    return this.dynItemsMap.get(node.id) ?? [];
+  }
+
+  private dynLoad(node: UiNode, filtro = '') {
+    const params: Record<string, string> = { page: '1', pageSize: '50' };
+    if (filtro) params['filter'] = filtro;
+    this.http.get<{ items?: unknown[] }>(this.dynUrl(node), { params }).subscribe({
+      next: r => {
+        this.dynItemsMap.set(node.id, r?.items ?? []);
+        this.dynTick.update(v => v + 1);
+      },
+      error: () => this.dynItemsMap.set(node.id, []),
+    });
+  }
+
+  protected dynQuick(node: UiNode, texto: string) {
+    this.post(node.id, 'quicksearch', texto);
+    this.dynLoad(node, texto);
+  }
+
+  protected dynSearch(node: UiNode, texto: string) {
+    this.post(node.id, 'advancedsearch', texto);
+    this.dynLoad(node, texto);
+  }
+
+  // Chave do registro = 1º campo com key=true nos aFields.
+  private dynId(node: UiNode, val: Record<string, unknown>): string {
+    const key = this.dynCampos(node).find(f => f['key']);
+    const k = key ? String(key['property']) : '';
+    return k ? String(val[k] ?? '') : '';
+  }
+
+  protected async dynSave(node: UiNode) {
+    const val = this.dynVal(node);
+    if (!(await dynAntes(this.post, node.id, 'beforesave', val))) return;
+    const id = this.dynId(node, val);
+    const url = this.dynUrl(node) + (id ? '/' + encodeURIComponent(id) : '');
+    const req = id
+      ? this.http.put(url, val)
+      : this.http.post(url, val);
+    req.subscribe({ next: () => this.dynLoad(node), error: () => {} });
+  }
+
+  protected async dynRemove(node: UiNode) {
+    const val = this.dynVal(node);
+    if (!(await dynAntes(this.post, node.id, 'beforeremove', val))) return;
+    const id = this.dynId(node, val);
+    if (id) {
+      this.http.delete(this.dynUrl(node) + '/' + encodeURIComponent(id))
+        .subscribe({ next: () => { this.dynLoad(node); this.post(node.id, 'back', null); }, error: () => {} });
+    }
   }
 }
