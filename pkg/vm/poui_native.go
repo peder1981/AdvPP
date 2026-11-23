@@ -62,6 +62,11 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POPAGELIST":   {"PoPageList", "pagelist"},
 	"POPAGEEDIT":   {"PoPageEdit", "pageedit"},
 	"POPAGEDETAIL": {"PoPageDetail", "pagedetail"},
+	// onda 3a.6: templates dinâmicos (REST da onda 1)
+	"POPAGEDYNAMICTABLE":  {"PoPageDynamicTable", "dyntable"},
+	"POPAGEDYNAMICEDIT":   {"PoPageDynamicEdit", "dynedit"},
+	"POPAGEDYNAMICDETAIL": {"PoPageDynamicDetail", "dyndetail"},
+	"POPAGEDYNAMICSEARCH": {"PoPageDynamicSearch", "dynsearch"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -233,7 +238,7 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 	pai, _ := getArg(args, 0).(*advplrt.ObjectValue)
 	var c *poComp
 	switch info.typ {
-	case "page", "menu", "pagelist", "pageedit", "pagedetail":
+	case "page", "menu", "pagelist", "pageedit", "pagedetail", "dyntable", "dynedit", "dyndetail", "dynsearch":
 		a, ok := paiNative[*poAppState](pai)
 		if !ok {
 			return fmt.Errorf("%s: pai inválido (esperado PoApp)", obj.ClassName)
@@ -256,6 +261,17 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		}
 		c.props["title"] = advplrt.ToString(getArg(args, 1))
 		c.props["actions"] = []map[string]any{}
+		if poDynPage(info.typ) {
+			// New(oApp, cTitulo[, cUrlServico]) — url relativa ganha RestPrefix.
+			c.props["url"] = poFilterURL(getArg(args, 2))
+			c.props["fields"] = []map[string]any{}
+			c.props["filters"] = []map[string]any{}
+			c.props["keepFilters"] = false
+			c.props["quickSearchField"] = ""
+			c.props["quickFilter"] = ""
+			c.props["duplicates"] = []any{}
+			c.props["dynActions"] = map[string]any{}
+		}
 	default:
 		p, ok := paiNative[*poComp](pai)
 		if info.typ == "tab" {
@@ -542,6 +558,13 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3aPageMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3aDynMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}

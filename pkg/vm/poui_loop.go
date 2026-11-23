@@ -203,6 +203,14 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		case "savenew", "cancel", "edit", "remove", "back":
 			// PoPageEdit/PoPageDetail: OnSaveNew/OnCancel/OnEdit/OnRemove/OnBack
 			h, args = c.handlers[ev], []advplrt.Value{c.obj}
+		case "beforesave", "beforeremove":
+			// Onda 3a.6 — round-trip síncrono: o frontend espera
+			// {"op":"beforeResult","reqId":N,"ok":bool} antes de gravar.
+			// O handler roda na goroutine do laço e o resultado sai no
+			// flush logo após o dispatch; timeout no frontend (30 s)
+			// equivale a recusar.
+			v.poBeforeHook(a, c, ev, val)
+			return
 		case "action":
 			i, ok := poJSONIndice(val)
 			if !ok {
