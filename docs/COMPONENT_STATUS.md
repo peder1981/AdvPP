@@ -20,6 +20,61 @@
   VM por janela, compilação sob demanda) e `PoApp:Open`.
 - ✅ **Fase 4**: `AdvCodeEditor` (CodeMirror 6, marcações via `check --format json`)
   e `AdvTerminal` (xterm.js + pty; Windows: erro claro nesta versão).
+- ✅ **Onda 3a.1 — seleção**: `PoCombo`/`PoMultiselect`/`PoRadioGroup`/
+  `PoCheckboxGroup`/`PoLookup` (`pkg/vm/poui3a_select.go`). `aOpcoes` no formato
+  `{{cValor, cLabel}}`; URL de filtro prefixada com `RestPrefix`; o PO-UI chama o
+  REST direto do navegador (`p-filter-service` string + `p-field-label`/
+  `p-field-value`, contrato `{items, hasNext}` da onda 1). Métodos: `SetOptions`,
+  `SetFilterService`, `SetFilterParams` (pares → objeto plano), `SetColumns`
+  (número nos grupos; `{cProp, cRotulo[, cTipo]}` no lookup). Eventos: `OnChange`
+  (valor; array em multiselect/checkboxgroup) e `OnSelected(oLinha)` no lookup.
+- ✅ **Onda 3a.2 — data/hora**: `PoDatepicker`/`PoDatepickerRange`/
+  `PoDatetimepicker`/`PoTimepicker` (`pkg/vm/poui3a_datetime.go`). Fronteira:
+  `DateValue` sai como `AAAA-MM-DD` (vazio = `""`); evento ISO volta para
+  `DateValue`; range usa `{start,end}` ISO; datetime preserva ISO 8601; hora
+  `HH:MM[:SS]`. Métodos: `SetValue`/`GetValue`/`SetMinDate`/`SetMaxDate`/
+  `SetFormat`/`SetMinTime`/`SetMaxTime`/`SetFormatDate`/`SetFormatTime`.
+  Eventos: `OnChange`.
+- ✅ **Onda 3a.3 — texto especializado**: `PoDecimal`/`PoEmail`/`PoUrl`/
+  `PoRichText`/`PoSearch` (`pkg/vm/poui3a_text.go`). `SetValue`/`GetValue`/
+  `SetDecimals`/`SetMin`/`SetMax`/`SetHeight`/`SetItems`/`SetFilterKeys`;
+  eventos `OnChange`/`OnFilter`.
+- ✅ **Onda 3a.4 — upload**: `PoUpload` + `POST /poui-upload?sid=&id=`
+  (`pkg/webui/poui_upload.go`, helper em `pkg/tools/shared/poui_upload.go`).
+  Multipart campo `files`; destino resolvido com `filepath.Abs`, restrito ao
+  diretório de trabalho do serve ou a `PouiUploadDirs` do config; nomes
+  sanitizados com `filepath.Base`; extensões proibidas → 415; limite default
+  10 MB, teto configurável 100 MB via `SetMaxSizeMB` (limite de body próprio,
+  não o geral de 8 MB). Retorna `aArquivos={{cNome,cCaminhoGravado,nBytes}}`.
+- ✅ **Onda 3a.5 — páginas estáticas**: `PoPageList`/`PoPageEdit`/
+  `PoPageDetail` como páginas do `PoApp` (Navigate incluso). Eventos:
+  filtro/busca avançada (list), save/save-new/cancel (edit),
+  edit/remove/back (detail). Render via `po-page-list/edit/detail` PO-UI.
+- ✅ **Onda 3a.6 — templates dinâmicos**: `PoPageDynamicTable`/
+  `PoPageDynamicEdit`/`PoPageDynamicDetail`/`PoPageDynamicSearch`
+  (`pkg/vm/poui3a_dyn.go`, hooks em `poui3a_dyn_hook.go`). `New(oApp,
+  cTitulo[, cUrl])` — url relativa ganha `RestPrefix`; CRUD direto no
+  navegador contra o REST da onda 1 (`GET {items,hasNext}`, POST/PUT/
+  DELETE `<url>/<id>`). `aFields={{cProp,cLabel,cTipo,lKey,lFilter,lVisible}}`
+  → `{property,label,type,key,filter,visible}` do `po-dynamic-form`/
+  `po-table` (frontend `dyn*` em `ui-host.ts`). `OnBeforeSave`/
+  `OnBeforeRemove`: round-trip síncrono browser→AdvPL via op
+  `beforeResult` {reqId,ok} com timeout de 30 s = recusa. Fixture:
+  `tests/poui/3a_crud.prw` (compila; serve verificado com REST real).
+- ✅ **Onda 3b.1 — agrupamento**: `PoAccordion`/`PoAccordionItem`
+  (`SetShowManager`, `Expand`/`Collapse`, `OnExpand`/`OnCollapse`),
+  `PoModal` (`Open`/`Close`/`SetPrimaryAction`/`SetSecondaryAction`/
+  `SetSize`/`OnClose`; ações = eventos `click:*`), `PoStepper`/`PoStep`
+  (`Next`/`Previous`/`GetStep`/`SetOrientation`/`OnChangeStep`;
+  `OnCanActivate` via round-trip `beforeResult`), `PoSlide` (`aSlides`
+  → `{image,alt,link}`, `SetInterval`/`SetHeight`). Modal renderizado
+  sob `@if open` com diretiva `appModalOpen`.
+- ✅ **Onda 3b.2 — ações**: `PoButtonGroup` (`AddButton(cLabel,cIcone,
+  bAcao)`, `SetSelected`, toggle `none|single|multiple`), `PoDropdown`,
+  `PoPopup`/`PoPopover` (alvo = componente, resolvido via `data-poid`),
+  `PoContextMenu` (`OnSelect`/`OnChangeExpanded`), `PoToolbar`
+  (`SetProfile`, `SetNotifications`). Ações = eventos `act:N` pelo
+  dispatch genérico de handlers.
 
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 

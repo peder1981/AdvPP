@@ -39,6 +39,48 @@ var poClasses = map[string]struct{ class, typ string }{
 	// fase 4: componentes próprios do AdvPP
 	"ADVCODEEDITOR": {"AdvCodeEditor", "editor"},
 	"ADVTERMINAL":   {"AdvTerminal", "terminal"},
+	// onda 3a.1: seleção
+	"POCOMBO":         {"PoCombo", "combo"},
+	"POMULTISELECT":   {"PoMultiselect", "multiselect"},
+	"PORADIOGROUP":    {"PoRadioGroup", "radiogroup"},
+	"POCHECKBOXGROUP": {"PoCheckboxGroup", "checkboxgroup"},
+	"POLOOKUP":        {"PoLookup", "lookup"},
+	// onda 3a.2: data e hora
+	"PODATEPICKER":      {"PoDatepicker", "datepicker"},
+	"PODATEPICKERRANGE": {"PoDatepickerRange", "daterange"},
+	"PODATETIMEPICKER":  {"PoDatetimepicker", "datetimepicker"},
+	"POTIMEPICKER":      {"PoTimepicker", "timepicker"},
+	// onda 3a.3: texto especializado
+	"POEMAIL":   {"PoEmail", "email"},
+	"POURL":     {"PoUrl", "url"},
+	"PODECIMAL": {"PoDecimal", "decimal"},
+	"PORICHTEXT": {"PoRichText", "richtext"},
+	"POSEARCH":  {"PoSearch", "search"},
+	// onda 3a.4: upload
+	"POUPLOAD": {"PoUpload", "upload"},
+	// onda 3a.5: templates estáticos (páginas filhas do PoApp)
+	"POPAGELIST":   {"PoPageList", "pagelist"},
+	"POPAGEEDIT":   {"PoPageEdit", "pageedit"},
+	"POPAGEDETAIL": {"PoPageDetail", "pagedetail"},
+	// onda 3a.6: templates dinâmicos (REST da onda 1)
+	"POPAGEDYNAMICTABLE":  {"PoPageDynamicTable", "dyntable"},
+	"POPAGEDYNAMICEDIT":   {"PoPageDynamicEdit", "dynedit"},
+	"POPAGEDYNAMICDETAIL": {"PoPageDynamicDetail", "dyndetail"},
+	"POPAGEDYNAMICSEARCH": {"PoPageDynamicSearch", "dynsearch"},
+	// onda 3b.1: agrupamento e sobreposição
+	"POACCORDION":      {"PoAccordion", "accordion"},
+	"POACCORDIONITEM":  {"PoAccordionItem", "accordionitem"},
+	"POMODAL":          {"PoModal", "modal"},
+	"POSTEPPER":        {"PoStepper", "stepper"},
+	"POSTEP":           {"PoStep", "step"},
+	"POSLIDE":          {"PoSlide", "slide"},
+	// onda 3b.2: ações
+	"POBUTTONGROUP": {"PoButtonGroup", "buttongroup"},
+	"PODROPDOWN":    {"PoDropdown", "dropdown"},
+	"POPOPUP":       {"PoPopup", "popup"},
+	"POPOPOVER":     {"PoPopover", "popover"},
+	"POCONTEXTMENU": {"PoContextMenu", "contextmenu"},
+	"POTOOLBAR":     {"PoToolbar", "toolbar"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -166,7 +208,7 @@ func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []adv
 		a.killTimer(int(advplrt.ToFloat(getArg(args, 0))))
 	case "NAVIGATE":
 		pg, ok := paiNative[*poComp](asObj(getArg(args, 0)))
-		if !ok || pg.typ != "page" || pg.app != a {
+		if !ok || !a.isPage(pg) || pg.app != a {
 			return fmt.Errorf("PoApp:Navigate: página de outra aplicação")
 		}
 		a.cur = pg
@@ -210,7 +252,7 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 	pai, _ := getArg(args, 0).(*advplrt.ObjectValue)
 	var c *poComp
 	switch info.typ {
-	case "page", "menu":
+	case "page", "menu", "pagelist", "pageedit", "pagedetail", "dyntable", "dynedit", "dyndetail", "dynsearch":
 		a, ok := paiNative[*poAppState](pai)
 		if !ok {
 			return fmt.Errorf("%s: pai inválido (esperado PoApp)", obj.ClassName)
@@ -224,19 +266,48 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c.props["items"] = []map[string]any{}
 			break
 		}
-		c = a.add("page", obj)
+		// info.typ "page" ou template 3a.5 (pagelist/pageedit/pagedetail):
+		// todos são páginas do PoApp — Navigate e isContainer os tratam igual.
+		c = a.add(info.typ, obj)
 		a.pages = append(a.pages, c)
 		if a.cur == nil {
 			a.cur = c
 		}
 		c.props["title"] = advplrt.ToString(getArg(args, 1))
 		c.props["actions"] = []map[string]any{}
+		if poDynPage(info.typ) {
+			// New(oApp, cTitulo[, cUrlServico]) — url relativa ganha RestPrefix.
+			c.props["url"] = poFilterURL(getArg(args, 2))
+			c.props["fields"] = []map[string]any{}
+			c.props["filters"] = []map[string]any{}
+			c.props["keepFilters"] = false
+			c.props["quickSearchField"] = ""
+			c.props["quickFilter"] = ""
+			c.props["duplicates"] = []any{}
+			c.props["dynActions"] = map[string]any{}
+		}
 	default:
 		p, ok := paiNative[*poComp](pai)
-		if info.typ == "tab" {
-			ok = ok && p.typ == "tabs"
-		} else {
-			ok = ok && p.app.isContainer(p)
+		if !ok {
+			return fmt.Errorf("%s: pai inválido", obj.ClassName)
+		}
+		// onda 3b.1/3b.2: pais específicos dos componentes de agrupação/ação.
+		switch info.typ {
+		case "accordionitem":
+			ok = p.typ == "accordion"
+		case "step":
+			ok = p.typ == "stepper"
+		case "modal":
+			ok = p.app.isPage(p)
+		case "accordion", "stepper", "slide",
+			"buttongroup", "dropdown", "popup", "popover", "contextmenu", "toolbar":
+			ok = p.app.isContainer(p)
+		default:
+			if info.typ == "tab" {
+				ok = p.typ == "tabs"
+			} else {
+				ok = p.app.isContainer(p)
+			}
 		}
 		if !ok {
 			return fmt.Errorf("%s: pai inválido", obj.ClassName)
@@ -248,6 +319,63 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		}
 		p.children = append(p.children, c)
 		switch info.typ {
+		// onda 3b.1: props iniciais dos componentes de agrupamento.
+		case "accordion":
+			c.props["showManager"] = false
+			c.props["allowExpandAll"] = false
+		case "accordionitem":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["expanded"] = false
+		case "modal":
+			c.props["title"] = advplrt.ToString(getArg(args, 1))
+			c.props["open"] = false
+			c.props["size"] = "md"
+		case "stepper":
+			c.props["step"] = 0
+			c.props["orientation"] = "horizontal"
+		case "step":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+		case "slide":
+			// New(oPai, aSlides) — intervalo/altura via SetInterval/SetHeight.
+			c.props["slides"] = poSlideItems(getArg(args, 1))
+			c.props["interval"] = 0
+			c.props["height"] = 0
+		// onda 3b.2: ações
+		case "buttongroup":
+			// New(oPai, cToggle) — none|single|multiple
+			tg := strings.ToLower(argTexto(args, 1, "none"))
+			if tg != "none" && tg != "single" && tg != "multiple" {
+				return fmt.Errorf("PoButtonGroup: toggle inválido %q", tg)
+			}
+			c.props["toggle"] = tg
+			c.props["buttons"] = []map[string]any{}
+			c.props["selected"] = []any{}
+		case "dropdown":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["actions"] = []map[string]any{}
+			c.props["position"] = "bottom"
+		case "popup":
+			// New(oPai, oAlvo) — alvo é outro componente da árvore.
+			if t := poCompDeArg(getArg(args, 1)); t != nil {
+				c.props["target"] = t.id
+			}
+			c.props["open"] = false
+			c.props["actions"] = []map[string]any{}
+		case "popover":
+			// New(oPai, oAlvo, cTitulo)
+			if t := poCompDeArg(getArg(args, 1)); t != nil {
+				c.props["target"] = t.id
+			}
+			c.props["title"] = advplrt.ToString(getArg(args, 2))
+			c.props["trigger"] = "click"
+			c.props["position"] = "bottom"
+		case "contextmenu":
+			c.props["title"] = advplrt.ToString(getArg(args, 1))
+			c.props["items"] = []map[string]any{}
+		case "toolbar":
+			c.props["title"] = advplrt.ToString(getArg(args, 1))
+			c.props["actions"] = []map[string]any{}
+			c.props["notificationNumber"] = 0
 		case "button":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			if b, ok := getArg(args, 2).(*advplrt.CodeBlockValue); ok {
@@ -300,6 +428,81 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		case "checkbox", "switch":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			c.props["value"] = advplrt.ToBool(getArg(args, 2))
+		case "combo":
+			// New(oPai, cLabel, aOpcoes, cValor)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["options"] = poOpcoesValorLabel(getArg(args, 2))
+			c.props["value"] = argTexto(args, 3, "")
+		case "multiselect":
+			// New(oPai, cLabel, aOpcoes, aValores)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["options"] = poOpcoesValorLabel(getArg(args, 2))
+			c.props["value"] = poValores(getArg(args, 3))
+		case "radiogroup":
+			// New(oPai, cLabel, aOpcoes, cValor) — po-radio-group não tem
+			// p-label no PO-UI; o rótulo fica só na prop para Get().
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["options"] = poOpcoesValorLabel(getArg(args, 2))
+			c.props["value"] = argTexto(args, 3, "")
+			c.props["columns"] = 1
+		case "checkboxgroup":
+			// New(oPai, cLabel, aOpcoes, aValores)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["options"] = poOpcoesValorLabel(getArg(args, 2))
+			c.props["value"] = poValores(getArg(args, 3))
+			c.props["columns"] = 1
+		case "lookup":
+			// New(oPai, cLabel, cUrlServico, cCampoValor, cCampoLabel)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["filterUrl"] = poFilterURL(getArg(args, 2))
+			c.props["fieldValue"] = advplrt.ToString(getArg(args, 3))
+			c.props["fieldLabel"] = advplrt.ToString(getArg(args, 4))
+			c.props["columns"] = []map[string]any{}
+			c.props["value"] = ""
+		case "datepicker":
+			// New(oPai, cLabel, dValor) — data AdvPL na fronteira vira ISO.
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = poDataISO(getArg(args, 2))
+		case "daterange":
+			// New(oPai, cLabel, dIni, dFim)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = map[string]any{
+				"start": poDataISO(getArg(args, 2)),
+				"end":   poDataISO(getArg(args, 3)),
+			}
+		case "datetimepicker":
+			// New(oPai, cLabel, cIsoDataHora)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = argTexto(args, 2, "")
+		case "timepicker":
+			// New(oPai, cLabel, cHora) — "HH:MM[:SS]"
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = argTexto(args, 2, "")
+		case "email", "url", "decimal":
+			// New(oPai, cLabel, xValor[, nDecimais])
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = poToJSON(getArg(args, 2))
+			if info.typ == "decimal" {
+				c.props["decimalsLength"] = int(advplrt.ToFloat(getArg(args, 3)))
+			}
+		case "richtext":
+			// New(oPai, cLabel, cHtml) — HTML cru, sem sanitização.
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = argTexto(args, 2, "")
+			c.props["height"] = "150px"
+		case "search":
+			// New(oPai, cPlaceholder)
+			c.props["literals"] = map[string]any{"search": advplrt.ToString(getArg(args, 1))}
+			c.props["items"] = []any{}
+			c.props["filterKeys"] = []any{}
+		case "upload":
+			// New(oPai, cLabel, cDiretorioDestino)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["dir"] = advplrt.ToString(getArg(args, 2))
+			c.props["extensions"] = []string{}
+			c.props["maxSizeMB"] = 10.0
+			c.props["multiple"] = false
+			c.props["url"] = poUploadToken(c)
 		case "terminal":
 			if !ptyDisponivel {
 				return fmt.Errorf("AdvTerminal: terminal indisponível no Windows nesta versão")
@@ -412,6 +615,63 @@ func argTexto(args []advplrt.Value, i int, def string) string {
 func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) error {
 	a := c.app
 	var ret advplrt.Value = advplrt.Nil
+	// Onda 3a: métodos dos componentes de seleção/campos e data/hora.
+	if ok, r, err := v.po3aMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3aDateMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3aTextMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3aUploadMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3aPageMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3aDynMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bGroupMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bGroup2Method(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
 	switch method {
 	case "SET":
 		a.setProp(c, advplrt.ToString(getArg(args, 0)), poToJSON(getArg(args, 1)))

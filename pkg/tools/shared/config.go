@@ -17,6 +17,7 @@ type Config struct {
 	PouiAppsDirs      []string `json:"poui_apps_dirs,omitempty"`      // diretórios de busca de apps PO-UI (FwCallApp/--poui-app)
 	PouiDesconexaoSeg int      `json:"poui_desconexao_seg,omitempty"` // segundos sem a aba do app antes de fechar o FwCallApp (padrão 10)
 	PouiAppMaxMB      int64    `json:"poui_app_max_mb,omitempty"`     // limite do .app em MB (padrão 64)
+	PouiUploadDirs    []string `json:"poui_upload_dirs,omitempty"`    // diretórios extras permitidos ao PoUpload (além do cwd do serve)
 }
 
 // ResolveWebUIPort resolve a porta do modo web: explícita (--port) →

@@ -528,6 +528,9 @@ func (srv *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /poui-ui", func(w http.ResponseWriter, r *http.Request) {
 		srv.handlePouiUI(w, r)
 	})
+	mux.HandleFunc("POST /poui-upload", func(w http.ResponseWriter, r *http.Request) {
+		srv.handlePouiUpload(w, r)
+	})
 
 	srv.restMu.RLock()
 	if srv.restHandler != nil && srv.restPrefix != "" {

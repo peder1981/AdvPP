@@ -188,6 +188,29 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 				return
 			}
 			h, args = c.handlers["select"], []advplrt.Value{c.obj, c.rows[i]}
+		case "selected":
+			// PoLookup:OnSelected(oLinha) — a linha vem do REST como objeto.
+			h, args = c.handlers["selected"], []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
+		case "filter":
+			// PoSearch:OnFilter(cTexto)
+			h, args = c.handlers["filter"], []advplrt.Value{c.obj, advplrt.NewString(poJSONTexto(val))}
+		case "upload":
+			// PoUpload:OnUpload(aArquivos) — resposta do POST /poui-upload.
+			h, args = c.handlers["upload"], []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
+		case "advancedsearch":
+			// PoPageList:OnAdvancedSearch()
+			h, args = c.handlers["advancedsearch"], []advplrt.Value{c.obj}
+		case "savenew", "cancel", "edit", "remove", "back":
+			// PoPageEdit/PoPageDetail: OnSaveNew/OnCancel/OnEdit/OnRemove/OnBack
+			h, args = c.handlers[ev], []advplrt.Value{c.obj}
+		case "beforesave", "beforeremove", "canactivate":
+			// Onda 3a.6 — round-trip síncrono: o frontend espera
+			// {"op":"beforeResult","reqId":N,"ok":bool} antes de gravar.
+			// O handler roda na goroutine do laço e o resultado sai no
+			// flush logo após o dispatch; timeout no frontend (30 s)
+			// equivale a recusar.
+			v.poBeforeHook(a, c, ev, val)
+			return
 		case "action":
 			i, ok := poJSONIndice(val)
 			if !ok {
@@ -195,6 +218,12 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 			}
 			h, args = c.handlers[fmt.Sprintf("action:%d", i)], []advplrt.Value{c.obj}
 		default:
+			// Eventos genéricos registrados via On* (onda 3b em diante):
+			// expand/collapse/close/changestep/click:* recebem (oComp, valor).
+			if hb, ok2 := c.handlers[ev].(*advplrt.CodeBlockValue); ok2 {
+				h, args = hb, []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
+				break
+			}
 			return
 		}
 	}
@@ -211,17 +240,50 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 }
 
 // poValorDoBrowser converte o valor de um "change" conforme o componente:
-// number -> N, checkbox/switch -> L, demais -> C.
+// number -> N, checkbox/switch -> L, multiselect/checkboxgroup -> array
+// de strings, demais -> C.
 func poValorDoBrowser(typ string, val []byte) advplrt.Value {
 	txt := poJSONTexto(val)
 	switch typ {
-	case "number":
+	case "number", "decimal":
 		f, _ := strconv.ParseFloat(strings.TrimSpace(txt), 64)
 		return advplrt.NewNumber(f)
 	case "checkbox", "switch":
 		return advplrt.NewBool(txt == "true")
+	case "datepicker":
+		return poDataDeValor(advplrt.NewString(txt))
+	case "daterange":
+		return poRangeDoBrowser(val)
+	case "multiselect", "checkboxgroup", "lookup":
+		var xs []any
+		if json.Unmarshal(val, &xs) != nil {
+			if typ == "lookup" {
+				break
+			}
+			return advplrt.NewArray(nil)
+		}
+		el := make([]advplrt.Value, len(xs))
+		for i, e := range xs {
+			if m, ok := e.(map[string]any); ok {
+				if v, has := m["value"]; has {
+					e = v
+				}
+			}
+			el[i] = poFromJSON(e)
+		}
+		return advplrt.NewArray(el)
 	}
 	return advplrt.NewString(txt)
+}
+
+// poFromJSONPoEvent: o "value" do POST /ui como valor AdvPL — objetos e
+// arrays viram estruturas AdvPL; escalares caem no poFromJSON comum.
+func poFromJSONPoEvent(val []byte) advplrt.Value {
+	var x any
+	if json.Unmarshal(val, &x) != nil || x == nil {
+		return advplrt.Nil
+	}
+	return poFromJSON(x)
 }
 
 // poJSONTexto: valor JSON do browser como texto ("abc" -> abc, 42 -> 42).

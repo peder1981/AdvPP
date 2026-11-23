@@ -1776,6 +1776,25 @@ var poClassNames = map[string]bool{
 	"POTREE": true, "POLIST": true, "POINFO": true, "POPROGRESS": true, "POGAUGE": true, "POCHART": true,
 	"POPASSWORD": true, "POTEXTAREA": true, "PONUMBER": true, "POSELECT": true, "POCHECKBOX": true, "POSWITCH": true,
 	"ADVCODEEDITOR": true, "ADVTERMINAL": true,
+	// Onda 3a.1 — seleção
+	"POCOMBO": true, "POMULTISELECT": true, "PORADIOGROUP": true, "POCHECKBOXGROUP": true, "POLOOKUP": true,
+	// Onda 3a.2 — data e hora
+	"PODATEPICKER": true, "PODATEPICKERRANGE": true, "PODATETIMEPICKER": true, "POTIMEPICKER": true,
+	// Onda 3a.3 — texto especializado
+	"POEMAIL": true, "POURL": true, "PODECIMAL": true, "PORICHTEXT": true, "POSEARCH": true,
+	// Onda 3a.4 — upload
+	"POUPLOAD": true,
+	// Onda 3a.5 — templates estáticos
+	"POPAGELIST": true, "POPAGEEDIT": true, "POPAGEDETAIL": true,
+	// Onda 3a.6 — templates dinâmicos
+	"POPAGEDYNAMICTABLE": true, "POPAGEDYNAMICEDIT": true,
+	"POPAGEDYNAMICDETAIL": true, "POPAGEDYNAMICSEARCH": true,
+	// Onda 3b.1 — agrupamento e sobreposição
+	"POACCORDION": true, "POACCORDIONITEM": true, "POMODAL": true,
+	"POSTEPPER": true, "POSTEP": true, "POSLIDE": true,
+	// Onda 3b.2 — ações
+	"POBUTTONGROUP": true, "PODROPDOWN": true, "POPOPUP": true,
+	"POPOPOVER": true, "POCONTEXTMENU": true, "POTOOLBAR": true,
 }
 
 func isPoClassName(name string) bool {
