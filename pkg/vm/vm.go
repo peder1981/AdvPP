@@ -110,6 +110,7 @@ type VM struct {
 	ownedConns            []int    // conexões desta VM, fechadas em CloseOwnedConnections
 	currentAlias          string   // último alias passado para DbSelectArea, para GetArea()/RestArea()
 	uiProvider            UIProvider
+	sourceDir             string // diretório do fonte em execução (busca de apps PO-UI do FwCallApp)
 	output                strings.Builder
 	namedArgs             []namedArgInfo // tracks named parameter info for current call
 	argCounter            int            // counts args pushed for current call
@@ -464,13 +465,57 @@ func (v *VM) SetUIProvider(provider UIProvider) {
 	v.uiProvider = provider
 }
 
-// globais: os globais do arquivo (frame principal de Run). Sem Run (ex.:
-// RunFunction numa VM filha) não há globais: leitura dá NIL e escrita é
-// ignorada — nunca o slot de uma variável local de mesmo índice. Só Run
-// executa o corpo principal, então o código de nível superior sempre tem
-// v.globals.
+// SetSourceDir informa o diretório do fonte que originou o bytecode —
+// o FwCallApp procura o app PO-UI primeiro nele.
+func (v *VM) SetSourceDir(dir string) {
+	v.sourceDir = dir
+}
+
+// globais: os globais do arquivo (frame principal de Run). Sem Run ainda
+// aloca o slice sob demanda — OP_LOAD/STORE_GLOBAL precisam de um lugar
+// consistente para ler/escrever os Static de arquivo em VMs usadas só via
+// RunFunction/invokeMethodFrame (filhas de requisição REST). O índice é
+// sempre o slot global, nunca o de uma variável local de mesmo índice.
 func (v *VM) globais() []advplrt.Value {
+	if v.globals == nil && v.bc != nil {
+		v.globals = make([]advplrt.Value, v.bc.NumGlobals)
+		// Slots nascem Nil, não nil-interface: LOAD_GLOBAL empurra o valor
+		// cru do slice e um nil aqui corromperia a pilha (RunFunction
+		// devolvia nil em vez de advplrt.Nil).
+		for i := range v.globals {
+			v.globals[i] = advplrt.Nil
+		}
+	}
 	return v.globals
+}
+
+// runProjectStatics executa o "main" de um projeto (CompileProject) uma
+// única vez: inicializadores dos Static de arquivo + OP_HALT. Só é chamado
+// por runLoop quando v.globals ainda é nil — Run() nunca chega aqui porque
+// já preencheu v.globals com os locais do frame principal. O frame main é
+// descartado ao final; v.current e a pilha de frames do chamador são
+// restaurados.
+func (v *VM) runProjectStatics() error {
+	v.globals = v.globais()
+	framesLen := len(v.frames)
+	prev := v.current
+	v.frames = append(v.frames, &CallFrame{
+		FuncName:  "main",
+		Code:      v.bc.Code,
+		IP:        v.bc.MainOffset,
+		Locals:    v.globals,
+		StackBase: 0,
+	})
+	v.current = v.frames[len(v.frames)-1]
+	_, err := v.runLoop()
+	// handleCatch pode ter desenrolado frames do chamador num erro dentro
+	// do init — trunca só se ainda houver frames demais (nunca panic).
+	if len(v.frames) > framesLen {
+		v.frames = v.frames[:framesLen]
+	}
+	v.current = prev
+	v.stack = v.stack[:0]
+	return err
 }
 
 // SetOutputWriter espelha a saída de console (ConOut etc.) para um writer
@@ -720,6 +765,18 @@ func (v *VM) StartJob(funcName string, wait bool, args []advplrt.Value) error {
 }
 
 func (v *VM) runLoop() (advplrt.Value, error) {
+	// CompileProject: o "main" contém só os inicializadores dos Static de
+	// arquivo + HALT. VMs que entram direto por RunFunction/runLoop (filhas
+	// de requisição REST, jobs) nunca passam por Run(), então executam esse
+	// trecho uma vez antes do primeiro frame — sem isto OP_LOAD/STORE_GLOBAL
+	// leriam Nil e descartariam escritas (singletons `static __instance`).
+	// Em Run() v.globals já foi preenchido com os locais do frame main,
+	// então a condição não dispara e o main roda uma única vez como sempre.
+	if v.globals == nil && v.bc != nil && v.bc.ProjectStatics && len(v.stack) == 0 {
+		if err := v.runProjectStatics(); err != nil {
+			return advplrt.Nil, err
+		}
+	}
 	for {
 		// v.current fica nil quando o último frame retorna (RunFunction)
 		if v.current == nil || v.current.IP >= len(v.current.Code) {
@@ -1743,9 +1800,12 @@ func (v *VM) callMethod(methodName string, argCount int) error {
 	if !ok {
 		v.namedArgs = v.namedArgs[:0]
 		v.argCounter = 0
-		return fmt.Errorf("cannot call method %s on non-object (type %T)", methodName, obj)
+		fn := ""
+		if v.current != nil {
+			fn = v.current.FuncName
+		}
+		return fmt.Errorf("cannot call method %s on non-object (type %T) [em %s ip=%d]", methodName, obj, fn, v.current.IP)
 	}
-
 	// Find method in class hierarchy
 	funcName := v.findMethod(o.ClassName, methodName)
 	if funcName == "" {
@@ -2446,6 +2506,18 @@ func (v *VM) callJsonObjectMethod(obj *advplrt.ObjectValue, method string, args 
 		// (antes .T./.F.; código escrito para o Protheus, que testa
 		// ValType(xErr) == "C", nunca via o erro).
 		if len(args) > 0 {
+			// Objeto Json já materializado (ex.: retorno de outro serviço
+			// TLPP): copia as chaves em vez de exigir texto JSON — o corpus
+			// encadeia `jResposta:fromJson(oService:getAll())` assim.
+			if src, ok := advplrt.Deref(args[0]).(*advplrt.ObjectValue); ok {
+				obj.Props = make(map[string]advplrt.Value, len(src.Props))
+				obj.Keys = obj.Keys[:0]
+				for _, k := range src.Keys {
+					obj.SetProp(k, src.Props[k])
+				}
+				v.push(advplrt.Nil)
+				return nil
+			}
 			if s, ok := args[0].(*advplrt.StringValue); ok {
 				var parsed interface{}
 				if err := json.Unmarshal([]byte(s.Val), &parsed); err != nil {

@@ -253,7 +253,7 @@ func (a *PouiApp) ServeHTTP(w http.ResponseWriter, r *http.Request) // r.URL.Pat
     `index.html`, com o shim injetado (Task 2.2);
   - `Content-Type` pela extensão (`mime.TypeByExtension`).
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestPouiAppPasta(t *testing.T)            // dir com index.html e assets/data/appConfig.json -> GET / e GET /assets/data/appConfig.json servem
@@ -264,11 +264,11 @@ func TestPouiAppRotaSpa(t *testing.T)          // GET /clientes/123 -> index.htm
 func TestLocalizaPouiAppOrdem(t *testing.T)    // nome.app e nome/ no mesmo dir -> .app vence; nome inválido "a/b" -> erro
 ```
 
-- [ ] **Step 2:** `go test ./pkg/webui -run 'TestPouiApp|TestLocaliza' -v`. Esperado:
+- [x] **Step 2:** `go test ./pkg/webui -run 'TestPouiApp|TestLocaliza' -v`. Esperado:
   FAIL.
-- [ ] **Step 3:** Implementar conforme Interfaces.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(webui): servir app PO-UI de pasta ou .app em
+- [x] **Step 3:** Implementar conforme Interfaces.
+- [x] **Step 4:** `go test ./...`. Esperado: PASS.
+- [x] **Step 5: Commit** — `feat(webui): servir app PO-UI de pasta ou .app em
   memória`
 
 ### Task 2.2: shim e contexto da sessão
@@ -296,7 +296,7 @@ func InjetaShim(index []byte) []byte                 // insere <script>…poui_s
   Antes do Step 3, conferir no `.mjs` quais campos a lib lê desses objetos
   (`getCompany`/`getBranch`) e ajustar o formato para exatamente esses.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestSessionStorageChaves(t *testing.T) // contém exatamente as chaves da seção 3.2.4; ERPAPPCONFIG.api_baseUrl == origem+restPrefix
@@ -306,12 +306,12 @@ func TestInjetaShimSemScript(t *testing.T)  // vai antes de </body>
 func TestShimSemIdentificadores(t *testing.T) // poui_shim.js não contém "advpp", "claude", URLs externas nem caracteres U+200B..U+200D/U+2060/U+FEFF
 ```
 
-- [ ] **Step 2:** `go test ./pkg/webui -run 'TestSession|TestToken|TestInjeta|TestShim'
+- [x] **Step 2:** `go test ./pkg/webui -run 'TestSession|TestToken|TestInjeta|TestShim'
   -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar o Go e o `poui_shim.js` conforme a seção 3.2, em JS puro
+- [x] **Step 3:** Implementar o Go e o `poui_shim.js` conforme a seção 3.2, em JS puro
   sem build e com no máximo 120 linhas.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(webui): shim twebchannel e contexto de sessão do app
+- [x] **Step 4:** `go test ./...`. Esperado: PASS.
+- [x] **Step 5: Commit** — `feat(webui): shim twebchannel e contexto de sessão do app
   PO-UI`
 
 ### Task 2.3: canal do app no servidor (`/poui/`, `/poui-ui`, `/poui-ctx`, SSE `advpltojs`)
@@ -349,7 +349,7 @@ func (p *Provider) FechaPouiApp()                                               
   (`shared.Config.PouiDesconexaoSeg`, padrão 10), faz o `PouiNext` devolver
   `fechou=true`. O mesmo acontece no fim da sessão chamadora.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestPouiCanalIdaEVolta(t *testing.T)        // POST /poui-ui {type:"preLoad"} -> PouiNext devolve "preLoad"; PouiEnvia("x","1") -> SSE canal=poui recebe advpltojs {"type":"x","content":"1"}
@@ -361,11 +361,11 @@ func TestPouiDepoisDeFechar410(t *testing.T)
 func TestPouiCorpoGrande413(t *testing.T)
 ```
 
-- [ ] **Step 2:** `go test ./pkg/webui -run TestPoui -race -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar o canal e o `open-tab` na SPA. Rodar `make web` e
+- [x] **Step 2:** `go test ./pkg/webui -run TestPoui -race -v`. Esperado: FAIL.
+- [x] **Step 3:** Implementar o canal e o `open-tab` na SPA. Rodar `make web` e
   versionar o `pkg/webui/dist`.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(webui): canal do app PO-UI (aba nova, jsToAdvpl,
+- [x] **Step 4:** `go test ./...`. Esperado: PASS.
+- [x] **Step 5: Commit** — `feat(webui): canal do app PO-UI (aba nova, jsToAdvpl,
   advpltojs)`
 
 ### Task 2.4: `FwCallApp` e `oWebChannel` na VM
@@ -410,7 +410,7 @@ type PouiAppUI interface {
 - Os parâmetros 2 a 5 e 7 em diante são aceitos e ignorados, e ficam documentados no
   `COMPONENT_STATUS.md`.
 
-- [ ] **Step 1: Escrever os testes que falham** (com um `PouiAppUI` falso no teste)
+- [x] **Step 1: Escrever os testes que falham** (com um `PouiAppUI` falso no teste)
 
 ```go
 func TestFwCallAppForaDoModoWeb(t *testing.T)      // erro exato "FwCallApp: requer o modo web (advplc serve)"
@@ -421,11 +421,11 @@ func TestFwCallAppErroNoCallbackNaoDerruba(t *testing.T)
 func TestFwCallAppAppInexistente(t *testing.T)     // erro "FwCallApp: app <nome> não encontrado em <dirs>"
 ```
 
-- [ ] **Step 2:** `go test ./pkg/vm -run TestFwCallApp -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar conforme Interfaces. No `cmd/advplc`, ligar a `Provider`
+- [x] **Step 2:** `go test ./pkg/vm -run TestFwCallApp -v`. Esperado: FAIL.
+- [x] **Step 3:** Implementar conforme Interfaces. No `cmd/advplc`, ligar a `Provider`
   do webui ao `PouiAppUI`.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(vm): FwCallApp real com JsToAdvpl e AdvPLToJS`
+- [x] **Step 4:** `go test ./...`. Esperado: PASS.
+- [x] **Step 5: Commit** — `feat(vm): FwCallApp real com JsToAdvpl e AdvPLToJS`
 
 ### Task 2.5: endpoints de framework que a lib chama
 
@@ -487,7 +487,7 @@ func TestFrameworkFonteDoUsuarioVence(t *testing.T) // fonte com @Get("/api/fram
     servidor sem VM chamadora: os `jsToAdvpl` são descartados e o `close` só desregistra.
   - Todo o resto (shim, contexto, checagens) é idêntico ao do `FwCallApp`.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```go
 func TestServePouiAppRedirecionaRaiz(t *testing.T) // GET / -> 302 para /poui/<nome>/?sid=
@@ -495,10 +495,10 @@ func TestServePouiAppComRest(t *testing.T)         // --poui-app fixture + tests
 func TestServePouiAppSemFonte(t *testing.T)        // só o app -> framework endpoints respondem; jsToAdvpl aceito (204) e descartado
 ```
 
-- [ ] **Step 2:** `go test ./cmd/advplc -run TestServePouiApp -v`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar conforme Interfaces.
-- [ ] **Step 4:** `go test ./...`. Esperado: PASS.
-- [ ] **Step 5: Commit** — `feat(serve): --poui-app para apps PO-UI externos`
+- [x] **Step 2:** `go test ./cmd/advplc -run TestServePouiApp -v`. Esperado: FAIL.
+- [x] **Step 3:** Implementar conforme Interfaces.
+- [x] **Step 4:** `go test ./...`. Esperado: PASS.
+- [x] **Step 5: Commit** — `feat(serve): --poui-app para apps PO-UI externos`
 
 ### Task 2.7: app de teste com `@totvs/protheus-lib-core`
 
@@ -528,31 +528,31 @@ func TestServePouiAppSemFonte(t *testing.T)        // só o app -> framework end
   `oWebChannel:AdvPLToJS(cContent, "pong")`.
 - `assets/data/appConfig.json` traz `api_baseUrl` vazio (o shim fornece o valor).
 
-- [ ] **Step 1:** Criar o projeto, compilar com `make fixture-app`, e versionar
+- [x] **Step 1:** Criar o projeto, compilar com `make fixture-app`, e versionar
   `tests/poui/apps/fixture-app/`.
-- [ ] **Step 2:** Com `poui_apps_dirs` apontando para `tests/poui/apps`, rodar
+- [x] **Step 2:** Com `poui_apps_dirs` apontando para `tests/poui/apps`, rodar
   `./advplc serve tests/poui/fixture-app.prw --port 8098` e abrir
   no navegador (Chrome com a extensão claude-in-chrome). Verificar: a lista mostra os 25
   armazéns paginados; "Pingar" mostra "pong"; "Fechar" faz o `FwCallApp` retornar (o
   console da SPA mostra a linha seguinte do fonte).
-- [ ] **Step 3:** Estender `tests/poui/ao_vivo.mjs` com o cenário acima, para que
+- [x] **Step 3:** Estender `tests/poui/ao_vivo.mjs` com o cenário acima, para que
   `tests/poui/ao-vivo.sh fixture-app` o automatize.
-- [ ] **Step 4:** `tests/poui/ao-vivo.sh fixture-app`. Esperado: saída `OK` nos 3
+- [x] **Step 4:** `tests/poui/ao-vivo.sh fixture-app`. Esperado: saída `OK` nos 3
   passos.
-- [ ] **Step 5: Commit** — `test: app de teste PO-UI com protheus-lib-core
+- [x] **Step 5: Commit** — `test: app de teste PO-UI com protheus-lib-core
   (FwCallApp de ponta a ponta)`
 
 ### Task 2.8: validação no corpus, documentação e encerramento
 
-- [ ] **Step 1:** `TestCorpusFwCallAppCheck` (local, `ADVPP_CORPUS_2510`; `SKIP` sem
+- [x] **Step 1:** `TestCorpusFwCallAppCheck` (local, `ADVPP_CORPUS_2510`; `SKIP` sem
   corpus): os 91 arquivos com `FwCallApp` e os 58 com `JsToAdvpl` passam no `check`
   com 0 erros quando o corpus estiver disponível.
-- [ ] **Step 2:** `COMPONENT_STATUS.md`:
+- [x] **Step 2:** `COMPONENT_STATUS.md`:
   - `FwCallApp`, `TWebChannel`, `--poui-app` e os endpoints de framework;
   - os parâmetros ignorados do `FwCallApp`;
   - o texto da seção 3.2 (divulgação do shim);
   - lacunas: OAuth2/MFA e `TWebEngine` desktop.
-- [ ] **Step 3:** `CHANGELOG.md`. Push, CI verde nos 3 SOs e no job `determinism`,
+- [x] **Step 3:** `CHANGELOG.md`. Push, CI verde nos 3 SOs e no job `determinism`,
   e revisão do branch somente após autorização. PR e release somente com pedido
   explícito do operador.
 

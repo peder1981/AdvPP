@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "cli": { "packageManager": "npm" },
+  "newProjectRoot": "projects",
+  "projects": {
+    "fixture-app": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "src/main.ts",
+            "tsConfig": "tsconfig.app.json",
+            "assets": [{ "glob": "**/*", "input": "src/assets", "output": "assets" }],
+            "styles": ["src/styles.css"],
+            "polyfills": ["zone.js"],
+            "outputPath": "../apps/fixture-app"
+          },
+          "configurations": {
+            "production": { "optimization": true, "outputHashing": "all" },
+            "development": { "optimization": false, "outputHashing": "none", "sourceMap": true }
+          },
+          "defaultConfiguration": "production"
+        }
+      }
+    }
+  }
+}

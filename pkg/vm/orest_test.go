@@ -198,3 +198,57 @@ Return {"id": oParam:ID, "q": oParam:Q}
 		t.Fatalf("corpo = %v", m)
 	}
 }
+
+// controllerFonte lê a fixture de controlador REST TLPP (class + métodos
+// anotados), padrão do corpus 12.1.2510.
+func controllerFonte(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile("../../tests/rest_totvs/controller_api.tlpp")
+	if err != nil {
+		t.Fatalf("ler fixture controller_api.tlpp: %v", err)
+	}
+	return string(b)
+}
+
+func controllerServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	bc := compilarPrg(t, controllerFonte(t))
+	v := NewVM(bc, false)
+	s := rest.NewServer("ctrl", "1.0")
+	v.autoRegisterAnnotatedRoutes(s)
+	srv := httptest.NewServer(s.Handler())
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestORestControllerGet: @GET em método de classe registra rota, instancia
+// a classe por requisição (construtor `new` roda) e o path param chega ao
+// oRest:getPathParamsRequest.
+func TestORestControllerGet(t *testing.T) {
+	srv := controllerServer(t)
+	code, _, body := orestDo(t, "GET", srv.URL+"/api/v1/moedas/2024", "", nil)
+	if code != 200 {
+		t.Fatalf("status %d, body %q", code, body)
+	}
+	m := orestJSON(t, body)
+	if m["DATEBASE"] != "2024" && m["datebase"] != "2024" {
+		t.Fatalf("datebase ausente/errado: %v", m)
+	}
+	if m["PRONTO"] != true && m["pronto"] != true {
+		t.Fatalf("construtor não rodou (pronto != true): %v", m)
+	}
+}
+
+// TestORestControllerPost: @Post em método de classe faz eco do corpo via
+// oRest:getBodyRequest.
+func TestORestControllerPost(t *testing.T) {
+	srv := controllerServer(t)
+	code, _, body := orestDo(t, "POST", srv.URL+"/api/v1/moedas", `{"sigla":"BRL"}`, map[string]string{"Content-Type": "application/json"})
+	if code != 200 {
+		t.Fatalf("status %d, body %q", code, body)
+	}
+	m := orestJSON(t, body)
+	if m["SIGLA"] != "BRL" && m["sigla"] != "BRL" {
+		t.Fatalf("eco do body falhou: %v", m)
+	}
+}

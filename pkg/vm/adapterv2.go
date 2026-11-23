@@ -91,6 +91,10 @@ func (st *adapterV2State) NativeCallMethod(v *VM, obj *advplrt.ObjectValue, meth
 			st.mapa = map[string]MapaCampo{}
 			st.tipos = map[string]sx3Tipo{}
 		}
+		// lOk: flag pública lida pelo fonte do corpus após Execute
+		// (ex.: `If oAdapter:lOk`). Começa .F.; EXECUTE/FILLGETRESPONSE
+		// bem-sucedidos ligam.
+		obj.SetProp("LOK", advplrt.False)
 		return obj, nil
 
 	case "ADDMAPFIELDS":
@@ -137,17 +141,35 @@ func (st *adapterV2State) NativeCallMethod(v *VM, obj *advplrt.ObjectValue, meth
 
 	case "EXECUTE":
 		if err := st.execute(v); err != nil {
+			obj.SetProp("LOK", advplrt.False)
 			return advplrt.False, nil
 		}
+		obj.SetProp("LOK", advplrt.True)
 		return advplrt.True, nil
 
 	case "FILLGETRESPONSE", "GETJSONRESPONSE":
 		if st.resp == nil {
 			st.resp = adapterResponse(nil, false)
 		}
+		obj.SetProp("LOK", advplrt.True)
 		return st.resp, nil
 
-	case "GETERRORMESSAGE":
+	case "DEACTIVATE":
+		// Limpeza pós-uso vista no corpus (`oAdapter:DeActivate()` antes de
+		// FreeObj): zera a resposta e o erro — o adapter pode ser reusado.
+		st.resp = nil
+		st.hasErr = false
+		st.errMsg = ""
+		obj.SetProp("LOK", advplrt.False)
+		return advplrt.Nil, nil
+
+	case "GETCODE":
+		if st.hasErr {
+			return advplrt.NewNumber(500), nil
+		}
+		return advplrt.NewNumber(200), nil
+
+	case "GETERRORMESSAGE", "GETMESSAGE":
 		return advplrt.NewString(st.errMsg), nil
 	case "HASERRORMESSAGE":
 		return advplrt.NewBool(st.hasErr), nil
@@ -173,6 +195,19 @@ func adapterTruthy(val advplrt.Value, def bool) bool {
 func adapterAddMapFields(st *adapterV2State, args []advplrt.Value) {
 	prop := advplrt.ToString(getArg(args, 0))
 	coluna := strings.ToUpper(strings.TrimSpace(advplrt.ToString(getArg(args, 1))))
+	// 6º argumento opcional (corpus 12.1.2510): coluna física qualificada
+	// "ALIAS.CAMPO" — ex.: addMapFields("branch","branch",.T.,.F.,aStruct,
+	// "QLG.QLG_FILIAL"). Quando presente, a parte após o ponto é a coluna
+	// real do SELECT; o nome do arg 2 é só o rótulo JSON.
+	if len(args) > 5 {
+		if q := strings.TrimSpace(advplrt.ToString(getArg(args, 5))); q != "" {
+			if i := strings.LastIndex(q, "."); i >= 0 {
+				coluna = strings.ToUpper(strings.TrimSpace(q[i+1:]))
+			} else {
+				coluna = strings.ToUpper(q)
+			}
+		}
+	}
 	filtra := adapterTruthy(getArg(args, 2), true)
 	ordena := adapterTruthy(getArg(args, 3), true)
 
@@ -349,9 +384,17 @@ func (st *adapterV2State) buildQuery(v *VM) (string, []any, int, error) {
 		whereParts = append(whereParts, "("+fsql+")")
 		args = append(args, fargs...)
 	}
-	whereSQL := ""
+	// whereCond são só as condições (sem o keyword WHERE): o placeholder
+	// #QueryWhere# do template já vem precedido de WHERE literal no fonte
+	// do corpus (`... WHERE #QueryWhere#`), então substituir pelo whereSQL
+	// completo geraria "WHERE WHERE (...)" — erro de sintaxe no Execute.
+	whereCond := ""
 	if len(whereParts) > 0 {
-		whereSQL = "WHERE " + strings.Join(whereParts, " AND ")
+		whereCond = strings.Join(whereParts, " AND ")
+	}
+	whereSQL := ""
+	if whereCond != "" {
+		whereSQL = "WHERE " + whereCond
 	}
 
 	orderSQL := ""
@@ -378,7 +421,22 @@ func (st *adapterV2State) buildQuery(v *VM) (string, []any, int, error) {
 		q = strings.ReplaceAll(q, "#QueryFields#", fieldsSQL)
 	}
 	if strings.Contains(q, "#QueryWhere#") {
-		q = strings.ReplaceAll(q, "#QueryWhere#", whereSQL)
+		// Dois estilos de template no corpus: "... WHERE #QueryWhere#"
+		// (WHERE literal — o placeholder recebe só as condições) e
+		// "#QueryWhere#" solto (o placeholder recebe a cláusula inteira).
+		// Sem condições: com WHERE literal vira 1=1 (não deixa WHERE
+		// pendurado); sem WHERE some de vez.
+		rep := whereCond
+		prefix := strings.ToUpper(strings.TrimSpace(q[:strings.Index(q, "#QueryWhere#")]))
+		hasWhere := strings.HasSuffix(prefix, "WHERE")
+		if hasWhere {
+			if rep == "" {
+				rep = "1=1"
+			}
+		} else if rep != "" {
+			rep = "WHERE " + rep
+		}
+		q = strings.ReplaceAll(q, "#QueryWhere#", rep)
 	} else if whereSQL != "" {
 		q += " " + whereSQL
 	}

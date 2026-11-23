@@ -66,6 +66,16 @@ type session struct {
 	// ui recebe os eventos de componentes (POST /ui e timers) consumidos
 	// pelo laço de PoApp:Activate (ver ui.go).
 	ui chan uiEvent
+	// sid é a chave desta sessão no mapa sessions (preenchida na criação).
+	sid string
+	// origin é o esquema+host da primeira conexão da sessão — base do
+	// api_baseUrl entregue ao app PO-UI.
+	origin string
+	// poui é o canal do app PO-UI aberto por FwCallApp nesta sessão
+	// (nil = nenhum; ver poui_canal.go). pouiGone marca que o app foi
+	// fechado — requisições seguintes a /poui/{app} recebem 410.
+	poui     *pouiCanal
+	pouiGone bool
 }
 
 func newSession() *session {
@@ -310,6 +320,19 @@ func (srv *Server) Serve(addr string) error {
 	return hs.ListenAndServe()
 }
 
+// ServeHandler sobe o servidor com um http.Handler externo no lugar do
+// Handler() padrão — ex.: o redirect da raiz do `advplc serve --poui-app`.
+func (srv *Server) ServeHandler(addr string, h http.Handler) error {
+	fmt.Printf("AdvPP web: http://%s  (fonte: %s)\n", addr, srv.sourceName)
+	hs := &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 10 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+	return hs.ListenAndServe()
+}
+
 // Handler monta as rotas do modo web (com a checagem de origem); Serve o
 // usa, e testes podem montá-lo num httptest.Server.
 func (srv *Server) Handler() http.Handler {
@@ -334,6 +357,11 @@ func (srv *Server) Handler() http.Handler {
 	})
 
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		// Canal lateral do app PO-UI (aba nova do FwCallApp): SSE próprio,
+		// não cria sessão nem executa programa.
+		if srv.handlePouiSSE(w, r) {
+			return
+		}
 		sid := r.URL.Query().Get("s")
 		if sid == "" {
 			http.Error(w, "missing session", http.StatusBadRequest)
@@ -381,6 +409,8 @@ func (srv *Server) Handler() http.Handler {
 		}
 		if !resumed {
 			s = newSession()
+			s.sid = sid
+			s.origin = "http://" + r.Host
 			sessions[sid] = s
 		}
 		mu.Unlock()
@@ -484,6 +514,19 @@ func (srv *Server) Handler() http.Handler {
 		s := sessions[r.URL.Query().Get("s")]
 		mu.Unlock()
 		handleUIPost(s, w, r)
+	})
+
+	// Canal do app PO-UI (FwCallApp/--poui-app): /poui/{app}/ serve os
+	// assets do app aberto na sessão, /poui-ctx o contexto e /poui-ui o
+	// jsToAdvpl. Todas passam pelo sameOrigin do mux.
+	mux.HandleFunc("GET /poui/{app}/{resto...}", func(w http.ResponseWriter, r *http.Request) {
+		srv.handlePouiApp(w, r, r.PathValue("app"), r.PathValue("resto"))
+	})
+	mux.HandleFunc("GET /poui-ctx", func(w http.ResponseWriter, r *http.Request) {
+		srv.handlePouiCtx(w, r)
+	})
+	mux.HandleFunc("POST /poui-ui", func(w http.ResponseWriter, r *http.Request) {
+		srv.handlePouiUI(w, r)
 	})
 
 	srv.restMu.RLock()

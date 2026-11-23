@@ -29,14 +29,52 @@ Todas as mudanças relevantes no projeto AdvPP.
 - `advplc serve <diretório>`: compila todos os fontes do diretório num
   único bytecode (projeto/RPO) e serve; `--watch` recompila e troca as
   rotas REST atomicamente.
+- **Onda 2 da compatibilidade PO-UI/TOTVS (FwCallApp + apps externos)**:
+  `FwCallApp` abre apps PO-UI do `@totvs/protheus-lib-core` em aba do
+  navegador com a ponte `JsToAdvpl`/`AdvPLToJS` (`TWebChannel`), e
+  `advplc serve --poui-app <dir|arquivo.app> [fonte]` hospeda um app
+  externo (pasta ou `.app` em memória) com redirect da raiz, contexto de
+  sessão e endpoints de framework (companies, branches, current-user,
+  systemModules, session defaults, genericList/genericQuery).
+- App de teste Angular real (`tests/poui/apps/fixture-app`,
+  `@totvs/protheus-lib-core` 21.1.4 fixada) validado de ponta a ponta por
+  `tests/poui/ao-vivo.sh fixture-app`: tabela REST, ping/pong via
+  JsToAdvpl e fechamento de aba.
+- **Validação contra o corpus real Protheus 12.1.2510**
+  (`ADVPP_CORPUS_2510`): parser, preprocessor e lexer estendidos até
+  **0 falhas** em 110 fontes com `FwCallApp`/`JsToAdvpl`, 225 com
+  `FWAdapterBaseV2` e 500 `WSRESTFUL` na amostra — macros `#define`
+  função-like e multilinha, grupos opcionais `[...]` repetidos, flags
+  de GUI sem vírgula (`20 MEMO`, `)HSCROLL`), cláusulas WS em ordem
+  arbitrária (`WSRECEIVE`/`WSSEND`/`QUERYPARAM`/`PATHPARAM`/
+  `HEADERPARAM`), nomes de método iniciando com dígito (`1customers`),
+  `json` como identificador AdvPL, `#define` sem expansão dentro de
+  strings e `\` solto tolerado.
+- `FwApiManager` no formato real do corpus: `aApiMap` aninhado
+  (structs em `aApiMap[5]`, fields `{apiName, campo}`), `SetApiRelation`
+  com pares `{colFilho, colPai}` e aninhamento pai→filho no JSON de
+  resposta; `SetApiQString` interpreta `page`/`pageSize`/`order`/`fields`;
+  `ToExecAuto` reproduz o transformador real (`{campo, valor, Nil}` por
+  linha para `nTipo==1`, `aItem` único para os demais tipos).
+- `TWebChannel`/`TWebEngine` como classes nativas fiéis ao dump binário
+  do corpus 12.1.2510 (`connect`/`disconnect`/`advpltojs`/`lconnected`/
+  `nport`/`bjstoadvpl`; `navigate`/`runjavascript`/`sethtml`/etc.): no
+  modo web o "navegador" é a aba PO-UI e a navegação mantém o estado
+  observável sem superfície própria.
+- `FwCallApp` com a assinatura completa do corpus: reutiliza o
+  `TWebChannel`/`TWebEngine` passados pelo chamador (parâmetros 3 e 2) e
+  dá precedência ao `bJsToAdvpl` do canal sobre a função `JsToAdvpl`.
+- OAuth2/MFA do framework: `POST/GET /api/oauth2/v1/token` emite JWT
+  `header.payload.` (userid/exp) no formato que `getTokenPayload()` do
+  lib-core decodifica; MFA TOTP real (RFC 6238) com segredo por usuário
+  em `~/.advpp/mfa_secrets.json`, URI `otpauth://` para o QR e
+  confirmação por primeiro código válido.
 
 ### Known limitations
-- `FwApiManager:ToExecAuto` retorna erro explícito (requer ExecAuto/MVC).
-- `FwApiManager:SetApiRelation` aceita sem efeito (formato pendente do
-  corpus TOTVS).
-- Validação contra o corpus Protheus 12.1.2510 pendente:
-  `ADVPP_CORPUS_2510` indisponível; testes em
-  `tests/rest_totvs/corpus_test.go` fazem SKIP sem a variável.
+- `FwCallApp` fora do modo web (`advplc serve`) retorna erro — não há
+  SmartClient desktop; `oOwner`/`cHost`/`p7`-`p10` são aceitos e
+  ignorados (o corpus não os usa). Argumentos nomeados em nativos não
+  são reordenados (limitação geral dos nativos, sem `ParamNames`).
 
 ## [4.8.7] - 2026-11-22
 

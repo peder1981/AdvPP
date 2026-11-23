@@ -989,6 +989,62 @@ func (v *VM) registerNatives() {
 		"GETNEWPAR": func(args []advplrt.Value) (advplrt.Value, error) {
 			return getArg(args, 1), nil
 		},
+		// SUPERGETMV(cParam, lShowError, lNoException): parâmetro SX6.
+		// AdvPP não tem tabela SX6 — devolve "" (parâmetro não configurado),
+		// como o Protheus faz para MV inexistente; o 3º argumento
+		// (lNoException) é ignorado.
+		"SUPERGETMV": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(""), nil
+		},
+		// ANSWERREST(x): helper do TLPP-REST que serializa o argumento e o
+		// define como corpo da resposta — equivalente a
+		// oRest:setResponse(x). Sem requisição REST ativa é no-op.
+		"ANSWERREST": func(args []advplrt.Value) (advplrt.Value, error) {
+			for _, key := range []string{"oRest", "OREST"} {
+				if ov, ok := v.dynEnv[key].(*advplrt.ObjectValue); ok {
+					if st, ok := ov.Native.(*oRestState); ok {
+						st.resp.Body = orestBodyBytes(getArg(args, 0))
+						st.bodySet = true
+					}
+					break
+				}
+			}
+			return advplrt.Nil, nil
+		},
+		// ENCODEUTF8/DECODEUTF8: o pipeline já normaliza a fonte para UTF-8
+		// (preprocessor.SourceToUTF8), então a conversão é identidade para
+		// o conteúdo que a VM vê — mesmo comportamento observável do
+		// Protheus para strings já em UTF-8.
+		"ENCODEUTF8": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(advplrt.ToString(getArg(args, 0))), nil
+		},
+		"DECODEUTF8": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(advplrt.ToString(getArg(args, 0))), nil
+		},
+		// VALTYPE é registrado por registerVerificacaodostiposdevariaveisNatives
+		// (depois deste mapa) — ver verificatipos_native.go.
+		// FWTIMESTAMP(n): timestamp corrente "YYYYMMDDHHMMSS" (o argumento
+		// de precisão do Protheus não muda o formato observável aqui).
+		"FWTIMESTAMP": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewString(time.Now().Format("20060102150405")), nil
+		},
+		// FWGETSX5(cTabela): tabelas genéricas SX5 — AdvPP não tem dicionário
+		// SX5 carregado; devolve array vazio (consulta válida, zero linhas).
+		"FWGETSX5": func(args []advplrt.Value) (advplrt.Value, error) {
+			return advplrt.NewArray(nil), nil
+		},
+		// SETRESTFAULT é registrado por registerWSRestfulNatives (depois
+		// deste mapa): devolve o objeto {code,error} e grava o fault
+		// WSRESTFUL quando há wsRestReq — ver wsrestful.go.
+		// VALTOSQL(x): literal SQL — strings entre aspas simples com '' de
+		// escape; números e lógicos saem sem aspas (como no Protheus).
+		"VALTOSQL": func(args []advplrt.Value) (advplrt.Value, error) {
+			v := advplrt.Deref(getArg(args, 0))
+			if s, ok := v.(*advplrt.StringValue); ok {
+				return advplrt.NewString("'" + strings.ReplaceAll(s.Val, "'", "''") + "'"), nil
+			}
+			return advplrt.NewString(advplrt.ToString(v)), nil
+		},
 		"GETENV": func(args []advplrt.Value) (advplrt.Value, error) {
 			// Variável inexistente devolve "" (como no Protheus), ou o 2º
 			// argumento se informado. Antes, ToString(NIL) virava "Nil" e
@@ -1138,10 +1194,30 @@ func (v *VM) registerNatives() {
 			return advplrt.NewString(v.currentAlias), nil
 		},
 		"GETAREA": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewString(v.currentAlias), nil
+			// GetArea() devolve um ARRAY com as áreas selecionadas — o
+			// corpus faz `aArea := GetArea()` / `RestArea(aArea)`. Sem área
+			// corrente devolve array vazio.
+			if v.currentAlias == "" {
+				return advplrt.NewArray(nil), nil
+			}
+			return advplrt.NewArray([]advplrt.Value{advplrt.NewString(v.currentAlias)}), nil
 		},
 		"RESTAREA": func(args []advplrt.Value) (advplrt.Value, error) {
-			alias := advplrt.ToString(getArg(args, 0))
+			// RestArea aceita o array de GetArea() (ou um alias solto, uso
+			// legado). Array vazio/nil não toca o engine — antes um alias ""
+			// caía em SelectArea("") e estourava "invalid table name".
+			alias := ""
+			switch a := getArg(args, 0).(type) {
+			case *advplrt.ArrayValue:
+				if len(a.Elements) > 0 {
+					alias = advplrt.ToString(a.Elements[0])
+				}
+			default:
+				alias = advplrt.ToString(a)
+			}
+			if alias == "" {
+				return advplrt.Nil, nil
+			}
 			v.currentAlias = alias
 			if v.dbEngine != nil {
 				return advplrt.Nil, v.dbEngine.SelectArea(alias)
@@ -1443,7 +1519,7 @@ func (v *VM) registerNatives() {
 			return advplrt.NewString(""), nil
 		},
 		"FWCALLAPP": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.Nil, nil
+			return v.fwCallApp(args)
 		},
 		"FWLIBVERSION": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewString("1.0.0"), nil

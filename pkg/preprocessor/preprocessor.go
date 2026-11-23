@@ -5,15 +5,25 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
+
+// funcDefine é um #define função-like: `#define NOME(p1, p2) corpo`.
+// Suportado porque o corpus 12.1.2510 usa macros assim de verdade
+// (ex.: avgeral.prw `#define MsgStopLM( cMensagem ) ( Iif(...), ... )`).
+type funcDefine struct {
+	params []string
+	body   string
+}
 
 // Preprocessor represents a core AdvPP type.
 type Preprocessor struct {
 	avisos       []Aviso
 	includePaths []string
 	defines      map[string]string
+	funcDefines  map[string]funcDefine
 	processed    map[string]bool
 	deps         []string // caminhos resolvidos dos #include (na ordem)
 	sqlCounter   int
@@ -50,6 +60,7 @@ func NewPreprocessor(includePaths []string) *Preprocessor {
 	return &Preprocessor{
 		includePaths: includePaths,
 		defines:      make(map[string]string),
+		funcDefines:  make(map[string]funcDefine),
 		processed:    make(map[string]bool),
 	}
 }
@@ -151,6 +162,7 @@ func (p *Preprocessor) processFile(source, fileName string, depth int) (string, 
 		if strings.HasPrefix(upper, "#UNDEFINE") || strings.HasPrefix(upper, "#UNDEF") {
 			name := extractDefineName(trimmed)
 			delete(p.defines, name)
+			delete(p.funcDefines, name)
 			i++
 			continue
 		}
@@ -454,7 +466,30 @@ func (p *Preprocessor) parseDefine(line string) {
 		rest = ""
 	}
 	rest = strings.TrimLeft(rest, " \t")
-	nameEnd := strings.IndexAny(rest, " \t")
+
+	// `#define NOME(p1, p2) corpo` — macro função-like: o '(' encosta no
+	// nome (sem espaço). Detectar ANTES do split por espaço, senão o nome
+	// sai como "NOME(" e a "substituição" injeta o corpo cru no call-site
+	// (corpus 12.1.2510: MsgStopLM/MsgStopM de avgeral.prw).
+	parenIdx := strings.IndexByte(rest, '(')
+	spaceIdx := strings.IndexAny(rest, " \t")
+	if parenIdx > 0 && (spaceIdx < 0 || parenIdx < spaceIdx) {
+		name := rest[:parenIdx]
+		closeIdx := matchingParen(rest, parenIdx)
+		if closeIdx > 0 {
+			params := splitTopLevelComma(rest[parenIdx+1 : closeIdx])
+			for i := range params {
+				params[i] = strings.TrimSpace(params[i])
+			}
+			body := strings.TrimSpace(stripTrailingLineComment(rest[closeIdx+1:]))
+			if name != "" && body != "" {
+				p.funcDefines[name] = funcDefine{params: params, body: body}
+			}
+			return
+		}
+	}
+
+	nameEnd := spaceIdx
 	if nameEnd < 0 {
 		nameEnd = len(rest)
 	}
@@ -463,6 +498,70 @@ func (p *Preprocessor) parseDefine(line string) {
 		value := strings.TrimSpace(stripTrailingLineComment(strings.TrimSpace(rest[nameEnd:])))
 		p.defines[name] = value
 	}
+}
+
+// matchingParen devolve o índice do ')' que fecha o '(' em s[start],
+// ignorando parênteses dentro de strings. -1 se não fechar.
+func matchingParen(s string, start int) int {
+	depth := 0
+	var quote byte
+	for i := start; i < len(s); i++ {
+		ch := s[i]
+		if quote != 0 {
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+		if ch == '"' || ch == '\'' {
+			quote = ch
+			continue
+		}
+		switch ch {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// splitTopLevelComma divide em vírgulas fora de parênteses/strings.
+func splitTopLevelComma(s string) []string {
+	var out []string
+	depth := 0
+	var quote byte
+	start := 0
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if quote != 0 {
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+		if ch == '"' || ch == '\'' {
+			quote = ch
+			continue
+		}
+		switch ch {
+		case '(', '[':
+			depth++
+		case ')', ']':
+			depth--
+		case ',':
+			if depth == 0 {
+				out = append(out, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	out = append(out, s[start:])
+	return out
 }
 
 // stripTrailingLineComment removes a `// ...` tail from a #define value.
@@ -493,17 +592,126 @@ func stripTrailingLineComment(s string) string {
 	return s
 }
 
+// codeMask marca as posições de `s` que estão DENTRO de literais de
+// string ('...' ou "...", com escape por aspas duplicadas — `"a""b"` é
+// um único literal em AdvPL). Usado para que expansão de #define nunca
+// toque em texto entre aspas: `#define JURIDICA "J"` + `Set(JURIDICA,
+// "JURIDICA")` não pode virar `Set("J", ""J"")` (corpus 12.1.2510).
+func codeMask(s string) []bool {
+	mask := make([]bool, len(s))
+	var q byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if q == 0 {
+			if c == '"' || c == '\'' {
+				q = c
+				mask[i] = true
+			}
+			continue
+		}
+		mask[i] = true
+		if c == q {
+			if i+1 < len(s) && s[i+1] == q {
+				mask[i+1] = true
+				i++
+				continue
+			}
+			q = 0
+		}
+	}
+	return mask
+}
+
 func (p *Preprocessor) applyDefines(line string) string {
-	for name, value := range p.defines {
-		line = replaceWord(line, name, value)
+	// Multi-passa com teto: corpos de macro função-like podem chamar
+	// outras macros (`MsgStopLM` → `MsgStopM`) e defines objeto-like
+	// podem referenciar defines. O teto evita loop infinito em definições
+	// cíclicas patológicas.
+	names := make([]string, 0, len(p.defines))
+	for name := range p.defines {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for iter := 0; iter < 10; iter++ {
+		prev := line
+		for _, name := range names {
+			line = replaceWord(line, name, p.defines[name])
+		}
+		line = p.expandFuncDefines(line)
+		if line == prev {
+			break
+		}
 	}
 	return line
+}
+
+// expandFuncDefines expande macros função-like `NOME(args)` na linha.
+// Nomes em ordem determinística para saída reproduzível.
+func (p *Preprocessor) expandFuncDefines(line string) string {
+	if len(p.funcDefines) == 0 {
+		return line
+	}
+	names := make([]string, 0, len(p.funcDefines))
+	for name := range p.funcDefines {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		line = expandFuncMacro(line, name, p.funcDefines[name])
+	}
+	return line
+}
+
+// expandFuncMacro substitui cada ocorrência de `name(` por seu corpo com
+// os parâmetros trocados pelos argumentos da chamada (mesma linha —
+// chamadas multi-linha não são suportadas, limitação conhecida).
+func expandFuncMacro(line, name string, fd funcDefine) string {
+	var out strings.Builder
+	mask := codeMask(line)
+	i := 0
+	for i < len(line) {
+		idx := strings.Index(line[i:], name)
+		if idx == -1 {
+			out.WriteString(line[i:])
+			break
+		}
+		at := i + idx
+		beforeOK := at == 0 || !isWordChar(line[at-1])
+		afterName := at + len(name)
+		// precisa ser `name(` — '(' encostado, como no #define — e fora
+		// de string literal.
+		if !beforeOK || mask[at] || afterName >= len(line) || line[afterName] != '(' {
+			out.WriteString(line[i : at+1])
+			i = at + 1
+			continue
+		}
+		closeIdx := matchingParen(line, afterName)
+		if closeIdx < 0 {
+			out.WriteString(line[i:])
+			break
+		}
+		args := splitTopLevelComma(line[afterName+1 : closeIdx])
+		for j := range args {
+			args[j] = strings.TrimSpace(args[j])
+		}
+		body := fd.body
+		for pi, param := range fd.params {
+			if pi < len(args) {
+				body = replaceWord(body, param, args[pi])
+			}
+		}
+		out.WriteString(line[i:at])
+		out.WriteString(body)
+		i = closeIdx + 1
+	}
+	return out.String()
 }
 
 func replaceWord(line, old, new string) string {
 	if old == "" {
 		return line
 	}
+	mask := codeMask(line)
 	var result strings.Builder
 	i := 0
 	for i < len(line) {
@@ -516,7 +724,8 @@ func replaceWord(line, old, new string) string {
 		beforeOK := actualIdx == 0 || !isWordChar(line[actualIdx-1])
 		afterIdx := actualIdx + len(old)
 		afterOK := afterIdx >= len(line) || !isWordChar(line[afterIdx])
-		if beforeOK && afterOK {
+		// mask[actualIdx]: ocorrência dentro de string literal não expande
+		if beforeOK && afterOK && !mask[actualIdx] {
 			result.WriteString(line[i:actualIdx])
 			result.WriteString(new)
 			i = afterIdx
@@ -632,5 +841,12 @@ func isBinary(data []byte) bool {
 }
 
 func (p *Preprocessor) GetDefines() map[string]string {
-	return p.defines
+	out := make(map[string]string, len(p.defines)+len(p.funcDefines))
+	for k, v := range p.defines {
+		out[k] = v
+	}
+	for k, v := range p.funcDefines {
+		out[k] = v.body
+	}
+	return out
 }

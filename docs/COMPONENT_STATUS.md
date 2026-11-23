@@ -365,17 +365,53 @@ compatibilidade PO-UI" na seção de recursos executados.
   filtro OData parametrizado, `TamSx3`, `FWAdapterBaseV2` e
   `FwApiManager` (somente leitura) — detalhes no plano
   `docs/superpowers/plans/2026-11-22-poui-onda1-rest.md`
-- ⚠️ **`FwApiManager:ToExecAuto` não implementado**: retorna erro
-  explícito ("não suportado no AdvPP — requer ExecAuto/MVC").
-  `SetApiRelation` aceita e ignora: o formato mestre-detalhe depende
-  do corpus TOTVS, indisponível na validação atual
-- ⚠️ **Validação no corpus TOTVS 12.1.2510 pendente**:
-  `ADVPP_CORPUS_2510` não está disponível neste ambiente, então a
-  compatibilidade foi verificada apenas com fixtures próprias
-  (`tests/rest_totvs/`). Os testes de corpus em
-  `tests/rest_totvs/corpus_test.go` existem e fazem SKIP sem a
-  variável — a seleção dos 5 fontes HTTP e os formatos exatos de
-  `aMapa`/`SetApiRelation` ficam pendentes de confirmação real
+- ✅ **Camada de compatibilidade PO-UI (onda 2)**: `FwCallApp` real com
+  ponte `JsToAdvpl`/`AdvPLToJS` (`TWebChannel`), hosting de apps PO-UI
+  externos (`advplc serve --poui-app <dir|.app> [fonte]`), endpoints de
+  framework do `@totvs/protheus-lib-core` 21.1.4 (companies, branches,
+  current-user, systemModules, session defaults, idiomas, marca,
+  aliasAccess/functionAccess, genericList/genericQuery sobre SX3+SQLite;
+  OAuth2/MFA respondem 501) — detalhes no plano
+  `docs/superpowers/plans/2026-11-22-poui-plano-integral.md`. O app de
+  teste `tests/poui/apps/fixture-app` (Angular + lib-core) valida o
+  ciclo ponta a ponta via `tests/poui/ao-vivo.sh fixture-app`
+- ✅ **`FwCallApp` — assinatura completa do corpus**: as 10 posições são
+  aceitas; `oChannel` (posição 4) quando é `TWebChannel` é reutilizado
+  como canal do `JsToAdvpl` (com `bJsToAdvpl`/`lConnected`/`nPort`
+  preservados), `oEngine` (posição 2) quando é `TWebEngine` recebe a URL
+  do app em `CURL`; `cSource` (posição 6) resolve a `JsToAdvpl` do fonte.
+  `bJsToAdvpl` setado no canal tem precedência sobre a função. Demais
+  posições são aceitas e ignoradas — o corpus 12.1.2510 só usa `cApp`
+  na prática (a forma completa aparece comentada em VEIA372.prw).
+- ✅ **`TWebChannel`/`TWebEngine` nativos** (dump binário do corpus
+  12.1.2510): `New`/`Connect`/`Disconnect`/`AdvPLToJS`/`lConnected`/
+  `nPort`/`bJsToAdvpl` no canal; `New(ownd,nrow,ncol,w,h,curl,nport)`/
+  `Navigate`/`RunJavaScript`/`GoBack`/`GoForward`/`SetAsMain`/`SetHtml`/
+  `ClearCache`/`Reload` no engine — o "navegador" do modo web é a aba
+  PO-UI, então navegação é no-op com estado fiel (URL/lang em `Props`).
+  `FwCallApp` fora do modo web (`advplc serve`) retorna o erro exato
+  `FwCallApp: requer o modo web (advplc serve)`.
+- ✅ **OAuth2/MFA do framework**: `POST/GET /api/oauth2/v1/token` emite
+  JWT `header.payload.` com `userid`/`exp` (formato que
+  `getTokenPayload()` do `@totvs/protheus-lib-core` decodifica); MFA
+  TOTP real (RFC 6238) — `hasSecret`/`TOTPURI`/`tok` com segredo por
+  usuário persistido em `~/.advpp/mfa_secrets.json` e confirmação por
+  primeiro código válido (fluxo de enrollment via QR).
+- ✅ **`FwApiManager:ToExecAuto` implementado**: fiel ao
+  `FWAPIManager.prw` do corpus — `nTipo==1` anexa `{campo, valor, Nil}`
+  por linha de `aDados` em `aRet`; demais tipos acumulam as triplas num
+  `aItem` único anexado a `aRet` (transformador puro, não executa
+  ExecAuto).
+  `SetApiRelation` implementado no formato real do corpus (pares
+  `{colFilho, colPai}` + aninhamento pai→filho no JSON).
+- ✅ **Corpus TOTVS 12.1.2510 validado** (`ADVPP_CORPUS_2510`):
+  0 falhas em 110 fontes `FwCallApp`/`JsToAdvpl`, 225 `FWAdapterBaseV2`
+  e 500 `WSRESTFUL` (amostra). Parser/preprocessor/lexer estendidos
+  para as formas reais (macros função-like, `[...]` repetidos, flags
+  de GUI, cláusulas WS arbitrárias, nomes `1xxx`, `json` como
+  identificador, `#define` quote-aware). `TestCorpusCincoFontesHTTP`
+  executa 5 fontes reais de estilos distintos (WSRESTFUL clássico,
+  oRest, controlador TLPP `@Get`, `FWAdapterBaseV2`+SQLite) — 5/5.
 - ⚠️ **Locks de registro (RecLock/MsUnlock) são no-ops** — sem controle de
   concorrência em escrita entre processos
 
@@ -438,6 +474,6 @@ Isso exibirá uma janela com:
 ## Recomendações
 
 1. **Para Componentes UI**: Implementar sistema de renderização de widgets Fyne ou documentar como apenas dados
-2. **Para REST**: ~~DSL clássico `WSRESTFUL`/`WSMETHOD`~~ — implementado na onda 1 PO-UI (`pkg/vm/wsrestful.go`); pendente apenas a validação no corpus TOTVS (`ADVPP_CORPUS_2510`)
+2. **Para REST**: ~~DSL clássico `WSRESTFUL`/`WSMETHOD`~~ — implementado na onda 1 PO-UI (`pkg/vm/wsrestful.go`) e validado no corpus TOTVS 12.1.2510 (0 falhas em 500 fontes da amostra)
 3. **Para Serviços**: Adicionar geração de código ou integração de cliente HTTP
 4. **Documentação**: Atualizar README para separar claramente recursos "parseados" de "executados"

@@ -156,6 +156,19 @@ func (l *Lexer) lastTokenEndsOperand() bool {
 			TOKEN_RPAREN, TOKEN_RBRACKET, TOKEN_RBRACE,
 			TOKEN_TRUE, TOKEN_FALSE, TOKEN_NIL:
 			return true
+		case TOKEN_KEYWORD:
+			// Palavras-chave de TIPO também são identificadores válidos em
+			// AdvPL `.prw` (`Local json as OBJECT` + `json[campo]`, corpus
+			// 12.1.2510) — depois delas `[` é indexação, não string
+			// bracket. Keywords de statement/comando (SAY, RETURN, DO...)
+			// seguem a regra clássica: `[` abre literal bracket.
+			switch strings.ToUpper(t.Value) {
+			case "VARIANT", "VARIADIC", "JSON", "INTEGER", "DOUBLE",
+				"DECIMAL", "CHARACTER", "NUMERIC", "LOGICAL", "DATE",
+				"ARRAY", "OBJECT", "MEMO", "FIXED", "UNDEFINED":
+				return true
+			}
+			return false
 		default:
 			return false
 		}
@@ -806,6 +819,15 @@ func (l *Lexer) tokenizeOperator(line, col int) error {
 	// Backtick não tem significado em AdvPL; fontes reais da TOTVS contêm
 	// backticks soltos (typos) que o compilador Protheus tolera — ignora.
 	if ch == '`' {
+		l.advance()
+		return nil
+	}
+
+	// '\' solto fora de string — typo real do corpus 12.1.2510
+	// (`...) \$ '1|2')` em backoffice.pgc...repository.tlpp) que o
+	// Protheus tolera; AdvPL não tem escape por '\\', então fora de
+	// string ele não carrega significado.
+	if ch == '\\' {
 		l.advance()
 		return nil
 	}

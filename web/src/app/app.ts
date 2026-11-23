@@ -309,6 +309,17 @@ export class App {
       case 'reload': // hot reload do --watch: fonte recompilado no servidor
         location.reload();
         break;
+      case 'open-tab': { // FwCallApp: aba nova com o app PO-UI (url vem do servidor)
+        const d = ev.data as { url?: string } | undefined;
+        if (typeof d?.url === 'string' && d.url.startsWith('/poui/')) {
+          // Popup bloqueado: window.open devolve null — avisa com o link
+          // para o usuário abrir manualmente (review focus onda 2, item 1).
+          if (window.open(d.url, '_blank') === null) {
+            (this.notification as any).warning('Pop-up bloqueado — abra o app manualmente: ' + d.url);
+          }
+        }
+        break;
+      }
     }
   }
 

@@ -164,12 +164,91 @@ func (p *Parser) isEndWSClient() bool {
 // keywords, used to tell whether a name follows the HTTP verb or the
 // declaration jumps straight into clauses (`WSMETHOD POST DESCRIPTION ...`).
 func (p *Parser) isRestMethodClauseWord(tok lexer.Token) bool {
-	for _, kw := range []string{"DESCRIPTION", "PATH", "WSSYNTAX", "PRODUCES", "CONSUMES", "TTALK"} {
+	for _, kw := range []string{"DESCRIPTION", "PATH", "WSSYNTAX", "PRODUCES", "CONSUMES", "TTALK",
+		// clauses reais do corpus 12.1.2510 — sem elas `WSMETHOD GET
+		// WSRECEIVE Page WSSERVICE x` (sem nome) lia WSRECEIVE como nome.
+		"WSRECEIVE", "WSSEND", "QUERYPARAM", "PATHPARAM", "WSSERVICE", "WSREST", "WSCLIENT",
+		"HEADERPARAM"} {
 		if p.isWord(tok, kw) {
 			return true
 		}
 	}
 	return false
+}
+
+// isWSClauseWord é o conjunto de palavras que abrem uma cláusula do DSL
+// WS — usado por parseWSNameList para saber onde a lista de nomes de
+// WSRECEIVE/WSSEND/QUERYPARAM/PATHPARAM/WSSERVICE termina.
+func (p *Parser) isWSClauseWord(tok lexer.Token) bool {
+	for _, kw := range []string{
+		"WSMETHOD", "WSDATA", "WSRECEIVE", "WSSEND", "QUERYPARAM", "PATHPARAM",
+		"HEADERPARAM",
+		"WSSERVICE", "WSREST", "WSCLIENT", "DESCRIPTION", "WSSYNTAX", "PATH",
+		"PRODUCES", "CONSUMES", "TTALK", "RESPONSE", "END", "ENDWSRESTFUL",
+		"ENDWSSERVICE", "ENDWSCLIENT", "ENDWSSTRUCT", "FORMAT", "NAMESPACE",
+	} {
+		if p.isWord(tok, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+// parseWSMemberName consome o nome de um membro WS (método WSMETHOD ou
+// campo WSDATA). Nomes do corpus 12.1.2510 podem começar com dígito
+// (`WSMETHOD GET 1customers ...`), o que o lexer parte em NUMBER+IDENT
+// colados — refaz o nome juntando tokens adjacentes na mesma linha.
+// `WSMETHOD GET 0001 DESCRIPTION` continua "0001": DESCRIPTION não é
+// adjacente (há espaço), então não é incorporado.
+func (p *Parser) parseWSMemberName() (lexer.Token, error) {
+	tok := p.peek()
+	if tok.Type != lexer.TOKEN_NUMBER {
+		return p.expectName()
+	}
+	p.advance()
+	name := tok.Value
+	endCol := tok.Col + len(tok.Value)
+	for {
+		n := p.peek()
+		if (n.Type != lexer.TOKEN_IDENT && n.Type != lexer.TOKEN_KEYWORD) ||
+			n.Line != tok.Line || n.Col != endCol {
+			break
+		}
+		name += n.Value
+		endCol = n.Col + len(n.Value)
+		p.advance()
+	}
+	tok.Value = name
+	return tok, nil
+}
+
+// parseWSNameList consome uma lista de nomes separada por vírgulas do DSL
+// WS (`WSRECEIVE branchId, productionOrder, ...`). Itens podem ser
+// IDENT, KEYWORD (`order`, `date`, `status` são nomes de parâmetro
+// comuns) ou NUMBER; para no primeiro token que não é nome ou que é uma
+// palavra de cláusula.
+func (p *Parser) parseWSNameList() {
+	// afterComma: depois de uma vírgula a lista EXIGE um item — uma
+	// palavra de cláusula nessa posição é nome de parâmetro, não
+	// terminador (`QUERYPARAM Page, PageSize, format WSSERVICE x` do
+	// corpus 2510 usa `format` como parâmetro). Sem vírgula anterior,
+	// palavra de cláusula encerra a lista normalmente.
+	afterComma := false
+	for {
+		t := p.peek()
+		if t.Type != lexer.TOKEN_IDENT && t.Type != lexer.TOKEN_KEYWORD && t.Type != lexer.TOKEN_NUMBER {
+			return
+		}
+		if p.isWSClauseWord(t) && !afterComma {
+			return
+		}
+		p.advance()
+		if p.peek().Type != lexer.TOKEN_COMMA {
+			return
+		}
+		p.advance()
+		afterComma = true
+	}
 }
 
 // wsHTTPVerbs são os verbos HTTP aceitos na forma REST do WSMETHOD
@@ -779,6 +858,13 @@ func (p *Parser) parseClass() (*ast.ClassDecl, error) {
 				if err != nil {
 					return nil, err
 				}
+				// `@GET(...) public method x()` — a anotação pendente vale
+				// para método com modificador igual ao `method` puro
+				// (controladores REST TLPP do corpus 12.1.2510).
+				if len(pendingAnnotations) > 0 {
+					method.Annotations = pendingAnnotations
+					pendingAnnotations = nil
+				}
 				switch modifier {
 				case "PUBLIC":
 					method.IsPublic = true
@@ -969,14 +1055,18 @@ func (p *Parser) parseMethodImpl() (*ast.MethodImpl, error) {
 // compiler doesn't need to know this DSL exists.
 func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 	startTok := p.advance() // WSCLIENT / WSSTRUCT / WSRESTFUL
-	nameTok, err := p.expect(lexer.TOKEN_IDENT)
+	// Nome pode colidir com keyword (`WSRESTFUL Data`, RHNP02 do corpus
+	// 2510) — expectName aceita IDENT e KEYWORD.
+	nameTok, err := p.expectName()
 	if err != nil {
 		return nil, err
 	}
 	// WSRESTFUL/WSSERVICE <name> [DESCRIPTION <expr>] [NAMESPACE <expr>]
 	// [FORMAT <expr>] — header clauses, order and presence both vary in
-	// real code.
-	for p.isWord(p.peek(), "DESCRIPTION") || p.isWord(p.peek(), "NAMESPACE") || p.isWord(p.peek(), "FORMAT") {
+	// real code. Corpus 2510 também usa SECURITY/API/OBJECT/AUTH.
+	for p.isWord(p.peek(), "DESCRIPTION") || p.isWord(p.peek(), "NAMESPACE") || p.isWord(p.peek(), "FORMAT") ||
+		p.isWord(p.peek(), "SECURITY") || p.isWord(p.peek(), "API") || p.isWord(p.peek(), "OBJECT") ||
+		p.isWord(p.peek(), "AUTH") {
 		p.advance()
 		if _, err := p.parseOr(); err != nil {
 			return nil, err
@@ -1043,7 +1133,14 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 			named := true
 			if strings.EqualFold(tok.Value, "WSDATA") || !unnamedREST {
 				var err error
-				nameTok, err = p.expectName()
+				// Nome de método WS pode ser numérico (`WSMETHOD GET 0001
+				// DESCRIPTION ...`, TAFWSGARBAGE do corpus 2510) ou começar
+				// com dígito (`1customers` — NUMBER+IDENT colados).
+				if isWSMethod && p.peek().Type == lexer.TOKEN_NUMBER {
+					nameTok, err = p.parseWSMemberName()
+				} else {
+					nameTok, err = p.expectName()
+				}
 				if err != nil {
 					return nil, err
 				}
@@ -1093,8 +1190,18 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 						}
 					case p.isWord(p.peek(), "PRODUCES"), p.isWord(p.peek(), "CONSUMES"):
 						p.advance()
-						if _, err := p.expectName(); err != nil {
-							return nil, err
+						// Payload é expressão: ident (`APPLICATION_JSON`)
+						// OU string literal (`'application/json;
+						// charset=utf-8'`, corpus 2510) — e pode vir em
+						// lista separada por vírgula.
+						for {
+							if _, err := p.parseOr(); err != nil {
+								return nil, err
+							}
+							if p.peek().Type != lexer.TOKEN_COMMA {
+								break
+							}
+							p.advance()
 						}
 						// `PRODUCES APPLICATION_JSON RESPONSE EaiObj` — RESPONSE
 						// (o objeto de retorno) é opcional e vem colado logo
@@ -1105,6 +1212,18 @@ func (p *Parser) parseWSClient() (*ast.ClassDecl, error) {
 								return nil, err
 							}
 						}
+					case p.isWord(p.peek(), "WSRECEIVE"), p.isWord(p.peek(), "WSSEND"),
+						p.isWord(p.peek(), "QUERYPARAM"), p.isWord(p.peek(), "PATHPARAM"),
+						p.isWord(p.peek(), "HEADERPARAM"):
+						// `WSRECEIVE branchId, productionOrder, ...` — lista de
+						// nomes separados por vírgula (corpus 2510).
+						p.advance()
+						p.parseWSNameList()
+					case p.isWord(p.peek(), "WSSERVICE"), p.isWord(p.peek(), "WSREST"),
+						p.isWord(p.peek(), "WSCLIENT"):
+						// `WSSERVICE productionorders` / `WSREST Auth` — um nome.
+						p.advance()
+						p.parseWSNameList()
 					case p.isWord(p.peek(), "TTALK"):
 						p.advance()
 						if _, err := p.parseOr(); err != nil {
@@ -1241,6 +1360,14 @@ func (p *Parser) parseWSMethodImpl() (*ast.MethodImpl, error) {
 		if methodName == "" {
 			methodName = "REST"
 		}
+	} else if p.peek().Type == lexer.TOKEN_NUMBER {
+		// `WSMETHOD GET 0001 WSSERVICE X` / `1customers` — nome numérico
+		// ou iniciando com dígito (corpus 2510).
+		nameTok, err := p.parseWSMemberName()
+		if err != nil {
+			return nil, err
+		}
+		methodName = nameTok.Value
 	} else {
 		nameTok, err := p.expectName()
 		if err != nil {
@@ -1267,48 +1394,30 @@ func (p *Parser) parseWSMethodImpl() (*ast.MethodImpl, error) {
 		}
 		p.advance()
 	}
-	// Optional `PATHPARAM <name>` / `QUERYPARAM <name>` clauses (REST route
-	// parameter binding) right after the method name. Parsed and dropped.
-	for p.isWord(p.peek(), "PATHPARAM") || p.isWord(p.peek(), "QUERYPARAM") {
-		p.advance()
-		for {
-			if _, err := p.expectName(); err != nil {
+	// Cláusulas de binding do DSL WS em QUALQUER ordem e quantas vezes
+	// couber (`WSRECEIVE a,b QUERYPARAM c WSSERVICE X`, `PATHPARAM ...
+	// QUERYPARAM ...` — o corpus 2510 usa todas as combinações). Cada
+	// cláusula de lista consome nomes separados por vírgula; WSSERVICE/
+	// WSREST/WSCLIENT consomem um nome e viram ClassName do método.
+	for {
+		switch {
+		case p.isWord(p.peek(), "PATHPARAM") || p.isWord(p.peek(), "QUERYPARAM") ||
+			p.isWord(p.peek(), "HEADERPARAM") ||
+			p.isWord(p.peek(), "WSRECEIVE") || p.isWord(p.peek(), "WSSEND"):
+			p.advance()
+			p.parseWSNameList()
+		case p.isWSClientOpener(p.peek()) || p.isWord(p.peek(), "WSREST"):
+			p.advance()
+			classTok, err := p.expectName()
+			if err != nil {
 				return nil, err
 			}
-			if p.peek().Type != lexer.TOKEN_COMMA {
-				break
-			}
-			p.advance()
+			method.ClassName = classTok.Value
+		default:
+			goto doneWSClauses
 		}
 	}
-	// Optional `WSSEND arg[,arg...]` / `WSRECEIVE arg[,arg...]` clauses
-	// (SOAP request/response binding) between the name and WSCLIENT, in
-	// either order and each with a comma-separated arg list. Parsed and
-	// dropped — this VM doesn't do real SOAP marshaling.
-	for p.isWord(p.peek(), "WSSEND") || p.isWord(p.peek(), "WSRECEIVE") {
-		p.advance()
-		// Lista simples de nomes de parâmetro (não usa parseCommaValues: os
-		// nomes aqui são de negócio — "Type", "Size" etc. colidem com o
-		// vocabulário de cláusulas do DSL `@`/DEFINE que parseCommaValues
-		// usa pra saber onde uma lista termina, cortando a lista errado).
-		for {
-			if _, err := p.expectName(); err != nil {
-				return nil, err
-			}
-			if p.peek().Type != lexer.TOKEN_COMMA {
-				break
-			}
-			p.advance()
-		}
-	}
-	if p.isWSClientOpener(p.peek()) || p.isWord(p.peek(), "WSREST") {
-		p.advance()
-		classTok, err := p.expect(lexer.TOKEN_IDENT)
-		if err != nil {
-			return nil, err
-		}
-		method.ClassName = classTok.Value
-	}
+doneWSClauses:
 	body, retExpr, err := p.parseFunctionBody()
 	if err != nil {
 		return nil, err

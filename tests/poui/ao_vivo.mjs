@@ -4,8 +4,75 @@
 // de intervalo e falha se ele não mudou. Depois digita um nome e clica em
 // "Adicionar" na hora (antes dos 300 ms do envio da digitação): o nome
 // precisa chegar ao programa e aparecer na tabela.
-// Uso: node ao_vivo.mjs <porta-devtools> <url>   (Node 22+: WebSocket nativo)
-const [porta, url] = process.argv.slice(2);
+// Uso: node ao_vivo.mjs <porta-devtools> <url> [fixture-app]
+// Com "fixture-app" (plano onda 2, Task 2.7): abre a SPA, espera o
+// FwCallApp abrir a aba /poui/fixture-app, confere a tabela de armazéns,
+// clica "Pingar AdvPL" (espera "pong" via AdvPLToJS) e "Fechar".
+const [porta, url, cenario] = process.argv.slice(2);
+
+if (cenario === 'fixture-app') {
+  const espera = ms => new Promise(r => setTimeout(r, ms));
+  const lista = async () => (await (await fetch(`http://127.0.0.1:${porta}/json/list`)).json())
+    .filter(t => t.type === 'page');
+  const conecta = alvo => new Promise((res, rej) => {
+    const ws2 = new WebSocket(alvo.webSocketDebuggerUrl);
+    let s = 0; const pend2 = new Map();
+    const cmd2 = (m, p = {}) => new Promise(r => { const id = ++s; pend2.set(id, r); ws2.send(JSON.stringify({ id, method: m, params: p })); });
+    ws2.onmessage = m => { const d = JSON.parse(m.data); if (d.id && pend2.has(d.id)) { pend2.get(d.id)(d.result); pend2.delete(d.id); } };
+    ws2.onopen = () => res({ ws: ws2, cmd: cmd2 });
+    ws2.onerror = rej;
+  });
+  const js2 = (c, e) => c.cmd('Runtime.evaluate', { expression: e, returnByValue: true }).then(r => r.result.value);
+  const clica = async (c, texto) => {
+    const b = await js2(c, `(()=>{const e=[...document.querySelectorAll('po-button button')].find(x=>x.innerText.trim()==='${texto}');if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+    if (!b) return false;
+    for (const type of ['mousePressed', 'mouseReleased']) await c.cmd('Input.dispatchMouseEvent', { type, x: b.x, y: b.y, button: 'left', clickCount: 1 });
+    return true;
+  };
+
+  // SPA: a sessão web roda FixtureApp -> FwCallApp -> window.open('/poui/...').
+  await (await fetch(`http://127.0.0.1:${porta}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' })).json();
+  let appAlvo = null;
+  for (let i = 0; i < 60 && !appAlvo; i++) {
+    await espera(1000);
+    appAlvo = (await lista()).find(t => t.url.includes('/poui/fixture-app'));
+  }
+  if (!appAlvo) { console.log('FALHOU: aba /poui/fixture-app não abriu (FwCallApp)'); process.exit(1); }
+  const app = await conecta(appAlvo);
+
+  // Tabela de armazéns via /rest/api/est/v1/armazens (p-service-api).
+  let tabela = '';
+  for (let i = 0; i < 30; i++) {
+    await espera(1000);
+    tabela = await js2(app, "(document.querySelector('po-table')||{}).innerText||''");
+    if (tabela.includes('Armazem')) break;
+  }
+  if (!tabela.includes('Armazem')) { console.log('FALHOU: tabela sem armazéns: ' + tabela.slice(0, 200)); process.exit(1); }
+
+  // "Pingar AdvPL" -> JsToAdvpl -> AdvPLToJS -> #pong = "pong".
+  if (!await clica(app, 'Pingar AdvPL')) { console.log('FALHOU: botão Pingar AdvPL não achado'); process.exit(1); }
+  let pong = '';
+  for (let i = 0; i < 15; i++) {
+    await espera(1000);
+    pong = await js2(app, "(document.querySelector('#pong')||{}).innerText||''");
+    if (pong.trim() === 'pong') break;
+  }
+  if (pong.trim() !== 'pong') { console.log('FALHOU: pong não voltou do AdvPL: "' + pong + '"'); process.exit(1); }
+
+  // "Fechar" -> callAppClose -> jsToAdvpl close -> FwCallApp retorna.
+  if (!await clica(app, 'Fechar')) { console.log('FALHOU: botão Fechar não achado'); process.exit(1); }
+  let fechou = false;
+  for (let i = 0; i < 15; i++) {
+    await espera(1000);
+    const ainda = (await lista()).some(t => t.url.includes('/poui/fixture-app'));
+    if (!ainda) { fechou = true; break; }
+  }
+  app.ws.close();
+  if (!fechou) { console.log('FALHOU: aba do app não fechou após Fechar'); process.exit(1); }
+  console.log('AO-VIVO-OK fixture-app (tabela + pong + fechar)');
+  process.exit(0);
+}
+
 const alvo = await (await fetch(`http://127.0.0.1:${porta}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' })).json();
 const ws = new WebSocket(alvo.webSocketDebuggerUrl);
 let seq = 0;

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/advpl/compiler/pkg/compiler"
 	"github.com/advpl/compiler/pkg/rest"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
@@ -156,6 +157,39 @@ func (v *VM) autoRegisterAnnotatedRoutes(server *rest.Server) {
 				Path:   rest.NormalizaPath(path),
 				Raw:    v.orestRawHandlerFor(fname),
 			})
+		}
+	}
+	v.autoRegisterControllerRoutes(server)
+}
+
+// autoRegisterControllerRoutes varre os métodos das classes do bytecode
+// procurando anotações @Get/@Post/@Put/@Patch/@Delete — o estilo TLPP de
+// controlador REST do TOTVS (`class X` + `@GET('...') public method y()`),
+// majoritário no corpus 12.1.2510. Cada rota instancia a classe por
+// requisição e injeta oRest no dynEnv, como orestRawHandlerFor.
+func (v *VM) autoRegisterControllerRoutes(server *rest.Server) {
+	seen := make(map[*compiler.ClassInfo]bool)
+	for _, cls := range v.bc.Classes {
+		if cls == nil || seen[cls] {
+			continue
+		}
+		seen[cls] = true
+		for _, minfo := range cls.Methods {
+			for _, ann := range minfo.Annotations {
+				httpMethod, ok := restVerbAnnotations[strings.ToUpper(ann.Name)]
+				if !ok {
+					continue
+				}
+				path := restAnnotationPath(ann.Value)
+				if path == "" {
+					continue // método anotado sem path não é rota
+				}
+				server.AddRoute(rest.Route{
+					Method: httpMethod,
+					Path:   rest.NormalizaPath(path),
+					Raw:    v.orestControllerHandlerFor(cls, minfo),
+				})
+			}
 		}
 	}
 }
