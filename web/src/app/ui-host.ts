@@ -227,6 +227,12 @@ export function descarregaPendentes() {
           <po-search [p-items]="node.props['items']" [p-filter-keys]="node.props['filterKeys']"
                      [p-literals]="node.props['literals']" (p-filter)="onFilter($event)"></po-search>
         }
+        @case ('upload') {
+          <po-upload [p-label]="node.props['label']" [p-url]="node.props['url']"
+                     [p-multiple]="!!node.props['multiple']"
+                     [p-restrictions]="node.props['restrictions']"
+                     (p-success)="onUploadOk($event)"></po-upload>
+        }
         @case ('table') {
           <po-table [p-columns]="node.props['columns']" [p-items]="node.props['items']"
                     [p-selectable]="true" [p-single-select]="true" [p-striped]="true"
@@ -344,6 +350,12 @@ export class UiHostComponent {
   protected onImediato(value: unknown) {
     this.node.props['value'] = value;
     this.post(this.node.id, 'change', value);
+  }
+
+  // PoUpload:p-success traz a resposta do POST /poui-upload
+  // ([{cNome,cCaminhoGravado,nBytes}]) — vira o evento "upload".
+  protected onUploadOk(value: unknown) {
+    this.post(this.node.id, 'upload', value);
   }
 
   // PoSearch:p-filter emite o texto digitado — OnFilter(cTexto) no AdvPL.

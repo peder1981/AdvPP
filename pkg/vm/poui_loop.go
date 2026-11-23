@@ -194,6 +194,9 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		case "filter":
 			// PoSearch:OnFilter(cTexto)
 			h, args = c.handlers["filter"], []advplrt.Value{c.obj, advplrt.NewString(poJSONTexto(val))}
+		case "upload":
+			// PoUpload:OnUpload(aArquivos) — resposta do POST /poui-upload.
+			h, args = c.handlers["upload"], []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
 		case "action":
 			i, ok := poJSONIndice(val)
 			if !ok {

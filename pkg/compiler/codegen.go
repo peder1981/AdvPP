@@ -1782,6 +1782,8 @@ var poClassNames = map[string]bool{
 	"PODATEPICKER": true, "PODATEPICKERRANGE": true, "PODATETIMEPICKER": true, "POTIMEPICKER": true,
 	// Onda 3a.3 — texto especializado
 	"POEMAIL": true, "POURL": true, "PODECIMAL": true, "PORICHTEXT": true, "POSEARCH": true,
+	// Onda 3a.4 — upload
+	"POUPLOAD": true,
 }
 
 func isPoClassName(name string) bool {

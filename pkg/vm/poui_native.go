@@ -56,6 +56,8 @@ var poClasses = map[string]struct{ class, typ string }{
 	"PODECIMAL": {"PoDecimal", "decimal"},
 	"PORICHTEXT": {"PoRichText", "richtext"},
 	"POSEARCH":  {"PoSearch", "search"},
+	// onda 3a.4: upload
+	"POUPLOAD": {"PoUpload", "upload"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -384,6 +386,14 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c.props["literals"] = map[string]any{"search": advplrt.ToString(getArg(args, 1))}
 			c.props["items"] = []any{}
 			c.props["filterKeys"] = []any{}
+		case "upload":
+			// New(oPai, cLabel, cDiretorioDestino)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["dir"] = advplrt.ToString(getArg(args, 2))
+			c.props["extensions"] = []string{}
+			c.props["maxSizeMB"] = 10.0
+			c.props["multiple"] = false
+			c.props["url"] = poUploadToken(c)
 		case "terminal":
 			if !ptyDisponivel {
 				return fmt.Errorf("AdvTerminal: terminal indisponível no Windows nesta versão")
@@ -512,6 +522,13 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3aTextMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3aUploadMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}
