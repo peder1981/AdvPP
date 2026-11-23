@@ -1,6 +1,7 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection } from '@angular/core';
 import { provideAnimations } from '@angular/platform-browser/animations';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { advppAntesInterceptor } from './dyn-hooks';
 import { provideRouter } from '@angular/router';
 
 export const appConfig: ApplicationConfig = {
@@ -9,7 +10,9 @@ export const appConfig: ApplicationConfig = {
     // PO-UI ainda depende do Zone.js para disparar a change detection
     provideZoneChangeDetection(),
     provideAnimations(),
-    provideHttpClient(),
+    // O interceptador responde aos hooks "before" dos templates PO-UI
+    // com o round-trip ao AdvPL (dyn-hooks.ts).
+    provideHttpClient(withInterceptors([advppAntesInterceptor])),
     // po-navbar, po-slide e po-link com URL interna usam routerLink, que
     // exige o Router (sem ele: NG0201 e a página inteira não renderiza).
     // A SPA não tem rotas próprias: um coringa vazio aceita / e /app/<nome>.

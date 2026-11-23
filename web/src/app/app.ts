@@ -11,7 +11,7 @@ import {
 } from '@po-ui/ng-components';
 import { UiHostComponent, UiNode, descarregaPendentes } from './ui-host';
 import { entregaTerm } from './adv-terminal';
-import { dynAntesResultado } from './dyn-hooks';
+import { defineDynPoster, dynAntesResultado } from './dyn-hooks';
 
 // Heurística de ícone pra item de menu (FWMenuSelect não carrega nenhuma
 // informação de ícone — só o texto do item) — genérico o bastante pra
@@ -265,6 +265,8 @@ export class App {
   protected dlgPrimaryAction: PoModalAction = { label: 'Fechar', action: () => this.dlgButton(-1) };
 
   constructor() {
+    // Hooks "before" dos templates PO-UI fazem round-trip pelo POST /ui.
+    defineDynPoster(this.postUI);
     // Vários apps (advplc serve --apps): /app/<nome> roda o app <nome>.
     const app = /^\/app\/([A-Za-z0-9_-]{1,64})\/?$/.exec(location.pathname)?.[1] ?? '';
     const es = new EventSource('/events?s=' + this.sid + (app ? '&app=' + app : ''));

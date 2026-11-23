@@ -94,3 +94,43 @@ Return
 		t.Errorf("erro = %v", err)
 	}
 }
+
+// OnCustomAction(oSelf, cAcao, oLinha): ações da tabela dinâmica real
+// (po-page-dynamic-table) chegam como {acao, linha}.
+func TestPoDynCustomActionTresArgs(t *testing.T) {
+	f := newFakeUI(
+		fakeEv{1, "customaction", []byte(`{"acao":"edit","linha":{"codigo":"00007"}}`)},
+	)
+	out, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oTb  := PoPageDynamicTable():New(oApp, "A", "/rest/x")
+	oTb:OnCustomAction({|o, cAcao, oLinha| ConOut("A=" + cAcao + " C=" + oLinha["codigo"]), oApp:Close()})
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	if !strings.Contains(out.String(), "A=edit C=00007") {
+		t.Errorf("OnCustomAction = %q", out.String())
+	}
+}
+
+// OnAdvancedSearch(oSelf, oFiltros) no PoPageDynamicSearch recebe os
+// filtros do p-advanced-search (o PoPageList continua sem argumento).
+func TestPoDynSearchAdvancedRecebeFiltros(t *testing.T) {
+	f := newFakeUI(
+		fakeEv{1, "advancedsearch", []byte(`{"codigo":"001"}`)},
+	)
+	out, errc, done := rodaComUI(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oSe  := PoPageDynamicSearch():New(oApp, "Busca")
+	oSe:OnAdvancedSearch({|o, oFil| ConOut("F=" + oFil["codigo"]), oApp:Close()})
+	oApp:Activate()
+Return
+`, f)
+	esperaFim(t, done, errc)
+	if !strings.Contains(out.String(), "F=001") {
+		t.Errorf("OnAdvancedSearch = %q", out.String())
+	}
+}

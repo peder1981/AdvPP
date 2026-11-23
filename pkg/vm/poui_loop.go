@@ -226,8 +226,27 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 			// PoUpload:OnUpload(aArquivos) — resposta do POST /poui-upload.
 			h, args = c.handlers["upload"], []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
 		case "advancedsearch":
-			// PoPageList:OnAdvancedSearch()
+			// PoPageList:OnAdvancedSearch(); PoPageDynamicSearch recebe
+			// também os filtros do p-advanced-search: (oSelf, oFiltros).
 			h, args = c.handlers["advancedsearch"], []advplrt.Value{c.obj}
+			if c.typ == "dynsearch" {
+				args = append(args, poFromJSONPoEvent(val))
+			}
+		case "customaction":
+			// PoPageDynamicTable:OnCustomAction(oSelf, cAcao, oLinha) —
+			// ações do po-page-dynamic-table chegam como {acao, linha}.
+			var body struct {
+				Acao  string          `json:"acao"`
+				Linha json.RawMessage `json:"linha"`
+			}
+			if json.Unmarshal(val, &body) != nil {
+				return
+			}
+			linha := advplrt.Value(advplrt.Nil)
+			if len(body.Linha) > 0 {
+				linha = poFromJSONPoEvent(body.Linha)
+			}
+			h, args = c.handlers["customaction"], []advplrt.Value{c.obj, advplrt.NewString(body.Acao), linha}
 		case "savenew", "cancel", "edit", "remove", "back":
 			// PoPageEdit/PoPageDetail: OnSaveNew/OnCancel/OnEdit/OnRemove/OnBack
 			h, args = c.handlers[ev], []advplrt.Value{c.obj}

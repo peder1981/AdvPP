@@ -4,7 +4,11 @@ import { HttpClient } from '@angular/common/http';
 import { AdvCodeEditorComponent } from './adv-code-editor';
 import { AdvTerminalComponent } from './adv-terminal';
 import { FormsModule } from '@angular/forms';
-import { dynAntes } from './dyn-hooks';
+import { antesUrl, dynAntes } from './dyn-hooks';
+import {
+  PoPageBlockedUserModule, PoPageChangePasswordModule, PoPageDynamicDetailModule, PoPageDynamicEditModule,
+  PoPageDynamicSearchModule, PoPageDynamicTableModule, PoPageJobSchedulerModule, PoPageLoginModule,
+} from '@po-ui/ng-templates';
 import {
   PoAccordionModule, PoModalModule, PoModalComponent, PoSlideModule, PoStepperModule,
   PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
@@ -12,7 +16,7 @@ import {
   PoNavbarModule, PoHeaderModule, PoMenuPanelModule,
   PoAvatarModule, PoBadgeModule, PoImageModule, PoSkeletonModule, PoHelperModule,
   PoCalendarModule, PoDisclaimerGroupModule, PoFilterChipModule,
-  PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoDynamicModule, PoDynamicFormField, PoFieldModule, PoSearchModule,
+  PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoDynamicModule, PoFieldModule, PoSearchModule,
   PoGaugeModule, PoInfoModule, PoListViewModule, PoPageAction, PoPageModule, PoProgressModule,
   PoTableModule, PoTabsModule, PoTagModule, PoTooltipModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
 } from '@po-ui/ng-components';
@@ -60,6 +64,35 @@ export class AppModalOpen implements AfterViewInit {
 
 // Renderiza um nó da árvore e, recursivamente, os filhos. Genérico: não
 // conhece nenhum aplicativo, só o mapeamento tipo -> componente PO-UI.
+// Cache de datas convertidas (isoDate/isoDateTime): referência estável.
+const datas = new Map<string, Date | null>();
+function guardaData(chave: string, f: () => Date | null): Date | null {
+  const d = f();
+  datas.set(chave, d);
+  return d;
+}
+
+// Ações que o po-page-dynamic-table executa por função (OnCustomAction).
+const ACOES_PADRAO = new Set(['new', 'detail', 'edit', 'duplicate']);
+
+function acoesDe(node: UiNode): Record<string, unknown> {
+  const a = node.props['actions'];
+  return a && typeof a === 'object' ? (a as Record<string, unknown>) : {};
+}
+
+// Registro da linha entre os argumentos da ação (id, resource) do PO-UI.
+function linhaDe(args: unknown[]): unknown {
+  return [...args].reverse().find(x => x !== null && typeof x === 'object') ?? null;
+}
+
+function copiaLista(x: unknown): unknown[] {
+  return Array.isArray(x) ? x.map(e => (e && typeof e === 'object' ? { ...e } : e)) : [];
+}
+
+function listaTexto(x: unknown): string[] {
+  return Array.isArray(x) ? x.map(e => String(e)) : [];
+}
+
 @Component({
   selector: 'adv-ui-host',
   host: { '[attr.data-poid]': 'node.id' },
@@ -75,6 +108,8 @@ export class AppModalOpen implements AfterViewInit {
   PoNavbarModule, PoHeaderModule, PoMenuPanelModule,
   PoAvatarModule, PoBadgeModule, PoImageModule, PoSkeletonModule, PoHelperModule,
   PoCalendarModule, PoDisclaimerGroupModule, PoFilterChipModule,
+    PoPageDynamicTableModule, PoPageDynamicEditModule, PoPageDynamicDetailModule, PoPageDynamicSearchModule,
+    PoPageLoginModule, PoPageChangePasswordModule, PoPageBlockedUserModule, PoPageJobSchedulerModule,
   ],
   styles: [`
     .po-login-wrap { display: flex; justify-content: center; padding: 3rem 1rem; }
@@ -344,40 +379,28 @@ export class AppModalOpen implements AfterViewInit {
           <adv-terminal [node]="node" [post]="post"></adv-terminal>
         }
         @case ('dyntable') {
-          <div class="dyn-page">
-            @if (node.props['title']) { <h3 class="dyn-title">{{ node.props['title'] }}</h3> }
-            @if (node.props['quickSearchField']) {
-              <po-search class="dyn-quick" (p-filter)="dynQuick(node, $event)"></po-search>
-            }
-            <po-table [p-columns]="dynCols(node)" [p-items]="dynItemsGet(node)"></po-table>
-          </div>
+          <po-page-dynamic-table [p-title]="node.props['title'] || ''" [p-service-api]="dynUrl(node)"
+                                 [p-fields]="dynCamposTpl(node)" [p-actions]="dynAcoesTabela(node)"
+                                 [p-table-custom-actions]="dynAcoesCustom(node)"
+                                 [p-keep-filters]="!!node.props['keepFilters']"
+                                 [p-quick-search-param]="node.props['quickSearchField'] || 'search'"></po-page-dynamic-table>
         }
         @case ('dynsearch') {
-          <div class="dyn-page">
-            @if (node.props['title']) { <h3 class="dyn-title">{{ node.props['title'] }}</h3> }
-            <po-search class="dyn-quick" (p-filter)="dynSearch(node, $event)"></po-search>
-            <po-table [p-columns]="dynCols(node)" [p-items]="dynItemsGet(node)"></po-table>
-          </div>
+          <po-page-dynamic-search [p-title]="node.props['title'] || ''" [p-filters]="dynFiltrosTpl(node)"
+                                  [p-quick-search-value]="node.props['quickFilter'] || ''"
+                                  (p-quick-search)="post(node.id, 'quicksearch', $event)"
+                                  (p-advanced-search)="post(node.id, 'advancedsearch', $event)"
+                                  (p-change-disclaimers)="post(node.id, 'changedisclaimers', $event)">
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-page-dynamic-search>
         }
         @case ('dynedit') {
-          <div class="dyn-page">
-            @if (node.props['title']) { <h3 class="dyn-title">{{ node.props['title'] }}</h3> }
-            <po-dynamic-form [p-fields]="dynFormFields(node)" [p-value]="dynVal(node)"></po-dynamic-form>
-            <div class="dyn-actions">
-              <po-button p-label="Salvar" p-kind="primary" (p-click)="dynSave(node)"></po-button>
-              <po-button p-label="Cancelar" (p-click)="post(node.id, 'cancel', null)"></po-button>
-            </div>
-          </div>
+          <po-page-dynamic-edit [p-title]="node.props['title'] || ''" [p-service-api]="dynUrl(node)"
+                                [p-fields]="dynCamposTpl(node)" [p-actions]="dynAcoesEdicao(node)"></po-page-dynamic-edit>
         }
         @case ('dyndetail') {
-          <div class="dyn-page">
-            @if (node.props['title']) { <h3 class="dyn-title">{{ node.props['title'] }}</h3> }
-            <po-dynamic-form [p-fields]="dynFormFields(node)" [p-value]="dynVal(node)"></po-dynamic-form>
-            <div class="dyn-actions">
-              <po-button p-label="Excluir" p-kind="danger" (p-click)="dynRemove(node)"></po-button>
-              <po-button p-label="Voltar" (p-click)="post(node.id, 'back', null)"></po-button>
-            </div>
-          </div>
+          <po-page-dynamic-detail [p-title]="node.props['title'] || ''" [p-service-api]="dynUrl(node)"
+                                  [p-fields]="dynCamposTpl(node)" [p-actions]="dynAcoesDetalhe(node)"></po-page-dynamic-detail>
         }
         @case ('tag') {
           <po-tag [p-value]="node.props['value']" [p-type]="node.props['type']"></po-tag>
@@ -461,47 +484,18 @@ export class AppModalOpen implements AfterViewInit {
                           (p-selected-change)="post(node.id, 'change', $event?.selected ?? $event)"></po-filter-chip>
         }
         @case ('pagelogin') {
-          <div class="po-login-wrap">
-            <div class="po-login-card">
-              <h2 class="po-login-title">{{ node.props['product'] || 'AdvPP' }}</h2>
-              <label class="po-label">Usuário</label>
-              <input #lu class="po-input" type="text" autocomplete="username">
-              <label class="po-label">Senha</label>
-              <input #lp class="po-input" type="password" autocomplete="current-password">
-              @if (loginErro(node.id)) { <div class="po-login-erro">{{ loginErro(node.id) }}</div> }
-              <div class="po-mt-2">
-                <po-button p-label="Entrar" p-kind="primary" (p-click)="loginSubmit(node, lu.value, lp)"></po-button>
-                @if (node.props['recovery']) {
-                  <po-button p-label="Esqueci a senha" p-kind="secondary" (p-click)="post(node.id, 'recovery', null)"></po-button>
-                }
-              </div>
-            </div>
-          </div>
+          <po-page-login [p-product-name]="node.props['product'] || ''" [p-literals]="node.props['literals'] || {}"
+                         [p-recovery]="loginRecuperacao(node)" [p-login-errors]="loginErrosLista(node.id)"
+                         (p-login-submit)="loginSubmitTpl(node, $event)"></po-page-login>
         }
         @case ('pagechangepassword') {
-          <po-page-default [p-title]="node.props['title'] || 'Alterar senha'">
-            <label class="po-label">Senha atual</label>
-            <input #ca class="po-input" type="password" autocomplete="current-password">
-            <label class="po-label">Nova senha</label>
-            <input #cn class="po-input" type="password" autocomplete="new-password">
-            @if (loginErro(node.id)) { <div class="po-login-erro">{{ loginErro(node.id) }}</div> }
-            <div class="po-mt-2">
-              <po-button p-label="Alterar" p-kind="primary" (p-click)="senhaSubmit(node, ca, cn)"></po-button>
-            </div>
-            @if ((node.props['requirements'] || []).length) {
-              <p class="po-text-subtle">Requisitos: {{ (node.props['requirements'] || []).join(', ') }}</p>
-            }
-            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
-          </po-page-default>
+          <po-page-change-password [p-requirements]="senhaRequisitos(node)"
+                                   (p-submit)="senhaSubmitTpl(node, $event)"></po-page-change-password>
+          @if (loginErro(node.id)) { <div class="po-login-erro">{{ loginErro(node.id) }}</div> }
         }
         @case ('pageblockeduser') {
-          <po-page-default [p-title]="'Usuário bloqueado'">
-            <p>Motivo: {{ node.props['reason'] || 'não informado' }}</p>
-            @if (node.props['contactEmail']) {
-              <p>Contato: {{ node.props['contactEmail'] }}</p>
-            }
-            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
-          </po-page-default>
+          <po-page-blocked-user [p-reason]="motivoBloqueio(node)"
+                                [p-contact-email]="node.props['contactEmail'] || ''"></po-page-blocked-user>
         }
         @case ('pageslide') {
           @if (node.props['open']) {
@@ -512,15 +506,8 @@ export class AppModalOpen implements AfterViewInit {
           }
         }
         @case ('pagejobscheduler') {
-          <po-page-default [p-title]="node.props['title'] || 'Agendador'">
-            @if ((node.props['parameters'] || []).length) {
-              <ul>@for (p of node.props['parameters'] || []; track $index) { <li>{{ p }}</li> }</ul>
-            }
-            @if (node.props['url']) {
-              <po-link [p-label]="'Abrir serviço'" [p-url]="node.props['url']"></po-link>
-            }
-            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
-          </po-page-default>
+          <po-page-job-scheduler [p-title]="node.props['title'] || ''" [p-service-api]="node.props['url'] || ''"
+                                 [p-parameters]="jobParametros(node)"></po-page-job-scheduler>
         }
         @case ('link') {
           <po-link [p-label]="node.props['label']" [p-url]="node.props['url']"
@@ -691,18 +678,24 @@ export class UiHostComponent {
   // "AAAA-MM-DD" -> Date local (meia-noite); vazio/inválido -> null.
   // Retorna any: p-min-date/p-max-date do PO-UI são string|Date e null
   // não é atribuível — o componente trata null como "sem limite".
+  // Mesma string -> mesmo objeto Date: um Date novo a cada ciclo fazia o
+  // ngModel reescrever o po-datepicker, que disparava outro ciclo — laço
+  // infinito com a CPU do navegador em 100%.
   protected isoDate(s: unknown): any {
     if (typeof s !== 'string' || s.length < 10) return null;
-    const [y, m, d] = s.slice(0, 10).split('-').map(Number);
-    if (!y || !m || !d) return null;
-    return new Date(y, m - 1, d);
+    return datas.get('d:' + s) ?? guardaData('d:' + s, () => {
+      const [y, m, d] = s.slice(0, 10).split('-').map(Number);
+      return y && m && d ? new Date(y, m - 1, d) : null;
+    });
   }
 
   // ISO 8601 -> Date; vazio/inválido -> null (mesmo motivo do isoDate).
   protected isoDateTime(s: unknown): any {
     if (typeof s !== 'string' || !s) return null;
-    const d = new Date(s);
-    return isNaN(d.getTime()) ? null : d;
+    return datas.get('t:' + s) ?? guardaData('t:' + s, () => {
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    });
   }
 
   // PoLookup:p-selected devolve a linha inteira vinda do REST — vai como
@@ -711,107 +704,91 @@ export class UiHostComponent {
     this.post(this.node.id, 'selected', row);
   }
 
-  // ---- Onda 3a.6: PoPageDynamic* — CRUD direto no REST (contrato onda 1) ----
+  // ---- Onda 3a.6: templates reais do PO-UI (@po-ui/ng-templates) ----
+  // po-page-dynamic-table/edit/detail/search falam direto com o REST do
+  // AdvPP (contrato {items, hasNext} da onda 1). Os hooks "before" usam a
+  // URL reservada de dyn-hooks.ts, respondida pelo round-trip ao AdvPL.
 
   private http = inject(HttpClient);
-  private dynTick = signal(0);
-  private dynVals = new Map<number, Record<string, unknown>>();
-  private dynItemsMap = new Map<number, unknown[]>();
-  private dynLoaded = new Set<number>();
 
-  // Campos visíveis do aFields -> colunas do po-table / fields do form.
-  private dynCampos(node: UiNode): Record<string, unknown>[] {
-    const f = node.props['fields'];
-    return Array.isArray(f) ? f.filter((x: Record<string, unknown>) => x['visible'] !== false) : [];
-  }
-
-  protected dynCols(node: UiNode): Record<string, unknown>[] {
-    this.dynTick();
-    return this.dynCampos(node).map(f => ({ property: f['property'], label: f['label'], type: f['type'] }));
-  }
-
-  protected dynFormFields(node: UiNode): PoDynamicFormField[] {
-    this.dynTick();
-    const ro = node.type === 'dyndetail';
-    return this.dynCampos(node).map(f => ({ ...f, disabled: ro || !!f['disabled'] })) as PoDynamicFormField[];
-  }
-
-  // Objeto estável por nó: o po-dynamic-form grava nele o que é digitado
-  // (p-value é o modelo). O (p-form) entrega o NgForm, não os valores —
-  // guardá-lo fazia o p-value virar uma estrutura circular.
-  protected dynVal(node: UiNode): Record<string, unknown> {
-    this.dynTick();
-    let v = this.dynVals.get(node.id);
-    if (!v) {
-      v = {};
-      this.dynVals.set(node.id, v);
+  // Referências estáveis: o PO-UI reexecuta os setters a cada entrada nova,
+  // então cada valor só é recriado quando a prop de origem muda.
+  private memo = new Map<string, { k: string; v: unknown }>();
+  private estavel<T>(chave: string, base: unknown, f: () => T): T {
+    const k = JSON.stringify(base ?? null);
+    const m = this.memo.get(chave);
+    if (m && m.k === k) {
+      return m.v as T;
     }
+    const v = f();
+    this.memo.set(chave, { k, v });
     return v;
   }
 
-  private dynUrl(node: UiNode): string {
+  protected dynUrl(node: UiNode): string {
     const u = String(node.props['url'] ?? '');
     return u.startsWith('/') ? u : '/' + u;
   }
 
-  // GET <url>?page&pageSize(&filter) -> {items} no po-table.
-  protected dynItemsGet(node: UiNode): unknown[] {
-    this.dynTick();
-    if (!this.dynLoaded.has(node.id)) {
-      this.dynLoaded.add(node.id);
-      this.dynLoad(node);
-    }
-    return this.dynItemsMap.get(node.id) ?? [];
+  // aFields do AdvPL já vêm no formato do PO-UI ({property, label, type,
+  // key, filter, visible}).
+  protected dynCamposTpl(node: UiNode): any[] {
+    return this.estavel(`campos:${node.id}`, node.props['fields'], () => copiaLista(node.props['fields']));
   }
 
-  private dynLoad(node: UiNode, filtro = '') {
-    const params: Record<string, string> = { page: '1', pageSize: '50' };
-    if (filtro) params['filter'] = filtro;
-    this.http.get<{ items?: unknown[] }>(this.dynUrl(node), { params }).subscribe({
-      next: r => {
-        this.dynItemsMap.set(node.id, r?.items ?? []);
-        this.dynTick.update(v => v + 1);
-      },
-      error: () => this.dynItemsMap.set(node.id, []),
+  protected dynFiltrosTpl(node: UiNode): any[] {
+    return this.estavel(`filtros:${node.id}`, node.props['filters'], () => copiaLista(node.props['filters']));
+  }
+
+  // SetActions do AdvPL ({{"edit","Editar"}, ...}): new/detail/edit/
+  // duplicate chamam OnCustomAction(oSelf, cAcao, oLinha); remove/removeAll
+  // ficam com o PO-UI (DELETE no serviço, depois do OnBeforeRemove). Chaves
+  // que o PO-UI não conhece viram ações de linha (p-table-custom-actions).
+  protected dynAcoesTabela(node: UiNode): Record<string, unknown> {
+    return this.estavel(`acoesT:${node.id}`, node.props['actions'], () => {
+      const out: Record<string, unknown> = {};
+      for (const k of Object.keys(acoesDe(node))) {
+        if (k === 'remove' || k === 'removeall') {
+          out[k === 'remove' ? 'remove' : 'removeAll'] = true;
+          out['beforeRemove'] = antesUrl(node.id, 'beforeremove');
+        } else if (ACOES_PADRAO.has(k)) {
+          out[k] = (...args: unknown[]) => this.post(node.id, 'customaction', { acao: k, linha: linhaDe(args) });
+        }
+      }
+      return out;
     });
   }
 
-  protected dynQuick(node: UiNode, texto: string) {
-    this.post(node.id, 'quicksearch', texto);
-    this.dynLoad(node, texto);
+  protected dynAcoesCustom(node: UiNode): any[] {
+    return this.estavel(`acoesC:${node.id}`, node.props['actions'], () =>
+      Object.entries(acoesDe(node))
+        .filter(([k]) => !ACOES_PADRAO.has(k) && k !== 'remove' && k !== 'removeall')
+        .map(([k, label]) => ({
+          label: String(label || k),
+          action: (linha: unknown) => this.post(node.id, 'customaction', { acao: k, linha }),
+        })));
   }
 
-  protected dynSearch(node: UiNode, texto: string) {
-    this.post(node.id, 'advancedsearch', texto);
-    this.dynLoad(node, texto);
+  protected dynAcoesEdicao(node: UiNode): Record<string, unknown> {
+    return this.estavel(`acoesE:${node.id}`, node.id, () => ({
+      beforeSave: antesUrl(node.id, 'beforesave'),
+      beforeSaveNew: antesUrl(node.id, 'beforesave'),
+      cancel: () => this.post(node.id, 'cancel', null),
+    }));
   }
 
-  // Chave do registro = 1º campo com key=true nos aFields.
-  private dynId(node: UiNode, val: Record<string, unknown>): string {
-    const key = this.dynCampos(node).find(f => f['key']);
-    const k = key ? String(key['property']) : '';
-    return k ? String(val[k] ?? '') : '';
-  }
-
-  protected async dynSave(node: UiNode) {
-    const val = this.dynVal(node);
-    if (!(await dynAntes(this.post, node.id, 'beforesave', val))) return;
-    const id = this.dynId(node, val);
-    const url = this.dynUrl(node) + (id ? '/' + encodeURIComponent(id) : '');
-    const req = id
-      ? this.http.put(url, val)
-      : this.http.post(url, val);
-    req.subscribe({ next: () => this.dynLoad(node), error: () => {} });
-  }
-
-  protected async dynRemove(node: UiNode) {
-    const val = this.dynVal(node);
-    if (!(await dynAntes(this.post, node.id, 'beforeremove', val))) return;
-    const id = this.dynId(node, val);
-    if (id) {
-      this.http.delete(this.dynUrl(node) + '/' + encodeURIComponent(id))
-        .subscribe({ next: () => { this.dynLoad(node); this.post(node.id, 'back', null); }, error: () => {} });
-    }
+  protected dynAcoesDetalhe(node: UiNode): Record<string, unknown> {
+    return this.estavel(`acoesD:${node.id}`, node.id, () => ({
+      back: () => this.post(node.id, 'back', null),
+      beforeRemove: antesUrl(node.id, 'beforeremove'),
+      remove: (id: unknown) => {
+        if (id === undefined || id === null || id === '') {
+          return;
+        }
+        this.http.delete(this.dynUrl(node) + '/' + encodeURIComponent(String(id)))
+          .subscribe({ next: () => this.post(node.id, 'back', null), error: () => {} });
+      },
+    }));
   }
 
   // ---- Onda 3b.1: agrupamento ----
@@ -822,29 +799,62 @@ export class UiHostComponent {
     return typeof s === 'number' ? s : 0;
   }
 
-  // ---- Onda 3b.5: páginas especiais ----
+  // ---- Onda 3b.5: páginas especiais (templates reais do PO-UI) ----
 
   // Erros de login/troca de senha por componente (limpos a cada submit).
   protected loginErros = signal<Record<number, string>>({});
   protected loginErro(id: number): string { return this.loginErros()[id] ?? ''; }
 
+  protected loginErrosLista(id: number): string[] {
+    const e = this.loginErro(id);
+    return this.estavel(`lerr:${id}`, e, () => (e ? [e] : []));
+  }
+
+  // Credenciais vão só no payload do evento (round-trip síncrono): nunca
+  // em props, console ou Get().
   private async credSubmit(node: UiNode, ev: 'login' | 'submit', data: { user?: string; pass?: string; new?: string }) {
-    const ok = await dynAntes(this.post, node.id, ev as any, data);
-    // higiene: o campo some do DOM junto com o template; nada fica na prop.
+    const ok = await dynAntes(this.post, node.id, ev, data);
     this.loginErros.update(m => ({ ...m, [node.id]: ok ? '' : 'Falha na autenticação' }));
   }
 
-  protected loginSubmit(node: UiNode, user: string, passEl: HTMLInputElement) {
-    const pass = passEl.value;
-    passEl.value = ''; // senha não permanece no campo após o envio
-    void this.credSubmit(node, 'login', { user, pass });
+  protected loginSubmitTpl(node: UiNode, ev: { login?: string; password?: string }) {
+    void this.credSubmit(node, 'login', { user: ev?.login ?? '', pass: ev?.password ?? '' });
   }
 
-  protected senhaSubmit(node: UiNode, atualEl: HTMLInputElement, novaEl: HTMLInputElement) {
-    const data = { pass: atualEl.value, new: novaEl.value };
-    atualEl.value = '';
-    novaEl.value = '';
-    void this.credSubmit(node, 'submit', data);
+  protected senhaSubmitTpl(node: UiNode, ev: { currentPassword?: string; newPassword?: string }) {
+    void this.credSubmit(node, 'submit', { pass: ev?.currentPassword ?? '', new: ev?.newPassword ?? '' });
+  }
+
+  // SetRecovery(.T.): o link "esqueci a senha" chama OnRecovery no AdvPL.
+  protected loginRecuperacao(node: UiNode): any {
+    if (!node.props['recovery']) {
+      return undefined;
+    }
+    return this.estavel(`rec:${node.id}`, node.id, () => () => this.post(node.id, 'recovery', null));
+  }
+
+  // Requisitos em texto: o AdvPP não avalia regras de senha no navegador;
+  // status true mantém o envio habilitado (a validação é do OnSubmit).
+  protected senhaRequisitos(node: UiNode): any[] {
+    return this.estavel(`req:${node.id}`, node.props['requirements'], () =>
+      listaTexto(node.props['requirements']).map(requirement => ({ requirement, status: true })));
+  }
+
+  // Motivo livre do AdvPL -> PoPageBlockedUserReason.
+  protected motivoBloqueio(node: UiNode): any {
+    const r = String(node.props['reason'] ?? '').toLowerCase();
+    if (/tentativa|attempt/.test(r)) {
+      return 'exceededAttempts';
+    }
+    if (/expir/.test(r)) {
+      return 'expiredPassword';
+    }
+    return 'none';
+  }
+
+  protected jobParametros(node: UiNode): any[] {
+    return this.estavel(`job:${node.id}`, node.props['parameters'], () =>
+      listaTexto(node.props['parameters']).map(p => ({ property: p, label: p })));
   }
 
   // ---- Onda 3b.4: exibição ----
@@ -858,7 +868,12 @@ export class UiHostComponent {
   }
 
   // po-helper: string ou {title, content, type} (PoHelperOptions).
+  // Referência estável por nó (ver estavel): só recria quando a prop muda.
   protected helperOpts(node: UiNode): any {
+    return this.estavel(`ho:${node.id}`, [node.props['helper'], node.props['title'], node.props['type']], () => this.helperOptsNovo(node));
+  }
+
+  private helperOptsNovo(node: UiNode): any {
     const content = String(node.props['helper'] ?? '');
     const title = String(node.props['title'] ?? '');
     const type = String(node.props['type'] ?? '');
@@ -873,7 +888,12 @@ export class UiHostComponent {
 
   // Itens do chrome (navbar/header/menupanel): {label, icon?, action:"act:N"}
   // -> {label, icon?, action: () => post} — mesmo contrato do po-menu.
+  // Referência estável por nó (ver estavel): só recria quando a prop muda.
   protected chromeItems(node: UiNode, prop: string): any[] {
+    return this.estavel(`ci:${node.id}:${prop}`, node.props[prop], () => this.chromeItemsNovo(node, prop));
+  }
+
+  private chromeItemsNovo(node: UiNode, prop: string): any[] {
     const lst = (node.props[prop] ?? []) as { label?: string; icon?: string; action?: string }[];
     return lst.map((a): any => ({
       label: a.label ?? '',
@@ -887,7 +907,12 @@ export class UiHostComponent {
 
   // Itens do breadcrumb: {label, link} passa direto; {label, page:id}
   // vira action que posta "navigate" para o AdvPL resolver a página.
+  // Referência estável por nó (ver estavel): só recria quando a prop muda.
   protected navItems(node: UiNode): any[] {
+    return this.estavel(`ni:${node.id}`, node.props['items'], () => this.navItemsNovo(node));
+  }
+
+  private navItemsNovo(node: UiNode): any[] {
     const lst = (node.props['items'] ?? []) as Record<string, unknown>[];
     return lst.map(it => {
       if (it['page'] != null) {
@@ -902,7 +927,12 @@ export class UiHostComponent {
   // ---- Onda 3b.2: ações ----
 
   // {label, icon?, action:"act:N"} -> {label, icon?, action: () => post}.
+  // Referência estável por nó (ver estavel): só recria quando a prop muda.
   protected poActions(node: UiNode, prop: string): any[] {
+    return this.estavel(`pa:${node.id}:${prop}`, node.props[prop], () => this.poActionsNovo(node, prop));
+  }
+
+  private poActionsNovo(node: UiNode, prop: string): any[] {
     const lst = (node.props[prop] ?? []) as { label?: string; icon?: string; action?: string }[];
     return lst.map((a): any => ({
       label: a.label ?? '',
@@ -922,7 +952,12 @@ export class UiHostComponent {
   // p-primary-action/p-secondary-action do po-modal esperam {label, action}.
   // O backend guarda {label, action:"click:primaryaction"} — aqui viram
   // função que posta o evento de volta ao AdvPL.
+  // Referência estável por nó (ver estavel): só recria quando a prop muda.
   protected modalAction(node: UiNode, key: string): { label: string; action: () => void } | undefined {
+    return this.estavel(`ma:${node.id}:${key}`, node.props[key], () => this.modalActionNovo(node, key));
+  }
+
+  private modalActionNovo(node: UiNode, key: string): { label: string; action: () => void } | undefined {
     const a = node.props[key] as { label?: string; action?: string } | undefined;
     if (!a?.action) return undefined;
     const ev = a.action;
