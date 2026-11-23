@@ -1,4 +1,4 @@
-// Ãlgebra linear float64 (S6b): Det, Solve, Inv, QR, EigSym.
+// Álgebra linear float64 (S6b): Det, Solve, Inv, QR, EigSym.
 User Function LinAlgTst()
     Local oA := Tensor():FromArray({4,7,2,6}, {2,2}, "float64")
     Local oI := Nil
@@ -24,7 +24,7 @@ User Function LinAlgTst()
         nFail++
     EndIf
 
-    // Inv: A Â· A^-1 ~ I
+    // Inv: A · A^-1 ~ I
     oI := oA:MatMul(oA:Inv())
     If Abs(oI:ToArray()[1]-1) > 0.0001 .Or. Abs(oI:ToArray()[2]) > 0.0001 .Or. ;
        Abs(oI:ToArray()[3]) > 0.0001 .Or. Abs(oI:ToArray()[4]-1) > 0.0001
@@ -57,7 +57,7 @@ User Function LinAlgTst()
         nFail++
     EndIf
 
-    // Eig nao-simetrica: [[0,-1],[1,0]] -> Â±i (partes reais 0, |imag| 1)
+    // Eig nao-simetrica: [[0,-1],[1,0]] -> ±i (partes reais 0, |imag| 1)
     aEig2 := Tensor():FromArray({0,-1,1,0}, {2,2}, "float64"):Eig()
     If Abs(aEig2[1]:ToArray()[1]) > 0.0001 .Or. Abs(Abs(aEig2[2]:ToArray()[1]) - 1) > 0.0001
         ConOut("FALHA: Eig complexo (rotacao)")

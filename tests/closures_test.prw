@@ -1,15 +1,15 @@
-// Fixture: closures de verdade â€” codeblocks capturam Locais do escopo envolvente
-// por referÃªncia (leitura, escrita, e estado persistente que escapa da funÃ§Ã£o).
+// Fixture: closures de verdade — codeblocks capturam Locais do escopo envolvente
+// por referência (leitura, escrita, e estado persistente que escapa da função).
 User Function ClosureTst()
     Local nSoma := 0
     Local bAcc := Nil
     Local nR := 0
 
-    // Escrita: acumulador externo capturado por referÃªncia
+    // Escrita: acumulador externo capturado por referência
     AEval({10, 20, 30}, {|x| nSoma := nSoma + x })
     ConOut("AEval acumula em Local externo (esperado 60): " + Str(nSoma))
 
-    // Leitura de mÃºltiplas capturas num Eval
+    // Leitura de múltiplas capturas num Eval
     ConOut("Eval le capturas (esperado 47): " + Str(CalcBF()))
 
     // Closure que escapa: contador com estado persistente entre chamadas
@@ -22,7 +22,7 @@ Return
 
 Static Function MakeCounter()
     Local nN := 0
-Return {|| nN := nN + 1 }        // captura nN por referÃªncia; sobrevive ao Return
+Return {|| nN := nN + 1 }        // captura nN por referência; sobrevive ao Return
 
 Static Function CalcBF()
     Local nBase := 5

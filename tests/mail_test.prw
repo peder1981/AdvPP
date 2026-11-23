@@ -1,7 +1,7 @@
-// tests/mail_test.prw ‚Äî TMailMessage: caminho de valida√ß√£o (Send() sem
-// configurar servidor/remetente/destinat√°rio deve falhar com erro claro,
-// n√£o travar nem enviar nada). Envio real de rede n√£o √© test√°vel aqui sem
-// um servidor SMTP dispon√≠vel.
+// tests/mail_test.prw ó TMailMessage: caminho de validaÁ„o (Send() sem
+// configurar servidor/remetente/destinat·rio deve falhar com erro claro,
+// n„o travar nem enviar nada). Envio real de rede n„o È test·vel aqui sem
+// um servidor SMTP disponÌvel.
 User Function MailTest()
     Local oMail := TMailMessage():New()
     Local lErro := .F.
@@ -20,8 +20,8 @@ User Function MailTest()
     oMail:SetSubject("Teste")
     oMail:SetBody("Corpo do teste")
 
-    // Servidor n√£o existe de verdade ‚Äî Send() deve falhar (erro de rede),
-    // n√£o travar o processo nem devolver sucesso falso.
+    // Servidor n„o existe de verdade ó Send() deve falhar (erro de rede),
+    // n„o travar o processo nem devolver sucesso falso.
     Local lErro2 := .F.
     Begin Sequence
         oMail:Send()

@@ -16,7 +16,7 @@ User Function AutogradTst()
     If ob:Grad():Size() != 2
         ConOut("FALHA tamanho do grad de b"); nFail++
     EndIf
-    // loss Ã© escalar >= 0
+    // loss é escalar >= 0
     If oL:Value():ToArray()[1] < 0
         ConOut("FALHA loss negativa"); nFail++
     EndIf

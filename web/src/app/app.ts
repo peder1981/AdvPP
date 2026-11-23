@@ -10,7 +10,7 @@ import {
   poThemeDefault,
 } from '@po-ui/ng-components';
 import { UiHostComponent, UiNode, descarregaPendentes } from './ui-host';
-import { entregaTerm } from './adv-terminal';
+import { entregaTerm } from './adv-terminal-canal';
 import { defineDynPoster, dynAntesResultado } from './dyn-hooks';
 
 // Heurística de ícone pra item de menu (FWMenuSelect não carrega nenhuma

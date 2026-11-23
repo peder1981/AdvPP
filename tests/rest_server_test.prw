@@ -1,16 +1,16 @@
 #include "totvs.ch"
 
-// Teste da classe nativa WSRestServer (pkg/rest): expÃµe funÃ§Ãµes AdvPL/TLPP
+// Teste da classe nativa WSRestServer (pkg/rest): expõe funções AdvPL/TLPP
 // anotadas com @Get/@Post como rotas de um servidor REST real, rodando
 // sobre HTTP. Executar com: advplc run tests/rest_server_test.prw
-// (o processo bloqueia servindo HTTP atÃ© receber SIGKILL/SIGTERM).
+// (o processo bloqueia servindo HTTP até receber SIGKILL/SIGTERM).
 //
-// Rotas expostas (porta fixa 18321, usada pelo teste de integraÃ§Ã£o Go em
+// Rotas expostas (porta fixa 18321, usada pelo teste de integração Go em
 // cmd/advplc/rest_integration_test.go):
 //   GET  /clientes           -> ListaClientes (auto-registrada por @Get)
 //   GET  /clientes/{id}      -> GetCliente    (auto-registrada por @Get, path param)
 //   POST /clientes           -> NovoCliente   (auto-registrada por @Post)
-//   GET  /manual             -> RotaManual    (registrada via AddRoute, sem anotaÃ§Ã£o)
+//   GET  /manual             -> RotaManual    (registrada via AddRoute, sem anotação)
 
 User Function RestServerTst()
     Local oRest := WSRestServer():New("advpp-demo-rest", "1.0.0")

@@ -1,13 +1,13 @@
-// Fixture de regress√£o pra classe DbConnection ser alcan√ß√°vel a partir de
-// fonte AdvPL real, compilada pelo compilador (n√£o s√≥ chamada direta aos
-// m√©todos Go de teste). Ver achado #1 da revis√£o final da branch multidb:
-// "DBCONNECTION" faltava no mapa builtinClasses do compilador, ent√£o
-// DbConnection():New(...) compilava como chamada de fun√ß√£o desconhecida em
-// vez de OP_NEW_INSTANCE ‚Äî a classe nunca era alcan√ß√°vel de AdvPL real.
+// Fixture de regress„o pra classe DbConnection ser alcanÁ·vel a partir de
+// fonte AdvPL real, compilada pelo compilador (n„o sÛ chamada direta aos
+// mÈtodos Go de teste). Ver achado #1 da revis„o final da branch multidb:
+// "DBCONNECTION" faltava no mapa builtinClasses do compilador, ent„o
+// DbConnection():New(...) compilava como chamada de funÁ„o desconhecida em
+// vez de OP_NEW_INSTANCE ó a classe nunca era alcanÁ·vel de AdvPL real.
 //
-// Connect() contra uma porta fechada em localhost √© suficiente pra provar
-// que a classe √© constru√≠vel e o m√©todo Connect() √© despachado de verdade
-// (sem precisar de um servidor de banco real dispon√≠vel no CI).
+// Connect() contra uma porta fechada em localhost È suficiente pra provar
+// que a classe È construÌvel e o mÈtodo Connect() È despachado de verdade
+// (sem precisar de um servidor de banco real disponÌvel no CI).
 User Function DbConnTest()
     Local oConn := DbConnection():New("POSTGRES", "127.0.0.1", 1, "nodb", "nouser", "nopass")
     Local lOk := oConn:Connect()

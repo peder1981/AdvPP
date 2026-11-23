@@ -1,5 +1,5 @@
 // MLP float pequeno: entrada X[1,2] -> Linear(2x2)+bias -> Relu -> Linear(2x2)+bias -> Softmax -> Argmax.
-// Pesos fixos; resultado conferido contra cÃ¡lculo manual.
+// Pesos fixos; resultado conferido contra cálculo manual.
 User Function MlpDemo()
     Local oX  := Tensor():FromArray({1, 2}, {1, 2})
     Local oW1 := Tensor():FromArray({1, 0, 0, 1}, {2, 2})   // identidade
@@ -8,9 +8,9 @@ User Function MlpDemo()
     Local ob2 := Tensor():FromArray({0, 0}, {2})
     Local oH, oY, nPred, aY, nFail := 0
 
-    // h = relu(XÂ·W1 + b1) = relu([1,2] + [0,-3]) = relu([1,-1]) = [1,0]
+    // h = relu(X·W1 + b1) = relu([1,2] + [0,-3]) = relu([1,-1]) = [1,0]
     oH := oX:MatMul(oW1):Add(ob1):Relu()
-    // y = softmax(hÂ·W2 + b2) = softmax([1,0])
+    // y = softmax(h·W2 + b2) = softmax([1,0])
     oY := oH:MatMul(oW2):Add(ob2):Softmax(2)
     aY := oY:ToArray()
     nPred := oY:Argmax()          // maior prob -> classe 1 (offset 1-based = 1)

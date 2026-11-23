@@ -1,8 +1,8 @@
-// entrypoint_main_test.prw â€” comentÃ¡rio de cabeÃ§alho ANTES do #include:
-// convenÃ§Ã£o real (GesCon) que expÃ´s dois bugs juntos â€” o comentÃ¡rio
-// confundia a detecÃ§Ã£o de "onde comeÃ§a o conteÃºdo do arquivo raiz", o que
-// fazia a funÃ§Ã£o da lib virar o ponto de entrada e crashar ao comparar um
-// parÃ¢metro nunca passado contra Nil.
+// entrypoint_main_test.prw — comentário de cabeçalho ANTES do #include:
+// convenção real (GesCon) que expôs dois bugs juntos — o comentário
+// confundia a detecção de "onde começa o conteúdo do arquivo raiz", o que
+// fazia a função da lib virar o ponto de entrada e crashar ao comparar um
+// parâmetro nunca passado contra Nil.
 #include "entrypoint_lib_test.prw"
 
 User Function EpMain()

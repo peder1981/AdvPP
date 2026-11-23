@@ -7,16 +7,16 @@ como app de `advplc serve --apps`.
 /*/
 
 User Function Main()
-	Local oApp  := PoApp():New("AdvPP ‚Äî componentes PO-UI")
+	Local oApp  := PoApp():New("AdvPP ó componentes PO-UI")
 	Local oMenu := PoMenu():New(oApp)
 	Local oSis  := PoPage():New(oApp, "Sistema")
 	Local oCmp  := PoPage():New(oApp, "Componentes")
-	Local oWMem := PoWidget():New(oSis, "Mem√≥ria")
+	Local oWMem := PoWidget():New(oSis, "MemÛria")
 	Local oMem  := PoGauge():New(oWMem, "Em uso")
 	Local oWCpu := PoWidget():New(oSis, "Carga do sistema")
 	Local oCh   := PoChart():New(oWCpu, "Load average (1 min)", "line")
-	Local oWDir := PoWidget():New(oSis, "Diret√≥rio atual")
-	Local oBtn  := PoButton():New(oWDir, "Listar diret√≥rio")
+	Local oWDir := PoWidget():New(oSis, "DiretÛrio atual")
+	Local oBtn  := PoButton():New(oWDir, "Listar diretÛrio")
 	Local oLs   := PoList():New(oWDir)
 
 	oWMem:SetCols(6)
@@ -32,12 +32,12 @@ User Function Main()
 
 	Atualiza(oMem, oCh)
 	oApp:SetTimer(1000, {|| Atualiza(oMem, oCh)})
-	oApp:Notify("Bem-vindo! Use o menu √† esquerda.", "success")
+	oApp:Notify("Bem-vindo! Use o menu ‡ esquerda.", "success")
 	oApp:Activate()
 Return
 
 /*/{Protheus.doc} MontaComponentes
-P√°gina com abas: campos tipados, √°rvore e indicadores.
+P·gina com abas: campos tipados, ·rvore e indicadores.
 @type function
 @author Peder Munksgaard
 @since 20/11/2026
@@ -45,14 +45,14 @@ P√°gina com abas: campos tipados, √°rvore e indicadores.
 Static Function MontaComponentes(oApp, oCmp)
 	Local oTabs  := PoTabs():New(oCmp)
 	Local oTCamp := PoTab():New(oTabs, "Campos")
-	Local oTArv  := PoTab():New(oTabs, "√Årvore")
+	Local oTArv  := PoTab():New(oTabs, "¡rvore")
 	Local oTInd  := PoTab():New(oTabs, "Indicadores")
 	Local oSenha := PoPassword():New(oTCamp, "Senha")
 	Local oQtd   := PoNumber():New(oTCamp, "Quantidade", 1)
 	Local oCor   := PoSelect():New(oTCamp, "Cor", {"Azul", "Verde", {"Vermelho", "vm"}}, "Azul")
 	Local oAceit := PoCheckbox():New(oTCamp, "Aceito os termos")
 	Local oWifi  := PoSwitch():New(oTCamp, "Wi-Fi", .T.)
-	Local oObs   := PoTextarea():New(oTCamp, "Observa√ß√£o")
+	Local oObs   := PoTextarea():New(oTCamp, "ObservaÁ„o")
 	Local oMostr := PoButton():New(oTCamp, "Mostrar valores")
 	Local oArv   := PoTree():New(oTArv)
 	Local oInfo  := PoInfo():New(oTInd, "Compilador", "AdvPP")
@@ -73,7 +73,7 @@ Static Function MontaComponentes(oApp, oCmp)
 Return
 
 /*/{Protheus.doc} Listar
-Roda `ls -la` sem shell e mostra a sa√≠da na lista ao vivo.
+Roda `ls -la` sem shell e mostra a saÌda na lista ao vivo.
 @type function
 @author Peder Munksgaard
 @since 20/11/2026
@@ -88,7 +88,7 @@ Static Function Listar(oApp, oLs)
 Return
 
 /*/{Protheus.doc} Atualiza
-Mem√≥ria em uso (gauge) e carga (gr√°fico), lidas de /proc.
+MemÛria em uso (gauge) e carga (gr·fico), lidas de /proc.
 @type function
 @author Peder Munksgaard
 @since 20/11/2026
@@ -149,7 +149,7 @@ Static Function Origem(lErro)
 Return cRet
 
 /*/{Protheus.doc} TipoFim
-Tipo da notifica√ß√£o conforme o c√≥digo de sa√≠da.
+Tipo da notificaÁ„o conforme o cÛdigo de saÌda.
 @type function
 @author Peder Munksgaard
 @since 20/11/2026

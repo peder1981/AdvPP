@@ -7,7 +7,7 @@ User Function Demo2MsgBox()
     Local cMensagem := "Hello World!"
     Local cTitulo := "AdvPP Demo"
     
-    // Exibe mensagem em di√°logo
+    // Exibe mensagem em di·logo
     MsgInfo(cMensagem, cTitulo)
     
     ConOut("Mensagem exibida: " + cMensagem)

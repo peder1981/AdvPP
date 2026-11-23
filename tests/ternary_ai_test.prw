@@ -1,7 +1,7 @@
-// Fixture: BLAS tern√°ria (MatVecTern) e console interativo (ConIn).
+// Fixture: BLAS tern·ria (MatVecTern) e console interativo (ConIn).
 User Function TernAiTst()
     Local aMat := { {5, 7, 9}, {2, 4, 6} }
-    Local aVec := { 1, 0, -1 }              // tern√°rio
+    Local aVec := { 1, 0, -1 }              // tern·rio
     Local aR   := MatVecTern(aMat, aVec)
     Local cLinha := ""
 

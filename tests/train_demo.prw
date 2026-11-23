@@ -1,10 +1,10 @@
 // Treina um MLP 2-4-1 (Relu) para ajustar y = x1 + 2*x2, com pesos fixos, SGD e MSE.
-// A loss deve cair bem abaixo da inicial â€” prova autodiff + treino ponta a ponta.
+// A loss deve cair bem abaixo da inicial — prova autodiff + treino ponta a ponta.
 User Function TrainDemo()
     Local oX  := Variable():FromArray({1,0, 0,1, 1,1, 2,1}, {4,2})     // 4 exemplos
     Local oY  := Variable():FromArray({1, 2, 3, 4}, {4,1})             // y = x1 + 2*x2
-    // Pesos iniciais fixos e ASSIMÃ‰TRICOS (quebram a simetria entre unidades ocultas
-    // -> mais capacidade). Bias positivo mantÃ©m as ReLU ativas nos inputs positivos.
+    // Pesos iniciais fixos e ASSIMÉTRICOS (quebram a simetria entre unidades ocultas
+    // -> mais capacidade). Bias positivo mantém as ReLU ativas nos inputs positivos.
     Local oW1 := Variable():FromArray({0.10,0.15,0.20,0.05, 0.05,0.10,0.15,0.20}, {2,4})
     Local ob1 := Variable():FromArray({0.50,0.40,0.60,0.50}, {4})
     Local oW2 := Variable():FromArray({0.10,0.20,0.15,0.05}, {4,1})

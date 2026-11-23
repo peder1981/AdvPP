@@ -55,7 +55,7 @@ Static Function ChatInit(cPeerId, cListen, cBootstrap)
     endif
 
     // Step 2b: create UDP transport
-    // TODO: real P2P binding â€” pkg/p2p/transport.go's Transport
+    // TODO: real P2P binding — pkg/p2p/transport.go's Transport
     // (Listen/Send/Close) is not exposed to AdvPL. The AdvPP VM has no
     // socket natives yet, so ChatTransport below only records the bound
     // address; no packet is actually sent or received.
@@ -64,14 +64,14 @@ Static Function ChatInit(cPeerId, cListen, cBootstrap)
 
     // Step 2c: create peer
     // Location is derived from SHA-256(peer id) using the real FWHash()
-    // native, folded into a Numeric in [0,1) â€” same semantics as
+    // native, folded into a Numeric in [0,1) — same semantics as
     // pkg/p2p/types.go's addressToLocation(), computed in pure AdvPL since
     // the Go Peer struct itself is not bound to the VM.
     oPeer := ChatPeer():new(cPeerId, oTransport)
 
     // Step 2d: optional bootstrap
     if !Empty(cBootstrap)
-        // TODO: real P2P binding â€” no handshake/gossip exchange happens
+        // TODO: real P2P binding — no handshake/gossip exchange happens
         // yet; the bootstrap address is only recorded as a pending
         // neighbor so a later task can wire the real ring join.
         oPeer:AddPendingNeighbor(cBootstrap)
@@ -79,13 +79,13 @@ Static Function ChatInit(cPeerId, cListen, cBootstrap)
     endif
 
     // Step 2e: create router
-    // TODO: real P2P binding â€” pkg/p2p/routing.go's greedy FindNextHop
+    // TODO: real P2P binding — pkg/p2p/routing.go's greedy FindNextHop
     // needs real neighbor locations from the network; ChatRouter below is
     // a structural stub until that bridge exists.
     oRouter := ChatRouter():new(oPeer)
 
     // Step 2f: create PeerAPI
-    // TODO: real P2P binding â€” pkg/p2p/api.go's Get/Update are not
+    // TODO: real P2P binding — pkg/p2p/api.go's Get/Update are not
     // exposed. ChatPeerAPI below records subscriptions locally so future
     // tasks can bridge Subscribe/Get/Update to the real contract network.
     oAPI := ChatPeerAPI():new(oRouter)
@@ -93,11 +93,11 @@ Static Function ChatInit(cPeerId, cListen, cBootstrap)
     // Step 2g: subscribe to the chat contract
     oAPI:Subscribe("contract:chat-main")
 
-    // Step 2h: real P2P binding (Task 4) â€” bring up the actual Go peer
+    // Step 2h: real P2P binding (Task 4) — bring up the actual Go peer
     // (UDP transport, ring routing, PeerAPI backed by a real store) behind
     // the VM<->Go bridge in pkg/vm/p2p_bridge.go, and subscribe it to the
     // chat contract key. This is the same singleton the PeerAPI_Get()/
-    // PeerAPI_Update() calls in ChatRead()/ChatSend() use â€” it is lazily
+    // PeerAPI_Update() calls in ChatRead()/ChatSend() use — it is lazily
     // built from ADVPP_PEER_ID/ADVPP_LISTEN/ADVPP_BOOTSTRAP on first use,
     // but subscribing here (right after ChatInit's own bootstrap step)
     // triggers that build immediately, so a joining peer's JOIN handshake
@@ -128,7 +128,7 @@ Static Function ChatLoop()
         ConOut("  2. Send message")
         ConOut("  3. Peer info")
         ConOut("  4. Exit")
-        // accept reads a raw line (Character) â€” convert to Numeric before
+        // accept reads a raw line (Character) — convert to Numeric before
         // the do case below, which compares against numeric option codes.
         accept cOpt
         nOpt := Val(cOpt)
@@ -211,22 +211,22 @@ return
 // ---------------------------------------------------------------------------
 // P2P peer stand-ins (Task 3 scope)
 //
-// AdvPP's P2P stack (pkg/p2p/) is Go-only today â€” Peer, Transport, Router
+// AdvPP's P2P stack (pkg/p2p/) is Go-only today — Peer, Transport, Router
 // and PeerAPI are not bound to the AdvPL VM (no socket natives, no exported
 // class bridge). The classes below are structural stubs with the same
 // shape/roles as their Go counterparts so ChatInit() has a real object graph
 // to build and later tasks (4+) have a clear seam to bridge into the actual
 // Go network code. Real network I/O calls are marked with "TODO: real P2P
-// binding". Location derivation (SHA-256 -> [0,1)) IS real â€” it only depends
+// binding". Location derivation (SHA-256 -> [0,1)) IS real — it only depends
 // on FWHash(), an existing AdvPP native.
 //
 // GOTCHA: the AdvPP VM's method dispatch (pkg/vm/vm.go callMethod/findMethod)
 // is case-sensitive against the declared method name. `method new(...)` is
-// only reachable by calling `:new(...)` in lowercase â€” `:New(...)` (or any
+// only reachable by calling `:new(...)` in lowercase — `:New(...)` (or any
 // other casing) fails with "unknown method New on object X", because
 // findMethod() only tries the exact-case name and the fully-uppercased name,
 // never the declared casing case-insensitively. Real Clipper/AdvPL method
-// calls are case-insensitive, so this is a VM bug (not a language quirk) â€”
+// calls are case-insensitive, so this is a VM bug (not a language quirk) —
 // worth fixing in the compiler, out of scope for this app.
 // ---------------------------------------------------------------------------
 
@@ -263,13 +263,13 @@ endclass
 method new(cHost as Character, nPort as Numeric) as object class ChatTransport
     ::cHost := cHost
     ::nPort := nPort
-    // TODO: real P2P binding â€” bind a UDP socket via pkg/p2p/transport.go.
+    // TODO: real P2P binding — bind a UDP socket via pkg/p2p/transport.go.
     // No socket natives exist in the AdvPP VM yet; this only stores the
     // address for later use.
 return Self
 
 method Send(cAddr as Character, cMessage as Character) as Logical class ChatTransport
-    // TODO: real P2P binding â€” no socket send available yet.
+    // TODO: real P2P binding — no socket send available yet.
     ConOut("(stub) would send to " + cAddr + ": " + cMessage)
 return .T.
 
@@ -288,7 +288,7 @@ method new(oPeer as Object) as object class ChatRouter
 return Self
 
 method FindNextHop(cTargetId as Character) as Character class ChatRouter
-    // TODO: real P2P binding â€” pkg/p2p/routing.go's greedy ring routing
+    // TODO: real P2P binding — pkg/p2p/routing.go's greedy ring routing
     // needs live neighbor locations from the network. With no neighbors
     // connected yet, forwarding always resolves to self (single-peer MVP).
     if Len(::oPeer:aNeighbors) == 0
@@ -317,11 +317,11 @@ method Subscribe(cKey as Character) as Logical class ChatPeerAPI
 return .T.
 
 method Get(cKey as Character) as Character class ChatPeerAPI
-    // TODO: real P2P binding â€” pkg/p2p/api.go PeerAPI.Get() not exposed.
+    // TODO: real P2P binding — pkg/p2p/api.go PeerAPI.Get() not exposed.
 return ""
 
 method Update(cKey as Character, cData as Character) as Logical class ChatPeerAPI
-    // TODO: real P2P binding â€” pkg/p2p/api.go PeerAPI.Update() not exposed.
+    // TODO: real P2P binding — pkg/p2p/api.go PeerAPI.Update() not exposed.
 return .F.
 
 // ---------------------------------------------------------------------------

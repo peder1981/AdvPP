@@ -419,10 +419,19 @@ function listaTexto(x: unknown): string[] {
                     [p-categories]="node.props['categories']" [p-series]="chartSeries()" [p-height]="280"></po-chart>
         }
         @case ('editor') {
-          <adv-code-editor [node]="node" [post]="post"></adv-code-editor>
+          <!-- CodeMirror e xterm.js carregam sob demanda: fora do pacote inicial -->
+          @defer (on immediate) {
+            <adv-code-editor [node]="node" [post]="post"></adv-code-editor>
+          } @placeholder {
+            <div class="po-p-2">Carregando editor...</div>
+          }
         }
         @case ('terminal') {
-          <adv-terminal [node]="node" [post]="post"></adv-terminal>
+          @defer (on immediate) {
+            <adv-terminal [node]="node" [post]="post"></adv-terminal>
+          } @placeholder {
+            <div class="po-p-2">Carregando terminal...</div>
+          }
         }
         @case ('dyntable') {
           <po-page-dynamic-table [p-title]="node.props['title'] || ''" [p-service-api]="dynUrl(node)"

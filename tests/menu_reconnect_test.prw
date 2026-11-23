@@ -1,8 +1,8 @@
-// tests/menu_reconnect_test.prw â€” fixture pra TestMenuServeReconnectResumesSession
-// (webui): reproduz o cenÃ¡rio reportado (2Âª chamada de FWMenuSelect, dentro
-// de um loop, depois de jÃ¡ ter passado por outra tela) em que uma queda de
-// conexÃ£o SSE seguida de reconexÃ£o do EventSource fazia o programa inteiro
-// reiniciar do zero. Ver pkg/webui/server.go (resumo de sessÃ£o em /events).
+// tests/menu_reconnect_test.prw — fixture pra TestMenuServeReconnectResumesSession
+// (webui): reproduz o cenário reportado (2ª chamada de FWMenuSelect, dentro
+// de um loop, depois de já ter passado por outra tela) em que uma queda de
+// conexão SSE seguida de reconexão do EventSource fazia o programa inteiro
+// reiniciar do zero. Ver pkg/webui/server.go (resumo de sessão em /events).
 User Function MenuReconnectTest()
     Local aOpcoes := {"Primeira", "Segunda"}
     Local nEscolha

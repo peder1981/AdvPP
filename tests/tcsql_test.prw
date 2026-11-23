@@ -1,5 +1,5 @@
-// Fixture de regressÃ£o pras natives TCSqlExec/TCSqlQuery (SQL direto pra
-// User Function, motor de persistÃªncia real do FWMBrowse exposto ao AdvPL â€”
+// Fixture de regressão pras natives TCSqlExec/TCSqlQuery (SQL direto pra
+// User Function, motor de persistência real do FWMBrowse exposto ao AdvPL —
 // ver CHANGELOG). Cria uma tabela de teste, insere, consulta e confere.
 User Function TCSqlTest()
     Local aRows

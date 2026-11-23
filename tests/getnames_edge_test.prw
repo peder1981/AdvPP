@@ -2,11 +2,11 @@
 // Cobre dois defeitos corrigidos na revisao final:
 //   (a) oJson:GetNames() (metodo OO, callNativeMethod "GETNAMES" em vm.go)
 //       deve retornar as chaves na ordem de INSERCAO (obj.Keys), igual ao
-//       native GetNames(oJson) â€” antes iterava obj.Props (map Go, ordem
+//       native GetNames(oJson) — antes iterava obj.Props (map Go, ordem
 //       aleatoria).
 //   (b) oJson:DelName("k") deve remover "k" tanto de Props quanto de Keys
 //       (via ObjectValue.DelProp), preservando a ordem relativa das chaves
-//       restantes â€” antes so removia de Props, deixando GetNames listar
+//       restantes — antes so removia de Props, deixando GetNames listar
 //       chaves-fantasma ja deletadas. Alem disso a chave deve ser
 //       case-sensitive (mesma semantica de j["x"] := v / SetProp), sem o
 //       ToUpper que havia antes.

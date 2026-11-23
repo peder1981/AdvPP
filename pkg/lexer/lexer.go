@@ -168,6 +168,14 @@ func (l *Lexer) lastTokenEndsOperand() bool {
 				"ARRAY", "OBJECT", "MEMO", "FIXED", "UNDEFINED":
 				return true
 			}
+			// Palavra-chave COLADA no `[` (sem espaço) é uma variável com
+			// esse nome sendo indexada: `oF["k"]`, `Title[1]`, `Menu[n]`
+			// (corpus 811R4). A string bracket depois de comando vem com
+			// espaço (`SAY [texto]`); colada, nenhuma ocorrência nos
+			// corpora 811R4 e 12.1.2510.
+			if l.pos > 0 && l.isAlphaNum(l.source[l.pos-1]) {
+				return true
+			}
 			return false
 		default:
 			return false

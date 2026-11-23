@@ -1,7 +1,7 @@
-// tests/dbdelete_test.prw â€” DbDelete() marca D_E_L_E_T_ = '*', Deleted()
+// tests/dbdelete_test.prw — DbDelete() marca D_E_L_E_T_ = '*', Deleted()
 // reflete o estado, e DbRecall() desfaz. Antes, DbDelete era um stub no-op
-// (FULL-REVIEW A1a): a exclusÃ£o sumia silenciosamente e Deleted() nunca
-// virava .T. apÃ³s um DbDelete.
+// (FULL-REVIEW A1a): a exclusão sumia silenciosamente e Deleted() nunca
+// virava .T. após um DbDelete.
 User Function DbDeleteTest()
     TCSqlExec("CREATE TABLE IF NOT EXISTS DD_TEST (R_E_C_N_O_ INTEGER PRIMARY KEY AUTOINCREMENT, D_E_L_E_T_ TEXT DEFAULT ' ', R_E_C_D_E_L_ INTEGER DEFAULT 0, DD_CODIGO TEXT)")
     TCSqlExec("DELETE FROM DD_TEST")

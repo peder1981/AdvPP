@@ -1,8 +1,8 @@
-// Fixture usada pelo smoke test de CI (Windows) do execut√°vel standalone
+// Fixture usada pelo smoke test de CI (Windows) do execut·vel standalone
 // (advplc build): confirma que o stub gerado (janela Fyne + console +
-// banco) compila e RODA de verdade num bin√°rio nativo, n√£o s√≥ que o VM
+// banco) compila e RODA de verdade num bin·rio nativo, n„o sÛ que o VM
 // headless funciona. Programa 100% console: deve imprimir as duas linhas
-// abaixo e encerrar sozinho sem exigir intera√ß√£o do usu√°rio.
+// abaixo e encerrar sozinho sem exigir interaÁ„o do usu·rio.
 User Function Main()
     ConOut("standalone smoke test: linha 1")
     ConOut("standalone smoke test: linha 2")

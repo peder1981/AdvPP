@@ -1,13 +1,13 @@
-// tests/menu_test.prw â€” FWMenuSelect/FWGetText em execuÃ§Ã£o headless
+// tests/menu_test.prw — FWMenuSelect/FWGetText em execução headless
 // (advplc run, sem UIProvider): nunca devem bloquear esperando input que
-// nÃ£o vai vir â€” devem retornar o "sem escolha" (0 / valor default) na
-// hora. O caminho interativo real (advplc serve) nÃ£o Ã© testÃ¡vel aqui â€”
-// depende de uma sessÃ£o de browser de verdade respondendo ao /reply.
+// não vai vir — devem retornar o "sem escolha" (0 / valor default) na
+// hora. O caminho interativo real (advplc serve) não é testável aqui —
+// depende de uma sessão de browser de verdade respondendo ao /reply.
 User Function MenuTest()
-    Local aOpcoes := {"Unidades", "CondÃ´minos", "Sair"}
+    Local aOpcoes := {"Unidades", "Condôminos", "Sair"}
     Local nEscolha := FWMenuSelect(aOpcoes, "Menu de teste")
     ConOut("escolha=" + Str(nEscolha))
 
-    Local cTexto := FWGetText("CompetÃªncia?", "2026-08")
+    Local cTexto := FWGetText("Competência?", "2026-08")
     ConOut("texto=" + cTexto)
 Return

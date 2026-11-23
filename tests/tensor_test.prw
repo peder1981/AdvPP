@@ -14,10 +14,10 @@ User Function TensorTst()
     If Abs(oS:ToArray()[1] + oS:ToArray()[2] - 1) > 0.001
         ConOut("FALHA Softmax linha nao soma 1"); nFail++
     EndIf
-    If nPred != 4                        // 50 √© o maior, offset row-major 1-based = 4
+    If nPred != 4                        // 50 È o maior, offset row-major 1-based = 4
         ConOut("FALHA Argmax global: " + Str(nPred)); nFail++
     EndIf
-    // erro de forma √© captur√°vel
+    // erro de forma È captur·vel
     Begin Sequence
         oA:MatMul(Tensor():New({3,3}))
         ConOut("FALHA: matmul incompativel nao lancou"); nFail++

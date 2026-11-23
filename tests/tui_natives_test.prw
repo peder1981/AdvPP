@@ -1,4 +1,4 @@
-// tests/tui_natives_test.prw â€” fixture para TestTuiNativesFixture (cmd/advplc):
+// tests/tui_natives_test.prw — fixture para TestTuiNativesFixture (cmd/advplc):
 // exercita as novas primitivas de TUI (pkg/vm/ui_render.go) e as natives que
 // as acompanham (ConOutRaw, PROCRUN, JsonObject:FromJson real, ConIn EOF).
 User Function TuiNativesTest()
@@ -12,7 +12,7 @@ User Function TuiNativesTest()
     Local nExit
     Local cSelf    := GetEnv("ADVPLC_SELF_PATH")
 
-    // UiBox: caixa com borda, titulo e corpo â€” confere presenca literal do
+    // UiBox: caixa com borda, titulo e corpo — confere presenca literal do
     // texto (o estilo lipgloss usa codigos ANSI ao redor, nao apaga o texto)
     ConOut("BOX_HAS_TITLE=" + cValToChar(".T." $ cBox .Or. "Titulo" $ cBox))
     ConOut("BOX_HAS_BODY=" + cValToChar("Corpo da caixa" $ cBox))

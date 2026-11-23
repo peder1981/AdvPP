@@ -2,17 +2,8 @@ import { AfterViewInit, Component, ElementRef, Input, OnDestroy, ViewChild } fro
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { UiNode, UiPost } from './ui-host';
+import { registraTerm, removeTerm } from './adv-terminal-canal';
 
-// Saída dos terminais (op "term"), por id. Bytes que chegam antes de o
-// componente existir ficam guardados e são escritos quando ele registra.
-const escritores = new Map<number, (d: Uint8Array) => void>();
-const pendentes = new Map<number, Uint8Array[]>();
-
-export function entregaTerm(id: number, dados: Uint8Array) {
-  const w = escritores.get(id);
-  if (w) { w(dados); return; }
-  pendentes.set(id, [...(pendentes.get(id) ?? []), dados]);
-}
 
 // AdvTerminal: xterm.js. Digitação vai como "input"; mudança de tamanho
 // (ajuste ao contêiner) como "resize".
@@ -41,14 +32,12 @@ export class AdvTerminalComponent implements AfterViewInit, OnDestroy {
     this.post(this.node.id, 'resize', { cols: term.cols, rows: term.rows });
     this.obs = new ResizeObserver(() => fit.fit());
     this.obs.observe(this.host.nativeElement);
-    escritores.set(this.node.id, d => term.write(d));
-    for (const d of pendentes.get(this.node.id) ?? []) { term.write(d); }
-    pendentes.delete(this.node.id);
+    registraTerm(this.node.id, d => term.write(d));
     term.focus();
   }
 
   ngOnDestroy() {
-    escritores.delete(this.node.id);
+    removeTerm(this.node.id);
     this.obs?.disconnect();
     this.term?.dispose();
   }

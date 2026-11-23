@@ -1,9 +1,9 @@
 /*/{Protheus.doc} GetSx3Cache
-    Busca propriedade de campo no dicionÃ¡rio SX3 com cache interno
+    Busca propriedade de campo no dicionário SX3 com cache interno
     @type Function
     @author Peder Munksgaard
     @since 21/09/2026
-    @param cCampo Character - Nome do campo no dicionÃ¡rio
+    @param cCampo Character - Nome do campo no dicionário
     @param cProperty Character - Propriedade a buscar (TM_NAME, TM_TYPE, etc)
     @return Character - Valor da propriedade ou string vazia
 /*/
@@ -12,7 +12,7 @@ User Function GetSx3Cache(cCampo, cProperty)
     Local cValor   := ""
     Local lEncontr := .F.
     
-    // Verificar se o alias estÃ¡ aberto
+    // Verificar se o alias está aberto
     If FwAliasInDic(cAlias)
         Select(cAlias)
         
@@ -23,7 +23,7 @@ User Function GetSx3Cache(cCampo, cProperty)
         If DBSeek(cChave)
             // Verificar se encontrou
             If !Eof() And !Bofer()
-                // Buscar posiÃ§Ã£o do campo na estrutura
+                // Buscar posição do campo na estrutura
                 Local nPos := 0
                 
                 // Mapear propriedades comuns
@@ -50,7 +50,7 @@ User Function GetSx3Cache(cCampo, cProperty)
                     nPos := FieldPos(cProperty, cAlias)
                 EndIf
                 
-                // Se encontrou a posiÃ§Ã£o, retornar valor
+                // Se encontrou a posição, retornar valor
                 If nPos > 0
                     cValor := AllTrim(FieldGet(nPos, cAlias))
                     lEncontr := .T.
@@ -58,7 +58,7 @@ User Function GetSx3Cache(cCampo, cProperty)
             EndIf
         EndIf
     Else
-        // Alias nÃ£o estÃ¡ aberto, tentar abrir
+        // Alias não está aberto, tentar abrir
         DbUseArea(, "TOPCONN", RetSqlName("SX3"), cAlias, .T.)
         If Select(cAlias) > 0
             // Recursivamente chamar novamente

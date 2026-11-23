@@ -1,14 +1,14 @@
 #include "totvs.ch"
 
 // Fixture de regressao para gaps de linguagem achados numa rodada de
-// varredura contra corpus real (811R4 + Protheus 12.1.2510). Cada fun√ß√£o
-// isola um padr√£o que j√° quebrou o parser/compilador antes do fix
-// correspondente. So precisa compilar (`advplc check`) sem erro ‚Äî o
-// conte√∫do sem√¢ntico das express√µes n√£o importa.
+// varredura contra corpus real (811R4 + Protheus 12.1.2510). Cada funÁ„o
+// isola um padr„o que j· quebrou o parser/compilador antes do fix
+// correspondente. So precisa compilar (`advplc check`) sem erro ó o
+// conte˙do sem‚ntico das expressıes n„o importa.
 
 // NamedParam usado fora de compileArgs (ramo do IIf/If de 3 args de
-// curto-circuito) ‚Äî `ident := expr` como argumento √© atribui√ß√£o real, n√£o
-// par√¢metro nomeado.
+// curto-circuito) ó `ident := expr` como argumento È atribuiÁ„o real, n„o
+// par‚metro nomeado.
 Function GapNamedParamInIif()
 	Local lConfirma := .F.
 	Local nOpcDlg := 0
@@ -19,7 +19,7 @@ Return Nil
 Static Function HS_ObrgPer(a, b)
 Return .T.
 
-// Atribui√ß√£o usada como condi√ß√£o em ElseIf/Case/While (n√£o s√≥ If).
+// AtribuiÁ„o usada como condiÁ„o em ElseIf/Case/While (n„o sÛ If).
 Function GapAssignInConditions()
 	Local x := 0
 	Local lRet := 0
@@ -41,14 +41,14 @@ Function GapAssignInConditions()
 	EndDo
 Return Nil
 
-// `@ident := expr` sem coordenadas ‚Äî o `@` √© s√≥ um marcador tolerado.
+// `@ident := expr` sem coordenadas ó o `@` È sÛ um marcador tolerado.
 Function GapAtAssignNoCoord()
 	Local cPicture := ""
 	@cPicture := "999" + cPicture
 Return Nil
 
-// ACTION/MENUITEM com lista de express√µes separadas por v√≠rgula, incluindo
-// atribui√ß√£o.
+// ACTION/MENUITEM com lista de expressıes separadas por vÌrgula, incluindo
+// atribuiÁ„o.
 Function GapActionCommaList()
 	Local oMenu, cCargoAtu
 	MENU oMenu POPUP
@@ -62,20 +62,20 @@ Return 1
 Static Function DummyRefresh()
 Return Nil
 
-// DEFINE SBUTTON com vari√°vel-alvo depois de FROM (n√£o logo ap√≥s o kind).
+// DEFINE SBUTTON com vari·vel-alvo depois de FROM (n„o logo apÛs o kind).
 Function GapDefineLateTarget()
 	Local oButton, oDlg
 	DEFINE SBUTTON FROM 250,100 oButton TYPE 1 ACTION cProd := Space(15) OF oDlg ENABLE
 Return Nil
 
-// Atribui√ß√£o composta (+=) como lado direito de outra atribui√ß√£o.
+// AtribuiÁ„o composta (+=) como lado direito de outra atribuiÁ„o.
 Function GapCompoundAssignAsRHS()
 	Local nIniDim := 0
 	Local aCol := {1, 2, 3}
 	nIniDim := aCol[1] += 5
 Return Nil
 
-// Coordenada do `@` como atribui√ß√£o composta.
+// Coordenada do `@` como atribuiÁ„o composta.
 Function GapAtCompoundCoord()
 	Local nLin := 1
 	Local nCo1 := 1
@@ -83,8 +83,8 @@ Function GapAtCompoundCoord()
 	@ nLin+=1, nCo1 SAY "y"
 Return Nil
 
-// SET FILTER TO vazio seguido de DEFINE com continua√ß√£o `;` ‚Äî heur√≠stica de
-// valor do SET n√£o pode vazar pro statement seguinte.
+// SET FILTER TO vazio seguido de DEFINE com continuaÁ„o `;` ó heurÌstica de
+// valor do SET n„o pode vazar pro statement seguinte.
 Function GapSetFilterToThenDefine()
 	Local oDlg, oMainWnd
 	Set Filter To
@@ -93,7 +93,7 @@ Function GapSetFilterToThenDefine()
 Return Nil
 
 // DEFINE SECTION com TABLE (lista de tabelas) e BREAK como flag (PAGE/CELL/
-// LINE BREAK), n√£o cl√°usula com valor.
+// LINE BREAK), n„o cl·usula com valor.
 Function GapDefineSectionTableBreak()
 	Local oReport, oSection1, oSection3
 	DEFINE SECTION oSection1 OF oReport TITLE "x" LINE STYLE TABLES "QE6" PAGE BREAK
@@ -126,41 +126,41 @@ Function GapActivateMenuAt()
 	ACTIVATE POPUP oMenu WINDOW oWnd AT 10, 20
 Return Nil
 
-// LOCATE REST FOR (REST √© flag, n√£o deve confundir o FOR de loop seguinte).
+// LOCATE REST FOR (REST È flag, n„o deve confundir o FOR de loop seguinte).
 Function GapLocateRestFor()
 	Local nFound := 0
 	LOCATE REST FOR ( nFound == 0 )
 Return Nil
 
-// CREATE SCOPE ... FOR (mesma raz√£o do LOCATE REST FOR).
+// CREATE SCOPE ... FOR (mesma raz„o do LOCATE REST FOR).
 Function GapCreateScopeFor()
 	Local aScope
 	CREATE SCOPE aScope FOR ( .T. )
 Return Nil
 
-// DEFAULT com alvo alias->campo e com √≠ndice de array.
+// DEFAULT com alvo alias->campo e com Ìndice de array.
 Function GapDefaultAliasAndIndex()
 	Default HttpSession->cRetPag := ""
 	Local oValidationError := JsonObject():New()
 	Default oValidationError["k"] := {}
 Return Nil
 
-// String delimitada por colchetes span multi-linha via continua√ß√£o `;`.
+// String delimitada por colchetes span multi-linha via continuaÁ„o `;`.
 Function GapBracketStringContinuation()
 	Local cCampo := "X"
 	Local lOk := (cCampo $ [AAA/BBB/CCC;
 		/DDD/EEE])
 Return lOk
 
-// `@ x,y TO ...` no n√≠vel top-level (fora de fun√ß√£o) n√£o pode ser
-// confundido com anota√ß√£o `@Nome`.
+// `@ x,y TO ...` no nÌvel top-level (fora de funÁ„o) n„o pode ser
+// confundido com anotaÁ„o `@Nome`.
 @0,0 TO 10,10 DIALOG oTopDlg TITLE "x" PIXEL
 
 Function GapTopLevelAtCommand()
 Return Nil
 
 // WSMETHOD com RESPONSE depois de PRODUCES, e WSRECEIVE com nomes de
-// par√¢metro que colidem com palavras de cl√°usula do DSL `@` (Type, Size).
+// par‚metro que colidem com palavras de cl·usula do DSL `@` (Type, Size).
 WSRESTFUL GapRest DESCRIPTION 'x'
 
 	WSDATA Page AS INTEGER OPTIONAL
@@ -178,8 +178,8 @@ Return .T.
 WSMETHOD GetHeaderPart WSRECEIVE UserCode,ParticipantId,Type,CodMap WSSEND PartHeader WSSERVICE GapRest
 Return .T.
 
-// `:MethodName(args)` sem receiver, no topo do corpo de um m√©todo ‚Äî idioma
-// de invocar a vers√£o da superclasse.
+// `:MethodName(args)` sem receiver, no topo do corpo de um mÈtodo ó idioma
+// de invocar a vers„o da superclasse.
 CLASS GapBareColonCall
 	METHOD New(nTop) CONSTRUCTOR
 ENDCLASS

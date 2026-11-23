@@ -1,25 +1,25 @@
-// Fixture: escopo din√¢mico de Private ‚Äî visibilidade descendente entre
-// fun√ß√µes (a fun√ß√£o chamada enxerga o Private do chamador) e restaura√ß√£o do
+// Fixture: escopo din‚mico de Private ó visibilidade descendente entre
+// funÁıes (a funÁ„o chamada enxerga o Private do chamador) e restauraÁ„o do
 // binding sombreado quando o frame que o declarou retorna.
-// Auto-verific√°vel: compara valor esperado x obtido, imprime
-// "OK: N/N verificacoes passaram" (padr√£o de pt_nn.prw).
+// Auto-verific·vel: compara valor esperado x obtido, imprime
+// "OK: N/N verificacoes passaram" (padr„o de pt_nn.prw).
 User Function DynPrivTst()
     Local nFail := 0
     Private cCtx := "A"
 
-    // 1. ModB() enxerga o Private "cCtx" declarado no chamador (escopo din√¢mico)
+    // 1. ModB() enxerga o Private "cCtx" declarado no chamador (escopo din‚mico)
     If ModB() != "A"
         ConOut("FALHA: ModB nao viu cCtx=A do chamador")
         nFail++
     EndIf
 
-    // 2. ModB() alterou cCtx (mesmo binding din√¢mico, sem Private pr√≥prio novo)
+    // 2. ModB() alterou cCtx (mesmo binding din‚mico, sem Private prÛprio novo)
     If cCtx != "Z"
         ConOut("FALHA: alteracao de cCtx em ModB nao refletiu no chamador (obtido: " + cCtx + ")")
         nFail++
     EndIf
 
-    // 3. ModC() declara seu PR√ìPRIO Private cCtx (sombreando); ao retornar,
+    // 3. ModC() declara seu PR”PRIO Private cCtx (sombreando); ao retornar,
     //    o binding do chamador deve ser restaurado intacto.
     ModC()
     If cCtx != "Z"
@@ -34,13 +34,13 @@ User Function DynPrivTst()
     EndIf
 Return
 
-// Enxerga cCtx do chamador via escopo din√¢mico (nenhum Private pr√≥prio) e o altera.
+// Enxerga cCtx do chamador via escopo din‚mico (nenhum Private prÛprio) e o altera.
 Static Function ModB()
     Local cSeen := cCtx
     cCtx := "Z"
 Return cSeen
 
-// Declara seu pr√≥prio Private cCtx (sombreia o do chamador); some ao retornar.
+// Declara seu prÛprio Private cCtx (sombreia o do chamador); some ao retornar.
 Static Function ModC()
     Private cCtx := "TEMP-C"
 Return

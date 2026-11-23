@@ -1,7 +1,7 @@
-// tests/tcsql_erro_test.prw -- erro de SQL em TCSqlExec/TCSqlQuery n√£o
+// tests/tcsql_erro_test.prw -- erro de SQL em TCSqlExec/TCSqlQuery n„o
 // encerra o programa: TCSqlExec devolve .F., TCSqlQuery devolve {} e a
-// mensagem fica em TCSqlError() (como no Protheus, onde o erro tamb√©m volta
-// para o programa). Um "BEGIN; ...; COMMIT;" que falha no meio √© desfeito.
+// mensagem fica em TCSqlError() (como no Protheus, onde o erro tambÈm volta
+// para o programa). Um "BEGIN; ...; COMMIT;" que falha no meio È desfeito.
 User Function TCSqlErro()
     Local lOk := .T.
     Local aRows := {}

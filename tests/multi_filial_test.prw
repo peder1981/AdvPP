@@ -1,9 +1,9 @@
 #include "totvs.ch"
 
-// Teste de integra√ß√£o ponta-a-ponta pra RpcSetEnv/FWxFilial:
-// verifica que as natives de estado de sess√£o multi-filial funcionam
-// e que FWxFilial retorna a filial truncada conforme o n√≠vel de
-// compartilhamento da tabela (default: n√≠vel 6, exclusiva).
+// Teste de integraÁ„o ponta-a-ponta pra RpcSetEnv/FWxFilial:
+// verifica que as natives de estado de sess„o multi-filial funcionam
+// e que FWxFilial retorna a filial truncada conforme o nÌvel de
+// compartilhamento da tabela (default: nÌvel 6, exclusiva).
 User Function MultiFilialTest()
     Local nFail := 0
 
@@ -34,7 +34,7 @@ User Function MultiFilialTest()
         nFail++
     EndIf
 
-    // Teste 2: Cria√ß√£o de tabela com FILIAL e valida√ß√£o
+    // Teste 2: CriaÁ„o de tabela com FILIAL e validaÁ„o
     ConOut("")
     ConOut("Teste 2: Tabela com coluna FILIAL")
     ConOut("---")

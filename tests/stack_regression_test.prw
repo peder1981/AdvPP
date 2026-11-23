@@ -1,10 +1,10 @@
-// RegressÃ£o do vazamento de pilha em comando-expressÃ£o (FULL-REVIEW C1).
+// Regressão do vazamento de pilha em comando-expressão (FULL-REVIEW C1).
 //
-// Antes da correÃ§Ã£o, todo comando cujo valor Ã© descartado â€” chamada de
-// funÃ§Ã£o isolada, x++, x-- â€” deixava um valor na pilha da VM a cada
-// iteraÃ§Ã£o. Passando de MaxStackSize (10.000) o push falhava em silÃªncio
-// e o programa entrava em loop infinito. Cada laÃ§o abaixo passa desse
-// limite; se algum travar, a regressÃ£o voltou.
+// Antes da correção, todo comando cujo valor é descartado — chamada de
+// função isolada, x++, x-- — deixava um valor na pilha da VM a cada
+// iteração. Passando de MaxStackSize (10.000) o push falhava em silêncio
+// e o programa entrava em loop infinito. Cada laço abaixo passa desse
+// limite; se algum travar, a regressão voltou.
 #include "totvs.ch"
 
 User Function Main()
@@ -18,7 +18,7 @@ User Function Main()
    Next
    ConOut("incr nC=" + cValToChar(nC))
 
-   // 2) chamada de funÃ§Ã£o como comando
+   // 2) chamada de função como comando
    nC := 0
    For nI := 1 To 20000
       nC := Incrementa(nC)

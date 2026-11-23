@@ -5,7 +5,7 @@
     Mesmo NPLM do pt_neural (Embedding->Reshape->Linear->Tanh->Linear->SoftmaxCE,
     Adam via Fit), mas a unidade e o TOKEN AdvPL (lexer proprio), nao o byte.
     Uso: treina, auto-teste (loss cai), gera de prefixos e abre um REPL de autocomplete.
-    Teto honesto: modelo pequeno em VM interpretado â€” gera codigo plausivel enviesado
+    Teto honesto: modelo pequeno em VM interpretado — gera codigo plausivel enviesado
     a logica, NAO resolve problemas novos (isso exige um LLM grande pre-treinado).
     @type  user function
     @author AdvPP
@@ -96,7 +96,7 @@ User Function DevNN()
     EndIf
 
     // REPL de autocomplete: digite um prefixo AdvPL; enter vazio ou 'sair' encerra.
-    // Sem stdin (EOF) o loop encerra na hora â€” o auto-teste acima ja rodou.
+    // Sem stdin (EOF) o loop encerra na hora — o auto-teste acima ja rodou.
     ConOut("--- REPL autocomplete (prefixo AdvPL; 'sair' para encerrar) ---")
     Do While .T.
         cSeed := ConIn("advpl> ")

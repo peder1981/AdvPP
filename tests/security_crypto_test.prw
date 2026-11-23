@@ -21,17 +21,17 @@ User Function TestHTTPSVerification()
 	ConOut("================================")
 	ConOut("")
 
-	ConOut("✓ TLS Version: 1.2+ (minimum allowed)")
-	ConOut("✓ Certificate Verification: ENABLED (InsecureSkipVerify=false)")
-	ConOut("✓ Request Timeout: 30 seconds (DoS prevention)")
-	ConOut("✓ Max Redirects: 5 (prevents open redirect attacks)")
-	ConOut("✓ PKCS12 Client Certificate Support: ENABLED (for mTLS)")
+	ConOut("[OK] TLS Version: 1.2+ (minimum allowed)")
+	ConOut("[OK] Certificate Verification: ENABLED (InsecureSkipVerify=false)")
+	ConOut("[OK] Request Timeout: 30 seconds (DoS prevention)")
+	ConOut("[OK] Max Redirects: 5 (prevents open redirect attacks)")
+	ConOut("[OK] PKCS12 Client Certificate Support: ENABLED (for mTLS)")
 	ConOut("")
 
 	ConOut("Compliance:")
-	ConOut("✓ OWASP A07:2021 (Identification and Authentication Failures)")
-	ConOut("✓ CWE-295 (Improper Certificate Validation) — FIXED")
-	ConOut("✓ OWASP A04:2021 (Insecure Design)")
+	ConOut("[OK] OWASP A07:2021 (Identification and Authentication Failures)")
+	ConOut("[OK] CWE-295 (Improper Certificate Validation) � FIXED")
+	ConOut("[OK] OWASP A04:2021 (Insecure Design)")
 	ConOut("")
 
 Return lRet
@@ -57,9 +57,9 @@ User Function TestRandomNumberQuality()
 	ConOut("======================================")
 	ConOut("")
 
-	ConOut("✓ Cryptographic Operations: crypto/rand (secure)")
-	ConOut("✓ RANDOM() Function: math/rand (non-cryptographic, by design)")
-	ConOut("✓ Compliance: CWE-330 (Use of Insufficiently Random Values) — VERIFIED SAFE")
+	ConOut("[OK] Cryptographic Operations: crypto/rand (secure)")
+	ConOut("[OK] RANDOM() Function: math/rand (non-cryptographic, by design)")
+	ConOut("[OK] Compliance: CWE-330 (Use of Insufficiently Random Values) � VERIFIED SAFE")
 	ConOut("")
 
 Return lRet
@@ -85,14 +85,14 @@ User Function TestTimeoutConfiguration()
 	ConOut("=======================================")
 	ConOut("")
 
-	ConOut("✓ HTTP Client Timeout: 30 seconds per request")
-	ConOut("✓ Max Redirects: 5 (prevents redirect loop DOS)")
-	ConOut("✓ Connection Limits: Enforced by OS TCP stack")
+	ConOut("[OK] HTTP Client Timeout: 30 seconds per request")
+	ConOut("[OK] Max Redirects: 5 (prevents redirect loop DOS)")
+	ConOut("[OK] Connection Limits: Enforced by OS TCP stack")
 	ConOut("")
 
 	ConOut("Compliance:")
-	ConOut("✓ CWE-400 (Uncontrolled Resource Consumption)")
-	ConOut("✓ CWE-770 (Missing Rate Limiting)")
+	ConOut("[OK] CWE-400 (Uncontrolled Resource Consumption)")
+	ConOut("[OK] CWE-770 (Missing Rate Limiting)")
 	ConOut("")
 
 Return lRet
@@ -119,11 +119,11 @@ User Function TestNoHardcodedSecrets()
 	ConOut("======================")
 	ConOut("")
 
-	ConOut("✓ No hardcoded API keys found")
-	ConOut("✓ No hardcoded passwords found")
-	ConOut("✓ No hardcoded tokens found")
-	ConOut("✓ Configuration via environment variables or config files (recommended)")
-	ConOut("✓ Certificates loaded from files (no hardcoding)")
+	ConOut("[OK] No hardcoded API keys found")
+	ConOut("[OK] No hardcoded passwords found")
+	ConOut("[OK] No hardcoded tokens found")
+	ConOut("[OK] Configuration via environment variables or config files (recommended)")
+	ConOut("[OK] Certificates loaded from files (no hardcoding)")
 	ConOut("")
 
 Return lRet
@@ -149,7 +149,7 @@ User Function RunSecurityCryptoTests()
 
 	ConOut("")
 	ConOut("================================================================")
-	ConOut("AdvPP Security Audit — Cryptography & HTTPS Configuration")
+	ConOut("AdvPP Security Audit � Cryptography & HTTPS Configuration")
 	ConOut("Task 6: Verify HTTPS and cryptography configuration")
 	ConOut("================================================================")
 	ConOut("")
@@ -172,9 +172,9 @@ User Function RunSecurityCryptoTests()
 
 	ConOut("")
 	If lAllPass
-		ConOut("RESULT: ALL CRYPTO TESTS PASSED ✓")
+		ConOut("RESULT: ALL CRYPTO TESTS PASSED [OK]")
 	Else
-		ConOut("RESULT: SOME TESTS FAILED ✗")
+		ConOut("RESULT: SOME TESTS FAILED [FALHA]")
 	EndIf
 	ConOut("")
 	ConOut("================================================================")

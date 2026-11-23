@@ -1,6 +1,6 @@
-// Fixture de regress√£o da issue #3: `Default` sozinho na linha dentro de
-// `Do Case` √© o ramo otherwise (alias tolerado de `Otherwise`).
-// Sem o fix, o `Default` era consumido por parseDefault como atribui√ß√£o
+// Fixture de regress„o da issue #3: `Default` sozinho na linha dentro de
+// `Do Case` È o ramo otherwise (alias tolerado de `Otherwise`).
+// Sem o fix, o `Default` era consumido por parseDefault como atribuiÁ„o
 // `Default <prox-ident> := ...`, engolindo a primeira linha do ramo.
 User Function Main()
     Local cModo := "X"
@@ -27,7 +27,7 @@ User Function Main()
             ConOut("OTHERWISE_OK")
     EndCase
 
-    // Default com atribui√ß√£o continua sendo statement Default
+    // Default com atribuiÁ„o continua sendo statement Default
     Local nVal := 0
     Default nVal := 42
     ConOut("DEFAULT_STMT=" + AllTrim(Str(nVal)))

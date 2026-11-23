@@ -20,7 +20,7 @@ User Function TestMCPServerBasic()
     // Register a simple tool
     oMCP:AddTool("test_tool", "Test tool", '{"type":"object"}', "ToolTest")
 
-    ConOut("✅ MCP Server: basic creation works")
+    ConOut("[OK] MCP Server: basic creation works")
 Return .T.
 
 User Function ToolTest(oArgs)
@@ -44,10 +44,10 @@ Return jRet
 User Function TestRESTServerBasic()
     Local oRest := WSRestServer():New("test-rest", "1.0.0")
 
-    // Manually register routes (anotações above auto-register)
+    // Manually register routes (anota��es above auto-register)
     oRest:AddRoute("GET", "/status", "GetStatus")
 
-    ConOut("✅ REST Server: basic creation works")
+    ConOut("[OK] REST Server: basic creation works")
 Return .T.
 
 User Function GetStatus(oParam)
@@ -62,7 +62,7 @@ User Function TestLLMBasic()
     // This test only checks that the class can be instantiated
     // Real GGUF files not available in test environment
 
-    ConOut("✅ LLM: class instantiation works")
+    ConOut("[OK] LLM: class instantiation works")
 Return .T.
 
 // ================ Tensor Examples ================
@@ -76,7 +76,7 @@ User Function TestTensorBasic()
     // Forward operations
     oH := oX:MatMul(oW):Relu()
 
-    ConOut("✅ Tensor: basic ops work")
+    ConOut("[OK] Tensor: basic ops work")
 Return .T.
 
 User Function TestTensorPrecision()
@@ -88,7 +88,7 @@ User Function TestTensorPrecision()
     // Float64 (optional)
     oB := Tensor():New({2,2}, "float64")
 
-    ConOut("✅ Tensor: precision selectable (f32/f64)")
+    ConOut("[OK] Tensor: precision selectable (f32/f64)")
 Return .T.
 
 User Function TestTensorMath()
@@ -99,7 +99,7 @@ User Function TestTensorMath()
     // Linear algebra ops
     oDet := oA:Det()
 
-    ConOut("✅ Tensor: linear algebra works")
+    ConOut("[OK] Tensor: linear algebra works")
 Return .T.
 
 // ================ Variable & Autodiff Examples ================
@@ -112,7 +112,7 @@ User Function TestVariableBasic()
     // Create optimizer
     oOpt := SGD():New({oW}, 0.05)
 
-    ConOut("✅ Variable: autodiff setup works")
+    ConOut("[OK] Variable: autodiff setup works")
 Return .T.
 
 User Function TestVariableBackward()
@@ -132,7 +132,7 @@ User Function TestVariableBackward()
     // Zero gradients
     oOpt:ZeroGrad()
 
-    ConOut("✅ Variable: backward setup works")
+    ConOut("[OK] Variable: backward setup works")
 Return .T.
 
 // ================ HTTP Client Examples ================
@@ -140,7 +140,7 @@ User Function TestFWHttpBasic()
     // This test only checks that the functions exist
     // Real HTTP calls would need a live server
 
-    ConOut("✅ HTTP: native functions available")
+    ConOut("[OK] HTTP: native functions available")
 Return .T.
 
 // ================ File I/O Examples ================
@@ -153,7 +153,7 @@ User Function TestFileIODisk()
     cRead := MemoRead("test_file.txt")
 
     If cRead == cContent
-        ConOut("✅ File I/O: disk operations work")
+        ConOut("[OK] File I/O: disk operations work")
         FErase("test_file.txt")
         Return .T.
     EndIf
@@ -174,7 +174,7 @@ User Function TestFileIOStreaming()
             cBuffer := FReadStr(nH, 100)
             FClose(nH)
             FErase("stream_test.txt")
-            ConOut("✅ File I/O: streaming operations work")
+            ConOut("[OK] File I/O: streaming operations work")
             Return .T.
         EndIf
     EndIf
@@ -183,7 +183,7 @@ Return .F.
 // ================ Console I/O Examples ================
 User Function TestConsoleIO()
     // ConOut is always available
-    ConOut("✅ Console I/O: ConOut works")
+    ConOut("[OK] Console I/O: ConOut works")
 Return .T.
 
 // ================ Array Functions Examples ================
@@ -198,7 +198,7 @@ User Function TestArrayFunctions()
     nPos := AScan(aArray, 3)
 
     If nPos > 0
-        ConOut("✅ Array functions: ASort/AScan work")
+        ConOut("[OK] Array functions: ASort/AScan work")
         Return .T.
     EndIf
 Return .F.
@@ -211,7 +211,7 @@ User Function TestArrayHigherOrder()
     AEval(aArray, {|x| nSum := nSum + x})
 
     If nSum == 6
-        ConOut("✅ Array functions: AEval with blocks work")
+        ConOut("[OK] Array functions: AEval with blocks work")
         Return .T.
     EndIf
 Return .F.
@@ -224,7 +224,7 @@ User Function TestStringFunctions()
     cTrimmed := AllTrim(cText)
 
     If cTrimmed == "Hello World"
-        ConOut("✅ String functions: AllTrim works")
+        ConOut("[OK] String functions: AllTrim works")
         Return .T.
     EndIf
 Return .F.
@@ -237,7 +237,7 @@ User Function TestStringManipulation()
     cSub := SubStr(cBase, 1, 3)
 
     If cUpper == "HELLO" .And. cSub == "Hel"
-        ConOut("✅ String functions: Upper/SubStr work")
+        ConOut("[OK] String functions: Upper/SubStr work")
         Return .T.
     EndIf
 Return .F.
@@ -247,7 +247,7 @@ User Function TestDatabaseBasic()
     // Note: Real database ops require SX3 setup
     // This just tests that functions are available
 
-    ConOut("✅ Database: DbSelectArea available")
+    ConOut("[OK] Database: DbSelectArea available")
 Return .T.
 
 // ================ Control Flow Examples ================
@@ -260,7 +260,7 @@ User Function TestControlFlowIf()
     EndIf
 
     If lResult
-        ConOut("✅ Control Flow: If/EndIf works")
+        ConOut("[OK] Control Flow: If/EndIf works")
         Return .T.
     EndIf
 Return .F.
@@ -273,7 +273,7 @@ User Function TestControlFlowFor()
     Next
 
     If nSum == 15
-        ConOut("✅ Control Flow: For/Next works")
+        ConOut("[OK] Control Flow: For/Next works")
         Return .T.
     EndIf
 Return .F.
@@ -292,7 +292,7 @@ User Function TestControlFlowDoCase()
     EndCase
 
     If cResult == "two"
-        ConOut("✅ Control Flow: Do Case works")
+        ConOut("[OK] Control Flow: Do Case works")
         Return .T.
     EndIf
 Return .F.
@@ -307,7 +307,7 @@ User Function TestControlFlowWhile()
     EndDo
 
     If nCount == 5
-        ConOut("✅ Control Flow: While/EndDo works")
+        ConOut("[OK] Control Flow: While/EndDo works")
         Return .T.
     EndIf
 Return .F.
@@ -331,7 +331,7 @@ User Function TestClassBasic()
     Local oObj := TestClass():New(42)
 
     If oObj:GetValue() == 42
-        ConOut("✅ Classes: class instantiation works")
+        ConOut("[OK] Classes: class instantiation works")
         Return .T.
     EndIf
 Return .F.
@@ -344,7 +344,7 @@ User Function TestCodeBlocks()
     nResult := Eval(bBlock, 5)
 
     If nResult == 10
-        ConOut("✅ Code Blocks: evaluation works")
+        ConOut("[OK] Code Blocks: evaluation works")
         Return .T.
     EndIf
 Return .F.
@@ -357,7 +357,7 @@ User Function TestClosures()
     nResult := Eval(bClosure, 5)
 
     If nResult == 15
-        ConOut("✅ Code Blocks: closures work")
+        ConOut("[OK] Code Blocks: closures work")
         Return .T.
     EndIf
 Return .F.
@@ -370,7 +370,7 @@ User Function TestJSONBasic()
     jObj["value"] := 123
 
     If jObj["name"] == "Test" .And. jObj["value"] == 123
-        ConOut("✅ JSON: JsonObject works")
+        ConOut("[OK] JSON: JsonObject works")
         Return .T.
     EndIf
 Return .F.
@@ -384,7 +384,7 @@ User Function TestTypeConversion()
     nBack := Val(cStr)
 
     If nBack == 123
-        ConOut("✅ Type Conversion: Str/Val work")
+        ConOut("[OK] Type Conversion: Str/Val work")
         Return .T.
     EndIf
 Return .F.
@@ -397,7 +397,7 @@ User Function TestNumericFunctions()
     nCeil := Ceil(nVal)
 
     If nCeil == 4
-        ConOut("✅ Numeric functions: Ceil works")
+        ConOut("[OK] Numeric functions: Ceil works")
         Return .T.
     EndIf
 Return .F.
@@ -408,7 +408,7 @@ User Function TestDateFunctions()
 
     // Just check that Date() returns a date value
     If ValType(dToday) == "D"
-        ConOut("✅ Date functions: Date() works")
+        ConOut("[OK] Date functions: Date() works")
         Return .T.
     EndIf
 Return .F.
@@ -424,7 +424,7 @@ User Function TestErrorHandling()
     End Sequence
 
     If !lError
-        ConOut("✅ Error Handling: Begin Sequence works")
+        ConOut("[OK] Error Handling: Begin Sequence works")
         Return .T.
     EndIf
 Return .F.
@@ -476,7 +476,7 @@ User Function TestAll()
             nPass++
         Else
             nFail++
-            ConOut("❌ " + aTests[i] + " FAILED")
+            ConOut("[FALHA] " + aTests[i] + " FAILED")
         EndIf
     Next
 
@@ -490,10 +490,10 @@ User Function TestAll()
 
     If nFail == 0
         ConOut("")
-        ConOut("✅ All " + cValToChar(nPass) + " examples from README validated successfully!")
+        ConOut("[OK] All " + cValToChar(nPass) + " examples from README validated successfully!")
     Else
         ConOut("")
-        ConOut("⚠️ " + cValToChar(nFail) + " test(s) failed")
+        ConOut("[AVISO] " + cValToChar(nFail) + " test(s) failed")
     EndIf
     ConOut("=" + Replicate("=", 40))
 

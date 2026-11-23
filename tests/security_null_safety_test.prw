@@ -1,4 +1,4 @@
-// security_null_safety_test.prw â€” Test nil safety guards (CWE-476)
+// security_null_safety_test.prw — Test nil safety guards (CWE-476)
 // This file tests that the VM handles nil operations gracefully without SIGSEGV
 
 User Function TestNilComparison()

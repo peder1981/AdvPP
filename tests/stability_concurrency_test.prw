@@ -20,23 +20,23 @@ User Function ConcurrencyTests()
 
     // Test StartJob cleanup
     If TestStartJobCleanup()
-        ConOut("✓ StartJob cleanup: PASS")
+        ConOut("[OK] StartJob cleanup: PASS")
     Else
-        ConOut("✗ StartJob cleanup: FAIL")
+        ConOut("[FALHA] StartJob cleanup: FAIL")
     EndIf
 
     // Test goroutine leak prevention
     If TestNoGoroutineLeakOnError()
-        ConOut("✓ Goroutine leak prevention: PASS")
+        ConOut("[OK] Goroutine leak prevention: PASS")
     Else
-        ConOut("✗ Goroutine leak prevention: FAIL")
+        ConOut("[FALHA] Goroutine leak prevention: FAIL")
     EndIf
 
     // Test job counter (simulated)
     If TestJobCounterSimulated()
-        ConOut("✓ Job counter management: PASS")
+        ConOut("[OK] Job counter management: PASS")
     Else
-        ConOut("✗ Job counter management: FAIL")
+        ConOut("[FALHA] Job counter management: FAIL")
     EndIf
 
     ConOut("")

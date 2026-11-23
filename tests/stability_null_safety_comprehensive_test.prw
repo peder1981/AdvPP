@@ -1,5 +1,5 @@
 /*
-Comprehensive Nil/Null Safety Test Suite â€” Task 9
+Comprehensive Nil/Null Safety Test Suite — Task 9
 
 Tests all nil edge cases in AdvPP VM:
 - Nil value operations
@@ -23,9 +23,9 @@ Expected: All tests PASS (no crashes, graceful error handling)
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 
-Master test runner â€” runs all nil safety tests in sequence
+Master test runner — runs all nil safety tests in sequence
 */
 User Function TestNilSafetyComprehensive()
     Local lPass := .T.
@@ -119,9 +119,9 @@ User Function TestNilSafetyComprehensive()
 
     ConOut("========================================")
     If lPass
-        ConOut("RESULT: ALL TESTS PASSED âœ“")
+        ConOut("RESULT: ALL TESTS PASSED [OK]")
     Else
-        ConOut("RESULT: SOME TESTS FAILED âœ—")
+        ConOut("RESULT: SOME TESTS FAILED [FALHA]")
     EndIf
     ConOut("========================================")
     ConOut("")
@@ -133,7 +133,7 @@ Return lPass
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilValueOperations()
     Local oNil := Nil
@@ -174,7 +174,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilComparison()
     Local oNil1 := Nil
@@ -211,7 +211,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestUnboundVariables()
     Local oUnbound  // No initialization = Nil
@@ -242,7 +242,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilArrayOperations()
     Local aNil := Nil
@@ -288,7 +288,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilObjectOperations()
     Local oNil := Nil
@@ -326,7 +326,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilInCollections()
     Local aArray := {Nil, Nil, Nil}
@@ -356,7 +356,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilArithmetic()
     Local nNil := Nil
@@ -387,7 +387,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilStringOps()
     Local cNil := Nil
@@ -418,7 +418,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilConditionals()
     Local oNil := Nil
@@ -462,7 +462,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilFunctionParameters()
     // Test passing Nil to functions
@@ -495,7 +495,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilInLoops()
     Local i := 0
@@ -525,7 +525,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilInArrayIteration()
     Local aItems := {1, Nil, 3}
@@ -554,7 +554,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilTypeConversion()
     Local oNil := Nil
@@ -580,7 +580,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestTryCatchWithNil()
     ConOut("Test: Try/Catch with nil")
@@ -615,7 +615,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilInArrayGet()
     Local aArr := {1, 2, 3}
@@ -638,7 +638,7 @@ Return .T.
 @author AdvPP Stability Task 9
 @since 2026-07-29
 @param none
-@return logical â€” .T. if all tests pass
+@return logical — .T. if all tests pass
 */
 User Function TestNilInCodeBlock()
     Local bBlock := {|x| x + 1}
