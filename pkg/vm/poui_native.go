@@ -50,6 +50,12 @@ var poClasses = map[string]struct{ class, typ string }{
 	"PODATEPICKERRANGE": {"PoDatepickerRange", "daterange"},
 	"PODATETIMEPICKER":  {"PoDatetimepicker", "datetimepicker"},
 	"POTIMEPICKER":      {"PoTimepicker", "timepicker"},
+	// onda 3a.3: texto especializado
+	"POEMAIL":   {"PoEmail", "email"},
+	"POURL":     {"PoUrl", "url"},
+	"PODECIMAL": {"PoDecimal", "decimal"},
+	"PORICHTEXT": {"PoRichText", "richtext"},
+	"POSEARCH":  {"PoSearch", "search"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -361,6 +367,23 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			// New(oPai, cLabel, cHora) — "HH:MM[:SS]"
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			c.props["value"] = argTexto(args, 2, "")
+		case "email", "url", "decimal":
+			// New(oPai, cLabel, xValor[, nDecimais])
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = poToJSON(getArg(args, 2))
+			if info.typ == "decimal" {
+				c.props["decimalsLength"] = int(advplrt.ToFloat(getArg(args, 3)))
+			}
+		case "richtext":
+			// New(oPai, cLabel, cHtml) — HTML cru, sem sanitização.
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["value"] = argTexto(args, 2, "")
+			c.props["height"] = "150px"
+		case "search":
+			// New(oPai, cPlaceholder)
+			c.props["literals"] = map[string]any{"search": advplrt.ToString(getArg(args, 1))}
+			c.props["items"] = []any{}
+			c.props["filterKeys"] = []any{}
 		case "terminal":
 			if !ptyDisponivel {
 				return fmt.Errorf("AdvTerminal: terminal indisponível no Windows nesta versão")
@@ -482,6 +505,13 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3aDateMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3aTextMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}

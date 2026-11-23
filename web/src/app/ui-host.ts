@@ -4,7 +4,7 @@ import { AdvCodeEditorComponent } from './adv-code-editor';
 import { AdvTerminalComponent } from './adv-terminal';
 import { FormsModule } from '@angular/forms';
 import {
-  PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoFieldModule,
+  PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoFieldModule, PoSearchModule,
   PoGaugeModule, PoInfoModule, PoListViewModule, PoPageAction, PoPageModule, PoProgressModule,
   PoTableModule, PoTabsModule, PoTagModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
 } from '@po-ui/ng-components';
@@ -46,7 +46,7 @@ export function descarregaPendentes() {
   selector: 'adv-ui-host',
   imports: [
     forwardRef(() => UiHostComponent), FormsModule, NgTemplateOutlet, AdvCodeEditorComponent, AdvTerminalComponent,
-    PoPageModule, PoButtonModule, PoFieldModule, PoTableModule, PoTagModule,
+    PoPageModule, PoButtonModule, PoFieldModule, PoSearchModule, PoTableModule, PoTagModule,
     PoContainerModule, PoDividerModule, PoWidgetModule, PoTabsModule, PoTreeViewModule,
     PoListViewModule, PoInfoModule, PoProgressModule, PoGaugeModule, PoChartModule,
   ],
@@ -206,6 +206,27 @@ export function descarregaPendentes() {
                          [p-readonly]="node.props['readonly'] ? 'true' : 'false'" [p-clean]="node.props['clean'] === false ? 'false' : 'true'"
                          [ngModel]="node.props['value']" (p-change)="onImediato($event)"></po-timepicker>
         }
+        @case ('email') {
+          <po-email [p-label]="node.props['label']" [p-disabled]="node.props['disabled'] ? 'true' : 'false'"
+                    [ngModel]="node.props['value']" (ngModelChange)="onInput($event)"></po-email>
+        }
+        @case ('url') {
+          <po-url [p-label]="node.props['label']" [p-disabled]="node.props['disabled'] ? 'true' : 'false'"
+                  [ngModel]="node.props['value']" (ngModelChange)="onInput($event)"></po-url>
+        }
+        @case ('decimal') {
+          <po-decimal [p-label]="node.props['label']" [p-disabled]="node.props['disabled'] ? 'true' : 'false'"
+                      [p-decimals-length]="node.props['decimalsLength']"
+                      [ngModel]="node.props['value']" (ngModelChange)="onInput($event)"></po-decimal>
+        }
+        @case ('richtext') {
+          <po-rich-text [p-label]="node.props['label']" [p-height]="node.props['height']"
+                        [ngModel]="node.props['value']" (ngModelChange)="onInput($event)"></po-rich-text>
+        }
+        @case ('search') {
+          <po-search [p-items]="node.props['items']" [p-filter-keys]="node.props['filterKeys']"
+                     [p-literals]="node.props['literals']" (p-filter)="onFilter($event)"></po-search>
+        }
         @case ('table') {
           <po-table [p-columns]="node.props['columns']" [p-items]="node.props['items']"
                     [p-selectable]="true" [p-single-select]="true" [p-striped]="true"
@@ -323,6 +344,11 @@ export class UiHostComponent {
   protected onImediato(value: unknown) {
     this.node.props['value'] = value;
     this.post(this.node.id, 'change', value);
+  }
+
+  // PoSearch:p-filter emite o texto digitado — OnFilter(cTexto) no AdvPL.
+  protected onFilter(value: unknown) {
+    this.post(this.node.id, 'filter', value);
   }
 
   protected onSelect(row: object) {

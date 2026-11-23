@@ -191,6 +191,9 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		case "selected":
 			// PoLookup:OnSelected(oLinha) — a linha vem do REST como objeto.
 			h, args = c.handlers["selected"], []advplrt.Value{c.obj, poFromJSONPoEvent(val)}
+		case "filter":
+			// PoSearch:OnFilter(cTexto)
+			h, args = c.handlers["filter"], []advplrt.Value{c.obj, advplrt.NewString(poJSONTexto(val))}
 		case "action":
 			i, ok := poJSONIndice(val)
 			if !ok {
@@ -219,7 +222,7 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 func poValorDoBrowser(typ string, val []byte) advplrt.Value {
 	txt := poJSONTexto(val)
 	switch typ {
-	case "number":
+	case "number", "decimal":
 		f, _ := strconv.ParseFloat(strings.TrimSpace(txt), 64)
 		return advplrt.NewNumber(f)
 	case "checkbox", "switch":
