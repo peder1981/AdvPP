@@ -68,8 +68,8 @@ Return
 func TestPo3cStorage(t *testing.T) {
 	// StorageSet/Remove viram ops; StorageGet é round-trip: o fakeUI
 	// responde "storageresult" com o valor.
-	poStorageGetTimeout = 2 * time.Second
-	defer func() { poStorageGetTimeout = 5 * time.Second }()
+	poStorageGetTimeout.Store(int64(2 * time.Second))
+	defer poStorageGetTimeout.Store(int64(5 * time.Second))
 
 	f := newFakeUI()
 	out, errc, done := rodaComUI(t, `
@@ -135,8 +135,8 @@ Return
 }
 
 func TestPo3cStorageGetTimeout(t *testing.T) {
-	poStorageGetTimeout = 50 * time.Millisecond
-	defer func() { poStorageGetTimeout = 5 * time.Second }()
+	poStorageGetTimeout.Store(int64(50 * time.Millisecond))
+	defer poStorageGetTimeout.Store(int64(5 * time.Second))
 
 	f := newFakeUI()
 	out, errc, done := rodaComUI(t, `

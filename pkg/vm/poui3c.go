@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	advplrt "github.com/advpl/compiler/pkg/runtime"
@@ -20,7 +21,10 @@ var poTemas = map[string]bool{"light": true, "dark": true}
 var poTooltipPos = map[string]bool{"top": true, "bottom": true, "left": true, "right": true}
 
 // poStorageGetTimeout: teto do round-trip do StorageGet (testes reduzem).
-var poStorageGetTimeout = 5 * time.Second
+// Atômico: a goroutine de vigia lê enquanto um teste pode restaurar o valor.
+var poStorageGetTimeout atomic.Int64
+
+func init() { poStorageGetTimeout.Store(int64(5 * time.Second)) }
 
 // po3cAppMethod despacha os métodos de serviço do PoApp. Devolve true
 // quando o método foi tratado.
@@ -77,7 +81,7 @@ func (v *VM) poStorageGet(a *poAppState, key string) advplrt.Value {
 	defer close(done)
 	go func() {
 		select {
-		case <-time.After(poStorageGetTimeout):
+		case <-time.After(time.Duration(poStorageGetTimeout.Load())):
 			val, _ := json.Marshal(map[string]any{"reqId": req})
 			a.ui.UIPostWait(a.appID, "storagetimeout", val, done)
 		case <-done:
