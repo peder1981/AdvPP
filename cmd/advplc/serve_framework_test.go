@@ -321,9 +321,13 @@ func TestFrameworkFonteDoUsuarioVence(t *testing.T) {
 func TestMontaRestTemFramework(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "t.db")
-	if _, err := db.NewSQLiteEngine(dbPath); err != nil {
+	eng, err := db.NewSQLiteEngine(dbPath)
+	if err != nil {
 		t.Fatal(err)
 	}
+	// Fecha já: o engine não é usado adiante e no Windows o handle aberto
+	// impede o cleanup do TempDir.
+	eng.Close()
 	fonte := filepath.Join(dir, "vazio.prw")
 	if err := os.WriteFile(fonte, []byte("User Function Main()\n\tReturn Nil\n"), 0o644); err != nil {
 		t.Fatal(err)
