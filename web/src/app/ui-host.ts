@@ -362,8 +362,7 @@ export class AppModalOpen implements AfterViewInit {
         @case ('dynedit') {
           <div class="dyn-page">
             @if (node.props['title']) { <h3 class="dyn-title">{{ node.props['title'] }}</h3> }
-            <po-dynamic-form [p-fields]="dynFormFields(node)" [p-value]="dynVal(node)"
-                             (p-form)="dynSetVal(node, $event)"></po-dynamic-form>
+            <po-dynamic-form [p-fields]="dynFormFields(node)" [p-value]="dynVal(node)"></po-dynamic-form>
             <div class="dyn-actions">
               <po-button p-label="Salvar" p-kind="primary" (p-click)="dynSave(node)"></po-button>
               <po-button p-label="Cancelar" (p-click)="post(node.id, 'cancel', null)"></po-button>
@@ -373,8 +372,7 @@ export class AppModalOpen implements AfterViewInit {
         @case ('dyndetail') {
           <div class="dyn-page">
             @if (node.props['title']) { <h3 class="dyn-title">{{ node.props['title'] }}</h3> }
-            <po-dynamic-form [p-fields]="dynFormFields(node)" [p-value]="dynVal(node)"
-                             (p-form)="dynSetVal(node, $event)"></po-dynamic-form>
+            <po-dynamic-form [p-fields]="dynFormFields(node)" [p-value]="dynVal(node)"></po-dynamic-form>
             <div class="dyn-actions">
               <po-button p-label="Excluir" p-kind="danger" (p-click)="dynRemove(node)"></po-button>
               <po-button p-label="Voltar" (p-click)="post(node.id, 'back', null)"></po-button>
@@ -738,13 +736,17 @@ export class UiHostComponent {
     return this.dynCampos(node).map(f => ({ ...f, disabled: ro || !!f['disabled'] })) as PoDynamicFormField[];
   }
 
+  // Objeto estável por nó: o po-dynamic-form grava nele o que é digitado
+  // (p-value é o modelo). O (p-form) entrega o NgForm, não os valores —
+  // guardá-lo fazia o p-value virar uma estrutura circular.
   protected dynVal(node: UiNode): Record<string, unknown> {
     this.dynTick();
-    return this.dynVals.get(node.id) ?? {};
-  }
-
-  protected dynSetVal(node: UiNode, v: unknown) {
-    this.dynVals.set(node.id, (v && typeof v === 'object' ? v : {}) as Record<string, unknown>);
+    let v = this.dynVals.get(node.id);
+    if (!v) {
+      v = {};
+      this.dynVals.set(node.id, v);
+    }
+    return v;
   }
 
   private dynUrl(node: UiNode): string {
