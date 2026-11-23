@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http/httptest"
 	"os"
@@ -159,15 +160,32 @@ User Function ApiReal()
 	}
 }
 
-func TestApiManagerToExecAutoErroClaro(t *testing.T) {
+// TestApiManagerToExecAuto: fiel ao FWAPIManager.prw do corpus 12.1.2510 —
+// nTipo 1 anexa {campo, valor, Nil} por linha de aDados em aRet; demais
+// tipos acumulam as mesmas triplas num aItem único anexado a aRet.
+func TestApiManagerToExecAuto(t *testing.T) {
 	bc := compilarPrg(t, `
 User Function ApiExec()
 	Local oApi := FwApiManager():New("est", "v1")
-	Return oApi:ToExecAuto()
+	Local aDados := {{"A1_COD", "0001"}, {"A1_NOME", "Cli"}}
+	Local aTipo1 := oApi:ToExecAuto(1, aDados)
+	Local aTipo2 := oApi:ToExecAuto(2, aDados)
+	ConOut("T1=" + cValToChar(Len(aTipo1)) + ":" + aTipo1[1][1] + ":" + aTipo1[2][2])
+	ConOut("T2=" + cValToChar(Len(aTipo2)) + ":" + cValToChar(Len(aTipo2[1])) + ":" + aTipo2[1][1][2])
+	ConOut("NIL=" + cValToChar(aTipo1[1][3] == Nil))
+Return
 `)
 	v := NewVM(bc, false)
+	var outBuf bytes.Buffer
+	v.SetOutputWriter(&outBuf)
 	_, err := v.RunFunction("U_APIEXEC", nil)
-	if err == nil || !strings.Contains(err.Error(), "não suportado") {
-		t.Fatalf("erro = %v, quer 'não suportado'", err)
+	if err != nil {
+		t.Fatalf("RunFunction: %v", err)
+	}
+	out := outBuf.String()
+	for _, want := range []string{"T1=2:A1_COD:Cli", "T2=1:2:0001", "NIL=.T."} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("out sem %q: %q", want, out)
+		}
 	}
 }

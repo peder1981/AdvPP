@@ -413,11 +413,52 @@ func (st *apiManagerState) NativeCallMethod(v *VM, obj *advplrt.ObjectValue, met
 		return advplrt.NewArray(nil), nil
 
 	case "TOEXECAUTO":
-		return advplrt.Nil, fmt.Errorf("FwApiManager:ToExecAuto não suportado no AdvPP (requer ExecAuto/MVC)")
+		return apiToExecAuto(args), nil
 
 	default:
 		return advplrt.Nil, fmt.Errorf("FwApiManager: método desconhecido %q", method)
 	}
+}
+
+// apiToExecAuto reproduz o método real do FWAPIManager do corpus
+// 12.1.2510 (crm/FWAPIManager.prw): converte o array de dados do ToArray
+// para o formato de parâmetros do ExecAuto — nTipo 1 (cabeçalho) gera uma
+// lista plana {campo, valor, Nil} por linha; os demais tipos acumulam as
+// mesmas triplas num único array de item, anexado como um elemento de aRet.
+// aRet opcional (Default {}) — quando informado, é o array retornado.
+func apiToExecAuto(args []advplrt.Value) advplrt.Value {
+	nTipo := advplrt.ToFloat(getArg(args, 0))
+	dados, _ := advplrt.Deref(getArg(args, 1)).(*advplrt.ArrayValue)
+	ret, _ := advplrt.Deref(getArg(args, 2)).(*advplrt.ArrayValue)
+	if ret == nil {
+		ret = advplrt.NewArray(nil)
+	}
+	tripla := func(row advplrt.Value) advplrt.Value {
+		elems := []advplrt.Value{advplrt.Nil, advplrt.Nil, advplrt.Nil}
+		if r, ok := advplrt.Deref(row).(*advplrt.ArrayValue); ok && len(r.Elements) > 0 {
+			elems[0] = r.Elements[0]
+			if len(r.Elements) > 1 {
+				elems[1] = r.Elements[1]
+			}
+		}
+		return advplrt.NewArray(elems)
+	}
+	if nTipo == 1 {
+		if dados != nil {
+			for _, row := range dados.Elements {
+				ret.Elements = append(ret.Elements, tripla(row))
+			}
+		}
+		return ret
+	}
+	item := advplrt.NewArray(nil)
+	if dados != nil {
+		for _, row := range dados.Elements {
+			item.Elements = append(item.Elements, tripla(row))
+		}
+	}
+	ret.Elements = append(ret.Elements, item)
+	return ret
 }
 
 // apiArr3 lê um array AdvPL de até 3 strings (aChildrenAlias/aFatherAlias).
