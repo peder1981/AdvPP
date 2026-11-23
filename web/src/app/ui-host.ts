@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { dynAntes } from './dyn-hooks';
 import {
   PoAccordionModule, PoModalModule, PoModalComponent, PoSlideModule, PoStepperModule,
+  PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
   PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoDynamicModule, PoDynamicFormField, PoFieldModule, PoSearchModule,
   PoGaugeModule, PoInfoModule, PoListViewModule, PoPageAction, PoPageModule, PoProgressModule,
   PoTableModule, PoTabsModule, PoTagModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
@@ -57,12 +58,14 @@ export class AppModalOpen implements AfterViewInit {
 // conhece nenhum aplicativo, só o mapeamento tipo -> componente PO-UI.
 @Component({
   selector: 'adv-ui-host',
+  host: { '[attr.data-poid]': 'node.id' },
   imports: [
     forwardRef(() => UiHostComponent), FormsModule, NgTemplateOutlet, AdvCodeEditorComponent, AdvTerminalComponent,
     PoPageModule, PoButtonModule, PoFieldModule, PoSearchModule, PoTableModule, PoTagModule,
     PoContainerModule, PoDividerModule, PoWidgetModule, PoTabsModule, PoTreeViewModule,
     PoListViewModule, PoInfoModule, PoProgressModule, PoGaugeModule, PoChartModule, PoDynamicModule,
     PoAccordionModule, PoModalModule, PoSlideModule, PoStepperModule, AppModalOpen,
+  PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
   ],
   styles: [`
     .advpp-ui-grid { display: flex; flex-wrap: wrap; margin: 0 -8px; }
@@ -353,6 +356,37 @@ export class AppModalOpen implements AfterViewInit {
         @case ('tag') {
           <po-tag [p-value]="node.props['value']" [p-type]="node.props['type']"></po-tag>
         }
+        @case ('buttongroup') {
+          <po-button-group [p-buttons]="poActions(node, 'buttons')" [p-toggle]="node.props['toggle'] || 'none'"></po-button-group>
+        }
+        @case ('dropdown') {
+          <po-dropdown [p-label]="node.props['label']" [p-actions]="poActions(node, 'actions')"
+                       [p-position]="node.props['position'] || 'bottom'"></po-dropdown>
+        }
+        @case ('popup') {
+          @if (node.props['open']) {
+            <po-popup [p-target]="poTarget(node)" [p-actions]="poActions(node, 'actions')"
+                      (p-close)="post(node.id, 'close', null)"></po-popup>
+          }
+        }
+        @case ('popover') {
+          @if (node.props['open'] !== false) {
+            <po-popover [p-target]="poTarget(node)" [p-title]="node.props['title']"
+                        [p-trigger]="node.props['trigger'] || 'click'" [p-position]="node.props['position'] || 'bottom'"
+                        (p-close)="post(node.id, 'close', null)">
+              <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+            </po-popover>
+          }
+        }
+        @case ('contextmenu') {
+          <po-context-menu [p-title]="node.props['title']" [p-items]="poActions(node, 'items')"
+                           (p-item-selected)="post(node.id, 'itemselected', $event)"></po-context-menu>
+        }
+        @case ('toolbar') {
+          <po-toolbar [p-title]="node.props['title']" [p-actions]="poActions(node, 'actions')"
+                      [p-profile]="node.props['profile']" [p-notification-number]="node.props['notificationNumber'] || 0"
+                      [p-show-notification]="true"></po-toolbar>
+        }
         @case ('accordion') {
           <po-accordion [p-show-manager-accordion]="!!node.props['showManager']"
                         [p-allow-expand-all-items]="!!node.props['allowExpandAll']">
@@ -628,6 +662,26 @@ export class UiHostComponent {
   protected stepIndex(node: UiNode): number {
     const s = node.props['step'];
     return typeof s === 'number' ? s : 0;
+  }
+
+  // ---- Onda 3b.2: ações ----
+
+  // {label, icon?, action:"act:N"} -> {label, icon?, action: () => post}.
+  protected poActions(node: UiNode, prop: string): any[] {
+    const lst = (node.props[prop] ?? []) as { label?: string; icon?: string; action?: string }[];
+    return lst.map((a): any => ({
+      label: a.label ?? '',
+      icon: a.icon,
+      action: a.action ? () => this.post(node.id, a.action!, null) : undefined,
+    }));
+  }
+
+  // Alvo de PoPopup/PoPopover: elemento adv-ui-host do componente alvo
+  // (o servidor guarda o id do nó em props.target).
+  protected poTarget(node: UiNode): any {
+    const id = node.props['target'];
+    if (id == null) return undefined;
+    return document.querySelector(`adv-ui-host[data-poid="${id}"]`);
   }
 
   // p-primary-action/p-secondary-action do po-modal esperam {label, action}.

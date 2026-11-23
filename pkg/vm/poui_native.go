@@ -74,6 +74,13 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POSTEPPER":        {"PoStepper", "stepper"},
 	"POSTEP":           {"PoStep", "step"},
 	"POSLIDE":          {"PoSlide", "slide"},
+	// onda 3b.2: ações
+	"POBUTTONGROUP": {"PoButtonGroup", "buttongroup"},
+	"PODROPDOWN":    {"PoDropdown", "dropdown"},
+	"POPOPUP":       {"PoPopup", "popup"},
+	"POPOPOVER":     {"PoPopover", "popover"},
+	"POCONTEXTMENU": {"PoContextMenu", "contextmenu"},
+	"POTOOLBAR":     {"PoToolbar", "toolbar"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -284,7 +291,7 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		if !ok {
 			return fmt.Errorf("%s: pai inválido", obj.ClassName)
 		}
-		// onda 3b.1: pais específicos dos componentes de agrupamento.
+		// onda 3b.1/3b.2: pais específicos dos componentes de agrupação/ação.
 		switch info.typ {
 		case "accordionitem":
 			ok = p.typ == "accordion"
@@ -292,7 +299,8 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			ok = p.typ == "stepper"
 		case "modal":
 			ok = p.app.isPage(p)
-		case "accordion", "stepper", "slide":
+		case "accordion", "stepper", "slide",
+			"buttongroup", "dropdown", "popup", "popover", "contextmenu", "toolbar":
 			ok = p.app.isContainer(p)
 		default:
 			if info.typ == "tab" {
@@ -332,6 +340,42 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c.props["slides"] = poSlideItems(getArg(args, 1))
 			c.props["interval"] = 0
 			c.props["height"] = 0
+		// onda 3b.2: ações
+		case "buttongroup":
+			// New(oPai, cToggle) — none|single|multiple
+			tg := strings.ToLower(argTexto(args, 1, "none"))
+			if tg != "none" && tg != "single" && tg != "multiple" {
+				return fmt.Errorf("PoButtonGroup: toggle inválido %q", tg)
+			}
+			c.props["toggle"] = tg
+			c.props["buttons"] = []map[string]any{}
+			c.props["selected"] = []any{}
+		case "dropdown":
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["actions"] = []map[string]any{}
+			c.props["position"] = "bottom"
+		case "popup":
+			// New(oPai, oAlvo) — alvo é outro componente da árvore.
+			if t := poCompDeArg(getArg(args, 1)); t != nil {
+				c.props["target"] = t.id
+			}
+			c.props["open"] = false
+			c.props["actions"] = []map[string]any{}
+		case "popover":
+			// New(oPai, oAlvo, cTitulo)
+			if t := poCompDeArg(getArg(args, 1)); t != nil {
+				c.props["target"] = t.id
+			}
+			c.props["title"] = advplrt.ToString(getArg(args, 2))
+			c.props["trigger"] = "click"
+			c.props["position"] = "bottom"
+		case "contextmenu":
+			c.props["title"] = advplrt.ToString(getArg(args, 1))
+			c.props["items"] = []map[string]any{}
+		case "toolbar":
+			c.props["title"] = advplrt.ToString(getArg(args, 1))
+			c.props["actions"] = []map[string]any{}
+			c.props["notificationNumber"] = 0
 		case "button":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			if b, ok := getArg(args, 2).(*advplrt.CodeBlockValue); ok {
@@ -615,6 +659,13 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3bGroupMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bGroup2Method(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}

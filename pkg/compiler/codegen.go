@@ -1792,6 +1792,9 @@ var poClassNames = map[string]bool{
 	// Onda 3b.1 — agrupamento e sobreposição
 	"POACCORDION": true, "POACCORDIONITEM": true, "POMODAL": true,
 	"POSTEPPER": true, "POSTEP": true, "POSLIDE": true,
+	// Onda 3b.2 — ações
+	"POBUTTONGROUP": true, "PODROPDOWN": true, "POPOPUP": true,
+	"POPOPOVER": true, "POCONTEXTMENU": true, "POTOOLBAR": true,
 }
 
 func isPoClassName(name string) bool {
