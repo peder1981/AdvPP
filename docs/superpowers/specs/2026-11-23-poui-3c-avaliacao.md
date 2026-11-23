@@ -124,6 +124,6 @@ pequena, sob demanda.
 | PoSearchAi | Fora de escopo | Alto (infra) | Depende de produto |
 | po-code-editor | Não substituir `AdvCodeEditor` | Baixo p/ embutir, redundante | Baixo incremental |
 
-Decisão pendente do operador: confirmar os três vereditos ou indicar
-divergência. Após a decisão, registrar o resultado em
-`COMPONENT_STATUS.md` (seção "fora de escopo, com motivo").
+**Decisão do operador (2026-11-23):** os três vereditos foram
+confirmados. Registrado em `docs/COMPONENT_STATUS.md` (seção "fora de
+escopo, com motivo").

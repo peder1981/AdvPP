@@ -12,7 +12,10 @@ Todas as mudanças relevantes no projeto AdvPP.
   `StorageRemove` (localStorage por sessão; `StorageGet` síncrono com
   timeout de 5 s), `StartGuide`/`OnGuideEnd` (`PoUserGuideService`),
   `SetTooltip` em todo componente (`p-tooltip`) e `SetDraggable`/`OnDrop`
-  com reordenação dos filhos do contêiner no servidor.
+  com reordenação dos filhos do contêiner no servidor. Avaliação 3c.4
+  decidida: PoSync e PoSearchAi fora de escopo, po-code-editor não
+  substitui o `AdvCodeEditor` —
+  `docs/superpowers/specs/2026-11-23-poui-3c-avaliacao.md`.
 - **Onda 1 da compatibilidade PO-UI/TOTVS (REST)**: `advplc serve` agora
   monta as rotas REST do projeto na mesma origem do modo web, sob `/rest`
   (configurável via `rest_prefix`/`ADVPL_REST_PREFIX`), com a mesma

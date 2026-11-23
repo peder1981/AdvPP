@@ -90,6 +90,12 @@
   `c.children` no servidor — evento `drop {drag,pos}`). Eventos de app
   usam o id reservado `poAppNodeID` (fora da sequência nextID).
   Fixture: `tests/poui/3c_servicos.prw`.
+- ✅ **Onda 3c.4 — avaliação decidida** (operador aprovou
+  `docs/superpowers/specs/2026-11-23-poui-3c-avaliacao.md`, 2026-11-23):
+  **PoSync** adiado/fora de escopo (esforço alto, valor baixo hoje);
+  **PoSearchAi** fora de escopo (exige decisão de produto/infra de IA);
+  **po-code-editor** não substitui o `AdvCodeEditor` — se um app exigir,
+  expor um `PoCodeEditor` fino sob demanda.
 
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 
