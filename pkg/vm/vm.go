@@ -1109,8 +1109,10 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		for i := 0; i < count; i++ {
 			val := v.pop()
 			key := v.pop()
+			// Chave como escrita: o JSON (resposta REST, ToJson) precisa da
+			// caixa original e os colchetes diferenciam maiúsculas.
 			if s, ok := key.(*advplrt.StringValue); ok {
-				obj.SetProp(strings.ToUpper(s.Val), val)
+				obj.SetProp(s.Val, val)
 			}
 		}
 		v.push(obj)
@@ -1118,7 +1120,7 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		propName := instr.Str
 		obj := v.pop()
 		if o, ok := obj.(*advplrt.ObjectValue); ok {
-			if val, exists := o.Props[strings.ToUpper(propName)]; exists {
+			if val, exists := o.Props[chaveProp(o, propName)]; exists {
 				v.push(val)
 			} else {
 				v.push(advplrt.Nil)
@@ -1142,7 +1144,7 @@ func (v *VM) execute(instr compiler.Instruction) error {
 		obj := v.pop()
 		val := v.pop()
 		if o, ok := obj.(*advplrt.ObjectValue); ok {
-			o.SetProp(strings.ToUpper(propName), val)
+			o.SetProp(chaveProp(o, propName), val)
 		} else if e, ok := obj.(*advplrt.ErrorValue); ok {
 			switch strings.ToUpper(propName) {
 			case "DESCRIPTION":
@@ -2981,4 +2983,21 @@ func (v *VM) doReturn(val advplrt.Value) error {
 	}
 	v.push(val)
 	return nil
+}
+
+// chaveProp: chave de Props para o acesso por propriedade (o:nome). Classes
+// guardam em maiúsculas; objetos JSON (literal {"k": v} e JsonObject) guardam
+// a chave como escrita, então o:nome acha a chave existente sem diferenciar
+// maiúsculas (e a atualiza, sem criar duplicata).
+func chaveProp(o *advplrt.ObjectValue, nome string) string {
+	up := strings.ToUpper(nome)
+	if _, ok := o.Props[up]; ok || (o.ClassName != "json" && o.ClassName != "JsonObject") {
+		return up
+	}
+	for _, k := range o.Keys {
+		if strings.EqualFold(k, nome) {
+			return k
+		}
+	}
+	return up
 }

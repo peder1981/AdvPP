@@ -3,8 +3,10 @@ import { NgTemplateOutlet } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { AdvCodeEditorComponent } from './adv-code-editor';
 import { AdvTerminalComponent } from './adv-terminal';
+import { AdvRotaComponent } from './adv-rota';
 import { FormsModule } from '@angular/forms';
 import { antesUrl, dynAntes } from './dyn-hooks';
+import { from } from 'rxjs';
 import {
   PoPageBlockedUserModule, PoPageChangePasswordModule, PoPageDynamicDetailModule, PoPageDynamicEditModule,
   PoPageDynamicSearchModule, PoPageDynamicTableModule, PoPageJobSchedulerModule, PoPageLoginModule,
@@ -97,7 +99,7 @@ function listaTexto(x: unknown): string[] {
   selector: 'adv-ui-host',
   host: { '[attr.data-poid]': 'node.id' },
   imports: [
-    forwardRef(() => UiHostComponent), FormsModule, NgTemplateOutlet, AdvCodeEditorComponent, AdvTerminalComponent,
+    forwardRef(() => UiHostComponent), FormsModule, NgTemplateOutlet, AdvCodeEditorComponent, AdvTerminalComponent, AdvRotaComponent,
     PoPageModule, PoButtonModule, PoFieldModule, PoSearchModule, PoTableModule, PoTagModule,
     PoContainerModule, PoDividerModule, PoWidgetModule, PoTabsModule, PoTreeViewModule,
     PoListViewModule, PoInfoModule, PoProgressModule, PoGaugeModule, PoChartModule, PoDynamicModule,
@@ -395,12 +397,27 @@ function listaTexto(x: unknown): string[] {
           </po-page-dynamic-search>
         }
         @case ('dynedit') {
-          <po-page-dynamic-edit [p-title]="node.props['title'] || ''" [p-service-api]="dynUrl(node)"
-                                [p-fields]="dynCamposTpl(node)" [p-actions]="dynAcoesEdicao(node)"></po-page-dynamic-edit>
+          <!-- Com SetId: edita o registro (GET + PUT); sem: modo inclusão (POST). -->
+          @for (rid of [node.props['recordId'] || '']; track rid) {
+            <adv-rota [id]="rid || null">
+              <po-page-dynamic-edit [p-title]="node.props['title'] || ''" [p-service-api]="dynUrl(node)"
+                                    [p-fields]="dynCamposTpl(node)" [p-actions]="dynAcoesEdicao(node)"></po-page-dynamic-edit>
+            </adv-rota>
+          }
         }
         @case ('dyndetail') {
-          <po-page-dynamic-detail [p-title]="node.props['title'] || ''" [p-service-api]="dynUrl(node)"
-                                  [p-fields]="dynCamposTpl(node)" [p-actions]="dynAcoesDetalhe(node)"></po-page-dynamic-detail>
+          <!-- O template lê o id da rota: sem SetId não há registro a mostrar
+               (montá-lo buscaria <serviço>/undefined). @for recria ao trocar o id. -->
+          @if (node.props['recordId']) {
+            @for (rid of [node.props['recordId']]; track rid) {
+              <adv-rota [id]="rid">
+                <po-page-dynamic-detail [p-title]="node.props['title'] || ''" [p-service-api]="dynUrl(node)"
+                                        [p-fields]="dynCamposTpl(node)" [p-actions]="dynAcoesDetalhe(node)"></po-page-dynamic-detail>
+              </adv-rota>
+            }
+          } @else {
+            <po-page-default [p-title]="node.props['title'] || ''"></po-page-default>
+          }
         }
         @case ('tag') {
           <po-tag [p-value]="node.props['value']" [p-type]="node.props['type']"></po-tag>
@@ -528,9 +545,17 @@ function listaTexto(x: unknown): string[] {
           </po-context-tabs>
         }
         @case ('accordion') {
+          <!-- po-accordion-item precisa ser filho direto (ContentChildren),
+               como po-tab em po-tabs -->
           <po-accordion [p-show-manager-accordion]="!!node.props['showManager']"
                         [p-allow-expand-all-items]="!!node.props['allowExpandAll']">
-            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+            @for (it of node.children; track it.id) {
+              <po-accordion-item [p-label]="it.props['label']"
+                                 (p-expand)="post(it.id, 'expand', null)"
+                                 (p-collapse)="post(it.id, 'collapse', null)">
+                <ng-container *ngTemplateOutlet="filhos; context: { $implicit: it }"></ng-container>
+              </po-accordion-item>
+            }
           </po-accordion>
         }
         @case ('accordionitem') {
@@ -555,9 +580,14 @@ function listaTexto(x: unknown): string[] {
           }
         }
         @case ('stepper') {
+          <!-- po-step precisa ser filho direto (ContentChildren) -->
           <po-stepper [p-step]="stepIndex(node) + 1" [p-orientation]="node.props['orientation'] || 'horizontal'"
                       (p-change-step)="post(node.id, 'changestep', $event)">
-            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+            @for (st of node.children; track st.id) {
+              <po-step [p-label]="st.props['label']" [p-can-active-next-step]="podeAvancar(st)">
+                <ng-container *ngTemplateOutlet="filhos; context: { $implicit: st }"></ng-container>
+              </po-step>
+            }
           </po-stepper>
         }
         @case ('step') {
@@ -797,6 +827,12 @@ export class UiHostComponent {
   protected stepIndex(node: UiNode): number {
     const s = node.props['step'];
     return typeof s === 'number' ? s : 0;
+  }
+
+  // PoStep:OnCanActivate() -> lOk: o po-step aceita Observable<boolean>;
+  // a resposta vem pelo round-trip síncrono (sem handler, a VM libera).
+  protected podeAvancar(st: UiNode): any {
+    return this.estavel(`can:${st.id}`, st.id, () => () => from(dynAntes(this.post, st.id, 'canactivate', null)));
   }
 
   // ---- Onda 3b.5: páginas especiais (templates reais do PO-UI) ----

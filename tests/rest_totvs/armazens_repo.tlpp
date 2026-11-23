@@ -7,18 +7,18 @@ EndClass
 
 Method New(cVerbo, lList) Class ArmazensRepo Constructor
 	_Super:New(cVerbo, lList)
-	// aStruct: {campo, tipo, tamanho, decimais} por coluna — o tipo vem
-	// do TamSx3 do dicionário local (SX3 da fixture).
+	// aStruct: {campo, tipo, tamanho, decimais} por coluna; TamSx3 devolve
+	// {nTamanho, nDecimais, cTipo}, como no Protheus (SX3 da fixture).
 	Local aTamCod  := TamSx3("NNR_CODIGO")
 	Local aTamDes  := TamSx3("NNR_DESCRI")
 	Local aTamEst  := TamSx3("NNR_ESTOQUE")
 	Local aTamFil  := TamSx3("NNR_FILIAL")
 	Local aStruct  := {}
 	aStruct := {
-		{"NNR_CODIGO",  aTamCod["CTIPO"],  aTamCod["NTAMANHO"],  aTamCod["NDECIMAIS"]},
-		{"NNR_DESCRI",  aTamDes["CTIPO"],  aTamDes["NTAMANHO"],  aTamDes["NDECIMAIS"]},
-		{"NNR_ESTOQUE", aTamEst["CTIPO"],  aTamEst["NTAMANHO"],  aTamEst["NDECIMAIS"]},
-		{"NNR_FILIAL",  aTamFil["CTIPO"],  aTamFil["NTAMANHO"],  aTamFil["NDECIMAIS"]}
+		{"NNR_CODIGO", aTamCod[3], aTamCod[1], aTamCod[2]},
+		{"NNR_DESCRI", aTamDes[3], aTamDes[1], aTamDes[2]},
+		{"NNR_ESTOQUE", aTamEst[3], aTamEst[1], aTamEst[2]},
+		{"NNR_FILIAL", aTamFil[3], aTamFil[1], aTamFil[2]}
 	}
 	::AddMapFields("codigo",  "NNR_CODIGO",  .T., .T., aStruct)
 	::AddMapFields("descri",  "NNR_DESCRI",  .T., .T., aStruct)

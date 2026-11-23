@@ -78,8 +78,8 @@ func TestRestServerFixture(t *testing.T) {
 		if len(list) != 2 {
 			t.Fatalf("esperava 2 clientes, veio %d: %s", len(list), body)
 		}
-		if list[0]["NOME"] != "Ana" {
-			t.Errorf("clientes[0].NOME = %v, want Ana", list[0]["NOME"])
+		if list[0]["nome"] != "Ana" {
+			t.Errorf("clientes[0].nome = %v, want Ana", list[0]["nome"])
 		}
 	})
 

@@ -198,3 +198,32 @@ Return
 		}
 	}
 }
+
+// O po-disclaimer-group descarta disclaimer sem "value" (PoDisclaimer):
+// cada item precisa de value e label.
+func TestPoDisclaimerGroupFormatoPoUI(t *testing.T) {
+	v, _, err := rodaPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oPg  := PoPage():New(oApp, "P1")
+	Local oDg  := PoDisclaimerGroup():New(oPg, "Avisos", {"um", "dois"})
+Return
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m struct{ Tree noMount }
+	if err := json.Unmarshal(v.poApp.mountJSON(), &m); err != nil {
+		t.Fatal(err)
+	}
+	ds, _ := m.Tree.Children[0].Props["disclaimers"].([]any)
+	if len(ds) != 2 {
+		t.Fatalf("disclaimers = %v", m.Tree.Children[0].Props)
+	}
+	for i, want := range []string{"um", "dois"} {
+		d, _ := ds[i].(map[string]any)
+		if d["value"] != want || d["label"] != want {
+			t.Fatalf("disclaimer %d = %v, want value/label %q", i, d, want)
+		}
+	}
+}

@@ -63,15 +63,13 @@ func po3bDispDisclaimers(x advplrt.Value) []any {
 		return out
 	}
 	for _, el := range arr.Elements {
+		// PoDisclaimer do PO-UI: "value" é obrigatório (sem ele o
+		// po-disclaimer-group descarta o item); "label" é o texto exibido.
+		texto := advplrt.ToString(el)
 		if o, ok := advplrt.Deref(el).(*advplrt.ObjectValue); ok {
-			m := map[string]any{"text": advplrt.ToString(o.Props["TEXTO"])}
-			if t := advplrt.ToString(o.Props["TIPO"]); t != "" {
-				m["type"] = t
-			}
-			out = append(out, m)
-		} else {
-			out = append(out, map[string]any{"text": advplrt.ToString(el)})
+			texto = advplrt.ToString(o.Props["TEXTO"])
 		}
+		out = append(out, map[string]any{"value": texto, "label": texto})
 	}
 	return out
 }

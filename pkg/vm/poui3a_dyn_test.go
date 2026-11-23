@@ -134,3 +134,25 @@ Return
 		t.Errorf("OnAdvancedSearch = %q", out.String())
 	}
 }
+
+// SetId(cId): o registro que PoPageDynamicDetail/Edit carregam (o PO-UI lê
+// o id da rota; o frontend entrega uma rota com este id).
+func TestPoDynSetId(t *testing.T) {
+	v, _, err := rodaPrg(t, `
+User Function Main()
+	Local oApp := PoApp():New("T")
+	Local oDt  := PoPageDynamicDetail():New(oApp, "D", "/rest/x")
+	oDt:SetId("00007")
+Return
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m struct{ Tree noMount }
+	if err := json.Unmarshal(v.poApp.mountJSON(), &m); err != nil {
+		t.Fatal(err)
+	}
+	if m.Tree.Props["recordId"] != "00007" {
+		t.Fatalf("recordId = %v", m.Tree.Props["recordId"])
+	}
+}

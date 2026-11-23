@@ -29,3 +29,26 @@ User Function ArmazensFix(oParam)
 	EndIf
 	oRest:setResponse(oRepo:GetJsonResponse())
 Return Nil
+
+@Get("/api/est/v1/armazens/:codigo")
+User Function ArmazemGet(oParam)
+	// Um armazém pelo código (PoPageDynamicDetail/Edit com SetId). O código
+	// vai pelo filtro OData do adapter (parametrizado; aspas duplicadas).
+	Local cCod := oRest:getPathParamsRequest()["codigo"]
+	Local oRepo := ArmazensRepo():New("GET", .T.)
+	Local jResp
+	oRepo:SetQuery("SELECT #QueryFields# FROM NNR #QueryWhere#")
+	oRepo:SetUrlFilter({{"FILTER", "codigo eq '" + StrTran(cCod, "'", "''") + "'"}})
+	If !oRepo:Execute()
+		oRest:setStatusCode(400)
+		oRest:setResponse({"message": oRepo:GetErrorMessage()})
+		Return Nil
+	EndIf
+	jResp := oRepo:GetJsonResponse()
+	If Len(jResp["items"]) == 0
+		oRest:setStatusCode(404)
+		oRest:setResponse({"message": "armazém " + cCod + " não encontrado"})
+		Return Nil
+	EndIf
+	oRest:setResponse(jResp["items"][1])
+Return Nil
