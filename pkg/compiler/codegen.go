@@ -1799,6 +1799,13 @@ var poClassNames = map[string]bool{
 	"POLINK": true, "POBREADCRUMB": true, "POCONTEXTTABS": true,
 	// Onda 3b.3 — chrome do app
 	"PONAVBAR": true, "POHEADER": true, "POMENUPANEL": true,
+	// Onda 3b.4 — exibição
+	"POAVATAR": true, "POBADGE": true, "POIMAGE": true, "POSKELETON": true,
+	"POHELPER": true, "POCALENDAR": true, "PODYNAMICVIEW": true,
+	"PODISCLAIMERGROUP": true, "POFILTERCHIP": true,
+	// Onda 3b.5 — páginas especiais
+	"POPAGELOGIN": true, "POPAGECHANGEPASSWORD": true, "POPAGEBLOCKEDUSER": true,
+	"POPAGESLIDE": true, "POPAGEJOBSCHEDULER": true,
 }
 
 func isPoClassName(name string) bool {

@@ -75,13 +75,37 @@
   `PoContextMenu` (`OnSelect`/`OnChangeExpanded`), `PoToolbar`
   (`SetProfile`, `SetNotifications`). Ações = eventos `act:N` pelo
   dispatch genérico de handlers.
-- ◐ **Onda 3b.3 — navegação (parcial)**: `PoLink` (`SetOpenNewTab`,
-  `OnClick`), `PoBreadcrumb` (`SetItems` com `{{cLabel,cLinkOuPagina}}` —
-  página vira `{page:id}` e o evento `navigate` resolve o objeto para
+- ✅ **Onda 3b.3 — navegação**: `PoLink` (`SetOpenNewTab`, `OnClick`),
+  `PoBreadcrumb` (`SetItems` com `{{cLabel,cLinkOuPagina}}` — página vira
+  `{page:id}` e o evento `navigate` resolve o objeto para
   `OnNavigate(oComp, cLabel)`), `PoContextTabs` (`AddTab`/`CloseTab`;
-  render via filhos `po-tab` — o close interno do PO-UI ainda não expõe
-  output). **Pendentes:** `PoNavbar`/`PoHeader`/`PoMenuPanel` — chrome do
-  `PoApp`, exigem nó próprio no `mountJSON`.
+  render via filhos `po-tab`), e o chrome do app: `PoNavbar`
+  (`SetLogo`/`AddItem`/`AddIconAction`), `PoHeader` (`SetUser`/
+  `AddAction`) e `PoMenuPanel` (`AddItem`/`SetLogo`) — singletons
+  serializados como nós `nav`/`head`/`panel` do `mountJSON`, renderizados
+  acima do conteúdo no `app.ts`; ações = `act:N` pelo dispatch genérico.
+- ✅ **Onda 3b.4 — exibição**: `PoAvatar`, `PoBadge` (`SetValue`/
+  `SetColor`/`SetStatus`), `PoImage` (`SetSrc`/`SetHeight`),
+  `PoSkeleton` (`SetVariant`), `PoHelper` (`SetType`), `PoCalendar`
+  (`SetMode`/`SetValue`/`GetValue`, `OnChange(d)`), `PoDynamicView`
+  (`SetValue`/`SetFields`/`SetLoad`), `PoDisclaimerGroup` (`SetItems`/
+  `SetTitle`, `OnChange`/`OnRemoveAll`), `PoFilterChip` (`SetSelected`,
+  `OnChange`). `PoToaster` = `PoNotificationService`: `PoApp:Notify`
+  estendido `(cMsg, cTipo, nDuracao, cOrientacao, cAcaoLabel, bAcao)` —
+  ação volta ao AdvPL via evento `notifyact`. `GET /poui-asset?sid=&p=`
+  serve src relativa de imagem com a mesma checagem de caminho do upload
+  (`DirUploadPermitido` + rejeição de traversal + limite 10 MB).
+- ✅ **Onda 3b.5 — páginas especiais**: `PoPageLogin` (`SetLiterals`/
+  `SetRecovery`, `OnLogin(cUsuario,cSenha)→lOk` síncrono via
+  `beforeResult`), `PoPageChangePassword` (`SetRequirements`,
+  `OnSubmit(cAtual,cNova)→lOk`), `PoPageBlockedUser` (`SetContactEmail`),
+  `PoPageSlide` (`Open`/`Close`, `OnClose`, aceita filhos) e
+  `PoPageJobScheduler` (`SetParameters`, `cUrlServico` com RestPrefix).
+  Senhas trafegam só no payload do evento — nunca em props, console,
+  log ou `Get()` (`TestLoginSenhaNaoFicaNaProp`).
+- ✅ **Aceite 3b**: `tests/poui/3b_vitrine.prw` — app com header,
+  navbar, menu panel, menu, breadcrumb, context tabs, stepper, modal e
+  componentes de exibição (compila e passa no `advplc check`).
 
 ## gRPC embarcado, Smart Link real e auditoria de 27 docs TDN (atualizado 2026-08-23)
 

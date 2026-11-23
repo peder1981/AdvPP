@@ -2,7 +2,7 @@ import { Component, ViewChild, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import {
   PoButtonModule, PoDialogService, PoDynamicFormField, PoDynamicModule, PoLoadingModule, PoMenuItem,
-  PoMenuModule, PoNotificationService,
+  PoMenuModule, PoNotificationService, PoToasterModule,
   PoModalAction, PoModalComponent, PoModalModule, PoPageModule,
   PoTableAction, PoTableColumn, PoTableModule, PoTagModule,
 } from '@po-ui/ng-components';
@@ -58,25 +58,25 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
 
 @Component({
   selector: 'app-root',
-  imports: [PoPageModule, PoTableModule, PoButtonModule, PoModalModule, PoDynamicModule, PoTagModule,
+  imports: [PoPageModule, PoTableModule, PoButtonModule, PoModalModule, PoDynamicModule, PoTagModule, PoToasterModule,
             UiHostComponent, NgTemplateOutlet, PoMenuModule, PoLoadingModule],
   template: `
     <!-- Componentes Po* (PoApp:Activate): tela montada pelo programa -->
     @if (uiTree(); as t) {
-      @if (uiHead(); as h) { <adv-ui-host [node]="h" [post]="postUI"></adv-ui-host> }
-      @if (uiNav(); as nv) { <adv-ui-host [node]="nv" [post]="postUI"></adv-ui-host> }
-      @if (uiPanel(); as pn) { <adv-ui-host [node]="pn" [post]="postUI"></adv-ui-host> }
+      @if (uiHead(); as h) { <adv-ui-host [node]="h" [post]="postUI" [sid]="sid"></adv-ui-host> }
+      @if (uiNav(); as nv) { <adv-ui-host [node]="nv" [post]="postUI" [sid]="sid"></adv-ui-host> }
+      @if (uiPanel(); as pn) { <adv-ui-host [node]="pn" [post]="postUI" [sid]="sid"></adv-ui-host> }
       @if (uiMenu()) {
         <!-- PoMenu: layout padrão do PO-UI (menu lateral + conteúdo) -->
         <div class="po-wrapper">
           <po-menu [p-menus]="menuItems()"></po-menu>
           <div>
-            <adv-ui-host [node]="t" [post]="postUI" [versao]="uiVersion()"></adv-ui-host>
+            <adv-ui-host [node]="t" [post]="postUI" [versao]="uiVersion()" [sid]="sid"></adv-ui-host>
             <div class="po-ml-2 po-mr-2"><ng-container [ngTemplateOutlet]="consoleTpl"></ng-container></div>
           </div>
         </div>
       } @else {
-        <adv-ui-host [node]="t" [post]="postUI" [versao]="uiVersion()"></adv-ui-host>
+        <adv-ui-host [node]="t" [post]="postUI" [versao]="uiVersion()" [sid]="sid"></adv-ui-host>
         <div class="po-ml-2 po-mr-2"><ng-container [ngTemplateOutlet]="consoleTpl"></ng-container></div>
       }
       @if (uiLoading(); as l) {
@@ -182,6 +182,8 @@ interface InputSpec { prompt: string; def: string; pw?: boolean; }
         }
       }
     </po-modal>
+
+    <po-toaster></po-toaster>
   `,
 })
 export class App {
@@ -223,7 +225,7 @@ export class App {
   protected menuIcon = menuItemIcon;
   protected menuLabel = menuItemLabel;
 
-  private sid = Math.random().toString(36).slice(2);
+  protected sid = Math.random().toString(36).slice(2);
   private browseId = 0;
   private editingRecno = 0;
   private dlgId = 0;
@@ -386,8 +388,19 @@ export class App {
         break;
       }
       case 'notify': {
+        // PoApp:Notify estendido — PoNotification completo (duração,
+        // orientação, ação). A ação volta ao AdvPL via POST /ui com o
+        // actionId registrado no servidor.
         const tipo = ['success', 'warning', 'error', 'information'].includes(p.type) ? p.type : 'information';
-        (this.notification as any)[tipo](String(p.text ?? ''));
+        const notif: any = { message: String(p.text ?? '') };
+        if (typeof p.duration === 'number' && p.duration > 0) { notif.duration = p.duration; }
+        if (p.orientation === 'top') { notif.orientation = 1; } // PoToasterOrientation.Top
+        if (p.actionLabel && typeof p.actionId === 'number') {
+          const aid = p.actionId;
+          notif.actionLabel = String(p.actionLabel);
+          notif.action = () => this.postUI(aid, 'notifyact', null);
+        }
+        (this.notification as any)[tipo](notif);
         break;
       }
       case 'confirm':

@@ -89,6 +89,22 @@ var poClasses = map[string]struct{ class, typ string }{
 	"PONAVBAR":    {"PoNavbar", "navbar"},
 	"POHEADER":    {"PoHeader", "header"},
 	"POMENUPANEL": {"PoMenuPanel", "menupanel"},
+	// onda 3b.4: exibição
+	"POAVATAR":         {"PoAvatar", "avatar"},
+	"POBADGE":          {"PoBadge", "badge"},
+	"POIMAGE":          {"PoImage", "image"},
+	"POSKELETON":       {"PoSkeleton", "skeleton"},
+	"POHELPER":         {"PoHelper", "helper"},
+	"POCALENDAR":       {"PoCalendar", "calendar"},
+	"PODYNAMICVIEW":    {"PoDynamicView", "dynamicview"},
+	"PODISCLAIMERGROUP": {"PoDisclaimerGroup", "disclaimergroup"},
+	"POFILTERCHIP":     {"PoFilterChip", "filterchip"},
+	// onda 3b.5: páginas especiais
+	"POPAGELOGIN":          {"PoPageLogin", "pagelogin"},
+	"POPAGECHANGEPASSWORD": {"PoPageChangePassword", "pagechangepassword"},
+	"POPAGEBLOCKEDUSER":    {"PoPageBlockedUser", "pageblockeduser"},
+	"POPAGESLIDE":          {"PoPageSlide", "pageslide"},
+	"POPAGEJOBSCHEDULER":   {"PoPageJobScheduler", "pagejobscheduler"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -246,7 +262,23 @@ func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []adv
 	case "LOADING":
 		a.addOp(map[string]any{"op": "loading", "on": advplrt.ToBool(getArg(args, 0)), "text": argTexto(args, 1, "")})
 	case "NOTIFY":
-		a.addOp(map[string]any{"op": "notify", "text": advplrt.ToString(getArg(args, 0)), "type": argTexto(args, 1, "information")})
+		// Notify(cMsg, cTipo[, nDuracao, cOrientacao, cAcaoLabel, bAcao])
+		op := map[string]any{"op": "notify", "text": advplrt.ToString(getArg(args, 0)), "type": argTexto(args, 1, "information")}
+		if d := getArg(args, 2); !advplrt.IsNil(d) {
+			op["duration"] = advplrt.ToFloat(d)
+		}
+		if o := strings.ToLower(argTexto(args, 3, "")); o == "top" || o == "bottom" {
+			op["orientation"] = o
+		}
+		if label := argTexto(args, 4, ""); label != "" {
+			op["actionLabel"] = label
+			if b, ok := getArg(args, 5).(*advplrt.CodeBlockValue); ok {
+				a.nextNotify++
+				a.notifyActs[a.nextNotify] = b
+				op["actionId"] = a.nextNotify
+			}
+		}
+		a.addOp(op)
 	default:
 		return fmt.Errorf("unknown method %s on PoApp", method)
 	}
@@ -261,7 +293,8 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 	var c *poComp
 	switch info.typ {
 	case "page", "menu", "pagelist", "pageedit", "pagedetail", "dyntable", "dynedit", "dyndetail", "dynsearch",
-		"navbar", "header", "menupanel":
+		"navbar", "header", "menupanel",
+		"pagelogin", "pagechangepassword", "pageblockeduser", "pageslide", "pagejobscheduler":
 		a, ok := paiNative[*poAppState](pai)
 		if !ok {
 			return fmt.Errorf("%s: pai inválido (esperado PoApp)", obj.ClassName)
@@ -291,6 +324,13 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		a.pages = append(a.pages, c)
 		if a.cur == nil {
 			a.cur = c
+		}
+		if po3bPageType(info.typ) {
+			if err := po3bPageProps(c, args); err != nil {
+				return err
+			}
+			c.props["actions"] = []map[string]any{}
+			break
 		}
 		c.props["title"] = advplrt.ToString(getArg(args, 1))
 		c.props["actions"] = []map[string]any{}
@@ -402,6 +442,10 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			c.props["url"] = advplrt.ToString(getArg(args, 2))
 			c.props["openNewTab"] = false
+		// onda 3b.4: exibição
+		case "avatar", "badge", "image", "skeleton", "helper",
+			"calendar", "dynamicview", "disclaimergroup", "filterchip":
+			po3bDispProps(c, args)
 		case "breadcrumb":
 			// New(oPai, aItens) — {{cLabel, cLinkOuPagina}}
 			c.props["items"] = po3bNavItems(p.app, c, getArg(args, 1))
@@ -711,6 +755,20 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3bChromeMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bPageMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bDispMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}

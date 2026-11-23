@@ -148,6 +148,13 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		h, args = t.block, []advplrt.Value{a.obj}
 	case "line", "exit":
 		h, args = a.poSpawnEvento(id, ev, val)
+	case "notifyact":
+		cb, ok := a.notifyActs[id]
+		if !ok {
+			return
+		}
+		delete(a.notifyActs, id)
+		h, args = cb, []advplrt.Value{a.obj}
 	case "confirm":
 		cb, ok := a.confirms[id]
 		if !ok {
@@ -203,6 +210,11 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 		case "savenew", "cancel", "edit", "remove", "back":
 			// PoPageEdit/PoPageDetail: OnSaveNew/OnCancel/OnEdit/OnRemove/OnBack
 			h, args = c.handlers[ev], []advplrt.Value{c.obj}
+		case "login", "submit":
+			// Onda 3b.5 — PoPageLogin/PoPageChangePassword: credenciais
+			// síncronas; a senha não é gravada em props.
+			v.poLoginHook(a, c, ev, val)
+			return
 		case "beforesave", "beforeremove", "canactivate":
 			// Onda 3a.6 — round-trip síncrono: o frontend espera
 			// {"op":"beforeResult","reqId":N,"ok":bool} antes de gravar.
@@ -265,10 +277,13 @@ func poValorDoBrowser(typ string, val []byte) advplrt.Value {
 	case "number", "decimal":
 		f, _ := strconv.ParseFloat(strings.TrimSpace(txt), 64)
 		return advplrt.NewNumber(f)
-	case "checkbox", "switch":
+	case "checkbox", "switch", "filterchip":
 		return advplrt.NewBool(txt == "true")
-	case "datepicker":
+	case "datepicker", "calendar":
 		return poDataDeValor(advplrt.NewString(txt))
+	case "disclaimergroup":
+		// OnChange(a) — array de disclaimers vem do browser.
+		return poFromJSONPoEvent(val)
 	case "daterange":
 		return poRangeDoBrowser(val)
 	case "multiselect", "checkboxgroup", "lookup":

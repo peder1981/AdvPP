@@ -55,13 +55,16 @@ type poAppState struct {
 	spawns    map[int]*poSpawn
 	nextSpawn int
 	confirms  map[int][2]advplrt.Value // id -> {bSim, bNao}; apagado na 1ª resposta
+	notifyActs map[int]advplrt.Value   // id -> bAcao do Notify estendido; apagado no clique
+	nextNotify int
 	obj       *advplrt.ObjectValue     // o próprio PoApp (argumento dos timers)
 	ui        ComponentUI              // ligado durante o Activate
 }
 
 func newPoAppState(title string) *poAppState {
 	return &poAppState{title: title, byID: map[int]*poComp{}, timers: map[int]*poTimer{},
-		spawns: map[int]*poSpawn{}, confirms: map[int][2]advplrt.Value{}}
+		spawns: map[int]*poSpawn{}, confirms: map[int][2]advplrt.Value{},
+		notifyActs: map[int]advplrt.Value{}}
 }
 
 // add registra um componente novo com o próximo id.
@@ -150,7 +153,9 @@ func (a *poAppState) addOp(op map[string]any) {
 func (a *poAppState) isPage(c *poComp) bool {
 	switch c.typ {
 	case "page", "pagelist", "pageedit", "pagedetail",
-		"dyntable", "dynedit", "dyndetail", "dynsearch":
+		"dyntable", "dynedit", "dyndetail", "dynsearch",
+		"pagelogin", "pagechangepassword", "pageblockeduser",
+		"pageslide", "pagejobscheduler":
 		return true
 	}
 	return false
@@ -161,7 +166,7 @@ func (a *poAppState) isContainer(c *poComp) bool {
 	switch c.typ {
 	case "page", "container", "widget", "tab", "pagelist", "pageedit", "pagedetail",
 		"dyntable", "dynedit", "dyndetail", "dynsearch",
-		"accordionitem", "step", "modal": // onda 3b.1: holders de conteúdo
+		"accordionitem", "step", "modal", "pageslide": // onda 3b.1/3b.5: holders de conteúdo
 		return true
 	}
 	return false
