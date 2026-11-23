@@ -498,12 +498,16 @@ compatibilidade PO-UI" na seção de recursos executados.
   PO-UI, então navegação é no-op com estado fiel (URL/lang em `Props`).
   `FwCallApp` fora do modo web (`advplc serve`) retorna o erro exato
   `FwCallApp: requer o modo web (advplc serve)`.
-- ✅ **OAuth2/MFA do framework**: `POST/GET /api/oauth2/v1/token` emite
-  JWT `header.payload.` com `userid`/`exp` (formato que
-  `getTokenPayload()` do `@totvs/protheus-lib-core` decodifica); MFA
-  TOTP real (RFC 6238) — `hasSecret`/`TOTPURI`/`tok` com segredo por
-  usuário persistido em `~/.advpp/mfa_secrets.json` e confirmação por
-  primeiro código válido (fluxo de enrollment via QR).
+- ✅ **OAuth2 do framework**: `POST/GET /api/oauth2/v1/token` emite
+  JWT `header.payload.` sem assinatura, com `userid`/`exp` (formato que
+  `getTokenPayload()` do `@totvs/protheus-lib-core` decodifica). O REST
+  não valida o token: a proteção é a checagem de origem/host.
+- ⚠️ **MFA não suportado** (sessão local): `mfa/hasSecret` responde
+  `{hasSecret:false}`, o que faz a lib-core pular o fluxo; `mfa/tok`
+  responde `{tok:0}` e `mfa/TOTPURI` responde 501. Nenhum segredo é
+  gerado nem gravado. (Uma versão anterior, não publicada, gerava TOTP e
+  gravava `~/.advpp/mfa_secrets.json` sem que o REST exigisse o segundo
+  fator; foi removida por decisão do operador em 2026-11-23.)
 - ✅ **`FwApiManager:ToExecAuto` implementado**: fiel ao
   `FWAPIManager.prw` do corpus — `nTipo==1` anexa `{campo, valor, Nil}`
   por linha de `aDados` em `aRet`; demais tipos acumulam as triplas num

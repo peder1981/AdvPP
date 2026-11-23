@@ -75,11 +75,10 @@ Todas as mudanças relevantes no projeto AdvPP.
 - `FwCallApp` com a assinatura completa do corpus: reutiliza o
   `TWebChannel`/`TWebEngine` passados pelo chamador (parâmetros 3 e 2) e
   dá precedência ao `bJsToAdvpl` do canal sobre a função `JsToAdvpl`.
-- OAuth2/MFA do framework: `POST/GET /api/oauth2/v1/token` emite JWT
+- OAuth2 do framework: `POST/GET /api/oauth2/v1/token` emite JWT
   `header.payload.` (userid/exp) no formato que `getTokenPayload()` do
-  lib-core decodifica; MFA TOTP real (RFC 6238) com segredo por usuário
-  em `~/.advpp/mfa_secrets.json`, URI `otpauth://` para o QR e
-  confirmação por primeiro código válido.
+  lib-core decodifica. MFA não suportado: `mfa/hasSecret` responde
+  `{hasSecret:false}` e a lib-core pula o fluxo; nada é gravado em disco.
 
 ### Known limitations
 - `FwCallApp` fora do modo web (`advplc serve`) retorna erro — não há

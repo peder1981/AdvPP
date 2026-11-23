@@ -1,17 +1,14 @@
 package main
 
 import (
-	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/advpl/compiler/pkg/db"
 	"github.com/advpl/compiler/pkg/rest"
@@ -166,21 +163,10 @@ func TestFrameworkGenericQuery(t *testing.T) {
 	}
 }
 
-// isolaMFA aponta o store de segredos MFA para um arquivo temporário —
-// sem isso os testes leriam/gravariam ~/.advpp/mfa_secrets.json real.
-func isolaMFA(t *testing.T) {
-	t.Helper()
-	old := mfa
-	mfa = &mfaStore{secrets: map[string]*mfaSegredo{}}
-	mfa.path = filepath.Join(t.TempDir(), "mfa_secrets.json")
-	t.Cleanup(func() { mfa = old })
-}
-
 // TestFrameworkOauthToken valida o token local: JWT "header.payload."
 // decodificável com userid/exp, e MFA respondendo o contrato
 // {hasSecret:false} para a lib-core pular o fluxo.
 func TestFrameworkOauthToken(t *testing.T) {
-	isolaMFA(t)
 	srv := frameworkSrv(t)
 	req := httptest.NewRequest("GET", "/api/framework/mfa/hasSecret", nil)
 	rec := httptest.NewRecorder()
@@ -221,73 +207,26 @@ func TestFrameworkOauthToken(t *testing.T) {
 	}
 }
 
-// TestFrameworkMFATotpPercorre o fluxo real de enrollment: TOTPURI gera o
-// segredo (otpauth://), tok valida o código RFC 6238 de 6 dígitos e, no
-// primeiro acerto, confirma o segredo — hasSecret passa a true.
-func TestFrameworkMFATotpPercorre(t *testing.T) {
-	isolaMFA(t)
+// TestFrameworkMFADesligado: o AdvPP não faz MFA (sessão local, REST
+// sem segundo fator). hasSecret=false faz a lib-core pular o fluxo; as
+// demais rotas não geram nem gravam segredo nenhum.
+func TestFrameworkMFADesligado(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	srv := frameworkSrv(t)
-
-	// 1) hasSecret começa false (sem segredo confirmado).
 	code, m := getJSON(t, srv, "/api/framework/mfa/hasSecret")
 	if code != 200 || m["hasSecret"] != false {
-		t.Fatalf("hasSecret inicial = %d %v", code, m)
+		t.Fatalf("hasSecret = %d %v", code, m)
 	}
-
-	// 2) TOTPURI devolve otpauth:// com o segredo base32.
-	code, m = getJSON(t, srv, "/api/framework/mfa/TOTPURI")
-	if code != 200 {
-		t.Fatalf("TOTPURI = %d", code)
-	}
-	uri, _ := m["cQrCode"].(string)
-	if !strings.HasPrefix(uri, "otpauth://totp/") {
-		t.Fatalf("cQrCode = %q", uri)
-	}
-	q, err := url.ParseQuery(strings.SplitN(uri, "?", 2)[1])
-	if err != nil {
-		t.Fatalf("parse otpauth: %v", err)
-	}
-	secretB32 := q.Get("secret")
-	if secretB32 == "" {
-		t.Fatalf("otpauth sem secret: %q", uri)
-	}
-	raw, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secretB32)
-	if err != nil {
-		t.Fatalf("secret não é base32: %v", err)
-	}
-
-	// 3) Código errado -> tok:0 e hasSecret continua false.
-	code, m = getJSON(t, srv, "/api/framework/mfa/tok?token=000000")
+	code, m = getJSON(t, srv, "/api/framework/mfa/tok?token=123456")
 	if code != 200 || m["tok"] != float64(0) {
-		t.Fatalf("tok errado = %d %v", code, m)
+		t.Fatalf("tok = %d %v", code, m)
 	}
-
-	// 4) Código TOTP válido do período corrente -> tok:1 + confirmação.
-	contador := uint64(time.Now().Unix() / 30)
-	valido := fmt.Sprintf("%06d", totpCode(raw, contador))
-	code, m = getJSON(t, srv, "/api/framework/mfa/tok?token="+valido)
-	if code != 200 || m["tok"] != float64(1) {
-		t.Fatalf("tok válido = %d %v", code, m)
+	code, m = getJSON(t, srv, "/api/framework/mfa/TOTPURI")
+	if code != 501 || m["cQrCode"] != nil {
+		t.Fatalf("TOTPURI = %d %v", code, m)
 	}
-	code, m = getJSON(t, srv, "/api/framework/mfa/hasSecret")
-	if code != 200 || m["hasSecret"] != true {
-		t.Fatalf("hasSecret após confirmação = %d %v", code, m)
-	}
-
-	// 5) Código seguinte (período +1, dentro da janela ±1) também valida.
-	prox := fmt.Sprintf("%06d", totpCode(raw, contador+1))
-	if prox == valido {
-		prox = fmt.Sprintf("%06d", totpCode(raw, contador+2))
-	}
-	_, m = getJSON(t, srv, "/api/framework/mfa/tok?token="+prox)
-	if m["tok"] != float64(1) {
-		t.Fatalf("tok janela +1 = %v", m)
-	}
-
-	// 6) O segredo persiste no store isolado.
-	sg := mfa.segredoDo(mustUsuario())
-	if sg == nil || !sg.Confirmed {
-		t.Fatal("segredo não confirmado no store")
+	if _, err := os.Stat(filepath.Join(os.Getenv("HOME"), ".advpp", "mfa_secrets.json")); err == nil {
+		t.Fatal("MFA gravou segredo em disco")
 	}
 }
 

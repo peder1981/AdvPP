@@ -368,14 +368,18 @@ func registraFrameworkRoutes(srv *rest.Server, opts *Options) {
 	add("GET", "/api/oauth2/v1/batch-close-tabs", func(r *rest.Request) *rest.Response {
 		return fwJSON(map[string]any{})
 	})
-	// MFA TOTP real (RFC 6238): hasSecret reflete o enrollment confirmado
-	// do usuário da sessão; TOTPURI gera o otpauth:// para o QR; tok
-	// valida o código de 6 dígitos. Contratos das interfaces
-	// ProMfaHasSecretInterface/ProMfaQrCodeInterface/ProMfaValidCodeInterface
-	// do @totvs/protheus-lib-core.
-	get("/api/framework/mfa/hasSecret", handlerMFAHasSecret)
-	get("/api/framework/mfa/tok", handlerMFATok)
-	get("/api/framework/mfa/TOTPURI", handlerMFATOTPURI)
+	// MFA: o AdvPP não faz segundo fator (sessão local; o REST não o
+	// exigiria). hasSecret=false faz a lib-core pular o fluxo
+	// (ProMfaHasSecretInterface); nenhum segredo é gerado nem gravado.
+	get("/api/framework/mfa/hasSecret", func(r *rest.Request) *rest.Response {
+		return fwJSON(map[string]any{"hasSecret": false})
+	})
+	get("/api/framework/mfa/tok", func(r *rest.Request) *rest.Response {
+		return fwJSON(map[string]any{"tok": 0})
+	})
+	get("/api/framework/mfa/TOTPURI", func(r *rest.Request) *rest.Response {
+		return fwErro(501, "MFA não suportado no AdvPP (sessão local)")
+	})
 }
 
 // fwToken emite o token de sessão local. O access_token é um JWT
