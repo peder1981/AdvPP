@@ -5,6 +5,7 @@
 #   ./tests/poui/ao-vivo.sh fixture-app  Task 2.7 — app Angular real:
 #       tabela /rest/api/est/v1/armazens, "Pingar AdvPL" (pong via
 #       JsToAdvpl/AdvPLToJS) e "Fechar" (callAppClose fecha a aba).
+#   ./tests/poui/ao-vivo.sh servicos-3c   Onda 3c — mídia/storage/tema/guia.
 #
 # Requer chromium e Node 22+ (WebSocket nativo). O modo fixture-app usa um
 # HOME descartável com poui_apps_dirs -> tests/poui/apps e um SQLite com a
@@ -22,6 +23,9 @@ DBARG=()
 if [ "$CENARIO" = "fixture-app" ]; then
   FONTE="tests/poui/fixture-app.prw"
   PORTA=8098
+elif [ "$CENARIO" = "servicos-3c" ]; then
+  FONTE="tests/poui/3c_servicos.prw"
+  PORTA=8097
   mkdir -p "$D/home/.advpp"
   cat > "$D/home/.advpp/advpp_config.json" <<EOF
 {"poui_apps_dirs": ["$PWD/tests/poui/apps"]}

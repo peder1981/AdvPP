@@ -10,7 +10,7 @@ import {
   PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
   PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoDynamicModule, PoDynamicFormField, PoFieldModule, PoSearchModule,
   PoGaugeModule, PoInfoModule, PoListViewModule, PoPageAction, PoPageModule, PoProgressModule,
-  PoTableModule, PoTabsModule, PoTagModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
+  PoTableModule, PoTabsModule, PoTagModule, PoTooltipModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
 } from '@po-ui/ng-components';
 
 // Espelho do protocolo de componentes (pkg/vm/poui.go, op "mount"/"batch").
@@ -66,27 +66,43 @@ export class AppModalOpen implements AfterViewInit {
     PoListViewModule, PoInfoModule, PoProgressModule, PoGaugeModule, PoChartModule, PoDynamicModule,
     PoAccordionModule, PoModalModule, PoSlideModule, PoStepperModule, AppModalOpen,
   PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
+  PoTooltipModule,
   ],
   styles: [`
     .advpp-ui-grid { display: flex; flex-wrap: wrap; margin: 0 -8px; }
     .advpp-ui-grid > .advpp-ui-item { padding: 0 8px; box-sizing: border-box; }
+    .advpp-ui-dropzone { height: 6px; }
+    .advpp-ui-grid > .advpp-ui-dropzone { flex: 0 0 100%; padding: 0; }
   `],
   template: `
     <!-- Filhos de page/container/widget/tab: blocos empilhados, ou grade de
-         12 colunas quando algum filho usa SetCols. -->
+         12 colunas quando algum filho usa SetCols. O wrapper carrega o
+         tooltip (SetTooltip) e o drag & drop (SetDraggable/OnDrop). -->
     <ng-template #filhos let-pai>
       @if (temCols(pai)) {
         <div class="advpp-ui-grid">
           @for (c of pai.children; track c.id) {
-            <div class="advpp-ui-item" [style.flex]="'0 0 ' + largura(c)" [style.max-width]="largura(c)">
+            <div class="advpp-ui-item" [style.flex]="'0 0 ' + largura(c)" [style.max-width]="largura(c)"
+                 [p-tooltip]="c.props['tooltip'] || ''" [p-tooltip-position]="c.props['tooltipPosition'] || 'top'"
+                 [draggable]="!!c.props['draggable']"
+                 (dragstart)="onDragStart($event, c)" (dragover)="onDragOver($event)"
+                 (drop)="onDrop($event, pai, c)">
               <adv-ui-host [node]="c" [post]="post"></adv-ui-host>
             </div>
           }
+          <div class="advpp-ui-dropzone" (dragover)="onDragOver($event)" (drop)="onDropZone($event, pai)"></div>
         </div>
       } @else {
         @for (c of pai.children; track c.id) {
-          <div class="advpp-ui-item"><adv-ui-host [node]="c" [post]="post"></adv-ui-host></div>
+          <div class="advpp-ui-item"
+               [p-tooltip]="c.props['tooltip'] || ''" [p-tooltip-position]="c.props['tooltipPosition'] || 'top'"
+               [draggable]="!!c.props['draggable']"
+               (dragstart)="onDragStart($event, c)" (dragover)="onDragOver($event)"
+               (drop)="onDrop($event, pai, c)">
+            <adv-ui-host [node]="c" [post]="post"></adv-ui-host>
+          </div>
         }
+        <div class="advpp-ui-dropzone" (dragover)="onDragOver($event)" (drop)="onDropZone($event, pai)"></div>
       }
     </ng-template>
 
@@ -692,5 +708,62 @@ export class UiHostComponent {
     if (!a?.action) return undefined;
     const ev = a.action;
     return { label: a.label ?? '', action: () => this.post(node.id, ev, null) };
+  }
+
+  // ---- Onda 3c.3: drag & drop entre filhos de um contêiner ----
+  // HTML5 DnD nativo: o servidor reordena c.children e dispara OnDrop
+  // (oArrastado, nPos); aqui a ordem visual muda na hora.
+
+  private dragNode: UiNode | null = null;
+
+  protected onDragStart(ev: DragEvent, c: UiNode) {
+    if (!c.props['draggable']) { ev.preventDefault(); return; }
+    this.dragNode = c;
+    ev.dataTransfer?.setData('text/plain', String(c.id));
+    if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
+  }
+
+  protected onDragOver(ev: DragEvent) {
+    ev.preventDefault(); // sem isto o drop não dispara
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+  }
+
+  // Posição de inserção no array de filhos SEM o arrastado (mesma regra
+  // do poReorder no servidor): índice do filho sob o cursor, ou o fim.
+  private posicaoDrop(pai: UiNode, alvo: UiNode | null): number | null {
+    const drag = this.dragNode;
+    if (!drag || !pai.children.includes(drag)) return null;
+    const resto = pai.children.filter(c => c !== drag);
+    if (!alvo) return resto.length;
+    const i = resto.indexOf(alvo);
+    return i < 0 ? resto.length : i;
+  }
+
+  private aplicarDrop(pai: UiNode, alvo: UiNode | null) {
+    const pos = this.posicaoDrop(pai, alvo);
+    const drag = this.dragNode;
+    if (pos === null || !drag) return;
+    const resto = pai.children.filter(c => c !== drag);
+    resto.splice(pos, 0, drag);
+    pai.children = resto;
+    this.post(pai.id, 'drop', { drag: drag.id, pos });
+  }
+
+  protected onDrop(ev: DragEvent, pai: UiNode, alvo: UiNode) {
+    ev.preventDefault();
+    if (!this.dragNode) {
+      const id = Number(ev.dataTransfer?.getData('text/plain'));
+      this.dragNode = pai.children.find(c => c.id === id) ?? null;
+    }
+    this.aplicarDrop(pai, alvo);
+    this.dragNode = null;
+  }
+
+  // Drop na zona extra após o último filho = posição final.
+  protected onDropZone(ev: DragEvent, pai: UiNode) {
+    ev.preventDefault();
+    if (!this.dragNode) return;
+    this.aplicarDrop(pai, null);
+    this.dragNode = null;
   }
 }
