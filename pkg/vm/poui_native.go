@@ -184,6 +184,15 @@ func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []adv
 		return fmt.Errorf("PoApp: chame :New() antes de usar")
 	}
 	switch method {
+	case "SETTHEME", "SETLANGUAGE", "ONMEDIACHANGE", "ONNETWORKCHANGE",
+		"ONGUIDEEND", "STORAGESET", "STORAGEGET", "STORAGEREMOVE", "STARTGUIDE":
+		if ok, r, err := v.po3cAppMethod(a, obj, method, args); ok || err != nil {
+			if err != nil {
+				return err
+			}
+			v.push(r)
+			return nil
+		}
 	case "ACTIVATE":
 		if a.active {
 			return fmt.Errorf("PoApp:Activate: a tela já está ativa (Activate chamado dentro de um evento?)")
@@ -666,6 +675,13 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3bGroup2Method(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3cMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}

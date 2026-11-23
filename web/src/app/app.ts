@@ -1,10 +1,13 @@
 import { Component, ViewChild, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
+import { take } from 'rxjs';
 import {
   PoButtonModule, PoDialogService, PoDynamicFormField, PoDynamicModule, PoLoadingModule, PoMenuItem,
   PoMenuModule, PoNotificationService,
   PoModalAction, PoModalComponent, PoModalModule, PoPageModule,
   PoTableAction, PoTableColumn, PoTableModule, PoTagModule,
+  PoLanguageService, PoThemeService, PoThemeTypeEnum, PoUserGuideService, PoUserGuideStep,
+  poThemeDefault,
 } from '@po-ui/ng-components';
 import { UiHostComponent, UiNode, descarregaPendentes } from './ui-host';
 import { entregaTerm } from './adv-terminal';
@@ -209,9 +212,14 @@ export class App {
   protected uiVersion = signal(0);
   protected uiLoading = signal<string | null>(null);
   private notification = inject(PoNotificationService);
+  private themeService = inject(PoThemeService);
+  private languageService = inject(PoLanguageService);
+  private userGuide = inject(PoUserGuideService);
   private menuFor: unknown = null;
   private menuCache: PoMenuItem[] = [];
   private uiNodes = new Map<number, UiNode>();
+  private uiAppId = 0; // id do PoApp no protocolo (eventos de app: mídia, rede, guia, storage)
+  private mediaAtual = '';
   protected menuIcon = menuItemIcon;
   protected menuLabel = menuItemLabel;
 
@@ -252,6 +260,71 @@ export class App {
     const es = new EventSource('/events?s=' + this.sid + (app ? '&app=' + app : ''));
     es.onmessage = (m) => this.onEvent(JSON.parse(m.data) as ServerEvent);
     es.onerror = () => { if (!this.finished()) this.status.set('desconectado'); es.close(); };
+
+    // Onda 3c.1/3c.2: mídia (breakpoints do grid PO-UI) e rede.
+    window.addEventListener('resize', () => this.avisaMidia());
+    window.addEventListener('online', () => { if (this.uiAppId) this.postUI(this.uiAppId, 'networkchange', true); });
+    window.addEventListener('offline', () => { if (this.uiAppId) this.postUI(this.uiAppId, 'networkchange', false); });
+  }
+
+  // Breakpoints do grid PO-UI: sm<=1024, md 1025-1366, lg 1367-1465, xl>=1466.
+  private poMediaAtual(): string {
+    const w = window.innerWidth;
+    if (w <= 1024) return 'sm';
+    if (w <= 1366) return 'md';
+    if (w <= 1465) return 'lg';
+    return 'xl';
+  }
+
+  private avisaMidia() {
+    const m = this.poMediaAtual();
+    if (m !== this.mediaAtual && this.uiAppId) {
+      this.mediaAtual = m;
+      this.postUI(this.uiAppId, 'mediachange', m);
+    }
+  }
+
+  // PoApp:SetTheme — "light"|"dark" usa o tema default do PO-UI; JSON é
+  // PoThemeTokens (ou PoTheme completo, se tiver name+type) embrulhado.
+  private aplicarTema(value: unknown) {
+    if (value === 'light' || value === 'dark') {
+      this.themeService.setTheme(poThemeDefault,
+        value === 'dark' ? PoThemeTypeEnum.dark : PoThemeTypeEnum.light);
+      return;
+    }
+    if (value && typeof value === 'object') {
+      const v = value as Record<string, unknown>;
+      const tema = (v['name'] && v['type']) ? v : { name: 'advpp', type: { light: v, dark: v } };
+      this.themeService.setTheme(tema as any);
+    }
+  }
+
+  // PoApp:SetLanguage — idiomas do PoLanguageDefault (pt, en, es, ru).
+  private aplicarIdioma(lang: string) {
+    if (!['pt', 'en', 'es', 'ru'].includes(lang)) return;
+    this.languageService.setLanguage(lang);
+  }
+
+  // Namespace do PoStorageService do AdvPP: um por sessão de browser.
+  private storageKey(chave: string): string {
+    return 'advpp:poui:' + this.sid + ':' + chave;
+  }
+
+  // PoApp:StartGuide — resolve o componente alvo pelo data-poid e roda o
+  // PoUserGuideService; o fim (completed|closed) volta como OnGuideEnd.
+  private iniciarGuia(stepsRaw: unknown) {
+    const steps = ((Array.isArray(stepsRaw) ? stepsRaw : []) as { target?: number; title?: string; content?: string }[])
+      .map(s => {
+        const el = s.target ? document.querySelector('adv-ui-host[data-poid="' + s.target + '"]') : null;
+        return el ? ({ element: el, title: s.title, content: s.content ?? '' } as PoUserGuideStep) : null;
+      })
+      .filter((s): s is PoUserGuideStep => s !== null);
+    if (!steps.length) return;
+    this.userGuide.setSteps(steps);
+    this.userGuide.tourEnd$.pipe(take(1)).subscribe(e => {
+      if (this.uiAppId) this.postUI(this.uiAppId, 'guideend', e.reason === 'completed');
+    });
+    void this.userGuide.start();
   }
 
   private onEvent(ev: ServerEvent) {
@@ -335,7 +408,14 @@ export class App {
         if (op.menu) { indexa(op.menu); }
         this.uiMenu.set(op.menu ?? null);
         document.title = op.title || 'AdvPP Web';
+        this.uiAppId = Number(op.appId ?? 0);
         this.uiTree.set(op.tree ?? null);
+        // Estado inicial de mídia/rede: o OnMediaChange/OnNetworkChange
+        // do AdvPL recebe o valor atual assim que o laço começa.
+        if (this.uiAppId) {
+          this.postUI(this.uiAppId, 'mediachange', this.poMediaAtual());
+          this.postUI(this.uiAppId, 'networkchange', navigator.onLine);
+        }
         break;
       }
       case 'batch':
@@ -356,6 +436,7 @@ export class App {
         this.uiMenu.set(null);
         this.uiLoading.set(null);
         this.uiNodes.clear();
+        this.uiAppId = 0;
         break;
     }
   }
@@ -388,6 +469,31 @@ export class App {
         break;
       case 'open': // PoApp:Open: outro app numa janela nova
         if (/^[A-Za-z0-9_-]{1,64}$/.test(p.app)) { window.open('/app/' + p.app, '_blank'); }
+        break;
+      // ---- Onda 3c: serviços e diretivas ----
+      case 'theme': // PoApp:SetTheme — "light"|"dark" ou tokens JSON
+        this.aplicarTema(p.value);
+        break;
+      case 'language': // PoApp:SetLanguage — pt|en|es|ru
+        this.aplicarIdioma(String(p.value ?? ''));
+        break;
+      case 'storageset': // PoApp:StorageSet — localStorage namespaced por sessão
+        try { localStorage.setItem(this.storageKey(String(p.key ?? '')), JSON.stringify(p.value)); } catch {}
+        break;
+      case 'storageremove':
+        try { localStorage.removeItem(this.storageKey(String(p.key ?? ''))); } catch {}
+        break;
+      case 'storageget': { // PoApp:StorageGet — resposta síncrona ao VM
+        const raw = (() => { try { return localStorage.getItem(this.storageKey(String(p.key ?? ''))); } catch { return null; } })();
+        let value: unknown = null;
+        if (raw != null) {
+          try { value = JSON.parse(raw); } catch { value = raw; }
+        }
+        this.postUI(this.uiAppId, 'storageresult', { reqId: p.reqId, value });
+        break;
+      }
+      case 'guide': // PoApp:StartGuide — passos {target,title,content}
+        this.iniciarGuia(p.steps);
         break;
     }
   }

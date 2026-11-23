@@ -5,6 +5,14 @@ Todas as mudanças relevantes no projeto AdvPP.
 ## [Unreleased]
 
 ### Added
+- **Onda 3c do catálogo PO-UI — serviços e diretivas**: `PoApp:SetTheme`
+  (`light`/`dark` ou tokens JSON via `PoThemeService`), `SetLanguage`
+  (`pt`/`en`/`es`/`ru`), `OnMediaChange` (breakpoints sm/md/lg/xl do grid
+  PO-UI), `OnNetworkChange` (online/offline), `StorageSet`/`StorageGet`/
+  `StorageRemove` (localStorage por sessão; `StorageGet` síncrono com
+  timeout de 5 s), `StartGuide`/`OnGuideEnd` (`PoUserGuideService`),
+  `SetTooltip` em todo componente (`p-tooltip`) e `SetDraggable`/`OnDrop`
+  com reordenação dos filhos do contêiner no servidor.
 - **Onda 1 da compatibilidade PO-UI/TOTVS (REST)**: `advplc serve` agora
   monta as rotas REST do projeto na mesma origem do modo web, sob `/rest`
   (configurável via `rest_prefix`/`ADVPL_REST_PREFIX`), com a mesma

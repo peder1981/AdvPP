@@ -73,6 +73,69 @@ if (cenario === 'fixture-app') {
   process.exit(0);
 }
 
+if (cenario === 'servicos-3c') {
+  // Onda 3c: storage round-trip (botão "Storage" lê a chave gravada no
+  // mount), tema escuro (classe dark no <html>) e guia (driver.js abre e
+  // fecha -> OnGuideEnd). Mídia/rede disparam no mount (ConOut no log).
+  const espera = ms => new Promise(r => setTimeout(r, ms));
+  const lista = async () => (await (await fetch(`http://127.0.0.1:${porta}/json/list`)).json())
+    .filter(t => t.type === 'page');
+  const alvo = await (await fetch(`http://127.0.0.1:${porta}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' })).json();
+  const ws = new WebSocket(alvo.webSocketDebuggerUrl);
+  let s = 0; const pend = new Map();
+  const cmd = (m, p = {}) => new Promise(r => { const id = ++s; pend.set(id, r); ws.send(JSON.stringify({ id, method: m, params: p })); });
+  ws.onmessage = m => { const d = JSON.parse(m.data); if (d.id && pend.has(d.id)) { pend.get(d.id)(d.result); pend.delete(d.id); } };
+  await new Promise(r => { ws.onopen = r; });
+  const js = async e => (await cmd('Runtime.evaluate', { expression: e, returnByValue: true, awaitPromise: true })).result.value;
+  const clica = async texto => {
+    const b = await js(`(()=>{const e=[...document.querySelectorAll('po-button button')].find(x=>x.innerText.trim()==='${texto}');if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+    if (!b) return false;
+    for (const type of ['mousePressed', 'mouseReleased']) await cmd('Input.dispatchMouseEvent', { type, x: b.x, y: b.y, button: 'left', clickCount: 1 });
+    return true;
+  };
+  const log = () => js("(document.querySelector('.advpp-console')||document.body).innerText||''");
+
+  await espera(3000);
+  // abre o "Log técnico" (recolhido por padrão) para ler os ConOut
+  await js("document.querySelector('.advpp-console-toggle')?.click()");
+  await espera(500);
+  // mount já disparou mediachange/networkchange -> ConOut no log técnico
+  let txt = await log();
+  if (!txt.includes('[3c] media=')) { console.log('FALHOU: mediachange não chegou: ' + txt.slice(-300)); process.exit(1); }
+
+  // Storage: grava no mount (StorageSet), lê no clique (StorageGet sync)
+  if (!await clica('Storage')) { console.log('FALHOU: botão Storage não achado'); process.exit(1); }
+  let ok = false;
+  for (let i = 0; i < 15; i++) { await espera(1000); txt = await log(); if (txt.includes('[3c] storage=')) { ok = true; break; } }
+  if (!ok) { console.log('FALHOU: StorageGet não voltou: ' + txt.slice(-300)); process.exit(1); }
+
+  // Tema: clique troca para dark -> classe no <html>
+  if (!await clica('Tema escuro')) { console.log('FALHOU: botão Tema não achado'); process.exit(1); }
+  await espera(1500);
+  const html = await js('document.documentElement.className');
+  if (!/dark/i.test(html)) { console.log('FALHOU: tema dark não aplicado: ' + html); process.exit(1); }
+
+  // Guia: abre o driver.js e fecha -> OnGuideEnd loga
+  if (!await clica('Guia')) { console.log('FALHOU: botão Guia não achado'); process.exit(1); }
+  let guia = false;
+  for (let i = 0; i < 15; i++) {
+    await espera(1000);
+    const pop = await js("!!document.querySelector('.driver-popover')");
+    if (pop) {
+      await js("document.querySelector('.driver-popover-close-btn, .driver-popover-footer .driver-popover-close-btn')?.click(); document.querySelector('.driver-popover')?.dispatchEvent(new Event('close'))");
+      // fecha pelo botão de fechar do driver
+      await js("[...document.querySelectorAll('.driver-popover button, .driver-popover a')].find(b=>/close|fechar/i.test(b.innerText||b.getAttribute('aria-label')||''))?.click()");
+      break;
+    }
+  }
+  for (let i = 0; i < 15; i++) { await espera(1000); txt = await log(); if (txt.includes('[3c] guia fim=')) { guia = true; break; } }
+  if (!guia) { console.log('FALHOU: OnGuideEnd não disparou'); process.exit(1); }
+
+  ws.close();
+  console.log('AO-VIVO-OK servicos-3c (midia + storage + tema + guia)');
+  process.exit(0);
+}
+
 const alvo = await (await fetch(`http://127.0.0.1:${porta}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' })).json();
 const ws = new WebSocket(alvo.webSocketDebuggerUrl);
 let seq = 0;

@@ -80,6 +80,10 @@ func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
 	a.ui = ui
 	a.closed = false
 	a.remount = false
+	// id reservado para os eventos de app (mediachange, networkchange,
+	// guideend, storage): fora da sequência dos componentes e dos
+	// confirms — poAppNodeID é grande o bastante para nunca colidir.
+	a.appID = poAppNodeID
 	ui.UISend(a.mountJSON())
 	a.active = true
 	a.flush() // ops geradas antes do Activate (ex.: Notify de boas-vindas)
@@ -105,6 +109,13 @@ func (v *VM) poActivate(a *poAppState, ui ComponentUI) error {
 	for !a.closed {
 		id, ev, val := ui.UINext()
 		v.poDispatch(a, id, ev, val)
+		// Eventos lidos durante um round-trip síncrono (StorageGet)
+		// voltam para a fila na ordem em que chegaram.
+		for len(a.deferred) > 0 {
+			d := a.deferred[0]
+			a.deferred = a.deferred[1:]
+			v.poDispatch(a, d.id, d.ev, d.val)
+		}
 		if a.remount {
 			// Navigate: a página nova vai inteira; patches perdem o sentido,
 			// as demais ops (notify...) seguem depois do mount.
@@ -159,6 +170,16 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 			h = cb[0]
 		}
 	default:
+		if id == a.appID {
+			// Onda 3c — eventos de app (mediachange, networkchange,
+			// guideend): handler em a.handlers, args (oApp, valor).
+			hb, ok2 := a.handlers[ev].(*advplrt.CodeBlockValue)
+			if !ok2 {
+				return
+			}
+			h, args = hb, []advplrt.Value{a.obj, poFromJSONPoEvent(val)}
+			break
+		}
 		c, ok := a.byID[id]
 		if !ok {
 			return
@@ -211,6 +232,21 @@ func (v *VM) poDispatch(a *poAppState, id int, ev string, val []byte) {
 			// equivale a recusar.
 			v.poBeforeHook(a, c, ev, val)
 			return
+		case "drop":
+			// Onda 3c.3 — {drag,pos}: reordena os filhos do container e
+			// chama OnDrop(oArrastado, nNovaPosicao).
+			var body struct {
+				Drag int `json:"drag"`
+				Pos  int `json:"pos"`
+			}
+			if json.Unmarshal(val, &body) != nil {
+				return
+			}
+			drag, ok := a.byID[body.Drag]
+			if !ok || drag.app != a || !poReorder(c, drag, body.Pos) {
+				return
+			}
+			h, args = c.handlers["drop"], []advplrt.Value{drag.obj, advplrt.NewNumber(float64(body.Pos))}
 		case "action":
 			i, ok := poJSONIndice(val)
 			if !ok {

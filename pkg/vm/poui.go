@@ -53,11 +53,30 @@ type poAppState struct {
 	confirms  map[int][2]advplrt.Value // id -> {bSim, bNao}; apagado na 1ª resposta
 	obj       *advplrt.ObjectValue     // o próprio PoApp (argumento dos timers)
 	ui        ComponentUI              // ligado durante o Activate
+	// onda 3c: serviços e diretivas
+	appID    int                     // id reservado p/ eventos de app (alocado no Activate)
+	handlers map[string]advplrt.Value // mediachange, networkchange, guideend
+	deferred []poPending              // eventos lidos durante round-trip síncrono
+	nextReq  int                      // reqId dos pedidos síncronos (StorageGet)
+}
+
+// poAppNodeID é o id reservado dos eventos de nível de app no protocolo
+// (mount.appId): alto o bastante para não colidir com ids de componentes
+// e de confirms, que compartilham a sequência nextID.
+const poAppNodeID = 1 << 30
+
+// poPending é um evento do browser bufferizado durante um round-trip
+// síncrono (PoApp:StorageGet): não pode ser despachado dentro do handler
+// corrente, então volta para a fila do laço depois dele.
+type poPending struct {
+	id  int
+	ev  string
+	val []byte
 }
 
 func newPoAppState(title string) *poAppState {
 	return &poAppState{title: title, byID: map[int]*poComp{}, timers: map[int]*poTimer{},
-		spawns: map[int]*poSpawn{}, confirms: map[int][2]advplrt.Value{}}
+		spawns: map[int]*poSpawn{}, confirms: map[int][2]advplrt.Value{}, handlers: map[string]advplrt.Value{}}
 }
 
 // add registra um componente novo com o próximo id.
@@ -106,9 +125,10 @@ func (a *poAppState) mountJSON() []byte {
 	op := struct {
 		Op    string  `json:"op"`
 		Title string  `json:"title"`
+		AppID int     `json:"appId"`
 		Menu  *poNode `json:"menu"`
 		Tree  *poNode `json:"tree"`
-	}{Op: "mount", Title: a.title}
+	}{Op: "mount", Title: a.title, AppID: a.appID}
 	if a.menu != nil {
 		n := a.menu.node()
 		op.Menu = &n
