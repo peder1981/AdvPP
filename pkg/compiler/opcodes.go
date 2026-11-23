@@ -253,6 +253,12 @@ type Bytecode struct {
 	Code       []Instruction
 	MainOffset int
 	NumGlobals int
+	// ProjectStatics marca bytecode de CompileProject: o "main" contém
+	// apenas os inicializadores dos Static de arquivo seguidos de HALT
+	// (corpos top-level não são emitidos). A VM executa esse trecho uma
+	// vez sob demanda para que RunFunction/VMs-filhas de requisição tenham
+	// os globais de arquivo — sem Run() eles ficariam sempre Nil.
+	ProjectStatics bool
 }
 
 // ResolveFunc acha a função do programa chamada por `name`, como o Protheus:

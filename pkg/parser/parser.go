@@ -858,6 +858,13 @@ func (p *Parser) parseClass() (*ast.ClassDecl, error) {
 				if err != nil {
 					return nil, err
 				}
+				// `@GET(...) public method x()` — a anotação pendente vale
+				// para método com modificador igual ao `method` puro
+				// (controladores REST TLPP do corpus 12.1.2510).
+				if len(pendingAnnotations) > 0 {
+					method.Annotations = pendingAnnotations
+					pendingAnnotations = nil
+				}
 				switch modifier {
 				case "PUBLIC":
 					method.IsPublic = true

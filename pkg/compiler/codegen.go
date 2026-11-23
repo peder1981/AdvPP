@@ -31,6 +31,11 @@ type Compiler struct {
 	// programas num só bytecode, como um RPO: User Function e classes são
 	// globais; Static Function fica restrita ao arquivo.
 	proj *projectState
+	// methodDeclAnns: anotações dos MethodDecl (dentro do class ... endclass)
+	// indexadas por "CLASSE::METODO" em maiúsculas — o MethodImpl não
+	// carrega anotações, então o compileMethod mescla daqui no FunctionInfo
+	// (controladores REST TLPP: @GET em método de classe).
+	methodDeclAnns map[string][]AnnotationInfo
 }
 
 // projectProgram é um fonte dentro do CompileProject: suas Static Function
@@ -127,9 +132,10 @@ func New() *Compiler {
 			Classes:   make(map[string]*ClassInfo),
 			Code:      make([]Instruction, 0),
 		},
-		localIdx:    make(map[string]int),
-		globalIdx:   make(map[string]int),
-		funcIndices: make(map[string]int),
+		localIdx:        make(map[string]int),
+		globalIdx:       make(map[string]int),
+		funcIndices:     make(map[string]int),
+		methodDeclAnns:  make(map[string][]AnnotationInfo),
 	}
 }
 
@@ -197,6 +203,7 @@ func CompileProject(progs []*ast.Program) (*Bytecode, error) {
 			return nil, err
 		}
 	}
+	c.bc.ProjectStatics = true
 	return c.bc, nil
 }
 
@@ -316,6 +323,7 @@ func (c *Compiler) registerProjectProgram(prog *ast.Program, ps *projectState) (
 			c.bc.Classes[k] = info
 			ps.classFiles[strings.ToUpper(k)] = file
 		}
+		c.collectMethodDeclAnns(cls, prog.Namespace)
 	}
 
 	// Implementações de método (Classe::Metodo) também são globais:
@@ -492,6 +500,7 @@ func (c *Compiler) compileProgram(prog *ast.Program) error {
 		}
 		c.bc.Classes[fullName] = info
 		c.bc.Classes[cls.Name] = info
+		c.collectMethodDeclAnns(cls, prog.Namespace)
 	}
 
 	// Compile main body
@@ -594,6 +603,26 @@ func (c *Compiler) compileFunction(fn *ast.FunctionDecl) error {
 	return nil
 }
 
+// collectMethodDeclAnns indexa as anotações dos métodos declarados dentro
+// do class (@GET/@Post de controladores REST TLPP) por "CLASSE::METODO"
+// em maiúsculas — bare e namespaced, para casar com o ClassName do
+// MethodImpl seja ele escrito de qual forma for.
+func (c *Compiler) collectMethodDeclAnns(cls *ast.ClassDecl, namespace string) {
+	for _, m := range cls.Methods {
+		if len(m.Annotations) == 0 {
+			continue
+		}
+		anns := make([]AnnotationInfo, 0, len(m.Annotations))
+		for _, a := range m.Annotations {
+			anns = append(anns, AnnotationInfo{Name: a.Name, Value: a.Value})
+		}
+		c.methodDeclAnns[strings.ToUpper(cls.Name)+"::"+strings.ToUpper(m.Name)] = anns
+		if namespace != "" {
+			c.methodDeclAnns[strings.ToUpper(namespace+"."+cls.Name)+"::"+strings.ToUpper(m.Name)] = anns
+		}
+	}
+}
+
 func (c *Compiler) compileMethod(m *ast.MethodImpl) error {
 	// Classe/método com caixa diferente da declarada resolvem para a chave
 	// canônica — o OP_NEW_INSTANCE carrega o nome que a VM encontra em
@@ -622,6 +651,16 @@ func (c *Compiler) compileMethod(m *ast.MethodImpl) error {
 	cls.Methods[m.Name] = info
 	c.bc.Functions[funcName] = info
 
+	// Anotações do MethodDecl correspondente (@GET de controlador REST
+	// TLPP) — indexadas no registro da classe, pois o MethodImpl não as
+	// carrega. Tenta o ClassName como escrito e a chave resolvida.
+	for _, ck := range []string{m.ClassName, className} {
+		if anns, ok := c.methodDeclAnns[strings.ToUpper(ck)+"::"+strings.ToUpper(m.Name)]; ok {
+			info.Annotations = append(info.Annotations, anns...)
+			break
+		}
+	}
+
 	ctx := &funcContext{
 		name:      funcName,
 		className: className,
@@ -647,7 +686,10 @@ func (c *Compiler) compileMethod(m *ast.MethodImpl) error {
 		}
 		c.emit(OP_RETURN_VALUE, 0, 0, "", 0)
 	} else {
-		c.emit(OP_RETURN, 0, 0, "", 0)
+		// Método sem Return explícito: cai no mesmo retorno implícito de
+		// `return` bare — Self (ver compileReturn).
+		c.emit(OP_LOAD_SELF, 0, 0, "", 0)
+		c.emit(OP_RETURN_VALUE, 0, 0, "", 0)
 	}
 
 	c.funcStack = c.funcStack[:len(c.funcStack)-1]
@@ -845,7 +887,12 @@ func (c *Compiler) compileStatement(stmt ast.Statement) error {
 		// x++, x--) é descartado. Sem este POP cada iteração de laço vazava
 		// um valor na pilha da VM até estourar MaxStackSize, e o programa
 		// entrava em loop infinito silencioso.
-		c.emit(OP_POP, 0, 0, "", s.Loc.Line)
+		// DefaultExpr é exceção: ele já consome o próprio valor (STORE_LOCAL
+		// ou POP interno) e não deixa nada na pilha — um POP aqui comeria
+		// um slot do frame chamador.
+		if _, isDefault := s.Expr.(*ast.DefaultExpr); !isDefault {
+			c.emit(OP_POP, 0, 0, "", s.Loc.Line)
+		}
 		return nil
 	case *ast.InterfaceDecl:
 		// Interface declarations are compile-time only, no code to emit
@@ -1196,6 +1243,12 @@ func (c *Compiler) compileReturn(s *ast.ReturnStmt) error {
 			return err
 		}
 		c.emit(OP_RETURN_VALUE, 0, 0, "", s.Loc.Line)
+	} else if c.currentFunc != nil && c.currentFunc.className != "" {
+		// `Return` sem expressão dentro de método devolve Self — sem isso
+		// `Classe():new()` com `return` bare (padrão onipresente no corpus
+		// TOTVS) devolveria Nil e todo `o := Classe():new()` quebraria.
+		c.emit(OP_LOAD_SELF, 0, 0, "", s.Loc.Line)
+		c.emit(OP_RETURN_VALUE, 0, 0, "", s.Loc.Line)
 	} else {
 		c.emit(OP_RETURN, 0, 0, "", s.Loc.Line)
 	}
@@ -1420,6 +1473,13 @@ func (c *Compiler) compileExpr(expr ast.Expression) error {
 		}
 		if idx, ok := c.resolveLocal(e.Name); ok {
 			c.emit(OP_STORE_LOCAL, idx, 0, e.Name, e.Loc.Line)
+		} else {
+			// Alvo não-local (::Prop, aArr[i], oObj:k, alias->campo): o
+			// DefaultExpr é statement — deve deixar a pilha neutra. Sem
+			// este POP o valor vazava para o POP do ExprStmt, que comia um
+			// slot do frame chamador (bug que corrompia pilha em métodos
+			// com `Default param := v`).
+			c.emit(OP_POP, 0, 0, "", e.Loc.Line)
 		}
 	case *ast.JsonLit:
 		for _, pair := range e.Pairs {
