@@ -1,22 +1,22 @@
-// Fixture: vazamento de escopo din√¢mico (Private/Public) quando um frame √©
-// descartado por um caminho de erro que N√ÉO passa por doReturn ‚Äî tanto no
-// loop s√≠ncrono de blocos de c√≥digo (AEval/ASort/AScan, via callBlockSync)
+// Fixture: vazamento de escopo din‚mico (Private/Public) quando um frame È
+// descartado por um caminho de erro que N√O passa por doReturn ó tanto no
+// loop sÌncrono de blocos de cÛdigo (AEval/ASort/AScan, via callBlockSync)
 // quanto no desenrolamento de Try/Catch do runLoop principal quando o Throw
-// ocorre em uma fun√ß√£o aninhada mais profunda que a que cont√©m o Try.
+// ocorre em uma funÁ„o aninhada mais profunda que a que contÈm o Try.
 // Em ambos os casos, um Private declarado no frame descartado (que sombreia
 // um Private de mesmo nome no chamador) deve ser removido de v.dynEnv, e o
 // binding anterior do chamador deve ser restaurado.
-// Auto-verific√°vel: compara valor esperado x obtido, imprime
-// "OK: N/N verificacoes passaram" (padr√£o de pt_nn.prw).
+// Auto-verific·vel: compara valor esperado x obtido, imprime
+// "OK: N/N verificacoes passaram" (padr„o de pt_nn.prw).
 User Function DynLeakTst()
     Local nFail := 0
 
-    // 1. Throw dentro de um bloco de c√≥digo (AEval), capturado pelo Try do
-    //    chamador. O frame do bloco √© descartado pelo caminho de ERRO de
-    //    callBlockSync (n√£o passa por doReturn).
+    // 1. Throw dentro de um bloco de cÛdigo (AEval), capturado pelo Try do
+    //    chamador. O frame do bloco È descartado pelo caminho de ERRO de
+    //    callBlockSync (n„o passa por doReturn).
     nFail += TestBlockLeak()
 
-    // 2. Throw em fun√ß√£o chamada normalmente (mais profunda que o Try),
+    // 2. Throw em funÁ„o chamada normalmente (mais profunda que o Try),
     //    capturado pelo Try do chamador via desenrolamento de handleCatch.
     nFail += TestNestedCatchLeak()
 

@@ -1,6 +1,6 @@
 #include "totvs.ch"
 
-// Teste da classe nativa LLM (pkg/llm): motor de inferÃªncia GGUF/I2_S em
+// Teste da classe nativa LLM (pkg/llm): motor de inferência GGUF/I2_S em
 // Go puro embutido no compilador. Executar com:
 //   advplc run tests/llm_test.prw -- /caminho/modelo-i2_s.gguf
 User Function LlmTst()
@@ -20,8 +20,8 @@ User Function LlmTst()
 
     ConOut("Gerando (greedy, 6 tokens)...")
     cTexto := oLLM:Generate("The capital of France is", 6, 0)
-    ConOut("GeraÃ§Ã£o: " + cTexto)
+    ConOut("Geração: " + cTexto)
 
     oLLM:Close()
-    ConOut("ConcluÃ­do.")
+    ConOut("Concluído.")
 Return

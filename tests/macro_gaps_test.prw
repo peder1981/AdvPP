@@ -1,7 +1,7 @@
-// Fixture de regress√£o pros gaps encontrados na varredura de 2026-07-23 no
+// Fixture de regress„o pros gaps encontrados na varredura de 2026-07-23 no
 // corpus real (811R4 + 12.1.2510): BEGIN REPORT QUERY, macro-eval em
-// runtime (&expr), composi√ß√£o de nome via ident&macro, e NamedParam fora de
-// lista de argumentos. Ver CHANGELOG [N√£o lan√ßado].
+// runtime (&expr), composiÁ„o de nome via ident&macro, e NamedParam fora de
+// lista de argumentos. Ver CHANGELOG [N„o lanÁado].
 User Function MacroGapsTest()
     Local cProcesso := "1"
     Local cPeriodo := "2"

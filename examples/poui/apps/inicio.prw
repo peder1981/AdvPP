@@ -1,7 +1,7 @@
 /*/{Protheus.doc} inicio.prw
-P√°gina inicial de `advplc serve --apps examples/poui/apps --home inicio`:
-lista os outros apps do diret√≥rio (ADVPP_APPS_DIR) e abre cada um numa
-janela pr√≥pria (PoApp:Open) ‚Äî cada janela √© uma sess√£o com VM pr√≥pria.
+P·gina inicial de `advplc serve --apps examples/poui/apps --home inicio`:
+lista os outros apps do diretÛrio (ADVPP_APPS_DIR) e abre cada um numa
+janela prÛpria (PoApp:Open) ó cada janela È uma sess„o com VM prÛpria.
 @type file
 @author Peder Munksgaard
 @since 20/11/2026
@@ -16,7 +16,7 @@ User Function Main()
 	Local nI     := 0  as Numeric
 
 	If Empty(cDir)
-		PoTag():New(oPg, "Rode com: advplc serve --apps <diret√≥rio> --home inicio", "warning")
+		PoTag():New(oPg, "Rode com: advplc serve --apps <diretÛrio> --home inicio", "warning")
 	Else
 		aArqs := Directory(cDir + "/*.prw")
 		For nI := 1 To Len(aArqs)
@@ -30,7 +30,7 @@ User Function Main()
 Return
 
 /*/{Protheus.doc} Cartao
-Um cart√£o por app, com o bot√£o que o abre noutra janela.
+Um cart„o por app, com o bot„o que o abre noutra janela.
 @type function
 @author Peder Munksgaard
 @since 20/11/2026

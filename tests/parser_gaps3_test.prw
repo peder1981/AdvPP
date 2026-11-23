@@ -1,11 +1,11 @@
-// Fixture de regress√£o pra rodada de 2026-07-23 "tente ao menos novamente":
-// 10 gaps reais achados analisando os fontes-padr√£o do corpus que sobraram
-// de rodadas anteriores. Ver CHANGELOG [N√£o lan√ßado].
+// Fixture de regress„o pra rodada de 2026-07-23 "tente ao menos novamente":
+// 10 gaps reais achados analisando os fontes-padr„o do corpus que sobraram
+// de rodadas anteriores. Ver CHANGELOG [N„o lanÁado].
 //
-// SyntaxOnlyGaps cobre constru√ß√µes que s√£o "parseadas e descartadas"
-// (sem native real por tr√°s, mesmo esp√≠rito de v√°rios outros comandos
-// deste compilador) ‚Äî s√≥ precisam compilar (advplc check), n√£o rodar.
-// RuntimeGaps cobre as que t√™m sem√¢ntica real e precisam rodar certo.
+// SyntaxOnlyGaps cobre construÁıes que s„o "parseadas e descartadas"
+// (sem native real por tr·s, mesmo espÌrito de v·rios outros comandos
+// deste compilador) ó sÛ precisam compilar (advplc check), n„o rodar.
+// RuntimeGaps cobre as que tÍm sem‚ntica real e precisam rodar certo.
 User Function ParserGaps3Test()
     RuntimeGaps()
 Return
@@ -25,16 +25,16 @@ Static Function SyntaxOnlyGaps()
     ParamType 1 Var cAlias1 As Character
     Default cAlias1 := ""
 
-    // REPLACE ... ALL FOR <cond> (cl√°usulas de escopo do Clipper)
+    // REPLACE ... ALL FOR <cond> (cl·usulas de escopo do Clipper)
     REPLACE X3_ORDEM WITH 'XX' ALL FOR X3_PYME == 'N'
 
     // End For (duas palavras) fechando o loop
     For nCnt := 1 To 2
     End For
 
-    // M->&macro. ‚Äî campo via alias com nome computado por macro (resolu√ß√£o
-    // din√¢mica de nome n√£o modelada neste VM, mesma toler√¢ncia de outros
-    // alvos n√£o endere√ß√°veis ‚Äî s√≥ n√£o pode travar o PARSER)
+    // M->&macro. ó campo via alias com nome computado por macro (resoluÁ„o
+    // din‚mica de nome n„o modelada neste VM, mesma toler‚ncia de outros
+    // alvos n„o endereÁ·veis ó sÛ n„o pode travar o PARSER)
     Local cCampo := "X"
     M->&cCampo. := 5
 Return

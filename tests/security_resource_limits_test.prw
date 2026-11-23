@@ -6,7 +6,7 @@
 	Validates that hard limits are enforced for:
 	- Array size (1M elements)
 	- Object properties (10k)
-	- JSON nesting depth (100 levels) â€” placeholder for VM implementation
+	- JSON nesting depth (100 levels) — placeholder for VM implementation
 	- Concurrent jobs (1000)
 
 	@author     AdvPP Security Audit

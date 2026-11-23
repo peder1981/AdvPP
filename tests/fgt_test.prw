@@ -1,5 +1,5 @@
-// Fixture de regressÃ£o para FWGetText com modo password (3Âº argumento opcional).
-// Testa caminhos de texto normal e password em execuÃ§Ã£o headless (retorna def).
+// Fixture de regressão para FWGetText com modo password (3º argumento opcional).
+// Testa caminhos de texto normal e password em execução headless (retorna def).
 # include "totvs.ch"
 
 User Function FgtTest()
@@ -9,7 +9,7 @@ User Function FgtTest()
     Local cSenha := FWGetText("Digite uma senha", "s3nh4", .T.)
     ConOut("senha=[" + cSenha + "]")
 
-    // Chamada com .F. explÃ­cito â€” deve retornar o mesmo que sem o argumento
+    // Chamada com .F. explícito — deve retornar o mesmo que sem o argumento
     Local cNormal := FWGetText("Teste normal", "", .F.)
     ConOut("normal=[" + cNormal + "]")
 Return

@@ -1,5 +1,5 @@
-// tests/hash_test.prw â€” FWHash(cTexto) deve ser determinÃ­stico (mesma
-// entrada, mesmo hash) e sensÃ­vel a mudanÃ§a de entrada.
+// tests/hash_test.prw — FWHash(cTexto) deve ser determinístico (mesma
+// entrada, mesmo hash) e sensível a mudança de entrada.
 User Function HashTest()
     Local cHash1 := FWHash("senha123")
     Local cHash2 := FWHash("senha123")

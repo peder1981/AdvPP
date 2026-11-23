@@ -21,7 +21,7 @@ User Function NnTst()
         ConOut("FALHA Embedding Forward")
         nFail++
     EndIf
-    // Fit avalia o codeblock N vezes; o array capturado (tipo referÃªncia, como o
+    // Fit avalia o codeblock N vezes; o array capturado (tipo referência, como o
     // otimizador/modelo no treino real) acumula e a ultima avaliacao devolve 5.
     nFinal := Fit({|| ContaEsoma(aC) }, 5)
     If aC[1] != 5 .Or. nFinal != 5

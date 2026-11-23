@@ -1,73 +1,73 @@
 /*
- * pt_nn.prw - LLM h√≠brido Markov + rede neural TERN√ÅRIA, 100% em AdvPL (AdvPP).
+ * pt_nn.prw - LLM hÌbrido Markov + rede neural TERN¡RIA, 100% em AdvPL (AdvPP).
  *
  * Arquitetura (Caminho B - "topo" que fica integralmente em AdvPL):
- *   - Camada escondida = proje√ß√£o aleat√≥ria TERN√ÅRIA fixa (W_proj em {-1,0,+1}).
- *     N√£o √© treinada; projeta o contexto em add/sub via o native BLAS MatVecTern.
- *   - Ativa√ß√£o tern√°ria: h = sign(W_proj . x)  em {-1,0,+1}.
- *   - Camada de sa√≠da U (aprendida) treinada por PERCEPTRON M√âDIO (Collins 2002)
- *     ‚Äî puro add/sub, sem gradiente/float. scores = U . h (tamb√©m via MatVecTern).
- *   Isto √© uma Extreme Learning Machine tern√°ria: hidden aleat√≥rio, sa√≠da linear
- *   aprendida ‚Äî treina E infere sem multiplica√ß√£o, tudo em AdvPL.
- *   - Markov n-grama (n√≠vel de palavra) INTERPOLADO (Jelinek-Mercer: mistura as
- *     ordens 1..NCTX) d√° o prior; a rede generaliza para contextos n√£o vistos.
- *     A gera√ß√£o mistura os dois e amostra por NUCLEUS (top-p).
+ *   - Camada escondida = projeÁ„o aleatÛria TERN¡RIA fixa (W_proj em {-1,0,+1}).
+ *     N„o È treinada; projeta o contexto em add/sub via o native BLAS MatVecTern.
+ *   - AtivaÁ„o tern·ria: h = sign(W_proj . x)  em {-1,0,+1}.
+ *   - Camada de saÌda U (aprendida) treinada por PERCEPTRON M…DIO (Collins 2002)
+ *     ó puro add/sub, sem gradiente/float. scores = U . h (tambÈm via MatVecTern).
+ *   Isto È uma Extreme Learning Machine tern·ria: hidden aleatÛrio, saÌda linear
+ *   aprendida ó treina E infere sem multiplicaÁ„o, tudo em AdvPL.
+ *   - Markov n-grama (nÌvel de palavra) INTERPOLADO (Jelinek-Mercer: mistura as
+ *     ordens 1..NCTX) d· o prior; a rede generaliza para contextos n„o vistos.
+ *     A geraÁ„o mistura os dois e amostra por NUCLEUS (top-p).
  *
- * JANELA LONGA (entrada e sa√≠da at√© CTXMAX=4096 tokens CADA):
- *   - Entrada tern√°ria = NCTX blocos LOCAIS posicionais (a ordem importa,
- *     "a tecnologia" != "tecnologia a") + 1 bloco BAG de presen√ßa sobre as
- *     √∫ltimas BAGW (at√© 4096) palavras ‚Äî o long-context. O bag √© mantido
+ * JANELA LONGA (entrada e saÌda atÈ CTXMAX=4096 tokens CADA):
+ *   - Entrada tern·ria = NCTX blocos LOCAIS posicionais (a ordem importa,
+ *     "a tecnologia" != "tecnologia a") + 1 bloco BAG de presenÁa sobre as
+ *     ˙ltimas BAGW (atÈ 4096) palavras ó o long-context. O bag È mantido
  *     INCREMENTALMENTE (contagem por palavra, desliza a janela em O(delta)),
  *     custo amortizado O(1) por token.
- *   - SeedSeq aceita um seed de at√© CTXMAX tokens; Gera produz um DOCUMENTO
- *     multi-frase de at√© CTXMAX tokens.
- *   Nota honesta: aten√ß√£o real sobre 4096 tokens exigiria ponto flutuante
- *   (invi√°vel multiply-free em AdvPL); o bag √© a aproxima√ß√£o de custo limitado.
+ *   - SeedSeq aceita um seed de atÈ CTXMAX tokens; Gera produz um DOCUMENTO
+ *     multi-frase de atÈ CTXMAX tokens.
+ *   Nota honesta: atenÁ„o real sobre 4096 tokens exigiria ponto flutuante
+ *   (invi·vel multiply-free em AdvPL); o bag È a aproximaÁ„o de custo limitado.
  *
- * Algoritmos modernos: perceptron m√©dio, suaviza√ß√£o interpolada, amostragem
- * nucleus, contexto posicional + bag long-context, vocabul√°rio limitado por
- * frequ√™ncia (top-N + <unk>) e amostra de treino por stride ‚Äî os dois √∫ltimos
+ * Algoritmos modernos: perceptron mÈdio, suavizaÁ„o interpolada, amostragem
+ * nucleus, contexto posicional + bag long-context, vocabul·rio limitado por
+ * frequÍncia (top-N + <unk>) e amostra de treino por stride ó os dois ˙ltimos
  * deixam o custo do treino LIMITADO, independente do tamanho do corpus.
  *
- * O "BLAS tern√°rio" √© o native MatVecTern(aMat, aVecTern): result[i] =
- * Œ£_j sign(vec[j])*mat[i][j], multiply-free. Estado do modelo vive num JsonObject
- * passado expl√≠cito (a VM n√£o propaga Private entre chamadas).
+ * O "BLAS tern·rio" È o native MatVecTern(aMat, aVecTern): result[i] =
+ * soma_j sign(vec[j])*mat[i][j], multiply-free. Estado do modelo vive num JsonObject
+ * passado explÌcito (a VM n„o propaga Private entre chamadas).
  *
- * Corpus: usa corpus.txt (via MemoRead) se existir; sen√£o o Corpus() embutido.
+ * Corpus: usa corpus.txt (via MemoRead) se existir; sen„o o Corpus() embutido.
  * Rodar/testar: ./advplc run pt_nn.prw
  */
 
 #define NHID     64
 #define NCTX     3        // ordem do Markov e contexto local posicional do neural
-#define BAGW     4096     // janela do "saco de contexto" (long-context do neural): at√© 4096 tokens
-#define CTXMAX   4096     // m√°ximo de tokens de ENTRADA (seed) e de SA√çDA (gera√ß√£o)
+#define BAGW     4096     // janela do "saco de contexto" (long-context do neural): atÈ 4096 tokens
+#define CTXMAX   4096     // m·ximo de tokens de ENTRADA (seed) e de SAÕDA (geraÁ„o)
 #define PASSES   20
-#define MAXVOCAB 1200     // teto do vocabul√°rio (top-N por frequ√™ncia; resto -> <unk>)
-#define MAXTRAIN 1000     // teto de posi√ß√µes de treino do perceptron (stride no corpus)
+#define MAXVOCAB 1200     // teto do vocabul·rio (top-N por frequÍncia; resto -> <unk>)
+#define MAXTRAIN 1000     // teto de posiÁıes de treino do perceptron (stride no corpus)
 #define TOPP     0.92     // amostragem nucleus: menor conjunto com massa >= TOPP
-#define REPWIN   14       // janela de anti-repeti√ß√£o (palavras recentes)
-#define REPPEN   9        // for√ßa da penalidade de repeti√ß√£o por ocorr√™ncia recente
+#define REPWIN   14       // janela de anti-repetiÁ„o (palavras recentes)
+#define REPPEN   9        // forÁa da penalidade de repetiÁ„o por ocorrÍncia recente
 
 User Function PtNN()
     Local oM := JsonObject():New()
 
     ConOut("=================================================================")
-    ConOut(" LLM h√≠brido Markov + rede TERN√ÅRIA (ELM) - AdvPL puro (AdvPP)")
+    ConOut(" LLM hÌbrido Markov + rede TERN¡RIA (ELM) - AdvPL puro (AdvPP)")
     ConOut("=================================================================")
 
     BuildVocab(oM, LoadCorpus())
-    ConOut("Vocabul√°rio: " + Str(oM["V"],4) + " palavras | tokens: " + Str(Len(oM["stream"]),5))
+    ConOut("Vocabul·rio: " + Str(oM["V"],4) + " palavras | tokens: " + Str(Len(oM["stream"]),5))
 
     InitParams(oM)
     BuildMarkov(oM, oM["stream"])
-    ConOut("Entrada tern√°ria " + Str(NHID,3) + "x" + Str((NCTX + 1) * oM["V"],6) + " (" + Str(NCTX,1) + " blocos locais + bag ate " + Str(BAGW,4) + " tokens) | sa√≠da U " + Str(oM["V"],4) + "x" + Str(NHID,3))
-    ConOut("Janela: contexto at√© " + Str(CTXMAX,4) + " tokens (entrada) e gera√ß√£o at√© " + Str(CTXMAX,4) + " tokens (sa√≠da).")
+    ConOut("Entrada tern·ria " + Str(NHID,3) + "x" + Str((NCTX + 1) * oM["V"],6) + " (" + Str(NCTX,1) + " blocos locais + bag ate " + Str(BAGW,4) + " tokens) | saÌda U " + Str(oM["V"],4) + "x" + Str(NHID,3))
+    ConOut("Janela: contexto atÈ " + Str(CTXMAX,4) + " tokens (entrada) e geraÁ„o atÈ " + Str(CTXMAX,4) + " tokens (saÌda).")
     ConOut("")
 
     Train(oM)
     ConOut("")
 
-    ConOut("--- Gera√ß√£o h√≠brida (documento multi-frase, janela at√© " + Str(CTXMAX,4) + " tokens) ---")
+    ConOut("--- GeraÁ„o hÌbrida (documento multi-frase, janela atÈ " + Str(CTXMAX,4) + " tokens) ---")
     Gera(oM, "uma noite", 200)                 // seeds ajustados ao corpus atual
     Gera(oM, "os olhos", 120)
     Gera(oM, "minha mae", 120)
@@ -75,7 +75,7 @@ User Function PtNN()
     SelfTest(oM)
 Return
 
-// Corpus externo se existir, sen√£o o embutido. Escala via MemoRead.
+// Corpus externo se existir, sen„o o embutido. Escala via MemoRead.
 // Procura tests/llm/corpus.txt (rodando da raiz) e corpus.txt (rodando da pasta).
 Static Function LoadCorpus()
     If File("tests/llm/corpus.txt")
@@ -85,13 +85,13 @@ Static Function LoadCorpus()
     EndIf
 Return Corpus()
 
-// ---------------------------------------------------------------- Vocabul√°rio
-// Conta frequ√™ncias, mant√©m as MAXVOCAB palavras mais frequentes (ASort por
-// contagem) e mapeia o resto para <unk>. Vocabul√°rio limitado => custo por
+// ---------------------------------------------------------------- Vocabul·rio
+// Conta frequÍncias, mantÈm as MAXVOCAB palavras mais frequentes (ASort por
+// contagem) e mapeia o resto para <unk>. Vocabul·rio limitado => custo por
 // passo do forward fixo, independente do tamanho do corpus.
 Static Function BuildVocab(oM, cCorpus)
     Local aTok := Tokenize(cCorpus)
-    Local jSeen := JsonObject():New()   // palavra -> √≠ndice em aPairs
+    Local jSeen := JsonObject():New()   // palavra -> Ìndice em aPairs
     Local aPairs := {}                  // { palavra, contagem }
     Local jW2Id := JsonObject():New()
     Local aId2W := {}
@@ -100,7 +100,7 @@ Static Function BuildVocab(oM, cCorpus)
     Local cW := ""
     Local nIx := 0
 
-    // conta frequ√™ncias (uma passada)
+    // conta frequÍncias (uma passada)
     For i := 1 To Len(aTok)
         cW := aTok[i]
         If ValType(jSeen[cW]) == "U"
@@ -112,10 +112,10 @@ Static Function BuildVocab(oM, cCorpus)
         EndIf
     Next i
 
-    // ordena por frequ√™ncia decrescente (bloco s√≥-par√¢metro)
+    // ordena por frequÍncia decrescente (bloco sÛ-par‚metro)
     ASort(aPairs, , , {|x, y| x[2] > y[2] })
 
-    // ids reservados: 1=<s> (padding), 2=<unk> (fora do vocabul√°rio)
+    // ids reservados: 1=<s> (padding), 2=<unk> (fora do vocabul·rio)
     aAdd(aId2W, "<s>")  ; jW2Id["<s>"]  := 1
     aAdd(aId2W, "<unk>"); jW2Id["<unk>"] := 2
     For i := 1 To Len(aPairs)
@@ -127,7 +127,7 @@ Static Function BuildVocab(oM, cCorpus)
         jW2Id[cW] := Len(aId2W)
     Next i
 
-    // stream de ids; palavra fora do vocabul√°rio vira <unk> (2)
+    // stream de ids; palavra fora do vocabul·rio vira <unk> (2)
     For i := 1 To Len(aTok)
         cW := aTok[i]
         If ValType(jW2Id[cW]) == "U"
@@ -143,7 +143,7 @@ Static Function BuildVocab(oM, cCorpus)
     oM["stream"] := aStream
 Return
 
-// Tokeniza: min√∫sculas+sem acento; palavras [a-z0-9] e "." como token pr√≥prio.
+// Tokeniza: min˙sculas+sem acento; palavras [a-z0-9] e "." como token prÛprio.
 Static Function Tokenize(cText)
     Local aW  := {}
     Local cN  := Fold(cText)
@@ -175,18 +175,18 @@ Return aW
 
 Static Function Fold(c)
     c := Lower(c)
-    c := StrTran(c, "√°", "a") ; c := StrTran(c, "√†", "a") ; c := StrTran(c, "√¢", "a") ; c := StrTran(c, "√£", "a")
-    c := StrTran(c, "√©", "e") ; c := StrTran(c, "√™", "e")
-    c := StrTran(c, "√≠", "i")
-    c := StrTran(c, "√≥", "o") ; c := StrTran(c, "√¥", "o") ; c := StrTran(c, "√µ", "o")
-    c := StrTran(c, "√∫", "u") ; c := StrTran(c, "√º", "u")
-    c := StrTran(c, "√ß", "c")
+    c := StrTran(c, "·", "a") ; c := StrTran(c, "‡", "a") ; c := StrTran(c, "‚", "a") ; c := StrTran(c, "„", "a")
+    c := StrTran(c, "È", "e") ; c := StrTran(c, "Í", "e")
+    c := StrTran(c, "Ì", "i")
+    c := StrTran(c, "Û", "o") ; c := StrTran(c, "Ù", "o") ; c := StrTran(c, "ı", "o")
+    c := StrTran(c, "˙", "u") ; c := StrTran(c, "¸", "u")
+    c := StrTran(c, "Á", "c")
 Return c
 
-// --------------------------------------------------------------- Par√¢metros
+// --------------------------------------------------------------- Par‚metros
 Static Function InitParams(oM)
     Local nV := oM["V"]
-    Local aWP := {}    // NHID linhas x nV colunas, tern√°ria {-1,0,+1}, fixa
+    Local aWP := {}    // NHID linhas x nV colunas, tern·ria {-1,0,+1}, fixa
     Local aU  := {}    // nV linhas x NHID colunas, inteira, aprendida (zeros)
     Local i := 0
     Local j := 0
@@ -216,7 +216,7 @@ Static Function InitParams(oM)
 
     oM["xbuf"] := Array((NCTX + 1) * nV)    // buffer de entrada reutilizado no Forward
     AFill(oM["xbuf"], 0)
-    oM["xactloc"] := {}                     // posi√ß√µes ativas dos blocos LOCAIS (limpas por forward)
+    oM["xactloc"] := {}                     // posiÁıes ativas dos blocos LOCAIS (limpas por forward)
 
     // Estado incremental do bag (long-context): contagem por palavra na janela.
     oM["bagcnt"] := Array(nV)               // quantos tokens da janela == cada id
@@ -225,8 +225,8 @@ Static Function InitParams(oM)
 Return
 
 // ------------------------------------------------------------------- Markov
-// Guarda uma hash por ordem k=1..NCTX. mk[k][chave-de-k-palavras] -> pr√≥ximos
-// ids (multiset = frequ√™ncia). A gera√ß√£o faz BACKOFF da ordem NCTX at√© a 1.
+// Guarda uma hash por ordem k=1..NCTX. mk[k][chave-de-k-palavras] -> prÛximos
+// ids (multiset = frequÍncia). A geraÁ„o faz BACKOFF da ordem NCTX atÈ a 1.
 Static Function BuildMarkov(oM, aStream)
     Local aMk := {}
     Local k := 0
@@ -240,7 +240,7 @@ Static Function BuildMarkov(oM, aStream)
 
     For i := 1 To Len(aStream) - NCTX
         nNext := aStream[i + NCTX]
-        For k := 1 To NCTX                         // √∫ltimas k palavras do contexto
+        For k := 1 To NCTX                         // ˙ltimas k palavras do contexto
             cKey := KeyRange(aStream, i + NCTX - k, k)
             If ValType(aMk[k][cKey]) == "U"
                 aMk[k][cKey] := {}
@@ -261,11 +261,11 @@ Static Function KeyRange(aStream, nStart, nLen)
 Return c
 
 // ------------------------------------------------------------------ Forward
-// Prediz o token ap√≥s a posi√ß√£o tEnd em aSeq. Entrada tern√°ria =
-//   NCTX blocos LOCAIS posicionais (√∫ltimas NCTX palavras, ordem importa)
-//   + 1 bloco BAG de presen√ßa sobre as √∫ltimas BAGW palavras (long-context,
-//     at√© CTXMAX tokens). Tudo {0,1} => multiply-free na BLAS.
-// Retorna { aScores (nV), aH (NHID tern√°rio) }.
+// Prediz o token apÛs a posiÁ„o tEnd em aSeq. Entrada tern·ria =
+//   NCTX blocos LOCAIS posicionais (˙ltimas NCTX palavras, ordem importa)
+//   + 1 bloco BAG de presenÁa sobre as ˙ltimas BAGW palavras (long-context,
+//     atÈ CTXMAX tokens). Tudo {0,1} => multiply-free na BLAS.
+// Retorna { aScores (nV), aH (NHID tern·rio) }.
 Static Function Forward(oM, aSeq, tEnd)
     Local nV := oM["V"]
     Local aX := oM["xbuf"]
@@ -279,15 +279,15 @@ Static Function Forward(oM, aSeq, tEnd)
     Local id := 0
     Local nPos := 0
 
-    BagSyncTo(oM, aSeq, tEnd)               // mant√©m o bloco bag (long-context) incremental
+    BagSyncTo(oM, aSeq, tEnd)               // mantÈm o bloco bag (long-context) incremental
 
-    For i := 1 To Len(aOld)                 // limpa s√≥ os blocos LOCAIS do forward anterior
+    For i := 1 To Len(aOld)                 // limpa sÛ os blocos LOCAIS do forward anterior
         aX[aOld[i]] := 0
     Next i
-    // Blocos locais: posi√ß√£o p = 1..NCTX (p=NCTX √© a palavra mais recente).
+    // Blocos locais: posiÁ„o p = 1..NCTX (p=NCTX È a palavra mais recente).
     For p := 1 To NCTX
-        i := tEnd - (NCTX - p)              // √≠ndice em aSeq da palavra do bloco p
-        id := 1                             // <s> (padding) se antes do in√≠cio
+        i := tEnd - (NCTX - p)              // Ìndice em aSeq da palavra do bloco p
+        id := 1                             // <s> (padding) se antes do inÌcio
         If i >= 1 .And. i <= tEnd
             id := aSeq[i]
         EndIf
@@ -301,18 +301,18 @@ Static Function Forward(oM, aSeq, tEnd)
     Next p
     oM["xactloc"] := aNew
 
-    aHraw := MatVecTern(oM["wproj"], aX)        // BLAS tern√°ria: W_proj . x
+    aHraw := MatVecTern(oM["wproj"], aX)        // BLAS tern·ria: W_proj . x
     For i := 1 To Len(aHraw)
-        aAdd(aH, If(aHraw[i] > 0, 1, If(aHraw[i] < 0, -1, 0)))   // ativa√ß√£o tern√°ria
+        aAdd(aH, If(aHraw[i] > 0, 1, If(aHraw[i] < 0, -1, 0)))   // ativaÁ„o tern·ria
     Next i
 
-    aScores := MatVecTern(oM["U"], aH)          // BLAS tern√°ria: U . h
+    aScores := MatVecTern(oM["U"], aH)          // BLAS tern·ria: U . h
 Return {aScores, aH}
 
-// BagSyncTo: mant√©m o bloco "bag" do xbuf refletindo a presen√ßa de cada palavra
-// nas √∫ltimas BAGW posi√ß√µes de aSeq[1..tEnd]. Desliza a janela em O(delta) quando
-// tEnd avan√ßa (caso comum: treino/gera√ß√£o monot√¥nicos); reconstr√≥i s√≥ quando h√°
-// salto para tr√°s ou muito grande. Custo amortizado O(1) por token.
+// BagSyncTo: mantÈm o bloco "bag" do xbuf refletindo a presenÁa de cada palavra
+// nas ˙ltimas BAGW posiÁıes de aSeq[1..tEnd]. Desliza a janela em O(delta) quando
+// tEnd avanÁa (caso comum: treino/geraÁ„o monotÙnicos); reconstrÛi sÛ quando h·
+// salto para tr·s ou muito grande. Custo amortizado O(1) por token.
 Static Function BagSyncTo(oM, aSeq, tEnd)
     Local aCnt := oM["bagcnt"]
     Local aX   := oM["xbuf"]
@@ -324,7 +324,7 @@ Static Function BagSyncTo(oM, aSeq, tEnd)
     Local id := 0
 
     If tEnd < nPrev .Or. tEnd - nPrev > BAGW
-        // reconstr√≥i do zero (raro: in√≠cio de passada/gera√ß√£o)
+        // reconstrÛi do zero (raro: inÌcio de passada/geraÁ„o)
         AFill(aCnt, 0)
         For id := 1 To oM["V"]
             aX[nBase + id] := 0
@@ -339,7 +339,7 @@ Static Function BagSyncTo(oM, aSeq, tEnd)
             aX[nBase + id] := 1
         Next t
     Else
-        // desliza para frente: adiciona os novos, remove os que sa√≠ram da janela
+        // desliza para frente: adiciona os novos, remove os que saÌram da janela
         For t := nPrev + 1 To tEnd
             id := aSeq[t]
             aCnt[id] := aCnt[id] + 1
@@ -370,22 +370,22 @@ Static Function Argmax(aScores)
 Return nIdx
 
 // -------------------------------------------------------------------- Treino
-// Perceptron multiclasse M√âDIO (Collins 2002): erra -> U[alvo]+=h, U[prev]-=h,
-// e mant√©m um acumulador Uc[..]+=t*delta; ao final usa a m√©dia U-Uc/T, que
-// generaliza melhor que os pesos finais. Tudo add/sub (h √© tern√°rio).
+// Perceptron multiclasse M…DIO (Collins 2002): erra -> U[alvo]+=h, U[prev]-=h,
+// e mantÈm um acumulador Uc[..]+=t*delta; ao final usa a mÈdia U-Uc/T, que
+// generaliza melhor que os pesos finais. Tudo add/sub (h È tern·rio).
 // Para escalar a corpus grande, treina numa AMOSTRA por stride (teto MAXTRAIN);
-// o Markov j√° usa o corpus inteiro. Custo do treino neural fica limitado.
+// o Markov j· usa o corpus inteiro. Custo do treino neural fica limitado.
 Static Function Train(oM)
     Local aStream := oM["stream"]
     Local aU  := oM["U"]
     Local nV  := oM["V"]
-    Local aUc := ZeroMatrix(nV, NHID)      // acumulador do perceptron m√©dio
+    Local aUc := ZeroMatrix(nV, NHID)      // acumulador do perceptron mÈdio
     Local nP := 0
     Local i := 0
     Local j := 0
     Local nErr := 0
     Local nErr1 := -1
-    Local nT := 0                          // contador global de exemplos (peso da m√©dia)
+    Local nT := 0                          // contador global de exemplos (peso da mÈdia)
     Local nPos := Len(aStream) - NCTX
     Local nStep := 1
     Local aCtx := {}
@@ -399,16 +399,16 @@ Static Function Train(oM)
     Local aCcP := Nil
 
     If nPos > MAXTRAIN
-        nStep := Int((nPos - 1) / MAXTRAIN) + 1   // divis√£o-teto: amostra <= MAXTRAIN posi√ß√µes
+        nStep := Int((nPos - 1) / MAXTRAIN) + 1   // divis„o-teto: amostra <= MAXTRAIN posiÁıes
     EndIf
 
-    ConOut("Treinando (perceptron m√©dio tern√°rio, " + Str(PASSES,2) + " passadas, stride " + Str(nStep,2) + "):")
+    ConOut("Treinando (perceptron mÈdio tern·rio, " + Str(PASSES,2) + " passadas, stride " + Str(nStep,2) + "):")
     For nP := 1 To PASSES
         nErr := 0
         i := 1
         While i <= nPos
             nT++
-            nAlvo := aStream[i + NCTX]        // alvo = palavra ap√≥s o contexto
+            nAlvo := aStream[i + NCTX]        // alvo = palavra apÛs o contexto
 
             aFwd := Forward(oM, aStream, i + NCTX - 1)   // contexto termina em i+NCTX-1
             nPred := Argmax(aFwd[1])
@@ -437,7 +437,7 @@ Static Function Train(oM)
         EndIf
     Next nP
 
-    // Pesos m√©dios: U := U - Uc / T
+    // Pesos mÈdios: U := U - Uc / T
     If nT > 0
         For i := 1 To nV
             aRowA := aU[i]
@@ -467,18 +467,18 @@ Static Function ZeroMatrix(nR, nC)
     Next i
 Return a
 
-// ------------------------------------------------------------------ Gera√ß√£o
-// Gera um DOCUMENTO de at√© nMax tokens (multi-frase) a partir de um seed que
-// pode ter at√© CTXMAX tokens. Mant√©m a sequ√™ncia inteira aSeq, que alimenta o
-// contexto local (√∫ltimas NCTX palavras) e o bag (√∫ltimas BAGW). Continua ap√≥s
-// cada ".", come√ßando nova frase, at√© atingir nMax.
+// ------------------------------------------------------------------ GeraÁ„o
+// Gera um DOCUMENTO de atÈ nMax tokens (multi-frase) a partir de um seed que
+// pode ter atÈ CTXMAX tokens. MantÈm a sequÍncia inteira aSeq, que alimenta o
+// contexto local (˙ltimas NCTX palavras) e o bag (˙ltimas BAGW). Continua apÛs
+// cada ".", comeÁando nova frase, atÈ atingir nMax.
 Static Function Gera(oM, cSeed, nMax)
     Local aSeq := SeedSeq(oM, cSeed)       // ids do seed (aceita seed longo)
     Local cOut := cSeed
     Local i := 0
     Local nNext := 0
     Local nPrev := 0
-    Local nSent := 0                       // palavras na frase atual (libera "." ap√≥s >=4)
+    Local nSent := 0                       // palavras na frase atual (libera "." apÛs >=4)
 
     If nMax > CTXMAX
         nMax := CTXMAX
@@ -504,9 +504,9 @@ Static Function Gera(oM, cSeed, nMax)
 Return
 
 // NextWord: mistura Markov INTERPOLADO (Jelinek-Mercer: combina TODAS as ordens
-// 1..NCTX, cada uma normalizada por frequ√™ncia e pesada por lambda_k favorecendo
-// a ordem maior) com o rerank aprendido da rede tern√°ria; aplica anti-repeti√ß√£o
-// e sharpening, e amostra por NUCLEUS (top-p). <s>/<unk> nunca s√£o gerados.
+// 1..NCTX, cada uma normalizada por frequÍncia e pesada por lambda_k favorecendo
+// a ordem maior) com o rerank aprendido da rede tern·ria; aplica anti-repetiÁ„o
+// e sharpening, e amostra por NUCLEUS (top-p). <s>/<unk> nunca s„o gerados.
 Static Function NextWord(oM, aSeq, nPrev, lAllowEnd)
     Local nEnd    := Len(aSeq)
     Local aMkAll  := oM["mk"]
@@ -514,7 +514,7 @@ Static Function NextWord(oM, aSeq, nPrev, lAllowEnd)
     Local aTop    := TopK(aScores, 6)
     Local cKey    := ""
     Local aMk     := Nil
-    Local aIds    := {}    // candidatos √∫nicos
+    Local aIds    := {}    // candidatos ˙nicos
     Local aW      := {}    // peso paralelo
     Local j       := 0
     Local k       := 0
@@ -523,10 +523,10 @@ Static Function NextWord(oM, aSeq, nPrev, lAllowEnd)
     Local nUnk    := 2
     Local nLambda := 0
 
-    // Interpola√ß√£o: soma a contribui√ß√£o de cada ordem k (maior ordem = maior peso).
+    // InterpolaÁ„o: soma a contribuiÁ„o de cada ordem k (maior ordem = maior peso).
     For k := NCTX To 1 Step -1
         cKey := ""
-        For j := nEnd - k + 1 To nEnd            // √∫ltimas k palavras da sequ√™ncia
+        For j := nEnd - k + 1 To nEnd            // ˙ltimas k palavras da sequÍncia
             id := 1
             If j >= 1
                 id := aSeq[j]
@@ -542,12 +542,12 @@ Static Function NextWord(oM, aSeq, nPrev, lAllowEnd)
         EndIf
     Next k
 
-    // Rede tern√°ria: b√¥nus por rank (top-1 vale mais); cobre contexto n√£o visto.
+    // Rede tern·ria: bÙnus por rank (top-1 vale mais); cobre contexto n„o visto.
     For j := 1 To Len(aTop)
         AddCand(aIds, aW, aTop[j], 1.0 * (Len(aTop) - j + 1) / Len(aTop))
     Next j
 
-    // Filtros: descarta <s>/<unk>; segura ponto final; penaliza repeti√ß√£o na
+    // Filtros: descarta <s>/<unk>; segura ponto final; penaliza repetiÁ„o na
     // janela recente (mata loops "se se se"); sharpening.
     For j := 1 To Len(aIds)
         id := aIds[j]
@@ -562,7 +562,7 @@ Static Function NextWord(oM, aSeq, nPrev, lAllowEnd)
     Next j
 Return NucleusSample(aIds, aW, TOPP)
 
-// RecentCount: quantas vezes id aparece nas √∫ltimas REPWIN posi√ß√µes de aSeq.
+// RecentCount: quantas vezes id aparece nas ˙ltimas REPWIN posiÁıes de aSeq.
 Static Function RecentCount(aSeq, nEnd, id)
     Local n := 0
     Local r := nEnd - REPWIN + 1
@@ -577,7 +577,7 @@ Static Function RecentCount(aSeq, nEnd, id)
     End
 Return n
 
-// IdOf: id de uma palavra (0 se n√£o existir no vocabul√°rio).
+// IdOf: id de uma palavra (0 se n„o existir no vocabul·rio).
 Static Function IdOf(oM, cW)
     If ValType(oM["w2id"][cW]) == "U"
         Return 0
@@ -595,9 +595,9 @@ Static Function AddCand(aIds, aW, id, nAdd)
     EndIf
 Return
 
-// NucleusSample (top-p): ordena por peso desc, mant√©m o menor conjunto cuja
+// NucleusSample (top-p): ordena por peso desc, mantÈm o menor conjunto cuja
 // massa acumulada atinge nP da massa total, e amostra proporcional dentro dele.
-// Corta a cauda de baixa probabilidade ‚Äî a t√©cnica moderna de amostragem.
+// Corta a cauda de baixa probabilidade ó a tÈcnica moderna de amostragem.
 Static Function NucleusSample(aIds, aW, nP)
     Local aPar := {}
     Local nTot := 0
@@ -617,7 +617,7 @@ Static Function NucleusSample(aIds, aW, nP)
     EndIf
 
     ASort(aPar, , , {|x, y| x[2] > y[2] })       // maior peso primeiro
-    // n√∫cleo: menor prefixo com massa >= nP * total
+    // n˙cleo: menor prefixo com massa >= nP * total
     nCut := Len(aPar)
     For i := 1 To Len(aPar)
         nAcc += aPar[i][2]
@@ -627,7 +627,7 @@ Static Function NucleusSample(aIds, aW, nP)
         EndIf
     Next i
 
-    // amostra proporcional dentro do n√∫cleo (1..nCut)
+    // amostra proporcional dentro do n˙cleo (1..nCut)
     nTot := 0
     For i := 1 To nCut
         nTot += aPar[i][2]
@@ -642,8 +642,8 @@ Static Function NucleusSample(aIds, aW, nP)
     Next i
 Return aPar[1][1]
 
-// SeedSeq: converte o seed (de qualquer tamanho, at√© CTXMAX) num array de ids,
-// com NCTX <s> de padding √† esquerda. Palavra fora do vocabul√°rio vira <unk>.
+// SeedSeq: converte o seed (de qualquer tamanho, atÈ CTXMAX) num array de ids,
+// com NCTX <s> de padding ‡ esquerda. Palavra fora do vocabul·rio vira <unk>.
 Static Function SeedSeq(oM, cSeed)
     Local aTok := Tokenize(cSeed)
     Local jW := oM["w2id"]
@@ -695,7 +695,7 @@ Static Function SelfTest(oM)
 
     ConOut("--- auto-teste ---")
 
-    // 1. BLAS tern√°ria: sanidade do multiply-free
+    // 1. BLAS tern·ria: sanidade do multiply-free
     If MatVecTern({{5, 7, 9}}, {1, 0, -1})[1] != -4    // 5 - 9
         ConOut("FALHA: MatVecTern incorreto"); nFail++
     EndIf

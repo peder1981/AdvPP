@@ -114,12 +114,12 @@ Return aW
 // Fold: minusculas + remove acentos do PT-BR (casamento robusto a acentos).
 Static Function Fold(c)
     c := Lower(c)
-    c := StrTran(c, "Ã¡", "a") ; c := StrTran(c, "Ã ", "a") ; c := StrTran(c, "Ã¢", "a") ; c := StrTran(c, "Ã£", "a")
-    c := StrTran(c, "Ã©", "e") ; c := StrTran(c, "Ãª", "e")
-    c := StrTran(c, "Ã­", "i")
-    c := StrTran(c, "Ã³", "o") ; c := StrTran(c, "Ã´", "o") ; c := StrTran(c, "Ãµ", "o")
-    c := StrTran(c, "Ãº", "u") ; c := StrTran(c, "Ã¼", "u")
-    c := StrTran(c, "Ã§", "c")
+    c := StrTran(c, "á", "a") ; c := StrTran(c, "à", "a") ; c := StrTran(c, "â", "a") ; c := StrTran(c, "ã", "a")
+    c := StrTran(c, "é", "e") ; c := StrTran(c, "ê", "e")
+    c := StrTran(c, "í", "i")
+    c := StrTran(c, "ó", "o") ; c := StrTran(c, "ô", "o") ; c := StrTran(c, "õ", "o")
+    c := StrTran(c, "ú", "u") ; c := StrTran(c, "ü", "u")
+    c := StrTran(c, "ç", "c")
 Return c
 
 Static Function IsWordByte(cCh)

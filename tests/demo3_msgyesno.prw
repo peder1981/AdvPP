@@ -5,20 +5,20 @@ User Function Demo3MsgYesNo()
     ConOut("========================================")
     
     Local cPergunta := "Hello World?"
-    Local cTitulo := "Confirma√ß√£o AdvPP"
+    Local cTitulo := "ConfirmaÁ„o AdvPP"
     Local lResposta
     
-    // Exibe di√°logo de confirma√ß√£o e aguarda clique do usu√°rio
+    // Exibe di·logo de confirmaÁ„o e aguarda clique do usu·rio
     lResposta := MsgYesNo(cPergunta, cTitulo)
     
     ConOut("Pergunta: " + cPergunta)
     
     If lResposta
-        ConOut("Usu√°rio clicou em SIM")
-        MsgInfo("Voc√™ escolheu SIM!", "Resultado")
+        ConOut("Usu·rio clicou em SIM")
+        MsgInfo("VocÍ escolheu SIM!", "Resultado")
     Else
-        ConOut("Usu√°rio clicou em N√ÉO")
-        MsgInfo("Voc√™ escolheu N√ÉO!", "Resultado")
+        ConOut("Usu·rio clicou em N√O")
+        MsgInfo("VocÍ escolheu N√O!", "Resultado")
     EndIf
     
     ConOut("========================================")

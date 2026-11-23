@@ -1,10 +1,10 @@
 // Fixture usada por TestBuildStandaloneInteractive (cmd/advplc): exercita,
-// num execut√°vel standalone (`advplc build`) real rodando sob um PTY real,
-// o caminho que standalone_console_test.prw deliberadamente n√£o cobre ‚Äî
+// num execut·vel standalone (`advplc build`) real rodando sob um PTY real,
+// o caminho que standalone_console_test.prw deliberadamente n„o cobre ó
 // FWGetText/FWMenuSelect lendo teclado e FWMBrowse fazendo CRUD. Sem isso
-// nenhum teste automatizado teria pego a regress√£o real: um `advplc build`
-// que compilava e "rodava" mas nunca lia stdin (login silencioso, sa√≠da
-// instant√¢nea) e um FWMBrowse que s√≥ existia para o modo web.
+// nenhum teste automatizado teria pego a regress„o real: um `advplc build`
+// que compilava e "rodava" mas nunca lia stdin (login silencioso, saÌda
+// instant‚nea) e um FWMBrowse que sÛ existia para o modo web.
 #include "totvs.ch"
 
 User Function Main()

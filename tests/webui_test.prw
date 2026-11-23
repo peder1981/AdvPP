@@ -3,12 +3,12 @@ User Function WebTst()
     ConOut("Bem-vindo ao AdvPP Web!")
     DBSelectArea("SA1")
     ConOut("Clientes na base: " + cValToChar(RecCount()))
-    lOk := MsgYesNo("Deseja processar os clientes?", "Confirma√ß√£o")
+    lOk := MsgYesNo("Deseja processar os clientes?", "ConfirmaÁ„o")
     If lOk
         ConOut("Processando...")
-        MsgInfo("Processamento conclu√≠do com sucesso!", "Sucesso")
+        MsgInfo("Processamento concluÌdo com sucesso!", "Sucesso")
     Else
-        MsgAlert("Processamento cancelado pelo usu√°rio.", "Aten√ß√£o")
+        MsgAlert("Processamento cancelado pelo usu·rio.", "AtenÁ„o")
     EndIf
     ConOut("Fim do programa.")
 Return

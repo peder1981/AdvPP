@@ -93,34 +93,34 @@ Static Function TestFileErrors()
 	nTotal++
 	Begin Sequence
 		Local cData := FRead(FOpen("/nonexistent/path/file.txt", FO_READ), 100)
-		ConOut("⚠ Test 1: File not found (expected error)")
+		ConOut("[AVISO] Test 1: File not found (expected error)")
 		// May not error if file open returns error code
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 1: File not found (error caught)")
+		ConOut("[OK] Test 1: File not found (error caught)")
 	End Sequence
 
 	// Test 2: File permission denied
 	nTotal++
 	Begin Sequence
 		Local nHandle := FCreate("/root/denied.txt")  // Likely denied on non-root
-		ConOut("⚠ Test 2: Permission denied (may succeed on some systems)")
+		ConOut("[AVISO] Test 2: Permission denied (may succeed on some systems)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 2: Permission denied (error caught)")
+		ConOut("[OK] Test 2: Permission denied (error caught)")
 	End Sequence
 
 	// Test 3: Invalid file handle
 	nTotal++
 	Begin Sequence
 		Local cData := FRead(-1, 100)  // Invalid handle
-		ConOut("⚠ Test 3: Invalid handle (may not error)")
+		ConOut("[AVISO] Test 3: Invalid handle (may not error)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 3: Invalid handle (error caught)")
+		ConOut("[OK] Test 3: Invalid handle (error caught)")
 	End Sequence
 
 	ConOut("File Errors: " + cValToChar(nPass) + "/" + cValToChar(nTotal) + " passed")
@@ -137,22 +137,22 @@ Static Function TestArithmeticErrors()
 	nTotal++
 	Begin Sequence
 		Local nDiv := 10 / 0
-		ConOut("⚠ Test 4: Division by zero (KNOWN BUG - panics)")
+		ConOut("[AVISO] Test 4: Division by zero (KNOWN BUG - panics)")
 		// Skip this test as it crashes
 	Recover
 		nPass++
-		ConOut("✓ Test 4: Division by zero (error caught)")
+		ConOut("[OK] Test 4: Division by zero (error caught)")
 	End Sequence
 
 	// Test 2: Modulo by zero
 	nTotal++
 	Begin Sequence
 		Local nMod := 10 % 0
-		ConOut("⚠ Test 5: Modulo by zero (KNOWN BUG - panics)")
+		ConOut("[AVISO] Test 5: Modulo by zero (KNOWN BUG - panics)")
 		// Skip this test as it crashes
 	Recover
 		nPass++
-		ConOut("✓ Test 5: Modulo by zero (error caught)")
+		ConOut("[OK] Test 5: Modulo by zero (error caught)")
 	End Sequence
 
 	// Test 3: Type mismatch (string + number)
@@ -160,22 +160,22 @@ Static Function TestArithmeticErrors()
 	Begin Sequence
 		Local cResult := "hello" + 5
 		// AdvPL coerces, so this may not error
-		ConOut("⚠ Test 6: Type coercion (may not error)")
+		ConOut("[AVISO] Test 6: Type coercion (may not error)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 6: Type coercion (error caught)")
+		ConOut("[OK] Test 6: Type coercion (error caught)")
 	End Sequence
 
 	// Test 4: Large power (2^1000)
 	nTotal++
 	Begin Sequence
 		Local nPow := 2 ** 1000
-		ConOut("⚠ Test 7: Large power (may overflow silently)")
+		ConOut("[AVISO] Test 7: Large power (may overflow silently)")
 		nPass++  // Not a crash, so acceptable
 	Recover
 		nPass++
-		ConOut("✓ Test 7: Large power (error caught)")
+		ConOut("[OK] Test 7: Large power (error caught)")
 	End Sequence
 
 	ConOut("Arithmetic Errors: " + cValToChar(nPass) + "/" + cValToChar(nTotal) + " passed")
@@ -193,11 +193,11 @@ Static Function TestArrayErrors()
 	Local aNil := Nil
 	Begin Sequence
 		Local xVal := aNil[1]
-		ConOut("⚠ Test 8: Nil array access (may be safe)")
+		ConOut("[AVISO] Test 8: Nil array access (may be safe)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 8: Nil array access (error caught)")
+		ConOut("[OK] Test 8: Nil array access (error caught)")
 	End Sequence
 
 	// Test 2: Negative index
@@ -205,18 +205,18 @@ Static Function TestArrayErrors()
 	Local aArr := {1, 2, 3}
 	If aArr[-1] == Nil
 		nPass++
-		ConOut("✓ Test 9: Negative array index returns nil")
+		ConOut("[OK] Test 9: Negative array index returns nil")
 	Else
-		ConOut("✗ Test 9: Negative index not handled")
+		ConOut("[FALHA] Test 9: Negative index not handled")
 	EndIf
 
 	// Test 3: Huge index (out of bounds)
 	nTotal++
 	If aArr[999999] == Nil
 		nPass++
-		ConOut("✓ Test 10: Huge index returns nil")
+		ConOut("[OK] Test 10: Huge index returns nil")
 	Else
-		ConOut("✗ Test 10: Huge index not handled")
+		ConOut("[FALHA] Test 10: Huge index not handled")
 	EndIf
 
 	// Test 4: Add to huge array (size limit)
@@ -231,14 +231,14 @@ Static Function TestArrayErrors()
 				lOk := (aAdd(aHuge, i + 1) != .F.)
 				If !lOk
 					nPass++
-					ConOut("✓ Test 11: Array size limit enforced")
+					ConOut("[OK] Test 11: Array size limit enforced")
 				EndIf
 				Exit
 			EndIf
 		Next
 	Recover
 		nPass++
-		ConOut("✓ Test 11: Array size limit (error caught)")
+		ConOut("[OK] Test 11: Array size limit (error caught)")
 	End Sequence
 
 	// Test 5: Clone nil array
@@ -248,11 +248,11 @@ Static Function TestArrayErrors()
 		Local aClone := aClone(aNil2)
 		If aClone == Nil
 			nPass++
-			ConOut("✓ Test 12: Clone nil array returns nil")
+			ConOut("[OK] Test 12: Clone nil array returns nil")
 		EndIf
 	Recover
 		nPass++
-		ConOut("✓ Test 12: Clone nil array (error caught)")
+		ConOut("[OK] Test 12: Clone nil array (error caught)")
 	End Sequence
 
 	ConOut("Array Errors: " + cValToChar(nPass) + "/" + cValToChar(nTotal) + " passed")
@@ -270,9 +270,9 @@ Static Function TestStringErrors()
 	Local cStr := "hello"
 	If SubStr(cStr, -1, 2) == "" .Or. SubStr(cStr, -1, 2) != Nil
 		nPass++
-		ConOut("✓ Test 13: SubStr negative index (safe)")
+		ConOut("[OK] Test 13: SubStr negative index (safe)")
 	Else
-		ConOut("✗ Test 13: SubStr negative not handled")
+		ConOut("[FALHA] Test 13: SubStr negative not handled")
 	EndIf
 
 	// Test 2: SubStr with huge length
@@ -280,9 +280,9 @@ Static Function TestStringErrors()
 	Local cSub := SubStr(cStr, 1, 1000)
 	If Len(cSub) <= 5
 		nPass++
-		ConOut("✓ Test 14: SubStr huge length (truncated)")
+		ConOut("[OK] Test 14: SubStr huge length (truncated)")
 	Else
-		ConOut("✗ Test 14: SubStr huge length not handled")
+		ConOut("[FALHA] Test 14: SubStr huge length not handled")
 	EndIf
 
 	// Test 3: At() with empty substring
@@ -291,11 +291,11 @@ Static Function TestStringErrors()
 		Local nPos := At("", cStr)
 		If nPos >= 0
 			nPass++
-			ConOut("✓ Test 15: At() empty substring (returns " + cValToChar(nPos) + ")")
+			ConOut("[OK] Test 15: At() empty substring (returns " + cValToChar(nPos) + ")")
 		EndIf
 	Recover
 		nPass++
-		ConOut("✓ Test 15: At() empty substring (error caught)")
+		ConOut("[OK] Test 15: At() empty substring (error caught)")
 	End Sequence
 
 	// Test 4: Very long string (near 10MB limit)
@@ -308,10 +308,10 @@ Static Function TestStringErrors()
 		Next
 		If Len(cLong) == 10000
 			nPass++
-			ConOut("✓ Test 16: Long string (10k chars)")
+			ConOut("[OK] Test 16: Long string (10k chars)")
 		EndIf
 	Recover
-		ConOut("✗ Test 16: Long string failed")
+		ConOut("[FALHA] Test 16: Long string failed")
 	End Sequence
 
 	ConOut("String Errors: " + cValToChar(nPass) + "/" + cValToChar(nTotal) + " passed")
@@ -329,7 +329,7 @@ Static Function TestObjectErrors()
 	Local oNil := Nil
 	If oNil == Nil
 		nPass++
-		ConOut("✓ Test 17: Nil comparison (safe)")
+		ConOut("[OK] Test 17: Nil comparison (safe)")
 	EndIf
 
 	// Test 2: Nil object iteration
@@ -339,11 +339,11 @@ Static Function TestObjectErrors()
 		For i := 1 To Len(oNil)
 			// Should not execute
 		Next
-		ConOut("⚠ Test 18: Nil iteration (may be safe)")
+		ConOut("[AVISO] Test 18: Nil iteration (may be safe)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 18: Nil iteration (error caught)")
+		ConOut("[OK] Test 18: Nil iteration (error caught)")
 	End Sequence
 
 	// Test 3: Object property on nil
@@ -353,11 +353,11 @@ Static Function TestObjectErrors()
 			Local cVal := oNil["key"]
 		Else
 			nPass++
-			ConOut("✓ Test 19: Nil object property (safe check)")
+			ConOut("[OK] Test 19: Nil object property (safe check)")
 		EndIf
 	Recover
 		nPass++
-		ConOut("✓ Test 19: Nil object property (error caught)")
+		ConOut("[OK] Test 19: Nil object property (error caught)")
 	End Sequence
 
 	// Test 4: Object with 10k+ properties
@@ -369,13 +369,13 @@ Static Function TestObjectErrors()
 		For i := 1 To 10_001
 			oObj["key" + cValToChar(i)] := i
 			If i == 10_001
-				ConOut("⚠ Test 20: Object 10k props (may be accepted)")
+				ConOut("[AVISO] Test 20: Object 10k props (may be accepted)")
 				nPass++
 			EndIf
 		Next
 	Recover
 		nPass++
-		ConOut("✓ Test 20: Object property limit (error caught)")
+		ConOut("[OK] Test 20: Object property limit (error caught)")
 	End Sequence
 
 	ConOut("Object Errors: " + cValToChar(nPass) + "/" + cValToChar(nTotal) + " passed")
@@ -393,11 +393,11 @@ Static Function TestFunctionErrors()
 	Local bNil := Nil
 	Begin Sequence
 		Local xRet := Eval(bNil)
-		ConOut("⚠ Test 21: Call nil block (may not error)")
+		ConOut("[AVISO] Test 21: Call nil block (may not error)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 21: Call nil block (error caught)")
+		ConOut("[OK] Test 21: Call nil block (error caught)")
 	End Sequence
 
 	// Test 2: Call function with missing argument
@@ -407,14 +407,14 @@ Static Function TestFunctionErrors()
 		Local nRet := Eval(bFunc)  // No argument
 		If nRet == Nil
 			nPass++
-			ConOut("✓ Test 22: Missing argument (handled, returns nil)")
+			ConOut("[OK] Test 22: Missing argument (handled, returns nil)")
 		Else
-			ConOut("⚠ Test 22: Missing argument")
+			ConOut("[AVISO] Test 22: Missing argument")
 			nPass++
 		EndIf
 	Recover
 		nPass++
-		ConOut("✓ Test 22: Missing argument (error caught)")
+		ConOut("[OK] Test 22: Missing argument (error caught)")
 	End Sequence
 
 	// Test 3: Call function with too many arguments
@@ -423,24 +423,24 @@ Static Function TestFunctionErrors()
 		Local nRet := Eval(bFunc, 1, 2, 3)  // 3 args instead of 1
 		If nRet == 2
 			nPass++
-			ConOut("✓ Test 23: Too many arguments (ignored)")
+			ConOut("[OK] Test 23: Too many arguments (ignored)")
 		Else
-			ConOut("⚠ Test 23: Too many arguments")
+			ConOut("[AVISO] Test 23: Too many arguments")
 			nPass++
 		EndIf
 	Recover
 		nPass++
-		ConOut("✓ Test 23: Too many arguments (error caught)")
+		ConOut("[OK] Test 23: Too many arguments (error caught)")
 	End Sequence
 
 	// Test 4: Call non-existent user function
 	nTotal++
 	Begin Sequence
 		Local xRet := NonExistentFunc()
-		ConOut("✗ Test 24: Non-existent function should error")
+		ConOut("[FALHA] Test 24: Non-existent function should error")
 	Recover
 		nPass++
-		ConOut("✓ Test 24: Non-existent function (error caught)")
+		ConOut("[OK] Test 24: Non-existent function (error caught)")
 	End Sequence
 
 	ConOut("Function Errors: " + cValToChar(nPass) + "/" + cValToChar(nTotal) + " passed")
@@ -458,11 +458,11 @@ Static Function TestDatabaseErrors()
 	Begin Sequence
 		DbSelectArea("NONEXIST")
 		DbSeek("X_COD", "999")
-		ConOut("⚠ Test 25: Non-existent table (may be safe)")
+		ConOut("[AVISO] Test 25: Non-existent table (may be safe)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 25: Non-existent table (error caught)")
+		ConOut("[OK] Test 25: Non-existent table (error caught)")
 	End Sequence
 
 	// Test 2: DbFieldPut with invalid value
@@ -470,22 +470,22 @@ Static Function TestDatabaseErrors()
 	Begin Sequence
 		DbSelectArea("SA1")
 		DbFieldPut("INVALID_FIELD", "value")
-		ConOut("⚠ Test 26: Invalid field (may be safe)")
+		ConOut("[AVISO] Test 26: Invalid field (may be safe)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 26: Invalid field (error caught)")
+		ConOut("[OK] Test 26: Invalid field (error caught)")
 	End Sequence
 
 	// Test 3: Concurrent write conflict
 	nTotal++
 	Begin Sequence
 		// Simulate write conflict (would need actual concurrency)
-		ConOut("⚠ Test 27: Write conflict (requires concurrent test)")
+		ConOut("[AVISO] Test 27: Write conflict (requires concurrent test)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 27: Write conflict (error caught)")
+		ConOut("[OK] Test 27: Write conflict (error caught)")
 	End Sequence
 
 	ConOut("Database Errors: " + cValToChar(nPass) + "/" + cValToChar(nTotal) + " passed")
@@ -502,11 +502,11 @@ Static Function TestJSONErrors()
 	nTotal++
 	Begin Sequence
 		Local oJson := JsonObject():FromJson("{invalid json")
-		ConOut("⚠ Test 28: Invalid JSON (may be safe)")
+		ConOut("[AVISO] Test 28: Invalid JSON (may be safe)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 28: Invalid JSON (error caught)")
+		ConOut("[OK] Test 28: Invalid JSON (error caught)")
 	End Sequence
 
 	// Test 2: Very deep JSON nesting (100+ levels)
@@ -522,11 +522,11 @@ Static Function TestJSONErrors()
 			cDeep += "}"
 		Next
 		Local oJson := JsonObject():FromJson(cDeep)
-		ConOut("⚠ Test 29: Very deep JSON (may be accepted)")
+		ConOut("[AVISO] Test 29: Very deep JSON (may be accepted)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 29: Very deep JSON (limit enforced)")
+		ConOut("[OK] Test 29: Very deep JSON (limit enforced)")
 	End Sequence
 
 	// Test 3: JSON with huge string value
@@ -534,11 +534,11 @@ Static Function TestJSONErrors()
 	Begin Sequence
 		Local cJson := '{"key":"' + Space(1000000) + '"}'
 		Local oJson := JsonObject():FromJson(cJson)
-		ConOut("⚠ Test 30: Huge JSON value (may be accepted)")
+		ConOut("[AVISO] Test 30: Huge JSON value (may be accepted)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 30: Huge JSON value (error caught)")
+		ConOut("[OK] Test 30: Huge JSON value (error caught)")
 	End Sequence
 
 	ConOut("JSON Errors: " + cValToChar(nPass) + "/" + cValToChar(nTotal) + " passed")
@@ -558,22 +558,22 @@ Static Function TestResourceErrors()
 		For i := 1 To 1001
 			StartJob("DummyJob", {})
 		Next
-		ConOut("⚠ Test 31: 1001 jobs (may hit limit)")
+		ConOut("[AVISO] Test 31: 1001 jobs (may hit limit)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 31: Job limit enforced")
+		ConOut("[OK] Test 31: Job limit enforced")
 	End Sequence
 
 	// Test 2: Deep recursion (1001+ levels)
 	nTotal++
 	Begin Sequence
 		Local nRet := RecurseDeep(1001)
-		ConOut("⚠ Test 32: Deep recursion (may be limited)")
+		ConOut("[AVISO] Test 32: Deep recursion (may be limited)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 32: Recursion limit enforced")
+		ConOut("[OK] Test 32: Recursion limit enforced")
 	End Sequence
 
 	// Test 3: Stack exhaustion
@@ -584,11 +584,11 @@ Static Function TestResourceErrors()
 		For i := 1 To 5001
 			aAdd(aStack, Space(100))  // Each 100 bytes
 		Next
-		ConOut("⚠ Test 33: Stack exhaustion (may be accepted)")
+		ConOut("[AVISO] Test 33: Stack exhaustion (may be accepted)")
 		nPass++
 	Recover
 		nPass++
-		ConOut("✓ Test 33: Stack limit enforced")
+		ConOut("[OK] Test 33: Stack limit enforced")
 	End Sequence
 
 	ConOut("Resource Errors: " + cValToChar(nPass) + "/" + cValToChar(nTotal) + " passed")

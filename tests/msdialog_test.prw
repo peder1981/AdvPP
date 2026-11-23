@@ -1,7 +1,7 @@
 #include "totvs.ch"
 
 // Teste da fase 4 do renderer web: MSDIALOG legado (@ x,y SAY/GET/BUTTON)
-// renderizado como modal PO-UI por heurÃ­stica de grade.
+// renderizado como modal PO-UI por heurística de grade.
 // Executar com: advplc serve tests/msdialog_test.prw
 User Function DlgTst()
     Local oDlg

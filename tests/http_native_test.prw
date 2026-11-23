@@ -2,7 +2,7 @@
 // Testa as natives HTTP (FWHttpGet, FWHttpPost, FWHttpPut, FWHttpPatch,
 // FWHttpDelete, FWHttpBody, FWHttpStatus, FWHttpError) com servidor de
 // teste local (iniciado pelo Go test http_native_test.go).
-// O Go test passa a URL do servidor via vari√°vel de ambiente ADVPP_TEST_URL.
+// O Go test passa a URL do servidor via vari·vel de ambiente ADVPP_TEST_URL.
 
 User Function HttpNativeTest()
     Local cTestUrl := GetEnv("ADVPP_TEST_URL")
@@ -38,7 +38,7 @@ User Function HttpNativeTest()
     nStatus := FWHttpDelete(cTestUrl + "/echo-delete", "", "")
     ConOut("delete_status=" + Str(nStatus))
 
-    // --- URL inv√°lida (deve retornar 0 sem crash) ---
+    // --- URL inv·lida (deve retornar 0 sem crash) ---
     nStatus := FWHttpGet("http://192.0.2.1:1/teste", "", "")
     ConOut("erro_status=" + Str(nStatus))
     ConOut("erro_msg_vazia=" + IIf(FWHttpError() == "", "1", "0"))

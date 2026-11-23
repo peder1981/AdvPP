@@ -1,7 +1,7 @@
-// entrypoint_lib_test.prw ‚Äî lib auxiliar. Se este arquivo virar o ponto de
+// entrypoint_lib_test.prw ó lib auxiliar. Se este arquivo virar o ponto de
 // entrada por engano (chamado sem argumentos), cValor fica sem valor: antes
-// da corre√ß√£o, comparar esse slot a Nil (`cValor == Nil`, padr√£o comum pra
-// par√¢metro opcional) derrubava a VM com SIGSEGV em vez de avaliar .T./.F.
+// da correÁ„o, comparar esse slot a Nil (`cValor == Nil`, padr„o comum pra
+// par‚metro opcional) derrubava a VM com SIGSEGV em vez de avaliar .T./.F.
 User Function EpLibHelper(cValor)
    If cValor == Nil
       ConOut("biblioteca chamada - ERRADO")

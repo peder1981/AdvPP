@@ -2,7 +2,7 @@
     Biblioteca de algoritmos classicos de logica / leetcode / script, 100% em AdvPL
     (AdvPP). Cada rotina e uma Static Function pura e testavel; o User Function
     AlgosAdvpl() roda asserts sobre todas. Serve tambem de corpus de treino para o
-    modelo de codigo dev_nn.prw (viÃ©s algoritmico).
+    modelo de codigo dev_nn.prw (viés algoritmico).
     @type  user function
     @author AdvPP
     @since 2026-07-22
@@ -158,7 +158,7 @@ Static Function Anagrama(a, b)
     aSort(aB)
 Return ArrIgual(aA, aB)
 
-// Array de codigos (numericos) dos chars â€” aSort ordena numerico de forma confiavel.
+// Array de codigos (numericos) dos chars — aSort ordena numerico de forma confiavel.
 Static Function StrParaCodigos(c)
     Local a := {}
     Local i := 0

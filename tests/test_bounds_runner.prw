@@ -48,34 +48,34 @@ Function Main()
 
 	If TestArrayGetNegativeIndex()
 		nPassed++
-		ConOut("✓ TestArrayGetNegativeIndex")
+		ConOut("[OK] TestArrayGetNegativeIndex")
 	Else
 		nFailed++
-		ConOut("✗ TestArrayGetNegativeIndex")
+		ConOut("[FALHA] TestArrayGetNegativeIndex")
 	EndIf
 
 	If TestArrayGetOutOfBounds()
 		nPassed++
-		ConOut("✓ TestArrayGetOutOfBounds")
+		ConOut("[OK] TestArrayGetOutOfBounds")
 	Else
 		nFailed++
-		ConOut("✗ TestArrayGetOutOfBounds")
+		ConOut("[FALHA] TestArrayGetOutOfBounds")
 	EndIf
 
 	If TestDivisionByZero()
 		nPassed++
-		ConOut("✓ TestDivisionByZero")
+		ConOut("[OK] TestDivisionByZero")
 	Else
 		nFailed++
-		ConOut("✗ TestDivisionByZero")
+		ConOut("[FALHA] TestDivisionByZero")
 	EndIf
 
 	If TestSubStrNegativeStart()
 		nPassed++
-		ConOut("✓ TestSubStrNegativeStart")
+		ConOut("[OK] TestSubStrNegativeStart")
 	Else
 		nFailed++
-		ConOut("✗ TestSubStrNegativeStart")
+		ConOut("[FALHA] TestSubStrNegativeStart")
 	EndIf
 
 	ConOut("")

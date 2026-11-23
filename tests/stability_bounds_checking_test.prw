@@ -628,9 +628,9 @@ EndFunction
 User Function TestBoundsCheckingEntry()
 	Local lResult := TestBoundsCheckingSuite()
 	If lResult
-		ConOut("✓ All bounds checking tests PASSED")
+		ConOut("[OK] All bounds checking tests PASSED")
 	Else
-		ConOut("✗ Some bounds checking tests FAILED")
+		ConOut("[FALHA] Some bounds checking tests FAILED")
 	EndIf
 	Return lResult
 EndFunction

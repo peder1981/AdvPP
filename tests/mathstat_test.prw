@@ -1,4 +1,4 @@
-// AritmÃ©tica faltante + estatÃ­stica (S6d).
+// Aritmética faltante + estatística (S6d).
 User Function MStatTst()
     Local nFail := 0
     Local aLR := {}

@@ -1,4 +1,4 @@
-// Wrapper de compatibilidade: expÃµe a API legada TDN de carga de DLL do
+// Wrapper de compatibilidade: expõe a API legada TDN de carga de DLL do
 // SmartClient (ExecInDLLOpen/ExecInDLLRun/ExeDLLRun2/ExeDLLRun3/
 // ExecInDLLClose) sobre o tRunDll (DynCall) nativo do AdvPP, para rodar
 // scripts AdvPL legados sem SmartClient (AppServer, job, standalone).
@@ -8,10 +8,10 @@
 //   void ExecInClientDLL(int idCommand, char* buffParam, char* buffOutput, int buffLen)   -- ExecInDLLRun/ExeDLLRun2
 //   int  ExecInClientDLL(int nParamHdl, char* cParameters, int nSizeParam, char* cBuffer, int nSizeBuffer) -- ExeDLLRun3
 //
-// DiferenÃ§a de sinal em relaÃ§Ã£o ao original: o handle retornado por
-// ExecInDLLOpen aqui Ã© o objeto tRunDll (referÃªncia), nÃ£o um inteiro â€” mas
-// -1 continua sinalizando falha, entÃ£o `If hHdl == -1` no cÃ³digo legado
-// continua funcionando sem alteraÃ§Ã£o.
+// Diferença de sinal em relação ao original: o handle retornado por
+// ExecInDLLOpen aqui é o objeto tRunDll (referência), não um inteiro — mas
+// -1 continua sinalizando falha, então `If hHdl == -1` no código legado
+// continua funcionando sem alteração.
 
 #include "tlpp-core.th"
 
@@ -25,7 +25,7 @@ Return oDll
 
 // Assinatura DynCall "VIAPI": void ret, int idCommand, char* buffParam
 // (string de entrada, letra 'A'), char* buffOutput (ponteiro alocado por
-// nÃ³s via NewObj â€” sÃ³ assim dÃ¡ pra ler de volta com StrCpy), int buffLen.
+// nós via NewObj — só assim dá pra ler de volta com StrCpy), int buffLen.
 Function ExecInDLLRun(hHdl As Object, nOpc As Numeric, cParam As Character) As Character
     Local oBuf := hHdl:NewObj(256) As Object
     Local lOk As Logical
@@ -47,9 +47,9 @@ Function ExeDLLRun2(hHdl As Object, nOpc As Numeric, cParam As Character, nBuffL
 Return hHdl:StrCpy(oBuf, nBuffLen)
 
 // Assinatura DynCall "IIAIPI": a DLL retorna um int real (status/tamanho),
-// mas esse retorno escalar continua inacessÃ­vel aqui â€” mesma limitaÃ§Ã£o de
-// @var que afeta todo CallFunction/CallMethod deste VM (sÃ³ ponteiro Ã©
-// observÃ¡vel). SÃ³ o conteÃºdo do buffer de saÃ­da Ã© recuperÃ¡vel.
+// mas esse retorno escalar continua inacessível aqui — mesma limitação de
+// @var que afeta todo CallFunction/CallMethod deste VM (só ponteiro é
+// observável). Só o conteúdo do buffer de saída é recuperável.
 Function ExeDLLRun3(hHdl As Object, cParam As Character, nBuffLen As Numeric) As Character
     Local oBuf := hHdl:NewObj(nBuffLen) As Object
     Local lOk As Logical
