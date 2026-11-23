@@ -81,6 +81,30 @@ var poClasses = map[string]struct{ class, typ string }{
 	"POPOPOVER":     {"PoPopover", "popover"},
 	"POCONTEXTMENU": {"PoContextMenu", "contextmenu"},
 	"POTOOLBAR":     {"PoToolbar", "toolbar"},
+	// onda 3b.3: navegação
+	"POLINK":        {"PoLink", "link"},
+	"POBREADCRUMB":  {"PoBreadcrumb", "breadcrumb"},
+	"POCONTEXTTABS": {"PoContextTabs", "contexttabs"},
+	// onda 3b.3: chrome do app
+	"PONAVBAR":    {"PoNavbar", "navbar"},
+	"POHEADER":    {"PoHeader", "header"},
+	"POMENUPANEL": {"PoMenuPanel", "menupanel"},
+	// onda 3b.4: exibição
+	"POAVATAR":         {"PoAvatar", "avatar"},
+	"POBADGE":          {"PoBadge", "badge"},
+	"POIMAGE":          {"PoImage", "image"},
+	"POSKELETON":       {"PoSkeleton", "skeleton"},
+	"POHELPER":         {"PoHelper", "helper"},
+	"POCALENDAR":       {"PoCalendar", "calendar"},
+	"PODYNAMICVIEW":    {"PoDynamicView", "dynamicview"},
+	"PODISCLAIMERGROUP": {"PoDisclaimerGroup", "disclaimergroup"},
+	"POFILTERCHIP":     {"PoFilterChip", "filterchip"},
+	// onda 3b.5: páginas especiais
+	"POPAGELOGIN":          {"PoPageLogin", "pagelogin"},
+	"POPAGECHANGEPASSWORD": {"PoPageChangePassword", "pagechangepassword"},
+	"POPAGEBLOCKEDUSER":    {"PoPageBlockedUser", "pageblockeduser"},
+	"POPAGESLIDE":          {"PoPageSlide", "pageslide"},
+	"POPAGEJOBSCHEDULER":   {"PoPageJobScheduler", "pagejobscheduler"},
 }
 
 // poLinguagens: linguagens de realce do AdvCodeEditor.
@@ -247,7 +271,23 @@ func (v *VM) callPoAppMethod(obj *advplrt.ObjectValue, method string, args []adv
 	case "LOADING":
 		a.addOp(map[string]any{"op": "loading", "on": advplrt.ToBool(getArg(args, 0)), "text": argTexto(args, 1, "")})
 	case "NOTIFY":
-		a.addOp(map[string]any{"op": "notify", "text": advplrt.ToString(getArg(args, 0)), "type": argTexto(args, 1, "information")})
+		// Notify(cMsg, cTipo[, nDuracao, cOrientacao, cAcaoLabel, bAcao])
+		op := map[string]any{"op": "notify", "text": advplrt.ToString(getArg(args, 0)), "type": argTexto(args, 1, "information")}
+		if d := getArg(args, 2); !advplrt.IsNil(d) {
+			op["duration"] = advplrt.ToFloat(d)
+		}
+		if o := strings.ToLower(argTexto(args, 3, "")); o == "top" || o == "bottom" {
+			op["orientation"] = o
+		}
+		if label := argTexto(args, 4, ""); label != "" {
+			op["actionLabel"] = label
+			if b, ok := getArg(args, 5).(*advplrt.CodeBlockValue); ok {
+				a.nextNotify++
+				a.notifyActs[a.nextNotify] = b
+				op["actionId"] = a.nextNotify
+			}
+		}
+		a.addOp(op)
 	default:
 		return fmt.Errorf("unknown method %s on PoApp", method)
 	}
@@ -261,7 +301,9 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 	pai, _ := getArg(args, 0).(*advplrt.ObjectValue)
 	var c *poComp
 	switch info.typ {
-	case "page", "menu", "pagelist", "pageedit", "pagedetail", "dyntable", "dynedit", "dyndetail", "dynsearch":
+	case "page", "menu", "pagelist", "pageedit", "pagedetail", "dyntable", "dynedit", "dyndetail", "dynsearch",
+		"navbar", "header", "menupanel",
+		"pagelogin", "pagechangepassword", "pageblockeduser", "pageslide", "pagejobscheduler":
 		a, ok := paiNative[*poAppState](pai)
 		if !ok {
 			return fmt.Errorf("%s: pai inválido (esperado PoApp)", obj.ClassName)
@@ -275,12 +317,29 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c.props["items"] = []map[string]any{}
 			break
 		}
+		if po3bChromeType(info.typ) {
+			// PoNavbar/PoHeader/PoMenuPanel: chrome único do PoApp.
+			cc, err := po3bChromeNew(a, info.class, info.typ, obj, args)
+			if err != nil {
+				return err
+			}
+			c = cc
+			po3bChromeProps(c, args)
+			break
+		}
 		// info.typ "page" ou template 3a.5 (pagelist/pageedit/pagedetail):
 		// todos são páginas do PoApp — Navigate e isContainer os tratam igual.
 		c = a.add(info.typ, obj)
 		a.pages = append(a.pages, c)
 		if a.cur == nil {
 			a.cur = c
+		}
+		if po3bPageType(info.typ) {
+			if err := po3bPageProps(c, args); err != nil {
+				return err
+			}
+			c.props["actions"] = []map[string]any{}
+			break
 		}
 		c.props["title"] = advplrt.ToString(getArg(args, 1))
 		c.props["actions"] = []map[string]any{}
@@ -309,7 +368,8 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 		case "modal":
 			ok = p.app.isPage(p)
 		case "accordion", "stepper", "slide",
-			"buttongroup", "dropdown", "popup", "popover", "contextmenu", "toolbar":
+			"buttongroup", "dropdown", "popup", "popover", "contextmenu", "toolbar",
+			"link", "breadcrumb", "contexttabs":
 			ok = p.app.isContainer(p)
 		default:
 			if info.typ == "tab" {
@@ -385,6 +445,21 @@ func (v *VM) poNew(obj *advplrt.ObjectValue, args []advplrt.Value) error {
 			c.props["title"] = advplrt.ToString(getArg(args, 1))
 			c.props["actions"] = []map[string]any{}
 			c.props["notificationNumber"] = 0
+		// onda 3b.3: navegação
+		case "link":
+			// New(oPai, cLabel, cUrl)
+			c.props["label"] = advplrt.ToString(getArg(args, 1))
+			c.props["url"] = advplrt.ToString(getArg(args, 2))
+			c.props["openNewTab"] = false
+		// onda 3b.4: exibição
+		case "avatar", "badge", "image", "skeleton", "helper",
+			"calendar", "dynamicview", "disclaimergroup", "filterchip":
+			po3bDispProps(c, args)
+		case "breadcrumb":
+			// New(oPai, aItens) — {{cLabel, cLinkOuPagina}}
+			c.props["items"] = po3bNavItems(p.app, c, getArg(args, 1))
+		case "contexttabs":
+			c.props["tabs"] = []map[string]any{}
 		case "button":
 			c.props["label"] = advplrt.ToString(getArg(args, 1))
 			if b, ok := getArg(args, 2).(*advplrt.CodeBlockValue); ok {
@@ -675,6 +750,34 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		return nil
 	}
 	if ok, r, err := v.po3bGroup2Method(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bNavMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bChromeMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bPageMethod(c, method, args); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		v.push(r)
+		return nil
+	}
+	if ok, r, err := v.po3bDispMethod(c, method, args); ok || err != nil {
 		if err != nil {
 			return err
 		}

@@ -8,6 +8,10 @@ import { dynAntes } from './dyn-hooks';
 import {
   PoAccordionModule, PoModalModule, PoModalComponent, PoSlideModule, PoStepperModule,
   PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
+  PoBreadcrumbModule, PoLinkModule, PoContextTabsModule,
+  PoNavbarModule, PoHeaderModule, PoMenuPanelModule,
+  PoAvatarModule, PoBadgeModule, PoImageModule, PoSkeletonModule, PoHelperModule,
+  PoCalendarModule, PoDisclaimerGroupModule, PoFilterChipModule,
   PoButtonModule, PoChartModule, PoChartSerie, PoContainerModule, PoDividerModule, PoDynamicModule, PoDynamicFormField, PoFieldModule, PoSearchModule,
   PoGaugeModule, PoInfoModule, PoListViewModule, PoPageAction, PoPageModule, PoProgressModule,
   PoTableModule, PoTabsModule, PoTagModule, PoTooltipModule, PoTreeViewItem, PoTreeViewModule, PoWidgetModule,
@@ -67,8 +71,16 @@ export class AppModalOpen implements AfterViewInit {
     PoAccordionModule, PoModalModule, PoSlideModule, PoStepperModule, AppModalOpen,
   PoButtonGroupModule, PoDropdownModule, PoPopupModule, PoPopoverModule, PoContextMenuModule, PoToolbarModule,
   PoTooltipModule,
+  PoBreadcrumbModule, PoLinkModule, PoContextTabsModule,
+  PoNavbarModule, PoHeaderModule, PoMenuPanelModule,
+  PoAvatarModule, PoBadgeModule, PoImageModule, PoSkeletonModule, PoHelperModule,
+  PoCalendarModule, PoDisclaimerGroupModule, PoFilterChipModule,
   ],
   styles: [`
+    .po-login-wrap { display: flex; justify-content: center; padding: 3rem 1rem; }
+    .po-login-card { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: .5rem; }
+    .po-login-title { margin: 0 0 .5rem; }
+    .po-login-erro { color: var(--color-semantic-negative, #c00); font-size: .875rem; }
     .advpp-ui-grid { display: flex; flex-wrap: wrap; margin: 0 -8px; }
     .advpp-ui-grid > .advpp-ui-item { padding: 0 8px; box-sizing: border-box; }
     .advpp-ui-dropzone { height: 6px; }
@@ -403,6 +415,133 @@ export class AppModalOpen implements AfterViewInit {
                       [p-profile]="node.props['profile']" [p-notification-number]="node.props['notificationNumber'] || 0"
                       [p-show-notification]="true"></po-toolbar>
         }
+        @case ('navbar') {
+          <po-navbar [p-items]="chromeItems(node, 'items')" [p-logo]="node.props['logo'] || ''"
+                     [p-icon-actions]="chromeItems(node, 'iconActions')"></po-navbar>
+        }
+        @case ('header') {
+          <po-header [p-header-user]="node.props['user']" [p-actions-tools]="chromeItems(node, 'actions')"></po-header>
+        }
+        @case ('menupanel') {
+          <po-menu-panel [p-menus]="chromeItems(node, 'items')" [p-logo]="node.props['logo'] || ''"></po-menu-panel>
+        }
+        @case ('avatar') {
+          <po-avatar [p-src]="node.props['src'] || ''" [p-size]="node.props['size'] || 'medium'"
+                     (p-click)="post(node.id, 'click', null)"></po-avatar>
+        }
+        @case ('badge') {
+          <po-badge [p-value]="node.props['value'] || 0" [p-color]="node.props['color'] || ''"
+                    [p-status]="node.props['status'] || ''"></po-badge>
+        }
+        @case ('image') {
+          <po-image [p-src]="poAsset(node.props['src'])" [p-alt]="node.props['alt'] || ''"
+                    [p-height]="node.props['height'] || undefined"></po-image>
+        }
+        @case ('skeleton') {
+          <po-skeleton [p-type]="node.props['type'] || 'primary'" [p-variant]="node.props['variant'] || 'rect'"
+                       [p-size]="node.props['size'] || 'medium'"></po-skeleton>
+        }
+        @case ('helper') {
+          <po-helper [p-helper]="helperOpts(node)"></po-helper>
+        }
+        @case ('calendar') {
+          <po-calendar [p-mode]="node.props['mode'] || 'single'" [ngModel]="node.props['value'] || ''"
+                       (ngModelChange)="post(node.id, 'change', $event)"></po-calendar>
+        }
+        @case ('dynamicview') {
+          <po-dynamic-view [p-fields]="node.props['fields'] || []" [p-value]="node.props['value'] || {}"
+                           [p-load]="node.props['load'] || ''"></po-dynamic-view>
+        }
+        @case ('disclaimergroup') {
+          <po-disclaimer-group [p-title]="node.props['title'] || ''"
+                               [p-disclaimers]="node.props['disclaimers'] || []"
+                               (p-change)="post(node.id, 'change', $event)"
+                               (p-remove-all)="post(node.id, 'removeall', null)"></po-disclaimer-group>
+        }
+        @case ('filterchip') {
+          <po-filter-chip [p-label]="node.props['label'] || ''" [p-selected]="!!node.props['selected']"
+                          (p-selected-change)="post(node.id, 'change', $event?.selected ?? $event)"></po-filter-chip>
+        }
+        @case ('pagelogin') {
+          <div class="po-login-wrap">
+            <div class="po-login-card">
+              <h2 class="po-login-title">{{ node.props['product'] || 'AdvPP' }}</h2>
+              <label class="po-label">Usuário</label>
+              <input #lu class="po-input" type="text" autocomplete="username">
+              <label class="po-label">Senha</label>
+              <input #lp class="po-input" type="password" autocomplete="current-password">
+              @if (loginErro(node.id)) { <div class="po-login-erro">{{ loginErro(node.id) }}</div> }
+              <div class="po-mt-2">
+                <po-button p-label="Entrar" p-kind="primary" (p-click)="loginSubmit(node, lu.value, lp)"></po-button>
+                @if (node.props['recovery']) {
+                  <po-button p-label="Esqueci a senha" p-kind="secondary" (p-click)="post(node.id, 'recovery', null)"></po-button>
+                }
+              </div>
+            </div>
+          </div>
+        }
+        @case ('pagechangepassword') {
+          <po-page-default [p-title]="node.props['title'] || 'Alterar senha'">
+            <label class="po-label">Senha atual</label>
+            <input #ca class="po-input" type="password" autocomplete="current-password">
+            <label class="po-label">Nova senha</label>
+            <input #cn class="po-input" type="password" autocomplete="new-password">
+            @if (loginErro(node.id)) { <div class="po-login-erro">{{ loginErro(node.id) }}</div> }
+            <div class="po-mt-2">
+              <po-button p-label="Alterar" p-kind="primary" (p-click)="senhaSubmit(node, ca, cn)"></po-button>
+            </div>
+            @if ((node.props['requirements'] || []).length) {
+              <p class="po-text-subtle">Requisitos: {{ (node.props['requirements'] || []).join(', ') }}</p>
+            }
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-page-default>
+        }
+        @case ('pageblockeduser') {
+          <po-page-default [p-title]="'Usuário bloqueado'">
+            <p>Motivo: {{ node.props['reason'] || 'não informado' }}</p>
+            @if (node.props['contactEmail']) {
+              <p>Contato: {{ node.props['contactEmail'] }}</p>
+            }
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-page-default>
+        }
+        @case ('pageslide') {
+          @if (node.props['open']) {
+            <po-page-slide [p-title]="node.props['title'] || ''" [p-hide-close]="true"
+                           (p-close-page-slide)="post(node.id, 'close', null)">
+              <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+            </po-page-slide>
+          }
+        }
+        @case ('pagejobscheduler') {
+          <po-page-default [p-title]="node.props['title'] || 'Agendador'">
+            @if ((node.props['parameters'] || []).length) {
+              <ul>@for (p of node.props['parameters'] || []; track $index) { <li>{{ p }}</li> }</ul>
+            }
+            @if (node.props['url']) {
+              <po-link [p-label]="'Abrir serviço'" [p-url]="node.props['url']"></po-link>
+            }
+            <ng-container *ngTemplateOutlet="filhos; context: { $implicit: node }"></ng-container>
+          </po-page-default>
+        }
+        @case ('link') {
+          <po-link [p-label]="node.props['label']" [p-url]="node.props['url']"
+                   [p-open-new-tab]="!!node.props['openNewTab']"
+                   (p-action)="post(node.id, 'click', null)"></po-link>
+        }
+        @case ('breadcrumb') {
+          <po-breadcrumb [p-items]="navItems(node)"></po-breadcrumb>
+        }
+        @case ('contexttabs') {
+          <!-- po-context-tabs estende po-tabs: filhos são po-tab; o botão
+               de fechar é interno do PO-UI (CloseTab/OnClose ficam para
+               quando o output for exposto). -->
+          <po-context-tabs>
+            @for (t of node.props['tabs'] || []; track $index) {
+              <po-tab [p-label]="t['label']"></po-tab>
+            }
+          </po-context-tabs>
+        }
         @case ('accordion') {
           <po-accordion [p-show-manager-accordion]="!!node.props['showManager']"
                         [p-allow-expand-all-items]="!!node.props['allowExpandAll']">
@@ -454,6 +593,7 @@ export class UiHostComponent {
   @Input({ required: true }) post!: UiPost;
   // Só existe para o pai forçar nova verificação quando chega um lote.
   @Input() versao = 0;
+  @Input() sid = '';
 
   private actionsFor: unknown = null;
   private actionsCache: PoPageAction[] = [];
@@ -678,6 +818,83 @@ export class UiHostComponent {
   protected stepIndex(node: UiNode): number {
     const s = node.props['step'];
     return typeof s === 'number' ? s : 0;
+  }
+
+  // ---- Onda 3b.5: páginas especiais ----
+
+  // Erros de login/troca de senha por componente (limpos a cada submit).
+  protected loginErros = signal<Record<number, string>>({});
+  protected loginErro(id: number): string { return this.loginErros()[id] ?? ''; }
+
+  private async credSubmit(node: UiNode, ev: 'login' | 'submit', data: { user?: string; pass?: string; new?: string }) {
+    const ok = await dynAntes(this.post, node.id, ev as any, data);
+    // higiene: o campo some do DOM junto com o template; nada fica na prop.
+    this.loginErros.update(m => ({ ...m, [node.id]: ok ? '' : 'Falha na autenticação' }));
+  }
+
+  protected loginSubmit(node: UiNode, user: string, passEl: HTMLInputElement) {
+    const pass = passEl.value;
+    passEl.value = ''; // senha não permanece no campo após o envio
+    void this.credSubmit(node, 'login', { user, pass });
+  }
+
+  protected senhaSubmit(node: UiNode, atualEl: HTMLInputElement, novaEl: HTMLInputElement) {
+    const data = { pass: atualEl.value, new: novaEl.value };
+    atualEl.value = '';
+    novaEl.value = '';
+    void this.credSubmit(node, 'submit', data);
+  }
+
+  // ---- Onda 3b.4: exibição ----
+
+  // Src relativa de imagem -> /poui-asset (resolvida no servidor contra o
+  // diretório do fonte, mesma checagem de caminho do upload).
+  protected poAsset(src: unknown): string {
+    const s = String(src ?? '');
+    if (!s || /^https?:|^data:|^blob:|^\//.test(s)) { return s; }
+    return '/poui-asset?sid=' + encodeURIComponent(this.sid) + '&p=' + encodeURIComponent(s);
+  }
+
+  // po-helper: string ou {title, content, type} (PoHelperOptions).
+  protected helperOpts(node: UiNode): any {
+    const content = String(node.props['helper'] ?? '');
+    const title = String(node.props['title'] ?? '');
+    const type = String(node.props['type'] ?? '');
+    if (!title && !type) { return content; }
+    const o: any = { content };
+    if (title) { o.title = title; }
+    if (type) { o.type = type; }
+    return o;
+  }
+
+  // ---- Onda 3b.3: chrome do app ----
+
+  // Itens do chrome (navbar/header/menupanel): {label, icon?, action:"act:N"}
+  // -> {label, icon?, action: () => post} — mesmo contrato do po-menu.
+  protected chromeItems(node: UiNode, prop: string): any[] {
+    const lst = (node.props[prop] ?? []) as { label?: string; icon?: string; action?: string }[];
+    return lst.map((a): any => ({
+      label: a.label ?? '',
+      icon: a.icon || undefined,
+      shortLabel: a.label ?? '',
+      action: a.action ? () => this.post(node.id, a.action!, null) : undefined,
+    }));
+  }
+
+  // ---- Onda 3b.3: navegação ----
+
+  // Itens do breadcrumb: {label, link} passa direto; {label, page:id}
+  // vira action que posta "navigate" para o AdvPL resolver a página.
+  protected navItems(node: UiNode): any[] {
+    const lst = (node.props['items'] ?? []) as Record<string, unknown>[];
+    return lst.map(it => {
+      if (it['page'] != null) {
+        const pg = it['page'];
+        const lb = it['label'];
+        return { label: lb, action: () => this.post(node.id, 'navigate', { page: pg, label: lb }) };
+      }
+      return { label: it['label'], link: it['link'] };
+    });
   }
 
   // ---- Onda 3b.2: ações ----

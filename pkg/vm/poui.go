@@ -40,6 +40,10 @@ type poAppState struct {
 	pages     []*poComp
 	cur       *poComp // página corrente (a que vai no mount)
 	menu      *poComp
+	// onda 3b.3: chrome do app — únicos por PoApp como o PoMenu.
+	navbar    *poComp
+	header    *poComp
+	menupanel *poComp
 	remount   bool // Navigate durante um handler: reenvia o mount ao fim dele
 	byID      map[int]*poComp
 	nextID    int
@@ -51,6 +55,8 @@ type poAppState struct {
 	spawns    map[int]*poSpawn
 	nextSpawn int
 	confirms  map[int][2]advplrt.Value // id -> {bSim, bNao}; apagado na 1ª resposta
+	notifyActs map[int]advplrt.Value   // id -> bAcao do Notify estendido; apagado no clique
+	nextNotify int
 	obj       *advplrt.ObjectValue     // o próprio PoApp (argumento dos timers)
 	ui        ComponentUI              // ligado durante o Activate
 	// onda 3c: serviços e diretivas
@@ -76,7 +82,8 @@ type poPending struct {
 
 func newPoAppState(title string) *poAppState {
 	return &poAppState{title: title, byID: map[int]*poComp{}, timers: map[int]*poTimer{},
-		spawns: map[int]*poSpawn{}, confirms: map[int][2]advplrt.Value{}, handlers: map[string]advplrt.Value{}}
+		spawns: map[int]*poSpawn{}, confirms: map[int][2]advplrt.Value{}, handlers: map[string]advplrt.Value{},
+		notifyActs: map[int]advplrt.Value{}}
 }
 
 // add registra um componente novo com o próximo id.
@@ -128,10 +135,25 @@ func (a *poAppState) mountJSON() []byte {
 		AppID int     `json:"appId"`
 		Menu  *poNode `json:"menu"`
 		Tree  *poNode `json:"tree"`
+		Nav   *poNode `json:"nav,omitempty"`
+		Head  *poNode `json:"head,omitempty"`
+		Panel *poNode `json:"panel,omitempty"`
 	}{Op: "mount", Title: a.title, AppID: a.appID}
 	if a.menu != nil {
 		n := a.menu.node()
 		op.Menu = &n
+	}
+	if a.navbar != nil {
+		n := a.navbar.node()
+		op.Nav = &n
+	}
+	if a.header != nil {
+		n := a.header.node()
+		op.Head = &n
+	}
+	if a.menupanel != nil {
+		n := a.menupanel.node()
+		op.Panel = &n
 	}
 	if a.cur != nil {
 		n := a.cur.node()
@@ -151,7 +173,9 @@ func (a *poAppState) addOp(op map[string]any) {
 func (a *poAppState) isPage(c *poComp) bool {
 	switch c.typ {
 	case "page", "pagelist", "pageedit", "pagedetail",
-		"dyntable", "dynedit", "dyndetail", "dynsearch":
+		"dyntable", "dynedit", "dyndetail", "dynsearch",
+		"pagelogin", "pagechangepassword", "pageblockeduser",
+		"pageslide", "pagejobscheduler":
 		return true
 	}
 	return false
@@ -162,7 +186,7 @@ func (a *poAppState) isContainer(c *poComp) bool {
 	switch c.typ {
 	case "page", "container", "widget", "tab", "pagelist", "pageedit", "pagedetail",
 		"dyntable", "dynedit", "dyndetail", "dynsearch",
-		"accordionitem", "step", "modal": // onda 3b.1: holders de conteúdo
+		"accordionitem", "step", "modal", "pageslide": // onda 3b.1/3b.5: holders de conteúdo
 		return true
 	}
 	return false
