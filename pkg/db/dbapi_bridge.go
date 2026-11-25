@@ -1066,7 +1066,19 @@ func (e *DbapiSQLEngine) waFieldGet(field string) (advplrt.Value, error) {
 	}
 	cm := e.waCols[idx-1]
 	s := dbapiFieldSliceT(string(fs[0].data), cm)
-	return remoteValue(s, dbapiTypeToSQLType(cm.typ)), nil
+	return dbapiFieldValue(s, cm), nil
+}
+
+// dbapiFieldValue converte o texto cru do campo para advplrt.Value.
+// Campo 'D' chega do bridge como "YYYYMMDD" (ASCII no record buffer) —
+// vira DateValue; demais tipos seguem remoteValue.
+func dbapiFieldValue(s string, cm dbapiColMeta) advplrt.Value {
+	if cm.typ == "D" && len(s) >= 8 {
+		if t, err := time.Parse("20060102", s[:8]); err == nil {
+			return advplrt.NewDate(t)
+		}
+	}
+	return remoteValue(s, dbapiTypeToSQLType(cm.typ))
 }
 
 // waFieldStr converte um advplrt.Value para o texto que SetFieldN
@@ -1092,8 +1104,20 @@ func (e *DbapiSQLEngine) FieldPut(field string, val advplrt.Value) error {
 		if !ok {
 			return fmt.Errorf("FieldPut: campo %s inexistente em %s", name, e.alias)
 		}
+		s := waFieldStr(val)
+		// campo 'D' espera "YYYYMMDD" no buffer — DateValue.String()
+		// sai "dd/mm/aaaa" e seria gravado errado
+		if e.waCols[idx-1].typ == "D" {
+			if d, ok := val.(*advplrt.DateValue); ok {
+				if d.Val.IsZero() {
+					s = "" // data vazia = espaços (bridge faz padding)
+				} else {
+					s = d.Val.Format("20060102")
+				}
+			}
+		}
 		_, err := e.client.WaCmd(e.connID, "setfieldn",
-			strconv.Itoa(e.waRemote), strconv.Itoa(idx), waFieldStr(val))
+			strconv.Itoa(e.waRemote), strconv.Itoa(idx), s)
 		return err
 	}
 	e.recordsMutex.Lock()

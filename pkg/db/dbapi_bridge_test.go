@@ -249,4 +249,24 @@ func TestDbapiSQLEngineIntegration(t *testing.T) {
 		t.Fatalf("MsUnlock restore2: %v", err)
 	}
 	t.Logf("tx path OK: rollback descartou, commit persistiu")
+
+	// tipo 'D': SE1990/E1_EMISSAO chega do bridge como "YYYYMMDD" e deve
+	// virar DateValue (antes vinha hex "0x...")
+	if err := eng.SelectArea("SE1990"); err != nil {
+		t.Fatalf("SelectArea SE1990: %v", err)
+	}
+	if err := eng.GoTop(); err != nil {
+		t.Fatalf("GoTop SE1990: %v", err)
+	}
+	dv, err := eng.FieldGet("E1_EMISSAO")
+	if err != nil {
+		t.Fatalf("FieldGet E1_EMISSAO: %v", err)
+	}
+	if dv.Type() != "D" {
+		t.Fatalf("E1_EMISSAO tipo %q, esperado D (valor %q)", dv.Type(), dv.String())
+	}
+	if got := dv.String(); got != "23/12/2023" {
+		t.Fatalf("E1_EMISSAO = %q, esperado 23/12/2023", got)
+	}
+	t.Logf("tipo D OK: E1_EMISSAO -> %s", dv.String())
 }

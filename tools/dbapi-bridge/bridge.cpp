@@ -349,6 +349,12 @@ static std::string decodeFieldVal(char* v, const ColDesc& d, bool& isNull) {
     }
     if (d.type == "C" || d.type == "M" || d.type.empty())
         return v; // char* cru — consumidor fatia por size
+    if (d.type == "D") {
+        // data Protheus: 8 bytes ASCII "YYYYMMDD" no record buffer
+        // (verificado em SE1990/E1_EMISSAO — antes caia no hex)
+        int n = d.size > 0 && d.size <= 64 ? d.size : 8;
+        return std::string(v, n);
+    }
     // tipos binarios nao verificados: expoe hex para debug/RE
     int n = d.size > 0 && d.size <= 256 ? d.size : 16;
     return hexBytes(v, n);

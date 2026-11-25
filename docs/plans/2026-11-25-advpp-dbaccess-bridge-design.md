@@ -358,9 +358,16 @@ append+write+delete validados em SX2990 com commit.
 - **Delete/Recall**: comandos no bridge, mas a engine DBEngine não tem
   Delete nativo — uso direto via WaCmd hoje.
 - **FieldPut de tipos não-C**: `F` recebe texto numérico (funciona);
-  `D`/`L`/`N`/`M`/`B` não verificados — `waFieldStr` manda
-  `Value.String()` (data "dd/mm/aaaa", bool ".T."/".F.") e o dbapi
-  pode exigir outro formato (ponytail, aguardando base com esses tipos).
+  `D` verificado de ponta a ponta — leitura: 8 bytes ASCII "YYYYMMDD"
+  no record buffer → `DateValue`; escrita: `DateValue` → "YYYYMMDD",
+  data zero → espaços. `L`/`N`/`M`/`B` seguem sem verificação
+  empírica: nesta base não há tabela populada com esses tipos (L só
+  existe em tabelas custom vazias; `N` do dicionário chega como `F`
+  no dbapi; `M` memo retorna vazio/inconsistente). ponytail: escrever
+  `L`/`M` hoje sai `Value.String()` — provavelmente errado.
+- **OpenFile naming**: o "arquivo" é `ALIAS+EMPRESA+FILIAL` físico
+  (ex.: `SE1990`, `SX3990`) — `SE1`/`SX3` retornam rc 65517
+  (arquivo fora do catálogo do ambiente).
 - **QueryRows/Exec sem args** — placeholders não expandidos (o
   dbapi não os aceita via SQLExec simples); usar literais.
 - **SelectArea fallback** carrega tudo em memória quando `OpenFile`
