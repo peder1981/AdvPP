@@ -50,7 +50,17 @@ func (v *VM) callDbConnectionMethod(obj *advplrt.ObjectValue, method string, arg
 		v.push(obj)
 	case "CONNECT":
 		cfg := db.ConnConfig{Host: st.host, Port: st.port, Service: st.service, User: st.user, Password: st.password}
-		engine, err := db.NewRemoteSQLEngineFrom(st.driver, cfg)
+		var engine DBEngine
+		var err error
+		if strings.EqualFold(st.driver, "DBACCESS") {
+			// Driver DBACCESS: bridge C++ -> dbapi.so TOTVS -> dbaccess64
+			// real. Service = environment "DRIVER/env" (ex.: POSTGRES/p1212510).
+			engine, err = db.NewDbapiEngineFrom(cfg)
+		} else {
+			var re *db.RemoteSQLEngine
+			re, err = db.NewRemoteSQLEngineFrom(st.driver, cfg)
+			engine = re
+		}
 		if err != nil {
 			st.lastError = err.Error()
 			v.push(advplrt.False)
