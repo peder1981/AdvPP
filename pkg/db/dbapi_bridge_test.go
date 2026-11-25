@@ -2,7 +2,10 @@ package db
 
 import (
 	"os"
+	"strings"
 	"testing"
+
+	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
 // TestDbapiBridgeCodec valida o codec de frames sem bridge real:
@@ -118,4 +121,51 @@ func TestDbapiSQLEngineIntegration(t *testing.T) {
 	if _, err := eng.QueryRows("SELECT 1 AS UM"); err != nil {
 		t.Fatalf("engine morreu após erro anterior: %v", err)
 	}
+
+	// escrita: update+restore em SX2990->X2_NOME (workarea remota,
+	// RecLock/FieldPut/MsUnlock → Lock/SetFieldN/Update/UnLock no dbapi)
+	if err := eng.SelectArea("SX2990"); err != nil {
+		t.Fatalf("SelectArea p/ escrita: %v", err)
+	}
+	if err := eng.GoTop(); err != nil {
+		t.Fatalf("GoTop p/ escrita: %v", err)
+	}
+	orig, err := eng.FieldGet("X2_NOME")
+	if err != nil || orig.String() == "" {
+		t.Fatalf("FieldGet orig: %v %q", err, orig)
+	}
+	if err := eng.RecLock(); err != nil {
+		t.Fatalf("RecLock: %v", err)
+	}
+	if err := eng.FieldPut("X2_NOME", advplrt.NewString("TESTE WRITE FASE3")); err != nil {
+		t.Fatalf("FieldPut: %v", err)
+	}
+	if err := eng.MsUnlock(); err != nil {
+		t.Fatalf("MsUnlock: %v", err)
+	}
+	chk, err := eng.FieldGet("X2_NOME")
+	if err != nil {
+		t.Fatalf("FieldGet pós-update: %v", err)
+	}
+	if !strings.HasPrefix(chk.String(), "TESTE WRITE FASE3") {
+		t.Fatalf("update não persistiu: %q", chk.String())
+	}
+	// restaura o valor original (campo C de 30 bytes, padding inclusos)
+	if err := eng.RecLock(); err != nil {
+		t.Fatalf("RecLock restore: %v", err)
+	}
+	if err := eng.FieldPut("X2_NOME", orig); err != nil {
+		t.Fatalf("FieldPut restore: %v", err)
+	}
+	if err := eng.MsUnlock(); err != nil {
+		t.Fatalf("MsUnlock restore: %v", err)
+	}
+	restored, err := eng.FieldGet("X2_NOME")
+	if err != nil {
+		t.Fatalf("FieldGet restore: %v", err)
+	}
+	if restored.String() != orig.String() {
+		t.Fatalf("restore divergiu: %q != %q", restored.String(), orig.String())
+	}
+	t.Logf("write path OK: update+restore em X2_NOME")
 }

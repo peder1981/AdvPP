@@ -535,6 +535,7 @@ type DbapiSQLEngine struct {
 	waCols    []dbapiColMeta
 	waIdx     map[string]int
 	waRecCount int // -1 = ainda não consultado (ver RecCount)
+	waAppending bool // Append() posicionou além do fim; MsUnlock faz Write
 
 	recordsMutex sync.RWMutex
 	driver       string
@@ -737,6 +738,7 @@ func (e *DbapiSQLEngine) closeRemoteWA() {
 	e.waCols = nil
 	e.waIdx = nil
 	e.waRecCount = -1
+	e.waAppending = false
 }
 
 // waNav executa comando de navegação remota e devolve o valor string.
@@ -960,11 +962,32 @@ func (e *DbapiSQLEngine) waFieldGet(field string) (advplrt.Value, error) {
 	return remoteValue(s, dbapiTypeToSQLType(cm.typ)), nil
 }
 
+// waFieldStr converte um advplrt.Value para o texto que SetFieldN
+// espera. Nil -> "" (limpa o campo). ponytail: DateValue sai como
+// "dd/mm/aaaa" e BoolValue como ".T."/".F." — se o dbapi exigir outro
+// formato para D/L, ajustar aqui quando houver base com esses tipos.
+func waFieldStr(val advplrt.Value) string {
+	if val == nil {
+		return ""
+	}
+	if _, ok := val.(*advplrt.NilValue); ok {
+		return ""
+	}
+	return val.String()
+}
+
 func (e *DbapiSQLEngine) FieldPut(field string, val advplrt.Value) error {
 	if e.waRemote > 0 {
-		// ponytail: workarea remota é read-only nesta fatia — escrita
-		// real (SetFieldN+Update/Write) é a Fase 3 do plano.
-		return fmt.Errorf("DBACCESS: FieldPut em workarea remota ainda não suportado (Fase 3)")
+		// workarea remota: SetFieldN grava no buffer do record corrente;
+		// a persistência acontece no MsUnlock (Update ou Write se Append).
+		name := strings.ToUpper(field)
+		idx, ok := e.waIdx[name]
+		if !ok {
+			return fmt.Errorf("FieldPut: campo %s inexistente em %s", name, e.alias)
+		}
+		_, err := e.client.WaCmd(e.connID, "setfieldn",
+			strconv.Itoa(e.waRemote), strconv.Itoa(idx), waFieldStr(val))
+		return err
 	}
 	e.recordsMutex.Lock()
 	defer e.recordsMutex.Unlock()
@@ -979,6 +1002,22 @@ func (e *DbapiSQLEngine) FieldPut(field string, val advplrt.Value) error {
 // em processo, não lock real no dbAccess (mesma limitação honesta do
 // RemoteSQLEngine/SQLiteEngine).
 func (e *DbapiSQLEngine) RecLock() error {
+	if e.waRemote > 0 {
+		// lock real no dbAccess (tTOPClient::Lock no recno corrente)
+		if e.isLocked {
+			return fmt.Errorf("RecLock: record already locked")
+		}
+		rec, err := e.waNav("recno")
+		if err != nil {
+			return err
+		}
+		if _, err := e.client.WaCmd(e.connID, "lock",
+			strconv.Itoa(e.waRemote), rec); err != nil {
+			return err
+		}
+		e.isLocked = true
+		return nil
+	}
 	if e.waRemote == 0 {
 		e.recordsMutex.RLock()
 		if e.current < 0 || e.current >= len(e.records) {
@@ -995,10 +1034,29 @@ func (e *DbapiSQLEngine) RecLock() error {
 	return nil
 }
 
-// MsUnlock libera o lock em processo. Escrita de volta ao banco ainda
-// não é suportada nesta fatia (read path) — FieldPut altera só a cópia
-// em memória, como no SQLiteEngine antes do MsUnlock.
+// MsUnlock: em workarea remota grava o buffer (Update no recno, ou
+// Write se veio de Append) e libera o lock real. No modo memória
+// mantém o comportamento anterior (só libera o lock em processo).
 func (e *DbapiSQLEngine) MsUnlock() error {
+	if e.waRemote > 0 {
+		if !e.isLocked && !e.waAppending {
+			return nil
+		}
+		cmd := "update"
+		if e.waAppending {
+			cmd = "write"
+			e.waAppending = false
+			e.waRecCount = -1 // cache de COUNT(*) ficou stale
+		}
+		if _, err := e.client.WaCmd(e.connID, cmd, strconv.Itoa(e.waRemote)); err != nil {
+			e.isLocked = false
+			return err
+		}
+		rec, _ := e.waNav("recno")
+		e.client.WaCmd(e.connID, "unlock", strconv.Itoa(e.waRemote), rec)
+		e.isLocked = false
+		return nil
+	}
 	if !e.isLocked {
 		return nil
 	}
@@ -1007,10 +1065,17 @@ func (e *DbapiSQLEngine) MsUnlock() error {
 	return nil
 }
 
-// Append ainda não é suportado nesta fatia (read path): retorna erro
-// honesto em vez de fingir persistência.
+// Append posiciona a workarea remota além do último registro; a
+// gravação acontece no MsUnlock via Write (flag waAppending).
 func (e *DbapiSQLEngine) Append() error {
-	return fmt.Errorf("DBACCESS: DbAppend ainda não suportado (fatia read path)")
+	if e.waRemote > 0 {
+		if _, err := e.client.WaCmd(e.connID, "append", strconv.Itoa(e.waRemote)); err != nil {
+			return err
+		}
+		e.waAppending = true
+		return nil
+	}
+	return fmt.Errorf("DBACCESS: DbAppend em modo memória ainda não suportado")
 }
 
 func (e *DbapiSQLEngine) FieldPos(field string) int {

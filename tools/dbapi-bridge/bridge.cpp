@@ -38,6 +38,17 @@
 //   field     p1=wa p2=nome      -> OK [valor] (NULL se vazio)
 //   fieldn    p1=wa p2=idx(1based)-> OK [valor] (NULL se vazio)
 //   fielddesc p1=wa p2=idx(0b)   -> OK [name,type,size,dec,flags]
+//   setfieldn p1=wa p2=idx(1b) p3=val -> OK [rc]   (buffer do record)
+//   setfield  p1=wa p2=nome p3=val     -> OK [rc]
+//   update    p1=wa [p2=recno]  -> OK [rc]  (grava buffer no recno)
+//   write     p1=wa              -> OK [rc]  (insere novo registro)
+//   append    p1=wa              -> OK [recno] (posiciona alem do fim)
+//   delete    p1=wa [p2=recno]   -> OK [rc]
+//   recall    p1=wa [p2=recno]   -> OK [rc]
+//   commit    -                  -> OK [rc]
+//   rollback  -                  -> OK [rc]
+//   lock      p1=wa p2=recno     -> OK [rc]
+//   unlock    p1=wa p2=recno     -> OK [rc]
 //
 // ATENCAO semantica dbapi: GetFieldN/GetField devolvem char* para dentro
 // do record buffer — a string corre ate o fim do registro (todos os
@@ -90,6 +101,12 @@ typedef int   (*GoBottomFn)(void* self, short wa);
 typedef int   (*GoToFn)(void* self, short wa, long long recno, unsigned char flag);
 typedef char* (*FieldByNameFn)(void* self, short wa, const char* name);
 typedef int   (*FieldNSetFn)(void* self, short wa, short fld, const char* val);
+typedef int   (*FieldSetFn)(void* self, short wa, const char* name, const char* val);
+typedef int   (*UpdateFn)(void* self, short wa, long long recno);
+typedef int   (*WriteFn)(void* self, short wa);
+typedef int   (*DelRecFn)(void* self, short wa, long long recno);
+typedef int   (*NoArgFn)(void* self);
+typedef int   (*LockFn)(void* self, short wa, long long recno);
 
 struct DbApi {
     void* h = nullptr;
@@ -115,6 +132,15 @@ struct DbApi {
     GoToFn       GoTo       = nullptr;
     FieldByNameFn GetFieldByName = nullptr;
     FieldNSetFn  SetFieldN  = nullptr;
+    FieldSetFn   SetField   = nullptr;
+    UpdateFn     Update     = nullptr;
+    WriteFn      Write      = nullptr;
+    DelRecFn     DeleteR    = nullptr;
+    DelRecFn     RecallR    = nullptr;
+    NoArgFn      Commit     = nullptr;
+    NoArgFn      Rollback   = nullptr;
+    LockFn       Lock       = nullptr;
+    LockFn       UnLock     = nullptr;
 };
 
 static DbApi g_api;
@@ -155,6 +181,15 @@ static bool loadDbApi(const char* path) {
     g_api.GoTo         = (GoToFn)      xsym(h, "_ZN10tTOPClient4GoToEsxh");
     g_api.GetFieldByName = (FieldByNameFn) xsym(h, "_ZN10tTOPClient8GetFieldEsPKc");
     g_api.SetFieldN    = (FieldNSetFn) xsym(h, "_ZN10tTOPClient9SetFieldNEssPKc");
+    g_api.SetField     = (FieldSetFn)  xsym(h, "_ZN10tTOPClient8SetFieldEsPKcS1_");
+    g_api.Update       = (UpdateFn)    xsym(h, "_ZN10tTOPClient6UpdateEsx");
+    g_api.Write        = (WriteFn)     xsym(h, "_ZN10tTOPClient5WriteEs");
+    g_api.DeleteR      = (DelRecFn)    xsym(h, "_ZN10tTOPClient7DeleteREsx");
+    g_api.RecallR      = (DelRecFn)    xsym(h, "_ZN10tTOPClient7RecallREsx");
+    g_api.Commit       = (NoArgFn)     xsym(h, "_ZN10tTOPClient6CommitEv");
+    g_api.Rollback     = (NoArgFn)     xsym(h, "_ZN10tTOPClient8RollbackEv");
+    g_api.Lock         = (LockFn)      xsym(h, "_ZN10tTOPClient4LockEsx");
+    g_api.UnLock       = (LockFn)      xsym(h, "_ZN10tTOPClient6UnLockEsx");
     bool ok = g_api.GetTopConn && g_api.Connect && g_api.Query &&
               g_api.GetFieldN && g_api.Skip && g_api.Eof && g_api.Release;
     if (!ok) fprintf(stderr, "[bridge] símbolos obrigatórios ausentes\n");
@@ -482,6 +517,7 @@ static void handleWaCmd(Ctx& c, const std::vector<Field>& in) {
     std::string cmd = fieldStr(in, 1);
     std::string p1  = fieldStr(in, 2);
     std::string p2  = fieldStr(in, 3);
+    std::string p3  = fieldStr(in, 4);
     auto num = [](const std::string& s) { return atoll(s.c_str()); };
     auto waOf = [&]() { return (short)num(p1); };
 
@@ -562,6 +598,78 @@ static void handleWaCmd(Ctx& c, const std::vector<Field>& in) {
         else if (cmd == "colcount" && g_api.GetColCount) val = std::to_string(g_api.GetColCount(cli, wa));
         else { respondErr(c.fd, "wacmd: " + cmd + " indisponivel"); return; }
         respond(c.fd, 0, okFields({val}));
+        return;
+    }
+
+    // ---- escrita / locks (Fase 3) ----
+    // ponytail: SetFieldN recebe char* — o dbapi NAO padding/trunca:
+    // valor mais curto que o campo deixa o resto do valor antigo no
+    // record buffer. O bridge normaliza campos 'C'/'M' para exatamente
+    // size bytes (pad espacos a direita, trunca o excesso — semantica
+    // ISAM). SetFieldN retorna tamanho escrito (nao 0=sucesso): rc>=0
+    // e OK; so responde erro em excecao.
+    if (cmd == "setfieldn" || cmd == "setfield") {
+        int idx0 = -1;
+        if (cmd == "setfieldn") idx0 = (int)num(p2) - 1;
+        else {
+            int ncol = g_api.GetColCount ? g_api.GetColCount(cli, waOf()) : 0;
+            for (int i = 0; i < ncol && i < 512; i++) {
+                char nm[256]; memset(nm, 0, sizeof nm);
+                char tp[64]; memset(tp, 0, sizeof tp);
+                short a=0,b=0,d=0;
+                if (g_api.GetFieldDesc && g_api.GetFieldDesc(cli, waOf(), (short)i, nm, tp, &a, &b, &d) == 0) {
+                    if (strcasecmp(nm, p2.c_str()) == 0) { idx0 = i; break; }
+                }
+            }
+            if (idx0 < 0) { respondErr(c.fd, "wacmd setfield: campo nao encontrado " + p2); return; }
+        }
+        ColDesc cd = fieldDescOf(cli, waOf(), (short)idx0);
+        std::string val = p3;
+        if ((cd.type == "C" || cd.type == "M" || cd.type.empty()) && cd.size > 0) {
+            if ((int)val.size() > cd.size) val.resize(cd.size);
+            if ((int)val.size() < cd.size) val.append(cd.size - val.size(), ' ');
+        }
+        int rc = -1;
+        if (cmd == "setfieldn" && g_api.SetFieldN)
+            rc = g_api.SetFieldN(cli, waOf(), (short)(idx0 + 1), val.c_str());
+        else if (cmd == "setfield" && g_api.SetField) {
+            char* nm = strdup(p2.c_str());
+            rc = g_api.SetField(cli, waOf(), nm, val.c_str());
+            free(nm);
+        } else { respondErr(c.fd, "wacmd " + cmd + ": indisponivel"); return; }
+        respond(c.fd, 0, okFields({std::to_string(rc)}));
+        return;
+    }
+    if (cmd == "update" || cmd == "write" || cmd == "delete" || cmd == "recall" ||
+        cmd == "lock" || cmd == "unlock") {
+        long long rec = p2.empty() ? (g_api.RecNo ? g_api.RecNo(cli, waOf()) : 0) : num(p2);
+        int rc = -1;
+        if (cmd == "update" && g_api.Update) rc = g_api.Update(cli, waOf(), rec);
+        else if (cmd == "write" && g_api.Write) rc = g_api.Write(cli, waOf());
+        else if (cmd == "delete" && g_api.DeleteR) rc = g_api.DeleteR(cli, waOf(), rec);
+        else if (cmd == "recall" && g_api.RecallR) rc = g_api.RecallR(cli, waOf(), rec);
+        else if (cmd == "lock" && g_api.Lock) rc = g_api.Lock(cli, waOf(), rec);
+        else if (cmd == "unlock" && g_api.UnLock) rc = g_api.UnLock(cli, waOf(), rec);
+        else { respondErr(c.fd, "wacmd " + cmd + ": indisponivel"); return; }
+        if (rc != 0) { respondErr(c.fd, "wacmd " + cmd + ": rc=" + std::to_string(rc) + " " + lastError(cli)); return; }
+        respond(c.fd, 0, okFields({std::to_string(rc)}));
+        return;
+    }
+    if (cmd == "commit" || cmd == "rollback") {
+        int rc = (cmd == "commit" ? (g_api.Commit ? g_api.Commit(cli) : -1)
+                                  : (g_api.Rollback ? g_api.Rollback(cli) : -1));
+        if (rc != 0) { respondErr(c.fd, "wacmd " + cmd + ": rc=" + std::to_string(rc) + " " + lastError(cli)); return; }
+        respond(c.fd, 0, okFields({std::to_string(rc)}));
+        return;
+    }
+    if (cmd == "append") {
+        // posiciona alem do ultimo registro: GoBottom + Skip(1) deixa a
+        // workarea em posicao de novo registro para FieldPut+Write.
+        if (!g_api.GoBottom || !g_api.Skip) { respondErr(c.fd, "wacmd append: indisponivel"); return; }
+        g_api.GoBottom(cli, waOf());
+        g_api.Skip(cli, waOf(), 1);
+        long long rec = g_api.RecNo ? g_api.RecNo(cli, waOf()) : 0;
+        respond(c.fd, 0, okFields({std::to_string(rec)}));
         return;
     }
     respondErr(c.fd, "wacmd: comando desconhecido " + cmd);

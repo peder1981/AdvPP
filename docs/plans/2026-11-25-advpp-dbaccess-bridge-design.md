@@ -313,13 +313,40 @@ teste só tem SX2990/SX6990, sem datas/logicals): o bridge devolve hex
 dos bytes crus — `ponytail:` revisitar com base real. No Go,
 `dbapiFieldSliceT` só fatia tipos texto; `F`/hex passam inteiros.
 
+### Fase 3 parcial — escrita (entregue)
+
+WACMD ganhou comandos de escrita/locks: `setfieldn`, `setfield`,
+`update`, `write`, `append`, `delete`, `recall`, `commit`, `rollback`,
+`lock`, `unlock` — mapeados de `tTOPClient::SetFieldN/SetField/Update/
+Write/DeleteR/RecallR/Commit/Rollback/Lock/UnLock`. Na engine:
+
+- `FieldPut` (workarea remota) → `setfieldn` no buffer do record;
+- `RecLock` → `lock` no recno corrente; `MsUnlock` → `update` (ou
+  `write` se veio de `Append`) + `unlock` — gravação real no SGBD;
+- `Append` → posiciona além do fim (GoBottom+Skip) e marca
+  `waAppending`; `MsUnlock` faz `Write`.
+
+**Cuidados empiricamente verificados**: `SetFieldN` NÃO faz
+padding/truncate — o bridge normaliza campos `C`/`M` para exatamente
+`size` bytes (resto do valor antigo ficava no buffer). `SetFieldN`
+retorna tamanho escrito, não 0=sucesso. Recno de append vem do espaço
+de sentinela (999930007+ com `UseLargeRecno=1`). Update+restore e
+append+write+delete validados em SX2990 com commit.
+
 ### Limitações desta fatia (próximas)
 
-- **Read path apenas**: `Append` retorna erro honesto; `MsUnlock`
-  não persiste (FieldPut só em memória / FieldPut remoto retorna erro
-  explícito "Fase 3"); sem locks reais.
-- **Workarea remota read-only**: `Write`/`Update`/`SetFieldN` ainda
-  não expostos via WACMD (símbolos já mapeados no bridge).
+- **Escrita sem transação explícita**: `Commit`/`Rollback` expostos no
+  bridge mas a engine ainda não os chama (cada Update/Write é
+  autocommit do dbAccess); `Exec` SQL de escrita idem.
+- **Locks**: `lock`/`unlock` mapeados mas semântica exata do
+  `tTOPClient::Lock` vs `SoftLock`/`MultLock` não explorada; lock é
+  por recno, não há lock de tabela (FLock) exposto.
+- **Delete/Recall**: comandos no bridge, mas a engine DBEngine não tem
+  Delete nativo — uso direto via WaCmd hoje.
+- **FieldPut de tipos não-C**: `F` recebe texto numérico (funciona);
+  `D`/`L`/`N`/`M`/`B` não verificados — `waFieldStr` manda
+  `Value.String()` (data "dd/mm/aaaa", bool ".T."/".F.") e o dbapi
+  pode exigir outro formato (ponytail, aguardando base com esses tipos).
 - **QueryRows/Exec sem args** — placeholders não expandidos (o
   dbapi não os aceita via SQLExec simples); usar literais.
 - **SelectArea fallback** carrega tudo em memória quando `OpenFile`
@@ -329,5 +356,10 @@ dos bytes crus — `ponytail:` revisitar com base real. No Go,
 - **Concorrência**: mutex global no bridge serializa TODAS as
   chamadas dbapi — suficiente para a fatia; refinar por conexão
   quando locks chegarem.
+- **Licença**: `LicenseServer=license-server:5551`…5555 no
+  dbaccess.ini — o container `license-server` (totvslicensevirtual)
+  precisa estar de pé; se cair, connect retorna "No licenses
+  available" até o dbaccess reiniciar. Sessões vazam se o cliente
+  morre sem DISCONNECT (timeout do server limpa).
 - **Versão TOTVS**: ABI validada no build 24.1.1.3 (mai/2026);
   pinning de dbapi.so por release do bridge.
