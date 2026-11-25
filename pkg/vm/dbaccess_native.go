@@ -920,18 +920,57 @@ func (v *VM) registerDbaccessNatives(natives map[string]func(args []advplrt.Valu
 		return advplrt.True, nil
 	}
 
-	// TCCommit(nOption, [xParam]) -> uRet — controle de transação (no-op).
+	// TCCommit(nOption, [xParam]) -> uRet — controle de transação.
+	// Semântica real (código ORTA381/UPDTFDP + verificado no dbAccess):
+	//   1=Begin (StrCmtCtl), 2=Commit, 3=Rollback, 4=End (EndCmtCtl).
+	// Engines sem suporte a tx (SQLite/memória) mantêm o no-op anterior.
 	natives["TCCOMMIT"] = func(args []advplrt.Value) (advplrt.Value, error) {
 		nOption := int(advplrt.ToFloat(getArg(args, 0)))
 		_ = getArg(args, 1)
 		dbstate.mu.Lock()
+		defer dbstate.mu.Unlock()
+		var tx interface {
+			BeginTx() error
+			CommitTx() error
+			RollbackTx() error
+			EndTx() error
+		}
+		if c, ok := dbaccessActiveConn(); ok {
+			tx, _ = c.sqlEng.(interface {
+				BeginTx() error
+				CommitTx() error
+				RollbackTx() error
+				EndTx() error
+			})
+		}
+		var terr error
 		switch nOption {
 		case 1:
+			if dbstate.txDepth == 0 && tx != nil {
+				terr = tx.BeginTx()
+			}
 			dbstate.txDepth++
+		case 2:
+			if tx != nil {
+				terr = tx.CommitTx()
+			}
+			dbstate.txDepth = 0
+		case 3:
+			if tx != nil {
+				terr = tx.RollbackTx()
+			}
+			dbstate.txDepth = 0
+		case 4:
+			if tx != nil {
+				terr = tx.EndTx()
+			}
+			dbstate.txDepth = 0
 		default:
 			dbstate.txDepth = 0
 		}
-		dbstate.mu.Unlock()
+		if terr != nil {
+			dbaccessSetSQLErr("TCCommit: " + terr.Error())
+		}
 		return advplrt.Nil, nil
 	}
 

@@ -180,4 +180,73 @@ func TestDbapiSQLEngineIntegration(t *testing.T) {
 		t.Fatalf("restore divergiu: %q != %q", restored.String(), orig.String())
 	}
 	t.Logf("write path OK: update+restore em X2_NOME")
+
+	// transação explícita (TCCommit 1/2/3/4 → StrCmtCtl/Commit/Rollback/
+	// EndCmtCtl): escrita dentro da tx fica pendente; RollbackTx descarta,
+	// CommitTx persiste. Verificação via SQL (o buffer da workarea não é
+	// invalidado por rollback — leitura própria continuaria stale).
+	nomeSQL := func() string {
+		rows, err := eng.QueryRows("SELECT X2_NOME FROM SX2990 WHERE R_E_C_N_O_=1")
+		if err != nil || len(rows) == 0 {
+			t.Fatalf("QueryRows p/ tx check: %v rows=%d", err, len(rows))
+		}
+		return rows[0]["X2_NOME"]
+	}
+	base := nomeSQL()
+
+	if err := eng.BeginTx(); err != nil {
+		t.Fatalf("BeginTx: %v", err)
+	}
+	if err := eng.RecLock(); err != nil {
+		t.Fatalf("RecLock tx: %v", err)
+	}
+	if err := eng.FieldPut("X2_NOME", advplrt.NewString("TXPENDENTE")); err != nil {
+		t.Fatalf("FieldPut tx: %v", err)
+	}
+	if err := eng.MsUnlock(); err != nil {
+		t.Fatalf("MsUnlock tx: %v", err)
+	}
+	if err := eng.RollbackTx(); err != nil {
+		t.Fatalf("RollbackTx: %v", err)
+	}
+	if err := eng.EndTx(); err != nil {
+		t.Fatalf("EndTx rollback: %v", err)
+	}
+	if got := nomeSQL(); got != base {
+		t.Fatalf("rollback não descartou: %q != %q", got, base)
+	}
+
+	if err := eng.BeginTx(); err != nil {
+		t.Fatalf("BeginTx 2: %v", err)
+	}
+	if err := eng.RecLock(); err != nil {
+		t.Fatalf("RecLock tx2: %v", err)
+	}
+	if err := eng.FieldPut("X2_NOME", advplrt.NewString("TXCOMMITED")); err != nil {
+		t.Fatalf("FieldPut tx2: %v", err)
+	}
+	if err := eng.MsUnlock(); err != nil {
+		t.Fatalf("MsUnlock tx2: %v", err)
+	}
+	if err := eng.CommitTx(); err != nil {
+		t.Fatalf("CommitTx: %v", err)
+	}
+	if err := eng.EndTx(); err != nil {
+		t.Fatalf("EndTx commit: %v", err)
+	}
+	if got := nomeSQL(); !strings.HasPrefix(got, "TXCOMMITED") {
+		t.Fatalf("commit não persistiu: %q", got)
+	}
+
+	// restaura fora de tx (autocommit)
+	if err := eng.RecLock(); err != nil {
+		t.Fatalf("RecLock restore2: %v", err)
+	}
+	if err := eng.FieldPut("X2_NOME", orig); err != nil {
+		t.Fatalf("FieldPut restore2: %v", err)
+	}
+	if err := eng.MsUnlock(); err != nil {
+		t.Fatalf("MsUnlock restore2: %v", err)
+	}
+	t.Logf("tx path OK: rollback descartou, commit persistiu")
 }

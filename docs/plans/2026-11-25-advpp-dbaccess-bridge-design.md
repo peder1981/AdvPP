@@ -344,8 +344,16 @@ append+write+delete validados em SX2990 com commit.
   verifica o registro corrente antes de declarar match.
 - **Índices**: `keys`/`setkey`/`setkeyc`/`pack` expostos; engine usa
   sempre o índice 1 (não há SET ORDER por campo — ponytail).
-- **Transação explícita**: `Commit`/`Rollback` no bridge, engine ainda
-  não expõe (cada Update/Write autocommit).
+- **Transação explícita** (entregue): semântica real mapeada e
+  verificada — fora de transação, Update/Write fazem **autocommit**;
+  `StrCmtCtl` abre escopo transacional (writes ficam pendentes,
+  invisíveis fora da sessão), `Commit` persiste o pendente,
+  `Rollback` descarta, `EndCmtCtl` fecha o escopo. `TCCommit` agora
+  despacha por duck-typing: 1→`BeginTx`(strcmtctl, só na profundidade
+  0), 2→`CommitTx`, 3→`RollbackTx`, 4→`EndTx`; engines sem suporte
+  mantêm o no-op anterior. Validado no IT: rollback descartou e
+  commit persistiu (verificação via SQL server-side — o buffer da
+  workarea não é invalidado por rollback).
 - **Locks**: `lock`/`unlock` por recno; sem `FLock`/`MultLock`/`SoftLock`.
 - **Delete/Recall**: comandos no bridge, mas a engine DBEngine não tem
   Delete nativo — uso direto via WaCmd hoje.

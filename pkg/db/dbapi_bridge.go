@@ -1245,6 +1245,22 @@ func (e *DbapiSQLEngine) RecNo() int {
 
 // Close desconecta a sessão dbapi e fecha o socket do bridge.
 // Idempotente; devolve a vaga do limite de conexões remotas.
+// txCmd dispara um comando de transacao no bridge (StrCmtCtl/Commit/
+// Rollback/EndCmtCtl do tTOPClient). Fora de StrCmtCtl o dbAccess faz
+// autocommit por Update — verificado empiricamente.
+func (e *DbapiSQLEngine) txCmd(cmd string) error {
+	if e.connID <= 0 {
+		return fmt.Errorf("DBACCESS: sem conexao ativa")
+	}
+	_, err := e.client.WaCmd(e.connID, cmd)
+	return err
+}
+
+func (e *DbapiSQLEngine) BeginTx() error    { return e.txCmd("strcmtctl") }
+func (e *DbapiSQLEngine) CommitTx() error   { return e.txCmd("commit") }
+func (e *DbapiSQLEngine) RollbackTx() error { return e.txCmd("rollback") }
+func (e *DbapiSQLEngine) EndTx() error      { return e.txCmd("endcmtctl") }
+
 func (e *DbapiSQLEngine) Close() error {
 	var err error
 	e.closeOnce.Do(func() {

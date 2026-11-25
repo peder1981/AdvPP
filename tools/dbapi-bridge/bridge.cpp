@@ -144,6 +144,8 @@ struct DbApi {
     DelRecFn     RecallR    = nullptr;
     NoArgFn      Commit     = nullptr;
     NoArgFn      Rollback   = nullptr;
+    NoArgFn      StrCmtCtl  = nullptr;
+    NoArgFn      EndCmtCtl  = nullptr;
     LockFn       Lock       = nullptr;
     LockFn       UnLock     = nullptr;
     SetKeyFn     SetKey     = nullptr;
@@ -210,6 +212,8 @@ static bool loadDbApi(const char* path) {
     g_api.RecallR      = (DelRecFn)    xsym(h, "_ZN10tTOPClient7RecallREsx");
     g_api.Commit       = (NoArgFn)     xsym(h, "_ZN10tTOPClient6CommitEv");
     g_api.Rollback     = (NoArgFn)     xsym(h, "_ZN10tTOPClient8RollbackEv");
+    g_api.StrCmtCtl    = (NoArgFn)     xsym(h, "_ZN10tTOPClient9StrCmtCtlEv");
+    g_api.EndCmtCtl    = (NoArgFn)     xsym(h, "_ZN10tTOPClient9EndCmtCtlEv");
     g_api.Lock         = (LockFn)      xsym(h, "_ZN10tTOPClient4LockEsx");
     g_api.UnLock       = (LockFn)      xsym(h, "_ZN10tTOPClient6UnLockEsx");
     g_api.SetKey       = (SetKeyFn)    xsym(h, "_ZN10tTOPClient6SetKeyEss");
@@ -683,9 +687,12 @@ static void handleWaCmd(Ctx& c, const std::vector<Field>& in) {
         respond(c.fd, 0, okFields({std::to_string(rc)}));
         return;
     }
-    if (cmd == "commit" || cmd == "rollback") {
-        int rc = (cmd == "commit" ? (g_api.Commit ? g_api.Commit(cli) : -1)
-                                  : (g_api.Rollback ? g_api.Rollback(cli) : -1));
+    if (cmd == "commit" || cmd == "rollback" || cmd == "strcmtctl" || cmd == "endcmtctl") {
+        int rc;
+        if (cmd == "commit") rc = g_api.Commit ? g_api.Commit(cli) : -1;
+        else if (cmd == "rollback") rc = g_api.Rollback ? g_api.Rollback(cli) : -1;
+        else if (cmd == "strcmtctl") rc = g_api.StrCmtCtl ? g_api.StrCmtCtl(cli) : -1;
+        else rc = g_api.EndCmtCtl ? g_api.EndCmtCtl(cli) : -1;
         if (rc != 0) { respondErr(c.fd, "wacmd " + cmd + ": rc=" + std::to_string(rc) + " " + lastError(cli)); return; }
         respond(c.fd, 0, okFields({std::to_string(rc)}));
         return;
