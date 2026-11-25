@@ -45,6 +45,15 @@ User Function DbAccessBridgeTest()
         ConOut("se1=true")
         ConOut("se1doc=" + SE1->E1_DOC)
         ConOut("se1emis=" + DtoC(SE1->E1_EMISSAO))
+
+        // FLock/FUnLock reais no dbAccess + DBDelete/DBRecall ISAM
+        // (DeleteR/RecallR — marcação imediata de D_E_L_E_T_).
+        ConOut("flock=" + Iif(FLock(), "ok", "fail"))
+        ConOut("funlock=" + Iif(FUnLock(), "ok", "fail"))
+        DBDelete()
+        ConOut("se1del=" + Iif(Deleted(), "sim", "nao"))
+        DBRecall()
+        ConOut("se1rec=" + Iif(Deleted(), "sim", "nao"))
         DbCloseArea()
     Else
         ConOut("se1=false")

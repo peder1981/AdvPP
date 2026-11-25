@@ -53,6 +53,10 @@ func TestDbAccessBridgeFixture(t *testing.T) {
 		"sqlname=SE1990",
 		"se1=true",
 		"se1emis=",
+		"flock=ok",
+		"funlock=ok",
+		"se1del=sim",
+		"se1rec=nao",
 		"fim=true",
 	}
 	for _, w := range want {

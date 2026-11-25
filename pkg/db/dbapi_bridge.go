@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -45,6 +46,12 @@ const (
 
 	dbapiNullLen = 0xFFFFFFFF
 )
+
+// ErrNoRemoteWorkArea sinaliza que a operação exige workarea remota
+// (OpenFile) e a área corrente está em modo SQL/memória. As natives da
+// VM usam errors.Is para cair no comportamento genérico (FieldPut etc.)
+// em vez de propagar o erro.
+var ErrNoRemoteWorkArea = errors.New("DBACCESS: sem workarea remota")
 
 type dbapiField struct {
 	data   []byte
@@ -1267,6 +1274,48 @@ func (e *DbapiSQLEngine) Append() error {
 		return nil
 	}
 	return fmt.Errorf("DBACCESS: DbAppend em modo memória ainda não suportado")
+}
+
+// FLockFile/FUnLockFile: lock de arquivo inteiro na workarea remota
+// (tTOPClient::FLock/FUnLock — bloqueia a tabela para outros clientes
+// dbAccess). Só fazem sentido em modo workarea remota.
+func (e *DbapiSQLEngine) FLockFile() error {
+	if e.waRemote == 0 {
+		return ErrNoRemoteWorkArea
+	}
+	_, err := e.client.WaCmd(e.connID, "flock", strconv.Itoa(e.waRemote))
+	return err
+}
+
+func (e *DbapiSQLEngine) FUnLockFile() error {
+	if e.waRemote == 0 {
+		return ErrNoRemoteWorkArea
+	}
+	_, err := e.client.WaCmd(e.connID, "funlock", strconv.Itoa(e.waRemote))
+	return err
+}
+
+// DeleteRecord/RecallRecord: exclusão lógica ISAM real no dbAccess
+// (tTOPClient::DeleteR/RecallR no recno corrente) — equivalente ao
+// DBDelete/DBRecall do Protheus, que marca D_E_L_E_T_ sem passar pelo
+// buffer FieldPut+MsUnlock. O bridge usa o RecNo corrente quando o
+// recno não é informado.
+func (e *DbapiSQLEngine) DeleteRecord() error {
+	if e.waRemote == 0 {
+		return ErrNoRemoteWorkArea
+	}
+	_, err := e.client.WaCmd(e.connID, "delete", strconv.Itoa(e.waRemote))
+	e.waRecCount = -1 // COUNT(*) fica stale
+	return err
+}
+
+func (e *DbapiSQLEngine) RecallRecord() error {
+	if e.waRemote == 0 {
+		return ErrNoRemoteWorkArea
+	}
+	_, err := e.client.WaCmd(e.connID, "recall", strconv.Itoa(e.waRemote))
+	e.waRecCount = -1
+	return err
 }
 
 func (e *DbapiSQLEngine) FieldPos(field string) int {

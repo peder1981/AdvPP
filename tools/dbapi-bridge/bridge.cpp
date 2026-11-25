@@ -112,6 +112,7 @@ typedef int   (*SetKeyCFn)(void* self, short wa, const char* name);
 typedef int   (*Seek2Fn)(void* self, short wa, char* key, short len, unsigned char flag);
 typedef int   (*PackFn)(void* self, short wa);
 typedef int   (*KeyNamesFn)(void* self, short wa, char* buf);
+typedef int   (*WaFn)(void* self, short wa);   // FLock/FUnLock
 
 struct DbApi {
     void* h = nullptr;
@@ -153,6 +154,8 @@ struct DbApi {
     Seek2Fn      Seek2      = nullptr;
     PackFn       Pack       = nullptr;
     KeyNamesFn   GetKeyNames= nullptr;
+    WaFn         FLock      = nullptr;
+    WaFn         FUnLock    = nullptr;
 };
 
 static DbApi g_api;
@@ -221,6 +224,8 @@ static bool loadDbApi(const char* path) {
     g_api.Seek2        = (Seek2Fn)     xsym(h, "_ZN10tTOPClient5Seek2EsPcsh");
     g_api.Pack         = (PackFn)      xsym(h, "_ZN10tTOPClient4PackEs");
     g_api.GetKeyNames  = (KeyNamesFn)   xsym(h, "_ZN10tTOPClient11GetKeyNamesEsPc");
+    g_api.FLock        = (WaFn)         xsym(h, "_ZN10tTOPClient5FLockEs");
+    g_api.FUnLock      = (WaFn)         xsym(h, "_ZN10tTOPClient7FUnLockEs");
     bool ok = g_api.GetTopConn && g_api.Connect && g_api.Query &&
               g_api.GetFieldN && g_api.Skip && g_api.Eof && g_api.Release;
     if (!ok) fprintf(stderr, "[bridge] símbolos obrigatórios ausentes\n");
@@ -689,6 +694,16 @@ static void handleWaCmd(Ctx& c, const std::vector<Field>& in) {
         else if (cmd == "lock" && g_api.Lock) rc = g_api.Lock(cli, waOf(), rec);
         else if (cmd == "unlock" && g_api.UnLock) rc = g_api.UnLock(cli, waOf(), rec);
         else { respondErr(c.fd, "wacmd " + cmd + ": indisponivel"); return; }
+        if (rc != 0) { respondErr(c.fd, "wacmd " + cmd + ": rc=" + std::to_string(rc) + " " + lastError(cli)); return; }
+        respond(c.fd, 0, okFields({std::to_string(rc)}));
+        return;
+    }
+    // flock/funlock: lock de arquivo inteiro na workarea (FLock/FUnLock
+    // do tTOPClient — trava a tabela para outros clientes dbAccess).
+    if (cmd == "flock" || cmd == "funlock") {
+        WaFn fn = (cmd == "flock") ? g_api.FLock : g_api.FUnLock;
+        if (!fn) { respondErr(c.fd, "wacmd " + cmd + ": indisponivel"); return; }
+        int rc = fn(cli, waOf());
         if (rc != 0) { respondErr(c.fd, "wacmd " + cmd + ": rc=" + std::to_string(rc) + " " + lastError(cli)); return; }
         respond(c.fd, 0, okFields({std::to_string(rc)}));
         return;

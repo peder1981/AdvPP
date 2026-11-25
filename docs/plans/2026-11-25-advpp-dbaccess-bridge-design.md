@@ -396,6 +396,17 @@ append+write+delete validados em SX2990 com commit.
   fechado sem DISCONNECT vazava a seat até timeout do server.
   Mitigado: o bridge agora libera automaticamente as conexões de um
   fd quando o socket morre (`g_fdConns` cleanup no clientThread).
+- **FLock/FUnLock/DBDelete/DBRecall — RESOLVIDO**: WACMD ganhou
+  `flock`/`funlock` (`tTOPClient::FLock/FUnLock` — lock de arquivo
+  inteiro real no dbAccess). Engine expõe `FLockFile`/`FUnLockFile` e
+  `DeleteRecord`/`RecallRecord` (`DeleteR`/`RecallR` — marcação ISAM
+  imediata de `D_E_L_E_T_`, **sem** RecLock prévio, verificado:
+  delete→'*', recall→' '). Natives `FLOCK`/`FUNLOCK` (novo) e
+  `DBDELETE`/`DBRECALL` preferem esses métodos via duck-typing;
+  `db.ErrNoRemoteWorkArea` sinaliza "sem workarea remota" para cair
+  no fallback `FieldPut`/estado local. `MultLock`/`SoftLock` seguem
+  sem uso (assinaturas `MultLock(wa,const char*)` e
+  `SoftLock(wa,i64,int)` mapeadas mas não expostas).
 - **Versão TOTVS**: ABI validada no build 24.1.1.3 (mai/2026);
   pinning de dbapi.so por release do bridge.
 
