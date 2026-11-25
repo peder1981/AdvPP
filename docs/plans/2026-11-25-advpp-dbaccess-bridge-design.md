@@ -359,14 +359,18 @@ append+write+delete validados em SX2990 com commit.
   falha (ex.: alias sem tabela física); quando workarea abre, não
   materializa — mas `SelectArea` em si ainda pré-carrega `WHERE` via
   SELECT para filtros que OpenFile não expressa (ponytail).
-- **Concorrência**: mutex global no bridge serializa TODAS as
-  chamadas dbapi — suficiente para a fatia; refinar por conexão
-  quando locks chegarem.
+- **Concorrência**: mutex por connID no bridge — cada `tTOPClient`
+  só é tocado pela thread dona do connID; CONNECT segue no mutex
+  global (init compartilhado). Validado com 3 conexões × 20 queries
+  concorrentes. ponytail: mutexes de conns mortas não são removidos.
 - **Licença**: `LicenseServer=license-server`, `LicensePort=5555` no
   dbaccess.ini — o container `license-server` (totvslicensevirtual)
   precisa estar de pé; se cair, connect retorna "No licenses
-  available" até o dbaccess reiniciar. Sessões vazam se o cliente
-  morre sem DISCONNECT (timeout do server limpa).
+  available" até o dbaccess reiniciar. **Cada CONNECT consome uma
+  seat de licença** — a licença de teste tem poucas seats; socket
+  fechado sem DISCONNECT vazava a seat até timeout do server.
+  Mitigado: o bridge agora libera automaticamente as conexões de um
+  fd quando o socket morre (`g_fdConns` cleanup no clientThread).
 - **Versão TOTVS**: ABI validada no build 24.1.1.3 (mai/2026);
   pinning de dbapi.so por release do bridge.
 

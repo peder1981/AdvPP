@@ -154,9 +154,21 @@ struct DbApi {
 };
 
 static DbApi g_api;
-static std::mutex g_apiMu;           // serializa chamadas dbapi (v1)
+// serialização por conexão: cada thread de cliente já lê frames em
+// série, e ops no mesmo connID compartilham o mesmo tTOPClient —
+// mutex por connID basta. CONNECT fica no mutex global (init
+// compartilhado do dbapi). ponytail: mutexes nunca são removidos —
+// conexões são poucas; se virar problema, erase no DISCONNECT.
+static std::mutex g_apiMu;           // só p/ CONNECT
+static std::map<int, std::mutex> g_locks;
+static std::mutex g_locksMu;
+static std::mutex& lockFor(int connID) {
+    std::lock_guard<std::mutex> lk(g_locksMu);
+    return g_locks[connID];
+}
 static int g_nextConn = 1;
-static std::map<int, void*> g_conns; // connId -> tTOPClient*
+static std::map<int, void*> g_conns;   // connId -> tTOPClient*
+static std::map<int, std::vector<int>> g_fdConns; // fd -> connIds (cleanup no disconnect do socket)
 static std::mutex g_connsMu;
 
 static void* xsym(void* h, const char* n) {
@@ -394,7 +406,8 @@ static void handleConnect(Ctx& c, const std::vector<Field>& in) {
         return;
     }
     int id;
-    { std::lock_guard<std::mutex> lk(g_connsMu); id = g_nextConn++; g_conns[id] = cli; }
+    { std::lock_guard<std::mutex> lk(g_connsMu);
+      id = g_nextConn++; g_conns[id] = cli; g_fdConns[c.fd].push_back(id); }
     respond(c.fd, 0, okFields({std::to_string(id)}));
 }
 
@@ -524,8 +537,8 @@ static void handleDisconnect(Ctx& c, const std::vector<Field>& in) {
 
 // WACMD: workarea remota real (OpenFile/Seek-family do tTOPClient).
 // ponytail: comandos implementados um a um via if/else — sao ~12 casos
-// fixos; se crescer, migrar para tabela de dispatch. Sem lock por
-// workarea: o mutex global g_apiMu ja serializa tudo (v1).
+// fixos; se crescer, migrar para tabela de dispatch. Serialização por
+// connID (lockFor no clientThread) — tTOPClient é por conexão.
 static void handleWaCmd(Ctx& c, const std::vector<Field>& in) {
     void* cli = connById(in);
     if (!cli) { respondErr(c.fd, "wacmd: conexao invalida"); return; }
@@ -790,7 +803,16 @@ static void* clientThread(void* arg) {
         std::vector<Field> in;
         if (!r.fields(in, nf)) break;
 
-        std::lock_guard<std::mutex> apiLock(g_apiMu);
+        // lock por connID para ops que carregam connID no field 0
+        // (2..6 e 8); CONNECT(1)/PING(7) não têm connID — CONNECT usa
+        // o mutex global, PING não toca o dbapi.
+        int lockId = -1;
+        if ((op >= 2 && op <= 6) || op == 8) {
+            lockId = atoi(fieldStr(in, 0).c_str());
+        }
+        static std::mutex g_noopMu;
+        std::unique_lock<std::mutex> apiLock(
+            op == 1 ? g_apiMu : (lockId > 0 ? lockFor(lockId) : g_noopMu));
         try {
             switch (op) {
                 case 1: handleConnect(ctx, in); break;
@@ -807,6 +829,24 @@ static void* clientThread(void* arg) {
             // exceção C++ do dbapi (tAssertException etc.) — isola o processo
             // respondendo erro em vez de deixar propagar e matar o bridge.
             respondErr(ctx.fd, "excecao interna dbapi");
+        }
+    }
+    // socket morreu sem DISCONNECT: libera as conexões deste fd para não
+    // vazar licença/sessão no dbaccess64.
+    {
+        std::vector<int> ids;
+        { std::lock_guard<std::mutex> lk(g_connsMu);
+          auto it = g_fdConns.find(fd);
+          if (it != g_fdConns.end()) { ids = it->second; g_fdConns.erase(it); } }
+        for (int id : ids) {
+            void* cli = nullptr;
+            { std::lock_guard<std::mutex> lk(g_connsMu);
+              auto it = g_conns.find(id);
+              if (it != g_conns.end()) { cli = it->second; g_conns.erase(it); } }
+            if (cli) {
+                std::unique_lock<std::mutex> lk(lockFor(id));
+                if (g_api.Release) g_api.Release(cli);
+            }
         }
     }
     close(fd);
