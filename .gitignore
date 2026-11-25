@@ -107,3 +107,4 @@ __pycache__/
 # build local do bridge dbapi
 /tools/dbapi-bridge/advpp-dbapi-bridge
 /tools/dbapi-bridge/bridge.log
+/advpp-dbapi-bridge
