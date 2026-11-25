@@ -1,6 +1,6 @@
 # Makefile para AdvPP - Compilador AdvPL/TLPP
 
-.PHONY: all build test clean help cross web \
+.PHONY: all build dbapi-bridge test clean help cross web \
         rpo-analyze rpo-decrypt rpo-inject \
         docker-build docker-run docker-logs
 
@@ -36,6 +36,14 @@ fixture-app:
 	cd tests/poui/apps/fixture-app && mv browser/* . && rmdir browser
 
 # Build
+dbapi-bridge:
+	@echo "Building advpp-dbapi-bridge (requer g++)..."
+	./tools/dbapi-bridge/build.sh
+	cp tools/dbapi-bridge/advpp-dbapi-bridge .
+	@echo "advpp-dbapi-bridge pronto ao lado do advplc."
+	@echo "Falta só o dbapi.so da TOTVS (proprietário): exporte"
+	@echo "ADVPP_DBAPI_SO=/caminho/dbapi.so ou copie-o para o mesmo dir."
+
 build:
 	$(GO) build -o $(BINARY) ./cmd/advplc
 	@echo "Build concluído: $(BINARY) (version $(VERSION))"
@@ -60,6 +68,7 @@ help:
 	@echo ""
 	@echo "Available targets:"
 	@echo "  build          - Build the compiler"
+	@echo "  dbapi-bridge   - Build advpp-dbapi-bridge ao lado do advplc"
 	@echo "  test           - Run all tests"
 	@echo "  test-short     - Run short tests"
 	@echo "  clean          - Clean build artifacts"

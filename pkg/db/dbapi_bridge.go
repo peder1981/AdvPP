@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -70,14 +72,86 @@ type dbapiBridgeClient struct {
 	mu   sync.Mutex
 }
 
-func dialDbapiBridge() (*dbapiBridgeClient, error) {
-	addr := os.Getenv("ADVPP_DBAPI_BRIDGE")
-	if addr == "" {
-		addr = "127.0.0.1:17890"
+// bridgeAddr devolve o endereço configurado (host:port).
+func bridgeAddr() string {
+	if a := os.Getenv("ADVPP_DBAPI_BRIDGE"); a != "" {
+		return a
 	}
+	return "127.0.0.1:17890"
+}
+
+// ensureDbapiBridge tenta subir o advpp-dbapi-bridge quando o dial
+// falha. Localiza o binário (env ADVPP_DBAPI_BRIDGE_BIN → mesmo dir do
+// executável → PATH) e o dbapi.so (env ADVPP_DBAPI_SO → mesmo dir do
+// bridge → /usr/lib → /usr/local/lib → /opt/dbapi). ponytail: só faz
+// spawn em endereço loopback; corridas entre processos são benignas
+// (o perdedor falha no bind e morre, o dial seguinte acerta o vencedor).
+func ensureDbapiBridge() {
+	host, port, err := net.SplitHostPort(bridgeAddr())
+	if err != nil || (host != "127.0.0.1" && host != "localhost" && host != "::1") {
+		return // endereço remoto: não spawn local
+	}
+	bin := os.Getenv("ADVPP_DBAPI_BRIDGE_BIN")
+	if bin == "" {
+		if exe, err := os.Executable(); err == nil {
+			cand := filepath.Join(filepath.Dir(exe), "advpp-dbapi-bridge")
+			if _, err := os.Stat(cand); err == nil {
+				bin = cand
+			}
+		}
+	}
+	if bin == "" {
+		if p, err := exec.LookPath("advpp-dbapi-bridge"); err == nil {
+			bin = p
+		}
+	}
+	if bin == "" {
+		return
+	}
+	so := os.Getenv("ADVPP_DBAPI_SO")
+	if so == "" {
+		dirs := []string{filepath.Dir(bin), "/usr/lib", "/usr/local/lib", "/opt/dbapi"}
+		if exe, err := os.Executable(); err == nil {
+			dirs = append([]string{filepath.Dir(exe)}, dirs...)
+		}
+		for _, d := range dirs {
+			cand := filepath.Join(d, "dbapi.so")
+			if _, err := os.Stat(cand); err == nil {
+				so = cand
+				break
+			}
+		}
+	}
+	args := []string{}
+	if so != "" {
+		args = append(args, so)
+	}
+	args = append(args, port)
+	cmd := exec.Command(bin, args...)
+	cmd.Stderr = nil // logs do bridge não poluem o advplc (ponytail)
+	if err := cmd.Start(); err != nil {
+		return
+	}
+	go cmd.Wait() // zombie avoidance; processo vive até o SO matar
+}
+
+func dialDbapiBridge() (*dbapiBridgeClient, error) {
+	addr := bridgeAddr()
 	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
-		return nil, fmt.Errorf("dbapi bridge %s inacessivel: %v (suba tools/dbapi-bridge)", addr, err)
+		ensureDbapiBridge()
+		// retry: o bridge leva ~1s para dlopen dbapi.so + bind
+		for i := 0; i < 20; i++ {
+			time.Sleep(250 * time.Millisecond)
+			conn, err = net.DialTimeout("tcp", addr, time.Second)
+			if err == nil {
+				break
+			}
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("dbapi bridge %s inacessivel: %v "+
+			"(suba tools/dbapi-bridge ou aponte ADVPP_DBAPI_BRIDGE_BIN/ADVPP_DBAPI_SO)", addr, err)
 	}
 	return &dbapiBridgeClient{conn: conn}, nil
 }

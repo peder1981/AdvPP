@@ -362,10 +362,26 @@ append+write+delete validados em SX2990 com commit.
 - **Concorrência**: mutex global no bridge serializa TODAS as
   chamadas dbapi — suficiente para a fatia; refinar por conexão
   quando locks chegarem.
-- **Licença**: `LicenseServer=license-server:5551`…5555 no
+- **Licença**: `LicenseServer=license-server`, `LicensePort=5555` no
   dbaccess.ini — o container `license-server` (totvslicensevirtual)
   precisa estar de pé; se cair, connect retorna "No licenses
   available" até o dbaccess reiniciar. Sessões vazam se o cliente
   morre sem DISCONNECT (timeout do server limpa).
 - **Versão TOTVS**: ABI validada no build 24.1.1.3 (mai/2026);
   pinning de dbapi.so por release do bridge.
+
+### Empacotamento (parcial — auto-spawn)
+
+`dialDbapiBridge` agora tenta subir o bridge sozinho quando o dial
+falha (só em endereço loopback): procura `advpp-dbapi-bridge` em
+`ADVPP_DBAPI_BRIDGE_BIN` → mesmo dir do executável → PATH, e
+`dbapi.so` em `ADVPP_DBAPI_SO` → mesmo dir do bridge/executável →
+`/usr/lib` → `/usr/local/lib` → `/opt/dbapi`. `make dbapi-bridge`
+compila o C++ e copia o binário para a raiz (ao lado do `advplc`).
+O `dbapi.so` é proprietário TOTVS — não pode ser redistribuído; o
+usuário aponta via env ou copia para o mesmo diretório.
+
+Cenário zero-config validado: `advplc` + `advpp-dbapi-bridge` +
+`dbapi.so` no mesmo dir → `DbConnection("DBACCESS",...)` funciona sem
+nenhuma env extra. Corridas de spawn entre processos são benignas
+(perdedor falha no bind).
