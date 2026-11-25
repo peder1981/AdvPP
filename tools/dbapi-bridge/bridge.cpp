@@ -22,13 +22,42 @@
 //   push   = u8 tag(0x82 ROW / 0x83 COLS / 0x84 DONE) + payload próprio
 //
 // opcodes req: 1 CONNECT, 2 QUERY, 3 FETCH, 4 EXEC, 5 CLOSEWA,
-//              6 DISCONNECT, 7 PING
+//              6 DISCONNECT, 7 PING, 8 WACMD (workarea remota)
+//
+// WACMD fields: [connID, cmd, p1, p2]
+//   open      p1=file            -> OK [wa]
+//   close     p1=wa              -> OK
+//   gotop     p1=wa              -> OK [recno]
+//   gobottom  p1=wa              -> OK [recno]
+//   goto      p1=wa p2=recno     -> OK [recno]
+//   skip      p1=wa p2=n         -> OK [recno]
+//   bof/eof   p1=wa              -> OK ["0"|"1"]
+//   recno     p1=wa              -> OK [recno]
+//   reccount  p1=wa              -> OK [count]
+//   colcount  p1=wa              -> OK [n]
+//   field     p1=wa p2=nome      -> OK [valor] (NULL se vazio)
+//   fieldn    p1=wa p2=idx(1based)-> OK [valor] (NULL se vazio)
+//   fielddesc p1=wa p2=idx(0b)   -> OK [name,type,size,dec,flags]
+//
+// ATENCAO semantica dbapi: GetFieldN/GetField devolvem char* para dentro
+// do record buffer — a string corre ate o fim do registro (todos os
+// campos seguintes concatenados). O tamanho real do campo vem do
+// fielddesc (campo size). Campos tipo 'F' NAO sao string: o ponteiro
+// aponta para um double IEEE-754 little-endian de 8 bytes dentro do
+// record buffer (verificado empiricamente: R_E_C_N_O_/COUNT(*)). O
+// bridge decodifica 'F' para string numerica; tipos ainda nao
+// verificados ('D','L','N','M','B'...) sao devolvidos como hex dos
+// bytes crus — ponytail: rever quando houver base com datas/logicals.
+
+#include <arpa/inet.h>
+#include <cmath>
 
 #include <arpa/inet.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <strings.h>
 #include <dlfcn.h>
 #include <map>
 #include <mutex>
@@ -56,6 +85,11 @@ typedef int   (*SkipFn)(void* self, short wa, int n);
 typedef int   (*CloseWaFn)(void* self, short wa);
 typedef int   (*GetErrFn)(void* self, char* buf, short len);
 typedef void  (*ReleaseFn)(void* self);
+typedef int   (*OpenFileFn)(void* self, char* file, unsigned char a, unsigned char b);
+typedef int   (*GoBottomFn)(void* self, short wa);
+typedef int   (*GoToFn)(void* self, short wa, long long recno, unsigned char flag);
+typedef char* (*FieldByNameFn)(void* self, short wa, const char* name);
+typedef int   (*FieldNSetFn)(void* self, short wa, short fld, const char* val);
 
 struct DbApi {
     void* h = nullptr;
@@ -76,6 +110,11 @@ struct DbApi {
     CloseWaFn    CloseWa    = nullptr;
     GetErrFn     GetError   = nullptr;
     ReleaseFn    Release    = nullptr;
+    OpenFileFn   OpenFile   = nullptr;
+    GoBottomFn   GoBottom   = nullptr;
+    GoToFn       GoTo       = nullptr;
+    FieldByNameFn GetFieldByName = nullptr;
+    FieldNSetFn  SetFieldN  = nullptr;
 };
 
 static DbApi g_api;
@@ -111,6 +150,11 @@ static bool loadDbApi(const char* path) {
     g_api.CloseWa      = (CloseWaFn)   xsym(h, "_ZN10tTOPClient5CloseEs");
     g_api.GetError     = (GetErrFn)    xsym(h, "_ZN10tTOPClient8GetErrorEPcs");
     g_api.Release      = (ReleaseFn)   xsym(h, "v40TC_Release");
+    g_api.OpenFile     = (OpenFileFn)  xsym(h, "_ZN10tTOPClient8OpenFileEPchh");
+    g_api.GoBottom     = (GoBottomFn)  xsym(h, "_ZN10tTOPClient8GoBottomEs");
+    g_api.GoTo         = (GoToFn)      xsym(h, "_ZN10tTOPClient4GoToEsxh");
+    g_api.GetFieldByName = (FieldByNameFn) xsym(h, "_ZN10tTOPClient8GetFieldEsPKc");
+    g_api.SetFieldN    = (FieldNSetFn) xsym(h, "_ZN10tTOPClient9SetFieldNEssPKc");
     bool ok = g_api.GetTopConn && g_api.Connect && g_api.Query &&
               g_api.GetFieldN && g_api.Skip && g_api.Eof && g_api.Release;
     if (!ok) fprintf(stderr, "[bridge] símbolos obrigatórios ausentes\n");
@@ -193,6 +237,55 @@ static bool recvFrame(int fd, std::vector<uint8_t>& payload) {
     if (n > 64u * 1024u * 1024u) return false; // sanity: 64MB
     payload.resize(n);
     return n == 0 || readFull(fd, payload.data(), n);
+}
+
+// Decodifica o valor cru de GetFieldN conforme o tipo do fielddesc.
+// Retorna string pronta para o fio; isNull reflete ponteiro NULL.
+// ponytail: 'F' = double LE 8 bytes (verificado); 'C'/'M'/desconhecido
+// textual = char* cru (o consumidor fatia por size); demais tipos =
+// hex dos bytes crus ate size (max 256) ate RE confirmar o encoding.
+struct ColDesc { std::string type; int size = 0; };
+static ColDesc fieldDescOf(void* cli, short wa, short idx0) {
+    ColDesc d;
+    if (!g_api.GetFieldDesc) return d;
+    char name[256]; memset(name, 0, sizeof name);
+    char type[64];  memset(type, 0, sizeof type);
+    short a = 0, b = 0, c = 0;
+    if (g_api.GetFieldDesc(cli, wa, idx0, name, type, &a, &b, &c) == 0) {
+        d.type = type; d.size = a;
+    }
+    return d;
+}
+static std::string hexBytes(const char* v, int n) {
+    static const char* h = "0123456789abcdef";
+    std::string s; s.reserve(n * 2 + 2);
+    s += "0x";
+    for (int i = 0; i < n; i++) {
+        unsigned char ch = (unsigned char)v[i];
+        s += h[ch >> 4]; s += h[ch & 15];
+    }
+    return s;
+}
+static std::string decodeFieldVal(char* v, const ColDesc& d, bool& isNull) {
+    isNull = (v == nullptr);
+    if (!v) return "";
+    if (d.type == "F") {
+        // double IEEE-754 little-endian (x86) — unico tipo binario
+        // verificado empiricamente; 'N'/'D'/'L' caem no hex abaixo
+        double x;
+        memcpy(&x, v, 8);
+        char buf[64];
+        if (x == std::floor(x) && std::fabs(x) < 1e15)
+            snprintf(buf, sizeof buf, "%.0f", x);
+        else
+            snprintf(buf, sizeof buf, "%.10g", x);
+        return buf;
+    }
+    if (d.type == "C" || d.type == "M" || d.type.empty())
+        return v; // char* cru — consumidor fatia por size
+    // tipos binarios nao verificados: expoe hex para debug/RE
+    int n = d.size > 0 && d.size <= 256 ? d.size : 16;
+    return hexBytes(v, n);
 }
 
 // ---------- respostas ----------
@@ -304,6 +397,12 @@ static void handleFetch(Ctx& c, const std::vector<Field>& in) {
     if (maxrows > 100000) maxrows = 100000;
     int ncols = g_api.GetColCount ? g_api.GetColCount(cli, (short)wa) : 0;
     if (ncols < 0) ncols = 0;
+    if (ncols > 512) ncols = 512;
+    // descs uma vez por FETCH (GetFieldN devolve char* que over-lee;
+    // 'F' e double cru — decodeFieldVal resolve por tipo)
+    std::vector<ColDesc> descs(ncols);
+    for (int f = 0; f < ncols; f++)
+        descs[f] = fieldDescOf(cli, (short)wa, (short)f);
 
     std::vector<uint8_t> rows;
     putU8(rows, 0x82);
@@ -319,7 +418,9 @@ static void handleFetch(Ctx& c, const std::vector<Field>& in) {
         putU32(rows, (uint32_t)ncols);
         for (int f = 1; f <= ncols; f++) {
             char* v = g_api.GetFieldN ? g_api.GetFieldN(cli, (short)wa, (short)f) : nullptr;
-            if (!v) putFieldNull(rows); else putField(rows, v);
+            bool isNull = false;
+            std::string val = decodeFieldVal(v, descs[f - 1], isNull);
+            if (isNull) putFieldNull(rows); else putField(rows, val);
         }
         nrows++;
         if (g_api.Skip) g_api.Skip(cli, (short)wa, 1);
@@ -371,6 +472,101 @@ static void handleDisconnect(Ctx& c, const std::vector<Field>& in) {
     respond(c.fd, 0, okFields({}));
 }
 
+// WACMD: workarea remota real (OpenFile/Seek-family do tTOPClient).
+// ponytail: comandos implementados um a um via if/else — sao ~12 casos
+// fixos; se crescer, migrar para tabela de dispatch. Sem lock por
+// workarea: o mutex global g_apiMu ja serializa tudo (v1).
+static void handleWaCmd(Ctx& c, const std::vector<Field>& in) {
+    void* cli = connById(in);
+    if (!cli) { respondErr(c.fd, "wacmd: conexao invalida"); return; }
+    std::string cmd = fieldStr(in, 1);
+    std::string p1  = fieldStr(in, 2);
+    std::string p2  = fieldStr(in, 3);
+    auto num = [](const std::string& s) { return atoll(s.c_str()); };
+    auto waOf = [&]() { return (short)num(p1); };
+
+    if (cmd == "open") {
+        if (p1.empty() || !g_api.OpenFile) { respondErr(c.fd, "wacmd open: arquivo vazio"); return; }
+        char* f = strdup(p1.c_str());
+        int wa = g_api.OpenFile(cli, f, 0, 0);
+        free(f);
+        if (wa < 0) { respondErr(c.fd, "wacmd open: " + lastError(cli)); return; }
+        respond(c.fd, 0, okFields({std::to_string(wa)}));
+        return;
+    }
+    if (cmd == "close") {
+        if (g_api.CloseWa && waOf() > 0) g_api.CloseWa(cli, waOf());
+        respond(c.fd, 0, okFields({}));
+        return;
+    }
+    if (cmd == "field") {
+        if (!g_api.GetFieldByName) { respondErr(c.fd, "wacmd field: indisponivel"); return; }
+        // resolve idx0 pelo nome para decodificar por tipo
+        int idx0 = -1, ncol = g_api.GetColCount ? g_api.GetColCount(cli, waOf()) : 0;
+        for (int i = 0; i < ncol && i < 512; i++) {
+            char nm[256]; memset(nm, 0, sizeof nm);
+            char tp[64]; memset(tp, 0, sizeof tp);
+            short a=0,b=0,d=0;
+            if (g_api.GetFieldDesc && g_api.GetFieldDesc(cli, waOf(), (short)i, nm, tp, &a, &b, &d) == 0) {
+                if (strcasecmp(nm, p2.c_str()) == 0) { idx0 = i; break; }
+            }
+        }
+        char* f = strdup(p2.c_str());
+        char* v = g_api.GetFieldByName(cli, waOf(), f);
+        free(f);
+        ColDesc cd = idx0 >= 0 ? fieldDescOf(cli, waOf(), (short)idx0) : ColDesc{};
+        bool isNull = false;
+        std::string val = decodeFieldVal(v, cd, isNull);
+        std::vector<Field> out(1);
+        if (!isNull) out[0].data = val;
+        respond(c.fd, 0, out);
+        return;
+    }
+    if (cmd == "fieldn") {
+        if (!g_api.GetFieldN) { respondErr(c.fd, "wacmd fieldn: indisponivel"); return; }
+        int idx1 = (int)num(p2);
+        char* v = g_api.GetFieldN(cli, waOf(), (short)idx1);
+        ColDesc cd = fieldDescOf(cli, waOf(), (short)(idx1 - 1));
+        bool isNull = false;
+        std::string val = decodeFieldVal(v, cd, isNull);
+        std::vector<Field> out(1);
+        if (!isNull) out[0].data = val;
+        respond(c.fd, 0, out);
+        return;
+    }
+    if (cmd == "fielddesc") {
+        if (!g_api.GetFieldDesc) { respondErr(c.fd, "wacmd fielddesc: indisponivel"); return; }
+        int idx = (int)num(p2);
+        char name[256]; memset(name, 0, sizeof name);
+        char type[64];  memset(type, 0, sizeof type);
+        short a = 0, b = 0, d = 0;
+        int rc = g_api.GetFieldDesc(cli, waOf(), (short)idx, name, type, &a, &b, &d);
+        if (rc != 0) { respondErr(c.fd, "wacmd fielddesc: rc=" + std::to_string(rc)); return; }
+        respond(c.fd, 0, okFields({name, type, std::to_string(a), std::to_string(b), std::to_string(d)}));
+        return;
+    }
+
+    short wa = waOf();
+    if (cmd == "gotop" || cmd == "gobottom" || cmd == "goto" ||
+        cmd == "skip" || cmd == "bof" || cmd == "eof" || cmd == "recno" ||
+        cmd == "reccount" || cmd == "colcount") {
+        std::string val;
+        if (cmd == "gotop" && g_api.GoTop) { g_api.GoTop(cli, wa); val = std::to_string(g_api.RecNo ? g_api.RecNo(cli, wa) : 0); }
+        else if (cmd == "gobottom" && g_api.GoBottom) { g_api.GoBottom(cli, wa); val = std::to_string(g_api.RecNo ? g_api.RecNo(cli, wa) : 0); }
+        else if (cmd == "goto" && g_api.GoTo) { g_api.GoTo(cli, wa, num(p2), 0); val = std::to_string(g_api.RecNo ? g_api.RecNo(cli, wa) : 0); }
+        else if (cmd == "skip" && g_api.Skip) { g_api.Skip(cli, wa, (int)num(p2)); val = std::to_string(g_api.RecNo ? g_api.RecNo(cli, wa) : 0); }
+        else if (cmd == "bof" && g_api.Bof) val = g_api.Bof(cli, wa) ? "1" : "0";
+        else if (cmd == "eof" && g_api.Eof) val = g_api.Eof(cli, wa) ? "1" : "0";
+        else if (cmd == "recno" && g_api.RecNo) val = std::to_string(g_api.RecNo(cli, wa));
+        else if (cmd == "reccount" && g_api.RecCount) val = std::to_string(g_api.RecCount(cli, wa));
+        else if (cmd == "colcount" && g_api.GetColCount) val = std::to_string(g_api.GetColCount(cli, wa));
+        else { respondErr(c.fd, "wacmd: " + cmd + " indisponivel"); return; }
+        respond(c.fd, 0, okFields({val}));
+        return;
+    }
+    respondErr(c.fd, "wacmd: comando desconhecido " + cmd);
+}
+
 // ---------- loop por cliente ----------
 static void* clientThread(void* arg) {
     int fd = (int)(intptr_t)arg;
@@ -394,6 +590,7 @@ static void* clientThread(void* arg) {
                 case 5: handleCloseWa(ctx, in); break;
                 case 6: handleDisconnect(ctx, in); break;
                 case 7: respond(ctx.fd, 0, okFields({"pong"})); break;
+                case 8: handleWaCmd(ctx, in); break;
                 default: respondErr(ctx.fd, "opcode desconhecido"); break;
             }
         } catch (...) {

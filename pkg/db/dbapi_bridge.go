@@ -445,6 +445,60 @@ func (c *dbapiBridgeClient) CloseWA(connID, wa int) error {
 	return err
 }
 
+// WaCmd executa um comando de workarea remota (opcode 8). args viram
+// p1..p3. Devolve os campos da resposta OK.
+func (c *dbapiBridgeClient) WaCmd(connID int, cmd string, args ...string) ([]dbapiField, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	fields := []dbapiField{dbapiStr(strconv.Itoa(connID)), dbapiStr(cmd)}
+	for _, a := range args {
+		fields = append(fields, dbapiStr(a))
+	}
+	// WACMD espera [connID, cmd, p1, p2] — completa com vazios
+	for len(fields) < 4 {
+		fields = append(fields, dbapiStr(""))
+	}
+	if err := c.sendRequest(8, fields); err != nil {
+		return nil, err
+	}
+	fs, _, err := c.readUntilDone(nil)
+	return fs, err
+}
+
+// waStr extrai o primeiro campo string de uma resposta WaCmd.
+func waStr(fs []dbapiField, i int) string {
+	if i < len(fs) && !fs[i].isNull {
+		return string(fs[i].data)
+	}
+	return ""
+}
+
+// dbapiFieldSlice corta o valor no tamanho declarado do campo.
+//
+// Semântica dbapi (verificada empiricamente): GetFieldN/GetField
+// devolvem char* para dentro do record buffer e a string CORRE até o
+// fim do registro — campos seguintes vêm concatenados. O fielddesc
+// informa a largura real (size); o valor correto é s[:size].
+// ponytail: fatia em bytes — em bases multi-byte (UTF-8) pode partir
+// um caractere; o client dbAccess fala WIN1252, então é byte-safe na
+// prática. Se um dia houver encoding UTF-8, trocar por rune-aware.
+func dbapiFieldSlice(s string, size int) string {
+	if size > 0 && len(s) > size {
+		return s[:size]
+	}
+	return s
+}
+
+// dbapiFieldSliceT fatia só tipos texto — o bridge já decodifica 'F'
+// (double) para string numérica e tipos binários exóticos chegam como
+// hex; fatiar por size corromperia esses valores.
+func dbapiFieldSliceT(s string, cm dbapiColMeta) string {
+	if cm.typ == "C" || cm.typ == "M" || cm.typ == "" {
+		return dbapiFieldSlice(s, cm.size)
+	}
+	return s
+}
+
 // Exec executa SQL sem retorno de linhas (INSERT/UPDATE/DDL/SP).
 func (c *dbapiBridgeClient) Exec(connID int, sql string) error {
 	c.mu.Lock()
@@ -473,6 +527,14 @@ type DbapiSQLEngine struct {
 	records  []map[string]advplrt.Value
 	current  int
 	isLocked bool
+
+	// modo workarea remota: waRemote > 0 quando SelectArea abriu a
+	// tabela via OpenFile do dbapi (navegação sob demanda, sem carregar
+	// tudo em memória). waCols/waIdx descrevem os campos para FieldGet.
+	waRemote  int
+	waCols    []dbapiColMeta
+	waIdx     map[string]int
+	waRecCount int // -1 = ainda não consultado (ver RecCount)
 
 	recordsMutex sync.RWMutex
 	driver       string
@@ -531,8 +593,9 @@ func NewDbapiEngineFrom(cfg ConnConfig) (*DbapiSQLEngine, error) {
 		client:  client,
 		connID:  connID,
 		cfg:     cfg,
-		driver:  "DBACCESS",
-		current: -1,
+		driver:     "DBACCESS",
+		current:    -1,
+		waRecCount: -1,
 	}, nil
 }
 
@@ -546,6 +609,16 @@ func (e *DbapiSQLEngine) SelectArea(alias string) error {
 	e.alias = strings.ToUpper(alias)
 	if !identRe.MatchString(e.alias) {
 		return fmt.Errorf("invalid table name: %q", e.alias)
+	}
+	e.closeRemoteWA()
+
+	// Tenta workarea remota real primeiro (OpenFile do dbapi): navegação
+	// sob demanda sem carregar a tabela em memória. Se o alias não for
+	// uma tabela ISAM do ambiente dbAccess, cai no SELECT * em memória.
+	if wa, err := e.openRemoteWA(e.alias); err == nil {
+		e.waRemote = wa
+		e.waNav("gotop") // paridade com o modo memória (current=0)
+		return nil
 	}
 
 	wa, cols, err := e.client.Query(e.connID, "SELECT * FROM "+e.alias)
@@ -585,17 +658,95 @@ func (e *DbapiSQLEngine) SelectArea(alias string) error {
 				continue
 			}
 			s := string(f.data)
-			// campos char vêm com padding de tamanho fixo — apara só o
-			// excedente, preserva espaços internos significativos
-			if cm.typ == "C" && cm.size > 0 && len(s) > cm.size {
-				s = s[:cm.size]
-			}
+			// GetFieldN devolve campo+resto do registro; fatia na largura
+			// declarada (dbapiFieldSlice). O trim extra de campos 'C' foi
+			// removido: size já é a largura exata do campo.
+			s = dbapiFieldSliceT(s, cm)
 			record[cm.name] = remoteValue(s, e.columns[i].sqlType)
 		}
 		e.records = append(e.records, record)
 	}
 	e.current = 0
 	return nil
+}
+
+// openRemoteWA abre a tabela como workarea ISAM remota via WACMD open
+// e monta waCols/waIdx a partir de colcount+fielddesc. Retorna o handle
+// da workarea no bridge ou erro.
+func (e *DbapiSQLEngine) openRemoteWA(file string) (int, error) {
+	fs, err := e.client.WaCmd(e.connID, "open", file)
+	if err != nil || len(fs) == 0 {
+		return 0, fmt.Errorf("openRemoteWA: %v", err)
+	}
+	wa, err := strconv.Atoi(waStr(fs, 0))
+	if err != nil || wa <= 0 {
+		return 0, fmt.Errorf("openRemoteWA: wa invalido %q", waStr(fs, 0))
+	}
+
+	// colunas via colcount + fielddesc(0-based)
+	nfs, err := e.client.WaCmd(e.connID, "colcount", strconv.Itoa(wa))
+	if err != nil {
+		e.client.WaCmd(e.connID, "close", strconv.Itoa(wa))
+		return 0, err
+	}
+	ncols, _ := strconv.Atoi(waStr(nfs, 0))
+	if ncols <= 0 || ncols > 1024 {
+		e.client.WaCmd(e.connID, "close", strconv.Itoa(wa))
+		return 0, fmt.Errorf("openRemoteWA: colcount invalido %d", ncols)
+	}
+
+	cols := make([]dbapiColMeta, 0, ncols)
+	idx := make(map[string]int, ncols)
+	for i := 0; i < ncols; i++ {
+		dfs, err := e.client.WaCmd(e.connID, "fielddesc", strconv.Itoa(wa), strconv.Itoa(i))
+		if err != nil || len(dfs) < 5 {
+			break
+		}
+		sz, _ := strconv.Atoi(waStr(dfs, 2))
+		dc, _ := strconv.Atoi(waStr(dfs, 3))
+		fl, _ := strconv.Atoi(waStr(dfs, 4))
+		name := waStr(dfs, 0)
+		cols = append(cols, dbapiColMeta{
+			name: strings.ToUpper(name), typ: strings.ToUpper(waStr(dfs, 1)),
+			size: sz, dec: dc, flags: fl,
+		})
+		idx[strings.ToUpper(name)] = i + 1 // GetFieldN é 1-based
+	}
+	if len(cols) == 0 {
+		e.client.WaCmd(e.connID, "close", strconv.Itoa(wa))
+		return 0, fmt.Errorf("openRemoteWA: sem colunas")
+	}
+
+	e.waCols = cols
+	e.waIdx = idx
+	e.waRecCount = -1
+	e.columns = make([]columnInfo, len(cols))
+	for i, cm := range cols {
+		e.columns[i] = columnInfo{name: cm.name, sqlType: dbapiTypeToSQLType(cm.typ)}
+	}
+	e.records = nil
+	e.current = -1
+	return wa, nil
+}
+
+func (e *DbapiSQLEngine) closeRemoteWA() {
+	if e.waRemote > 0 && e.client != nil {
+		e.client.WaCmd(e.connID, "close", strconv.Itoa(e.waRemote))
+	}
+	e.waRemote = 0
+	e.waCols = nil
+	e.waIdx = nil
+	e.waRecCount = -1
+}
+
+// waNav executa comando de navegação remota e devolve o valor string.
+func (e *DbapiSQLEngine) waNav(cmd string, extra ...string) (string, error) {
+	args := append([]string{strconv.Itoa(e.waRemote)}, extra...)
+	fs, err := e.client.WaCmd(e.connID, cmd, args...)
+	if err != nil {
+		return "", err
+	}
+	return waStr(fs, 0), nil
 }
 
 // QueryRows implementa SQLEngine: executa o SQL via bridge e devolve
@@ -626,7 +777,9 @@ func (e *DbapiSQLEngine) QueryRows(query string, args ...any) ([]map[string]stri
 					row[cm.name] = ""
 					continue
 				}
-				row[cm.name] = string(r.vals[i].data)
+				// GetFieldN devolve o campo + resto do registro concatenado;
+				// fatia na largura declarada (ver dbapiFieldSlice).
+				row[cm.name] = dbapiFieldSliceT(string(r.vals[i].data), cm)
 			}
 			out = append(out, row)
 		}
@@ -648,6 +801,32 @@ func (e *DbapiSQLEngine) Exec(query string, args ...any) error {
 // ---- navegação DBEngine (idêntica ao RemoteSQLEngine) ----
 
 func (e *DbapiSQLEngine) Seek(key string) (bool, error) {
+	if e.waRemote > 0 {
+		// ponytail: seek sequencial via Skip+FieldGet — O(n) roundtrips
+		// ao bridge. Serve para correção; o upgrade path é Seek2/SetKey
+		// do tTOPClient quando índices reais forem mapeados (Fase 2b).
+		if _, err := e.waNav("gotop"); err != nil {
+			return false, err
+		}
+		for {
+			eof, _ := e.waNav("eof")
+			if eof == "1" {
+				return false, nil
+			}
+			// compara todos os campos? não — Seek do DBEngine compara
+			// qualquer campo (mesmo critério do modo memória)
+			match, err := e.waSeekMatch(key)
+			if err != nil {
+				return false, err
+			}
+			if match {
+				return true, nil
+			}
+			if _, err := e.waNav("skip", "1"); err != nil {
+				return false, err
+			}
+		}
+	}
 	for i, record := range e.records {
 		for _, val := range record {
 			if fmt.Sprintf("%v", val) == key {
@@ -659,7 +838,31 @@ func (e *DbapiSQLEngine) Seek(key string) (bool, error) {
 	return false, nil
 }
 
+// waSeekMatch compara key com todos os campos do registro corrente da
+// workarea remota (mesmo critério "qualquer campo" do Seek em memória).
+func (e *DbapiSQLEngine) waSeekMatch(key string) (bool, error) {
+	for i, cm := range e.waCols {
+		fs, err := e.client.WaCmd(e.connID, "fieldn",
+			strconv.Itoa(e.waRemote), strconv.Itoa(i+1))
+		if err != nil {
+			return false, err
+		}
+		if len(fs) == 0 || fs[0].isNull {
+			continue
+		}
+		v := dbapiFieldSliceT(string(fs[0].data), cm)
+		if v == key {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (e *DbapiSQLEngine) Skip(count int) error {
+	if e.waRemote > 0 {
+		_, err := e.waNav("skip", strconv.Itoa(count))
+		return err
+	}
 	e.recordsMutex.Lock()
 	defer e.recordsMutex.Unlock()
 	if len(e.records) == 0 {
@@ -676,6 +879,11 @@ func (e *DbapiSQLEngine) Skip(count int) error {
 }
 
 func (e *DbapiSQLEngine) GoTop() error {
+	if e.waRemote > 0 {
+		_, err := e.waNav("gotop")
+		e.current = 0
+		return err
+	}
 	e.recordsMutex.Lock()
 	defer e.recordsMutex.Unlock()
 	e.current = 0
@@ -683,6 +891,11 @@ func (e *DbapiSQLEngine) GoTop() error {
 }
 
 func (e *DbapiSQLEngine) GoBottom() error {
+	if e.waRemote > 0 {
+		_, err := e.waNav("gobottom")
+		e.current = e.RecCount() - 1
+		return err
+	}
 	e.recordsMutex.Lock()
 	defer e.recordsMutex.Unlock()
 	if len(e.records) > 0 {
@@ -692,18 +905,29 @@ func (e *DbapiSQLEngine) GoBottom() error {
 }
 
 func (e *DbapiSQLEngine) EOF() bool {
+	if e.waRemote > 0 {
+		v, err := e.waNav("eof")
+		return err == nil && v == "1"
+	}
 	e.recordsMutex.RLock()
 	defer e.recordsMutex.RUnlock()
 	return e.current >= len(e.records)
 }
 
 func (e *DbapiSQLEngine) BOF() bool {
+	if e.waRemote > 0 {
+		v, err := e.waNav("bof")
+		return err == nil && v == "1"
+	}
 	e.recordsMutex.RLock()
 	defer e.recordsMutex.RUnlock()
 	return e.current < 0
 }
 
 func (e *DbapiSQLEngine) FieldGet(field string) (advplrt.Value, error) {
+	if e.waRemote > 0 {
+		return e.waFieldGet(field)
+	}
 	e.recordsMutex.RLock()
 	defer e.recordsMutex.RUnlock()
 	if e.current < 0 || e.current >= len(e.records) {
@@ -715,7 +939,33 @@ func (e *DbapiSQLEngine) FieldGet(field string) (advplrt.Value, error) {
 	return advplrt.Nil, nil
 }
 
+// waFieldGet lê um campo da workarea remota: resolve o índice 1-based
+// pelo mapa de colunas, chama fieldn e fatia na largura declarada.
+func (e *DbapiSQLEngine) waFieldGet(field string) (advplrt.Value, error) {
+	name := strings.ToUpper(field)
+	idx, ok := e.waIdx[name]
+	if !ok {
+		return advplrt.Nil, nil
+	}
+	fs, err := e.client.WaCmd(e.connID, "fieldn",
+		strconv.Itoa(e.waRemote), strconv.Itoa(idx))
+	if err != nil {
+		return advplrt.Nil, err
+	}
+	if len(fs) == 0 || fs[0].isNull {
+		return advplrt.Nil, nil
+	}
+	cm := e.waCols[idx-1]
+	s := dbapiFieldSliceT(string(fs[0].data), cm)
+	return remoteValue(s, dbapiTypeToSQLType(cm.typ)), nil
+}
+
 func (e *DbapiSQLEngine) FieldPut(field string, val advplrt.Value) error {
+	if e.waRemote > 0 {
+		// ponytail: workarea remota é read-only nesta fatia — escrita
+		// real (SetFieldN+Update/Write) é a Fase 3 do plano.
+		return fmt.Errorf("DBACCESS: FieldPut em workarea remota ainda não suportado (Fase 3)")
+	}
 	e.recordsMutex.Lock()
 	defer e.recordsMutex.Unlock()
 	if e.current < 0 || e.current >= len(e.records) {
@@ -729,12 +979,14 @@ func (e *DbapiSQLEngine) FieldPut(field string, val advplrt.Value) error {
 // em processo, não lock real no dbAccess (mesma limitação honesta do
 // RemoteSQLEngine/SQLiteEngine).
 func (e *DbapiSQLEngine) RecLock() error {
-	e.recordsMutex.RLock()
-	if e.current < 0 || e.current >= len(e.records) {
+	if e.waRemote == 0 {
+		e.recordsMutex.RLock()
+		if e.current < 0 || e.current >= len(e.records) {
+			e.recordsMutex.RUnlock()
+			return fmt.Errorf("RecLock: no current record")
+		}
 		e.recordsMutex.RUnlock()
-		return fmt.Errorf("RecLock: no current record")
 	}
-	e.recordsMutex.RUnlock()
 	if e.isLocked {
 		return fmt.Errorf("RecLock: record already locked")
 	}
@@ -763,6 +1015,12 @@ func (e *DbapiSQLEngine) Append() error {
 
 func (e *DbapiSQLEngine) FieldPos(field string) int {
 	field = strings.ToUpper(field)
+	if e.waRemote > 0 {
+		if idx, ok := e.waIdx[field]; ok {
+			return idx
+		}
+		return 0
+	}
 	for i, c := range e.columns {
 		if c.name == field {
 			return i + 1
@@ -772,12 +1030,36 @@ func (e *DbapiSQLEngine) FieldPos(field string) int {
 }
 
 func (e *DbapiSQLEngine) RecCount() int {
+	if e.waRemote > 0 {
+		// ponytail: RecCount(wa) do dbapi devolve sentinela (~1e9) em
+		// workarea ISAM — medido em SX2990. COUNT(*) via SQL é a fonte
+		// confiável; cacheado por SelectArea (stale se a tabela mudar
+		// durante a sessão — aceitável nesta fatia).
+		if e.waRecCount < 0 {
+			rows, err := e.QueryRows("SELECT COUNT(*) AS C FROM " + e.alias)
+			if err == nil && len(rows) > 0 {
+				n, _ := strconv.Atoi(strings.TrimSpace(rows[0]["C"]))
+				e.waRecCount = n
+			} else {
+				e.waRecCount = 0
+			}
+		}
+		return e.waRecCount
+	}
 	e.recordsMutex.RLock()
 	defer e.recordsMutex.RUnlock()
 	return len(e.records)
 }
 
 func (e *DbapiSQLEngine) RecNo() int {
+	if e.waRemote > 0 {
+		v, err := e.waNav("recno")
+		if err != nil {
+			return 0
+		}
+		n, _ := strconv.ParseInt(v, 10, 64)
+		return int(n)
+	}
 	e.recordsMutex.RLock()
 	defer e.recordsMutex.RUnlock()
 	if e.current < 0 || e.current >= len(e.records) {
@@ -794,6 +1076,7 @@ func (e *DbapiSQLEngine) RecNo() int {
 func (e *DbapiSQLEngine) Close() error {
 	var err error
 	e.closeOnce.Do(func() {
+		e.closeRemoteWA()
 		if e.client != nil {
 			if e.connID > 0 {
 				e.client.Disconnect(e.connID)

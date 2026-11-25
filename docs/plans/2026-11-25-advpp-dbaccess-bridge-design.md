@@ -293,17 +293,41 @@ Testes: `TestDbapiBridgeCodec` + `TestDbapiSQLEngineIntegration`
 (pkg/db, gated `ADVPP_DBAPI_IT=1`) e `TestDbAccessBridgeFixture`
 (cmd/advplc, idem). `go test ./pkg/db ./pkg/vm` verde.
 
+### Fase 2 parcial — workarea real (entregue)
+
+`DbapiSQLEngine.SelectArea` agora tenta `WACMD open` (OpenFile remoto)
+antes do fallback `SELECT *` em memória. Navegação (`GoTop`/`GoBottom`/
+`GoTo`/`Skip`/`EOF`/`BOF`/`RecNo`), `FieldGet` (`fieldn` 1-based) e
+`RecCount` (`COUNT(*)` cacheado — o RecCount ISAM do dbapi devolve
+sentinela 999930006) operam sobre a workarea remota sem materializar
+linhas. `Seek` usa comparação sequencial campo-a-campo (O(n)
+roundtrips — ponytail); índices/`SetKey` ficam para depois.
+
+**Decodificação de tipos (achado crítico)**: `GetFieldN` devolve
+`char*` para dentro do record buffer. Para tipo `C` é string que
+corre até o fim do registro (fatiar por `size` do fielddesc). Para
+tipo `F` o ponteiro aponta um **double IEEE-754 little-endian de 8
+bytes** — não é string; o bridge decodifica para texto numérico.
+Demais tipos (`D`,`L`,`N`,`M`,`B`...) ainda não verificados (base de
+teste só tem SX2990/SX6990, sem datas/logicals): o bridge devolve hex
+dos bytes crus — `ponytail:` revisitar com base real. No Go,
+`dbapiFieldSliceT` só fatia tipos texto; `F`/hex passam inteiros.
+
 ### Limitações desta fatia (próximas)
 
 - **Read path apenas**: `Append` retorna erro honesto; `MsUnlock`
-  não persiste (FieldPut só em memória); sem locks reais.
+  não persiste (FieldPut só em memória / FieldPut remoto retorna erro
+  explícito "Fase 3"); sem locks reais.
+- **Workarea remota read-only**: `Write`/`Update`/`SetFieldN` ainda
+  não expostos via WACMD (símbolos já mapeados no bridge).
 - **QueryRows/Exec sem args** — placeholders não expandidos (o
   dbapi não os aceita via SQLExec simples); usar literais.
-- **SelectArea carrega tudo em memória** (igual RemoteSQLEngine) —
-  tabelas grandes = memória; paginação real via FETCH existe no
-  protocolo mas a engine atual drena tudo.
+- **SelectArea fallback** carrega tudo em memória quando `OpenFile`
+  falha (ex.: alias sem tabela física); quando workarea abre, não
+  materializa — mas `SelectArea` em si ainda pré-carrega `WHERE` via
+  SELECT para filtros que OpenFile não expressa (ponytail).
 - **Concorrência**: mutex global no bridge serializa TODAS as
   chamadas dbapi — suficiente para a fatia; refinar por conexão
-  quando workarea/locks chegarem.
+  quando locks chegarem.
 - **Versão TOTVS**: ABI validada no build 24.1.1.3 (mai/2026);
   pinning de dbapi.so por release do bridge.
