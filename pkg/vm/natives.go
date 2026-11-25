@@ -1226,13 +1226,19 @@ func (v *VM) registerNatives() {
 		},
 		// RETSQLNAME devolve o nome físico da tabela para um alias — em
 		// Protheus real, uma consulta ao dicionário SX2 (nome pode diferir
-		// do alias por filial/ambiente). Sem um dicionário SX2 carregado, o
-		// fallback correto é o próprio alias: é assim que as tabelas locais
-		// deste VM são nomeadas (CREATE TABLE <alias> via adveditor),
-		// então RetSqlName("SB2") já "funciona" mesmo sem nenhum dicionário
-		// configurado, igual pedido explicitamente.
+		// do alias por filial/ambiente). Engines que conhecem o dicionário
+		// (DbapiSQLEngine via SX2.X2_ARQUIVO) resolvem de verdade; o
+		// fallback é o próprio alias: é assim que as tabelas locais deste
+		// VM são nomeadas (CREATE TABLE <alias> via adveditor), então
+		// RetSqlName("SB2") já "funciona" sem dicionário configurado.
 		"RETSQLNAME": func(args []advplrt.Value) (advplrt.Value, error) {
-			return advplrt.NewString(strings.ToUpper(advplrt.ToString(getArg(args, 0)))), nil
+			alias := strings.ToUpper(advplrt.ToString(getArg(args, 0)))
+			if eng, ok := v.tcSQLEngine(); ok {
+				if r, ok := eng.(interface{ RetSqlName(string) string }); ok {
+					return advplrt.NewString(r.RetSqlName(alias)), nil
+				}
+			}
+			return advplrt.NewString(alias), nil
 		},
 		"USED": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.False, nil

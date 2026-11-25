@@ -50,7 +50,9 @@ func TestDbAccessBridgeFixture(t *testing.T) {
 		"connect=true",
 		"rows=3",
 		"usearea=true",
-		"reccount=10436",
+		"sqlname=SE1990",
+		"se1=true",
+		"se1emis=",
 		"fim=true",
 	}
 	for _, w := range want {

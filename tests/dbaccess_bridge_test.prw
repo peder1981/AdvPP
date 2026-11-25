@@ -35,6 +35,21 @@ User Function DbAccessBridgeTest()
         ConOut("usearea=false")
     EndIf
 
+    // Workarea por ALIAS: SE1 resolve para o nome físico SE1990 via
+    // SX2.X2_ARQUIVO (dbapi/OpenFile não resolve alias sozinho).
+    ConOut("sqlname=" + RetSqlName("SE1"))
+    DBUseArea(.T., "TOPCONN", "SE1", "SE1")
+    DbGoTop()
+    ConOut("se1count=" + cValToChar(RecCount()))
+    If RecCount() > 0
+        ConOut("se1=true")
+        ConOut("se1doc=" + SE1->E1_DOC)
+        ConOut("se1emis=" + DtoC(SE1->E1_EMISSAO))
+        DbCloseArea()
+    Else
+        ConOut("se1=false")
+    EndIf
+
     // Erro de SQL deve voltar tratavel, nao derrubar o programa.
     Local aBad := TCSQLQUERY("SELECT * FROM TABELA_INEXISTENTE_XX")
     ConOut("badrows=" + cValToChar(Len(aBad)))

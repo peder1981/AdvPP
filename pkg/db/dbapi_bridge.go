@@ -614,6 +614,13 @@ type DbapiSQLEngine struct {
 	waRecCount int // -1 = ainda não consultado (ver RecCount)
 	waAppending bool // Append() posicionou além do fim; MsUnlock faz Write
 
+	// fileName é o nome FÍSICO da tabela no SGBD (ex.: SE1990), resolvido
+	// via SX2.X2_ARQUIVO quando o alias AdvPL (SE1) não é o nome físico.
+	// e.alias continua sendo o alias lógico para FieldGet/SQL do usuário.
+	fileName string
+	// sqlNames cacheia alias -> nome físico (SX2) por SelectArea.
+	sqlNames map[string]string
+
 	recordsMutex sync.RWMutex
 	driver       string
 	closeOnce    sync.Once
@@ -674,6 +681,7 @@ func NewDbapiEngineFrom(cfg ConnConfig) (*DbapiSQLEngine, error) {
 		driver:     "DBACCESS",
 		current:    -1,
 		waRecCount: -1,
+		sqlNames:   map[string]string{},
 	}, nil
 }
 
@@ -689,19 +697,30 @@ func (e *DbapiSQLEngine) SelectArea(alias string) error {
 		return fmt.Errorf("invalid table name: %q", e.alias)
 	}
 	e.closeRemoteWA()
+	e.fileName = e.alias
 
 	// Tenta workarea remota real primeiro (OpenFile do dbapi): navegação
-	// sob demanda sem carregar a tabela em memória. Se o alias não for
-	// uma tabela ISAM do ambiente dbAccess, cai no SELECT * em memória.
+	// sob demanda sem carregar a tabela em memória. OpenFile exige o nome
+	// FÍSICO (SE1990), não o alias (SE1) — se o alias puro falhar,
+	// resolve via SX2.X2_ARQUIVO e tenta de novo. Se nem assim abrir,
+	// cai no SELECT * em memória com o nome resolvido.
 	if wa, err := e.openRemoteWA(e.alias); err == nil {
 		e.waRemote = wa
 		e.waNav("gotop") // paridade com o modo memória (current=0)
 		return nil
 	}
+	if phys := e.resolveSQLName(e.alias); phys != e.alias {
+		e.fileName = phys
+		if wa, err := e.openRemoteWA(phys); err == nil {
+			e.waRemote = wa
+			e.waNav("gotop")
+			return nil
+		}
+	}
 
-	wa, cols, err := e.client.Query(e.connID, "SELECT * FROM "+e.alias)
+	wa, cols, err := e.client.Query(e.connID, "SELECT * FROM "+e.fileName)
 	if err != nil {
-		return fmt.Errorf("table %s not found: %v", e.alias, err)
+		return fmt.Errorf("table %s not found: %v", e.fileName, err)
 	}
 	defer e.client.CloseWA(e.connID, wa)
 
@@ -746,6 +765,47 @@ func (e *DbapiSQLEngine) SelectArea(alias string) error {
 	}
 	e.current = 0
 	return nil
+}
+
+// resolveSQLName traduz o alias AdvPL para o nome físico da tabela
+// consultando o dicionário SX2 (X2_ARQUIVO). O dbapi não resolve alias —
+// OpenFile/SQL exigem o nome físico (SE1 -> SE1990). Cacheado em
+// e.sqlNames; devolve o próprio alias quando o dicionário não conhece
+// a tabela (tabelas custom cujo alias já é o nome físico, ex.: SXx990).
+func (e *DbapiSQLEngine) resolveSQLName(alias string) string {
+	if e.sqlNames == nil {
+		e.sqlNames = map[string]string{}
+	}
+	if n, ok := e.sqlNames[alias]; ok {
+		return n
+	}
+	name := alias
+	if identRe.MatchString(alias) {
+		// Candidatos de dicionário SX2: nome nu e sufixos de empresa/filial
+		// observados em bases reais (990 = empresa 99, x3199 = naming novo).
+		for _, dic := range []string{"sx2", "sx2990", "sx2x3199"} {
+			rows, err := e.QueryRows("SELECT X2_ARQUIVO FROM " + dic +
+				" WHERE X2_CHAVE = '" + alias + "'")
+			if err != nil || len(rows) == 0 {
+				continue
+			}
+			for _, v := range rows[0] {
+				if v = strings.ToUpper(strings.TrimSpace(v)); v != "" {
+					name = v
+				}
+			}
+			break
+		}
+	}
+	e.sqlNames[alias] = name
+	return name
+}
+
+// RetSqlName expõe resolveSQLName para o native RETSQLNAME da VM —
+// %table:ALIAS% e RetSqlName() em AdvPL precisam do nome físico para
+// o SQL funcionar contra o dbAccess.
+func (e *DbapiSQLEngine) RetSqlName(alias string) string {
+	return e.resolveSQLName(strings.ToUpper(alias))
 }
 
 // openRemoteWA abre a tabela como workarea ISAM remota via WACMD open
@@ -925,7 +985,7 @@ func (e *DbapiSQLEngine) Seek(key string) (bool, error) {
 // pelo alias — OpenFile resolve o mesmo nome usado em openRemoteWA.
 func (e *DbapiSQLEngine) waSeekIndex(key string) (string, bool) {
 	if e.waSeek <= 0 {
-		fs, err := e.client.WaCmd(e.connID, "open", e.alias)
+		fs, err := e.client.WaCmd(e.connID, "open", e.fileName)
 		if err != nil || len(fs) == 0 {
 			return "", false
 		}
@@ -1232,7 +1292,7 @@ func (e *DbapiSQLEngine) RecCount() int {
 		// confiável; cacheado por SelectArea (stale se a tabela mudar
 		// durante a sessão — aceitável nesta fatia).
 		if e.waRecCount < 0 {
-			rows, err := e.QueryRows("SELECT COUNT(*) AS C FROM " + e.alias)
+			rows, err := e.QueryRows("SELECT COUNT(*) AS C FROM " + e.fileName)
 			if err == nil && len(rows) > 0 {
 				n, _ := strconv.Atoi(strings.TrimSpace(rows[0]["C"]))
 				e.waRecCount = n

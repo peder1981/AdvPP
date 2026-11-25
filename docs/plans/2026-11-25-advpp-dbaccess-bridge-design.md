@@ -365,9 +365,19 @@ append+write+delete validados em SX2990 com commit.
   existe em tabelas custom vazias; `N` do dicionário chega como `F`
   no dbapi; `M` memo retorna vazio/inconsistente). ponytail: escrever
   `L`/`M` hoje sai `Value.String()` — provavelmente errado.
-- **OpenFile naming**: o "arquivo" é `ALIAS+EMPRESA+FILIAL` físico
-  (ex.: `SE1990`, `SX3990`) — `SE1`/`SX3` retornam rc 65517
-  (arquivo fora do catálogo do ambiente).
+- **OpenFile naming — RESOLVIDO**: o "arquivo" é o nome físico
+  (`SE1990`, `SA1990`, `SX2990`), não o alias (`SE1` retorna rc 65517).
+  O dbapi **não** resolve alias — quem resolve é o appserver via SX2.
+  `DbapiSQLEngine.resolveSQLName` consulta `SX2.X2_ARQUIVO`
+  (candidatos `sx2`/`sx2990`/`sx2x3199`, cacheado por alias) e guarda o
+  resultado em `e.fileName`, usado por `openRemoteWA`, `waSeekIndex`
+  (workarea auxiliar do Seek2) e `RecCount` (`COUNT(*)`). O alias AdvPL
+  (`e.alias`) permanece intacto para FieldGet/Navegação. `RetSqlName`
+  nativo da VM delega ao engine via duck-typing
+  (`interface{ RetSqlName(string) string }`) — `RetSqlName("SE1")` →
+  `"SE1990"`, então `%table:SE1%`/SQL embutido também funcionam.
+  Validado E2E: `DBUseArea("SE1")` abre SE1990 (RecCount=102,
+  `E1_EMISSAO` tipo D → `23/12/2023`).
 - **QueryRows/Exec sem args** — placeholders não expandidos (o
   dbapi não os aceita via SQLExec simples); usar literais.
 - **SelectArea fallback** carrega tudo em memória quando `OpenFile`
