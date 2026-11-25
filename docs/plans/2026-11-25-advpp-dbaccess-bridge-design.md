@@ -335,12 +335,18 @@ append+write+delete validados em SX2990 com commit.
 
 ### Limitações desta fatia (próximas)
 
-- **Escrita sem transação explícita**: `Commit`/`Rollback` expostos no
-  bridge mas a engine ainda não os chama (cada Update/Write é
-  autocommit do dbAccess); `Exec` SQL de escrita idem.
-- **Locks**: `lock`/`unlock` mapeados mas semântica exata do
-  `tTOPClient::Lock` vs `SoftLock`/`MultLock` não explorada; lock é
-  por recno, não há lock de tabela (FLock) exposto.
+- **Seek**: duas rotas — `seek2` indexado numa **workarea auxiliar**
+  (SetKey muda a ordem de navegação da wa; a auxiliar tem índice 1
+  ativo, devolve recno, wa principal faz GoTo+verificação) e fallback
+  `find` (scan sequencial **server-side** no bridge — sem o loop
+  Go de fieldn-por-campo, um miss em 10k registros leva segundos em
+  vez de minutos). Seek2 é soft seek: rc=0 só posiciona; a engine
+  verifica o registro corrente antes de declarar match.
+- **Índices**: `keys`/`setkey`/`setkeyc`/`pack` expostos; engine usa
+  sempre o índice 1 (não há SET ORDER por campo — ponytail).
+- **Transação explícita**: `Commit`/`Rollback` no bridge, engine ainda
+  não expõe (cada Update/Write autocommit).
+- **Locks**: `lock`/`unlock` por recno; sem `FLock`/`MultLock`/`SoftLock`.
 - **Delete/Recall**: comandos no bridge, mas a engine DBEngine não tem
   Delete nativo — uso direto via WaCmd hoje.
 - **FieldPut de tipos não-C**: `F` recebe texto numérico (funciona);

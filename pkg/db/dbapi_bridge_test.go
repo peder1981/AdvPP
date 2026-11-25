@@ -122,6 +122,18 @@ func TestDbapiSQLEngineIntegration(t *testing.T) {
 		t.Fatalf("engine morreu após erro anterior: %v", err)
 	}
 
+	// seek indexado: "SD2" é prefixo do índice 1 (X2_CHAVE...) — Seek2
+	// posiciona direto; "ZZZINEXISTENTE" deve dar miss via fallback.
+	if ok, err := eng.Seek("SD2"); err != nil || !ok {
+		t.Fatalf("Seek(SD2): ok=%v err=%v", ok, err)
+	}
+	if eng.RecNo() != 7840 {
+		t.Logf("Seek(SD2) recno=%d (esperado ~7840 se índice pegou)", eng.RecNo())
+	}
+	if ok, err := eng.Seek("ZZZINEXISTENTE123"); err != nil || ok {
+		t.Fatalf("Seek inexistente: ok=%v err=%v", ok, err)
+	}
+
 	// escrita: update+restore em SX2990->X2_NOME (workarea remota,
 	// RecLock/FieldPut/MsUnlock → Lock/SetFieldN/Update/UnLock no dbapi)
 	if err := eng.SelectArea("SX2990"); err != nil {

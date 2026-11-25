@@ -107,6 +107,11 @@ typedef int   (*WriteFn)(void* self, short wa);
 typedef int   (*DelRecFn)(void* self, short wa, long long recno);
 typedef int   (*NoArgFn)(void* self);
 typedef int   (*LockFn)(void* self, short wa, long long recno);
+typedef int   (*SetKeyFn)(void* self, short wa, short keynum);
+typedef int   (*SetKeyCFn)(void* self, short wa, const char* name);
+typedef int   (*Seek2Fn)(void* self, short wa, char* key, short len, unsigned char flag);
+typedef int   (*PackFn)(void* self, short wa);
+typedef int   (*KeyNamesFn)(void* self, short wa, char* buf);
 
 struct DbApi {
     void* h = nullptr;
@@ -141,6 +146,11 @@ struct DbApi {
     NoArgFn      Rollback   = nullptr;
     LockFn       Lock       = nullptr;
     LockFn       UnLock     = nullptr;
+    SetKeyFn     SetKey     = nullptr;
+    SetKeyCFn    SetKeyC    = nullptr;
+    Seek2Fn      Seek2      = nullptr;
+    PackFn       Pack       = nullptr;
+    KeyNamesFn   GetKeyNames= nullptr;
 };
 
 static DbApi g_api;
@@ -190,6 +200,11 @@ static bool loadDbApi(const char* path) {
     g_api.Rollback     = (NoArgFn)     xsym(h, "_ZN10tTOPClient8RollbackEv");
     g_api.Lock         = (LockFn)      xsym(h, "_ZN10tTOPClient4LockEsx");
     g_api.UnLock       = (LockFn)      xsym(h, "_ZN10tTOPClient6UnLockEsx");
+    g_api.SetKey       = (SetKeyFn)    xsym(h, "_ZN10tTOPClient6SetKeyEss");
+    g_api.SetKeyC      = (SetKeyCFn)   xsym(h, "_ZN10tTOPClient7SetKeyCEsPKc");
+    g_api.Seek2        = (Seek2Fn)     xsym(h, "_ZN10tTOPClient5Seek2EsPcsh");
+    g_api.Pack         = (PackFn)      xsym(h, "_ZN10tTOPClient4PackEs");
+    g_api.GetKeyNames  = (KeyNamesFn)   xsym(h, "_ZN10tTOPClient11GetKeyNamesEsPc");
     bool ok = g_api.GetTopConn && g_api.Connect && g_api.Query &&
               g_api.GetFieldN && g_api.Skip && g_api.Eof && g_api.Release;
     if (!ok) fprintf(stderr, "[bridge] símbolos obrigatórios ausentes\n");
@@ -670,6 +685,93 @@ static void handleWaCmd(Ctx& c, const std::vector<Field>& in) {
         g_api.Skip(cli, waOf(), 1);
         long long rec = g_api.RecNo ? g_api.RecNo(cli, waOf()) : 0;
         respond(c.fd, 0, okFields({std::to_string(rec)}));
+        return;
+    }
+    // ---- indices / seek ----
+    // ponytail: Seek2 e SOFT seek — rc=0 so significa "posicionou"
+    // (primeiro registro >= chave); quem consome deve verificar o
+    // registro corrente. Sem SetKey previo, Seek2 falha (rc<0).
+    if (cmd == "setkey" || cmd == "setkeyc") {
+        int rc;
+        if (cmd == "setkey" && g_api.SetKey) rc = g_api.SetKey(cli, waOf(), (short)num(p2));
+        else if (cmd == "setkeyc" && g_api.SetKeyC) rc = g_api.SetKeyC(cli, waOf(), p2.c_str());
+        else { respondErr(c.fd, "wacmd " + cmd + ": indisponivel"); return; }
+        if (rc != 0) { respondErr(c.fd, "wacmd " + cmd + ": rc=" + std::to_string(rc) + " " + lastError(cli)); return; }
+        respond(c.fd, 0, okFields({std::to_string(rc)}));
+        return;
+    }
+    if (cmd == "keys") {
+        if (!g_api.GetKeyNames) { respondErr(c.fd, "wacmd keys: indisponivel"); return; }
+        char buf[4096]; memset(buf, 0, sizeof buf);
+        int rc = g_api.GetKeyNames(cli, waOf(), buf);
+        if (rc != 0) { respondErr(c.fd, "wacmd keys: rc=" + std::to_string(rc)); return; }
+        respond(c.fd, 0, okFields({buf}));
+        return;
+    }
+    if (cmd == "seek2") {
+        if (!g_api.Seek2) { respondErr(c.fd, "wacmd seek2: indisponivel"); return; }
+        char* k = strdup(p2.c_str());
+        int rc = g_api.Seek2(cli, waOf(), k, (short)p2.size(), 0);
+        free(k);
+        long long rec = g_api.RecNo ? g_api.RecNo(cli, waOf()) : -1;
+        // OK [rc,recno] — rc!=0 nao e erro fatal: e "nao encontrado"
+        respond(c.fd, 0, okFields({std::to_string(rc), std::to_string(rec)}));
+        return;
+    }
+    if (cmd == "pack") {
+        if (!g_api.Pack) { respondErr(c.fd, "wacmd pack: indisponivel"); return; }
+        int rc = g_api.Pack(cli, waOf());
+        if (rc != 0) { respondErr(c.fd, "wacmd pack: rc=" + std::to_string(rc) + " " + lastError(cli)); return; }
+        respond(c.fd, 0, okFields({std::to_string(rc)}));
+        return;
+    }
+    // find: scan sequencial server-side — GoTop, compara key com todos
+    // os campos (mesmo criterio do Seek em memoria: igualdade exata no
+    // valor fatiado/decodificado), Skip(1) ate EOF. Devolve [recno] ou
+    // ["-1"]; a wa fica posicionada no registro encontrado (ou EOF).
+    // ponytail: substitui o loop Go de fieldn-por-campo-por-record —
+    // sem isso um miss em tabela grande sao ~ncols*n roundtrips.
+    if (cmd == "find") {
+        if (!g_api.GoTop || !g_api.Skip || !g_api.Eof || !g_api.RecNo ||
+            !g_api.GetFieldN || !g_api.GetColCount) {
+            respondErr(c.fd, "wacmd find: indisponivel"); return;
+        }
+        short wa = waOf();
+        int ncols = g_api.GetColCount(cli, wa);
+        if (ncols < 0 || ncols > 512) { respondErr(c.fd, "wacmd find: colcount invalido"); return; }
+        std::vector<ColDesc> descs(ncols);
+        for (int f = 0; f < ncols; f++)
+            descs[f] = fieldDescOf(cli, wa, (short)f);
+        g_api.GoTop(cli, wa);
+        long long found = -1;
+        for (;;) {
+            if (g_api.Eof(cli, wa)) break;
+            bool match = false;
+            for (int f = 1; f <= ncols && !match; f++) {
+                char* v = g_api.GetFieldN(cli, wa, (short)f);
+                if (!v) continue;
+                ColDesc& d = descs[f - 1];
+                std::string val;
+                if (d.type == "F") {
+                    double x; memcpy(&x, v, 8);
+                    char buf[64];
+                    if (x == std::floor(x) && std::fabs(x) < 1e15)
+                        snprintf(buf, sizeof buf, "%.0f", x);
+                    else
+                        snprintf(buf, sizeof buf, "%.10g", x);
+                    val = buf;
+                } else {
+                    val = v;
+                    if ((d.type == "C" || d.type == "M" || d.type.empty()) &&
+                        d.size > 0 && (int)val.size() > d.size)
+                        val.resize(d.size);
+                }
+                if (val == p2) match = true;
+            }
+            if (match) { found = g_api.RecNo(cli, wa); break; }
+            g_api.Skip(cli, wa, 1);
+        }
+        respond(c.fd, 0, okFields({std::to_string(found)}));
         return;
     }
     respondErr(c.fd, "wacmd: comando desconhecido " + cmd);

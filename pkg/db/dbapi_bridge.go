@@ -532,6 +532,9 @@ type DbapiSQLEngine struct {
 	// tabela via OpenFile do dbapi (navegação sob demanda, sem carregar
 	// tudo em memória). waCols/waIdx descrevem os campos para FieldGet.
 	waRemote  int
+	waSeek    int // workarea extra p/ Seek2 — SetKey muda a ordem de
+	//            navegação, então seek usa wa separada e devolve o
+	//            recno para a wa principal (GoTo), sem poluir a ordem
 	waCols    []dbapiColMeta
 	waIdx     map[string]int
 	waRecCount int // -1 = ainda não consultado (ver RecCount)
@@ -721,6 +724,7 @@ func (e *DbapiSQLEngine) openRemoteWA(file string) (int, error) {
 	e.waCols = cols
 	e.waIdx = idx
 	e.waRecCount = -1
+	e.waSeek = 0
 	e.columns = make([]columnInfo, len(cols))
 	for i, cm := range cols {
 		e.columns[i] = columnInfo{name: cm.name, sqlType: dbapiTypeToSQLType(cm.typ)}
@@ -735,6 +739,10 @@ func (e *DbapiSQLEngine) closeRemoteWA() {
 		e.client.WaCmd(e.connID, "close", strconv.Itoa(e.waRemote))
 	}
 	e.waRemote = 0
+	if e.waSeek > 0 && e.client != nil {
+		e.client.WaCmd(e.connID, "close", strconv.Itoa(e.waSeek))
+	}
+	e.waSeek = 0
 	e.waCols = nil
 	e.waIdx = nil
 	e.waRecCount = -1
@@ -804,30 +812,28 @@ func (e *DbapiSQLEngine) Exec(query string, args ...any) error {
 
 func (e *DbapiSQLEngine) Seek(key string) (bool, error) {
 	if e.waRemote > 0 {
-		// ponytail: seek sequencial via Skip+FieldGet — O(n) roundtrips
-		// ao bridge. Serve para correção; o upgrade path é Seek2/SetKey
-		// do tTOPClient quando índices reais forem mapeados (Fase 2b).
-		if _, err := e.waNav("gotop"); err != nil {
+		// tenta seek indexado numa workarea auxiliar: SetKey muda a
+		// ordem de navegação da wa, então seek2 roda numa wa separada
+		// (mesmo arquivo, índice 1) e o recno encontrado volta para a
+		// wa principal via GoTo. Seek2 é soft seek — verifica o
+		// registro corrente; match -> O(1); senão cai no scan.
+		if rec, ok := e.waSeekIndex(key); ok {
+			if _, err := e.waNav("goto", rec); err == nil {
+				if match, err := e.waSeekMatch(key); err == nil && match {
+					return true, nil
+				}
+			}
+		}
+		// fallback: scan server-side (WACMD find) — compara key com
+		// todos os campos dentro do bridge, sem roundtrip por campo.
+		// Devolve recno>=0 se achou (wa já posicionada), -1 se não.
+		fs, err := e.client.WaCmd(e.connID, "find",
+			strconv.Itoa(e.waRemote), key)
+		if err != nil {
 			return false, err
 		}
-		for {
-			eof, _ := e.waNav("eof")
-			if eof == "1" {
-				return false, nil
-			}
-			// compara todos os campos? não — Seek do DBEngine compara
-			// qualquer campo (mesmo critério do modo memória)
-			match, err := e.waSeekMatch(key)
-			if err != nil {
-				return false, err
-			}
-			if match {
-				return true, nil
-			}
-			if _, err := e.waNav("skip", "1"); err != nil {
-				return false, err
-			}
-		}
+		rec, _ := strconv.ParseInt(waStr(fs, 0), 10, 64)
+		return rec >= 0, nil
 	}
 	for i, record := range e.records {
 		for _, val := range record {
@@ -838,6 +844,33 @@ func (e *DbapiSQLEngine) Seek(key string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// waSeekIndex abre (uma vez) uma workarea auxiliar com o índice 1
+// ativo, executa Seek2 e devolve o recno posicionado. Abre o arquivo
+// pelo alias — OpenFile resolve o mesmo nome usado em openRemoteWA.
+func (e *DbapiSQLEngine) waSeekIndex(key string) (string, bool) {
+	if e.waSeek <= 0 {
+		fs, err := e.client.WaCmd(e.connID, "open", e.alias)
+		if err != nil || len(fs) == 0 {
+			return "", false
+		}
+		wa, err := strconv.Atoi(waStr(fs, 0))
+		if err != nil || wa <= 0 {
+			return "", false
+		}
+		e.client.WaCmd(e.connID, "setkey", strconv.Itoa(wa), "1")
+		e.waSeek = wa
+	}
+	fs, err := e.client.WaCmd(e.connID, "seek2",
+		strconv.Itoa(e.waSeek), key)
+	if err != nil || len(fs) < 2 {
+		return "", false
+	}
+	if rc, _ := strconv.Atoi(waStr(fs, 0)); rc != 0 {
+		return "", false
+	}
+	return waStr(fs, 1), true
 }
 
 // waSeekMatch compara key com todos os campos do registro corrente da
