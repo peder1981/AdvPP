@@ -2,6 +2,22 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.10.2] - 2026-11-26
+
+### Added
+- Driver `DBACCESS` no **Windows**: `advpp-dbapi-bridge.exe` carrega o
+  `dbapi.dll` da TOTVS (proprietário, não distribuído) como o Linux carrega
+  o `dbapi.so`. Os métodos `tTOPClient` são achados pelo nome C++
+  desmanglado, casando os exports MSVC da DLL com as mesmas assinaturas do
+  Linux. Vai no zip e no instalador Windows; o auto-spawn procura
+  `advpp-dbapi-bridge.exe` e `dbapi.dll`. **Não testado contra um
+  `dbapi.dll` real**: o CI valida contra uma DLL de teste compilada com MSVC.
+- `advpp-dbapi-bridge --symbols <dbapi>`: lista a resolução de cada símbolo e
+  sai com 0 só se todos forem encontrados.
+
+### Changed
+- Extensão VS Code volta a ter a mesma versão do compilador (4.10.2).
+
 ## [4.10.1] - 2026-11-25
 
 ### Fixed

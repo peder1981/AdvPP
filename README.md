@@ -235,7 +235,7 @@ conexão remota ativa via `RemoteSQLEngine`, sem precisar trocar nenhuma
 outra linha do programa. `TCLINK` e o SQLite local continuam com o
 comportamento de sempre.
 
-**Driver `DBACCESS` (desde v4.10.0, só Linux):** `DbConnection():New("DBACCESS",
+**Driver `DBACCESS` (desde v4.10.0; Linux e, desde v4.10.2, Windows):** `DbConnection():New("DBACCESS",
 "127.0.0.1", 7890, "POSTGRES/<ambiente>", "", "")` fala com o **dbAccess
 TOTVS real** (`dbaccess64`) através do `advpp-dbapi-bridge` (ponte C++ sobre
 o `dbapi.so` da TOTVS, que é proprietário e **não** é distribuído — aponte
@@ -245,6 +245,12 @@ endereço). Cobre `TCSqlQuery`, work-area remota (`DBUseArea`/`DbSeek` por
 índice real do SIX/`DBSetOrder`), escrita, `RetSqlName` via
 `SX2.X2_ARQUIVO`, `FLock`/`FUnLock`, `DBDelete`/`DBRecall` e transação via
 `TCCommit` (1=begin, 2=commit, 3=rollback, 4=end).
+No Windows o bridge é `advpp-dbapi-bridge.exe` (vai no zip e no instalador) e
+carrega o `dbapi.dll` da TOTVS, também não distribuído: copie-o ao lado do
+`advplc.exe` ou aponte `ADVPP_DBAPI_SO`. **O suporte Windows ainda não foi
+testado contra um `dbapi.dll` real** — só contra uma DLL de teste compilada com
+MSVC. `advpp-dbapi-bridge --symbols <dbapi>` mostra se todos os métodos foram
+encontrados na sua DLL.
 
 **Limitações:**
 - Tabela física remota precisa ter as colunas `R_E_C_N_O_`/`D_E_L_E_T_`

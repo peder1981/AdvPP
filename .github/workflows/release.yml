@@ -34,8 +34,25 @@ jobs:
             dist/advpp-cli-*.tar.gz
             dist/advpp-cli-*.zip
 
+  # advpp-dbapi-bridge.exe: cross-compilado com MinGW (o bridge usa o
+  # demangler da libstdc++ para casar os exports MSVC do dbapi.dll), -static
+  # para não depender de DLL de runtime. Vai no zip e no instalador Windows.
+  bridge-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build advpp-dbapi-bridge.exe (MinGW)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq g++-mingw-w64-x86-64-posix
+          CXX=x86_64-w64-mingw32-g++-posix ./tools/dbapi-bridge/build.sh advpp-dbapi-bridge.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bridge-windows
+          path: advpp-dbapi-bridge.exe
+
   # Suite completa (inclui GUIs Fyne): build nativo em cada plataforma
   native:
+    needs: bridge-windows
     strategy:
       fail-fast: false
       matrix:
@@ -82,6 +99,12 @@ jobs:
           max=$(objdump -T out/advpp-dbapi-bridge | grep -oE 'GLIBC_[0-9.]+' | sed 's/GLIBC_//' | sort -V | tail -1)
           echo "GLIBC máximo exigido: $max"
           [ "$(printf '%s\n2.36\n' "$max" | sort -V | tail -1)" = "2.36" ] || { echo "bridge exige glibc > 2.36"; exit 1; }
+      - name: advpp-dbapi-bridge.exe (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-windows
+          path: out
       - name: Package (tar.gz / zip)
         shell: bash
         run: |
@@ -159,10 +182,17 @@ jobs:
     needs: [cli-cross, native]
     runs-on: ubuntu-latest
     steps:
+      # Só os pacotes: o artifact bridge-windows já está dentro do zip e do
+      # instalador e não deve virar asset solto da release.
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: native-*
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          name: cli-packages
       - name: Integridade dos pacotes
         # Nomes repetidos entre jobs viravam um arquivo só, com os bytes
         # misturados (merge-multiple) — o workflow ficava verde e a release
