@@ -65,6 +65,15 @@ jobs:
           for t in advplc adveditor advpp-ide; do
             go build -trimpath -ldflags "-s -w -X main.version=v$VERSION" -o "out/$t$EXT" "./cmd/$t"
           done
+      - name: Build advpp-dbapi-bridge (Linux)
+        # Ponte C++ AdvPP <-> dbapi.so TOTVS (dlopen/pthread — POSIX).
+        # Vai para out/ junto do advplc: o auto-spawn do driver DBACCESS
+        # procura o binário no mesmo diretório do executável. O dbapi.so
+        # é proprietário e NÃO é distribuído — o usuário o obtém da
+        # instalação TOTVS e o auto-spawn o encontra via ADVPP_DBAPI_SO
+        # ou nos diretórios padrão.
+        if: runner.os == 'Linux'
+        run: ./tools/dbapi-bridge/build.sh out/advpp-dbapi-bridge
       - name: Package (tar.gz / zip)
         shell: bash
         run: |
@@ -82,7 +91,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           PKG=pkgroot
           mkdir -p $PKG/DEBIAN $PKG/usr/bin
-          cp out/advplc out/adveditor out/advpp-ide $PKG/usr/bin/
+          cp out/advplc out/adveditor out/advpp-ide out/advpp-dbapi-bridge $PKG/usr/bin/
           cat > $PKG/DEBIAN/control <<EOF
           Package: advpp
           Version: $VERSION
@@ -90,7 +99,7 @@ jobs:
           Priority: optional
           Architecture: amd64
           Maintainer: AdvPP Team <peder1981@gmail.com>
-          Depends: libc6, libgl1, libx11-6
+          Depends: libc6, libstdc++6, libgl1, libx11-6
           Description: AdvPL/TLPP Development Tools
            Compiler (advplc), IDE (advpp-ide), and database/dictionary
            editor (adveditor) for the AdvPL/TLPP language. All tools share

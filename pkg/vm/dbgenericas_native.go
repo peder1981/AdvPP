@@ -62,12 +62,14 @@ package vm
 //     natives deste arquivo.
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/advpl/compiler/pkg/db"
 	advplrt "github.com/advpl/compiler/pkg/runtime"
 )
 
@@ -254,6 +256,14 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 	//   se não houver — neste caso retornamos Nil silencioso, regra do VM).
 	// =========================================================================
 	natives["DBRECALL"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		// Engines com workarea real (DBACCESS) usam RecallR do dbapi —
+		// marcação ISAM imediata. Demais engines mantêm o FieldPut de
+		// D_E_L_E_T_ (persistido no MsUnlock), comportamento anterior.
+		if e, ok := v.dbEngine.(interface{ RecallRecord() error }); ok {
+			if err := e.RecallRecord(); !errors.Is(err, db.ErrNoRemoteWorkArea) {
+				return advplrt.Nil, err
+			}
+		}
 		if v.dbEngine != nil {
 			v.dbEngine.FieldPut("D_E_L_E_T_", advplrt.NewString(" "))
 		}
@@ -269,6 +279,11 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 	//   sumirem silenciosamente (FULL-REVIEW A1a).
 	// =========================================================================
 	natives["DBDELETE"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		if e, ok := v.dbEngine.(interface{ DeleteRecord() error }); ok {
+			if err := e.DeleteRecord(); !errors.Is(err, db.ErrNoRemoteWorkArea) {
+				return advplrt.Nil, err
+			}
+		}
 		if v.dbEngine != nil {
 			v.dbEngine.FieldPut("D_E_L_E_T_", advplrt.NewString("*"))
 		}
@@ -1615,9 +1630,38 @@ func (v *VM) registerDbgenericasNatives(natives map[string]func(args []advplrt.V
 		if alias == "" {
 			return advplrt.False, nil
 		}
+		// Engine com workarea remota (DBACCESS) faz FLock real no
+		// dbAccess — falha propaga como .F. em vez de só marcar estado.
+		if e, ok := v.dbEngine.(interface{ FLockFile() error }); ok {
+			if err := e.FLockFile(); err != nil && !errors.Is(err, db.ErrNoRemoteWorkArea) {
+				return advplrt.False, nil
+			}
+		}
 		s := v.dbGenStateFor()
 		s.mu.Lock()
 		s.fileLocks[alias] = true
+		s.mu.Unlock()
+		return advplrt.True, nil
+	}
+
+	// =========================================================================
+	// FUNLOCK() -> lRet
+	//   Libera o FLock da área corrente. Simétrico do FLOCK: chama
+	//   FUnLockFile no engine quando disponível e limpa o estado local.
+	// =========================================================================
+	natives["FUNLOCK"] = func(args []advplrt.Value) (advplrt.Value, error) {
+		alias := v.dbGenAlias()
+		if alias == "" {
+			return advplrt.False, nil
+		}
+		if e, ok := v.dbEngine.(interface{ FUnLockFile() error }); ok {
+			if err := e.FUnLockFile(); err != nil && !errors.Is(err, db.ErrNoRemoteWorkArea) {
+				return advplrt.False, nil
+			}
+		}
+		s := v.dbGenStateFor()
+		s.mu.Lock()
+		delete(s.fileLocks, alias)
 		s.mu.Unlock()
 		return advplrt.True, nil
 	}

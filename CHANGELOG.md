@@ -2,6 +2,24 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.10.0] - 2026-11-25
+
+### Added
+- **Driver `DBACCESS`** para `DbConnection`: acesso ao dbAccess TOTVS real
+  (`dbaccess64`) via `advpp-dbapi-bridge` (`tools/dbapi-bridge/bridge.cpp`,
+  ponte C++ sobre o `dbapi.so` proprietário — não distribuído). Só Linux.
+- Auto-spawn do bridge em `127.0.0.1:17890` (`ADVPP_DBAPI_BRIDGE`,
+  `ADVPP_DBAPI_BRIDGE_BIN`, `ADVPP_DBAPI_SO`); mutex por conexão e
+  liberação automática ao fechar o socket.
+- Work-area remota: leitura com decode de tipos (incl. `D` YYYYMMDD),
+  escrita, `DbSeek` indexado (`Seek2`+`SetKey`) pela ordem real do SIX
+  (`DBSetOrder` aceita 1-9/A-Z), `RetSqlName` via `SX2.X2_ARQUIVO`.
+- `FLock`/`FUnLock` reais, `DBDelete`/`DBRecall` via `DeleteR`/`RecallR`.
+- `TCCommit` transacional (1=begin, 2=commit, 3=rollback, 4=end) em
+  engines que suportam; SQLite/memória mantêm o no-op.
+- Release Linux (tar.gz e .deb) inclui o binário `advpp-dbapi-bridge`;
+  `make dbapi-bridge`; CI compila o `bridge.cpp` nos runners Linux.
+
 ## [4.9.1] - 2026-11-23
 
 ### Fixed

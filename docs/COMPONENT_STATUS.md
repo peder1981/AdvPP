@@ -531,6 +531,13 @@ compatibilidade PO-UI" na seção de recursos executados.
   `DbConnection:Connect()` tem sucesso. `TCLINK`/SQLite local
   inalterados. Validado com round-trip real de CRUD contra um
   PostgreSQL real
+- ✅ **Driver `DBACCESS` (desde v4.10.0, Linux)**: `DbConnection("DBACCESS")`
+  conversa com o `dbaccess64` TOTVS real via `advpp-dbapi-bridge` (C++ sobre
+  o `dbapi.so` proprietário, não distribuído; auto-spawn em loopback).
+  Work-area remota com leitura/escrita, `DbSeek` por índice real (SIX),
+  `RetSqlName` via SX2, `FLock`/`FUnLock`, `DBDelete`/`DBRecall`, `TCCommit`
+  transacional. Validado E2E contra dbaccess64 + PostgreSQL reais
+  (`tests/dbaccess_bridge_test.prw`, gated por `ADVPP_DBAPI_IT=1`)
 - ✅ **Servidor MCP nativo (classe `MCPServer`)**: JSON-RPC 2.0 real
   sobre stdio via `pkg/mcp` (initialize/tools.list/tools.call), expõe
   funções AdvPL como tools — execução real; validado com o SDK oficial

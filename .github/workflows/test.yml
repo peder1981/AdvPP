@@ -42,6 +42,12 @@ jobs:
         # versionado) ou do binário llama-cli de referência pulam sozinhos
         # via os.Stat — não é preciso -short para eles rodarem em CI.
         run: go test ./...
+      - name: Build advpp-dbapi-bridge (C++)
+        # bridge.cpp não é coberto por go build/test — sem este step uma
+        # quebra de C++ só apareceria no release. dlopen/pthread: só
+        # Linux (e macOS, não verificado — fica fora de propósito).
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-24.04-arm'
+        run: ./tools/dbapi-bridge/build.sh /tmp/advpp-dbapi-bridge
       - name: go test -race (pacotes concorrentes)
         # REST, webui e VM (SSE, canal PO-UI, VMs-filhas por requisição).
         # -race exige CGO, por isso só no runner Linux x64. checkptr=0: o

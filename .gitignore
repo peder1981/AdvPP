@@ -100,3 +100,11 @@ __pycache__/
 # --- Resultados de execução do TIR e worktrees locais ---
 /tests/tir/[0-9]*.json
 /.claude/worktrees/
+
+# scratch local de agentes
+/.scratch/
+
+# build local do bridge dbapi
+/tools/dbapi-bridge/advpp-dbapi-bridge
+/tools/dbapi-bridge/bridge.log
+/advpp-dbapi-bridge
