@@ -54,6 +54,16 @@ User Function DbAccessBridgeTest()
         ConOut("se1del=" + Iif(Deleted(), "sim", "nao"))
         DBRecall()
         ConOut("se1rec=" + Iif(Deleted(), "sim", "nao"))
+
+        // Seek por índice real: ordem 1 do SIX (E1_FILIAL+E1_PREFIXO+
+        // E1_NUM+E1_PARCELA+E1_TIPO) via SetKeyC(fileName+ordem)+Seek2.
+        // Chave exata do registro "NF 019974 parcela 1" (19 bytes).
+        DBSetOrder(1)
+        If DbSeek("01NF 019974   1 NF ")
+            ConOut("se1seek=ok num=" + SE1->E1_NUM + " recno=" + cValToChar(RecNo()))
+        Else
+            ConOut("se1seek=fail")
+        EndIf
         DbCloseArea()
     Else
         ConOut("se1=false")

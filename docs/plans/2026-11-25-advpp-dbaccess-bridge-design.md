@@ -407,6 +407,20 @@ append+write+delete validados em SX2990 com commit.
   no fallback `FieldPut`/estado local. `MultLock`/`SoftLock` seguem
   sem uso (assinaturas `MultLock(wa,const char*)` e
   `SoftLock(wa,i64,int)` mapeadas mas não expostas).
+- **Seek por ordem/índice real — RESOLVIDO**: o índice físico chama-se
+  `fileName+ordem` (`SE1990`+`"1"` = `SE19901`; verificado em
+  `pg_indexes` e `setkeyc`+`seek2` E2E). `DBSetOrder` nativo normaliza
+  número→char ordem (1-9 dígito, ≥10 letra) e chama
+  `DbapiSQLEngine.SetOrder` via duck-typing; a workarea auxiliar de
+  seek reabre quando a ordem muda. `waSeekIndex` usa `SetKeyC` pelo
+  nome físico (fallback `SetKey(1)` posicional). `waSeekMatch` ficou
+  index-aware: com entrada no SIX (`six`/`six990`, `INDICE`=alias,
+  `ORDEM`=char), reconstrói a chave de índice pela expressão `CHAVE`
+  (campos `+` concatenados com padding; `DTOS(campo)` → DD/MM/YYYY)
+  e compara por prefixo; sem SIX, mantém "qualquer campo == key".
+  `GetKeyNames` devolve **contagem** de índices + nomes físicos
+  (handler `keys` corrigido — rc>=0 não é erro). Validado:
+  `DbSeek("01NF 019974   1 NF ")` → recno 521 exato.
 - **Versão TOTVS**: ABI validada no build 24.1.1.3 (mai/2026);
   pinning de dbapi.so por release do bridge.
 

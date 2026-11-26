@@ -71,6 +71,15 @@ type dbapiRow struct {
 	vals  []dbapiField
 }
 
+// sixKeyPart é um termo da expressão de índice do SIX (chave): um
+// campo simples ou DTOS(campo) — data convertida para DD/MM/YYYY na
+// chave do índice.
+type sixKeyPart struct {
+	field string
+	idx   int // índice 1-based em waIdx/fieldn
+	dts   bool
+}
+
 // dbapiBridgeClient é uma conexão TCP com o bridge. Uma goroutine por
 // request: todas as chamadas são serializadas por mu (o bridge também
 // serializa o dbapi.so internamente).
@@ -628,6 +637,16 @@ type DbapiSQLEngine struct {
 	// sqlNames cacheia alias -> nome físico (SX2) por SelectArea.
 	sqlNames map[string]string
 
+	// waOrder é a ordem controladora (SIX.ordem: "1".."9","A".."Z"),
+	// default "1". O índice físico correspondente chama-se
+	// fileName+ordem (ex.: SE1990+"1" = SE19901) — verificado via
+	// pg_indexes e setkeyc/seek2 E2E.
+	waOrder   string
+	waSeekOrd string // ordem da waSeek atualmente aberta
+	// sixExprs cacheia "ALIAS|ORDEM" -> expressão parseada do SIX;
+	// entrada nil = alias sem índice no dicionário (fallback).
+	sixExprs map[string][]sixKeyPart
+
 	recordsMutex sync.RWMutex
 	driver       string
 	closeOnce    sync.Once
@@ -866,6 +885,7 @@ func (e *DbapiSQLEngine) openRemoteWA(file string) (int, error) {
 	e.waIdx = idx
 	e.waRecCount = -1
 	e.waSeek = 0
+	e.waSeekOrd = ""
 	e.columns = make([]columnInfo, len(cols))
 	for i, cm := range cols {
 		e.columns[i] = columnInfo{name: cm.name, sqlType: dbapiTypeToSQLType(cm.typ)}
@@ -884,6 +904,7 @@ func (e *DbapiSQLEngine) closeRemoteWA() {
 		e.client.WaCmd(e.connID, "close", strconv.Itoa(e.waSeek))
 	}
 	e.waSeek = 0
+	e.waSeekOrd = ""
 	e.waCols = nil
 	e.waIdx = nil
 	e.waRecCount = -1
@@ -987,11 +1008,158 @@ func (e *DbapiSQLEngine) Seek(key string) (bool, error) {
 	return false, nil
 }
 
-// waSeekIndex abre (uma vez) uma workarea auxiliar com o índice 1
-// ativo, executa Seek2 e devolve o recno posicionado. Abre o arquivo
-// pelo alias — OpenFile resolve o mesmo nome usado em openRemoteWA.
+// SetOrder define a ordem controladora (DBSetOrder). Reinicia a
+// workarea auxiliar de seek se a ordem mudou — o índice físico muda
+// junto (fileName+ordem).
+func (e *DbapiSQLEngine) SetOrder(ordem string) {
+	o := strings.ToUpper(strings.TrimSpace(ordem))
+	if o == "" {
+		return
+	}
+	if len(o) > 1 {
+		o = o[:1] // ordem do SIX é 1 caractere
+	}
+	if e.waOrder == o {
+		return
+	}
+	e.waOrder = o
+	if e.waSeek > 0 {
+		e.client.WaCmd(e.connID, "close", strconv.Itoa(e.waSeek))
+		e.waSeek = 0
+		e.waSeekOrd = ""
+	}
+}
+
+// indexKeyParts devolve os termos da expressão de índice do SIX para
+// (alias, ordem corrente), parseados e cacheados. nil = alias sem
+// entrada no dicionário (ex.: tabelas de sistema como SX2990) — o
+// seek cai no modo "qualquer campo" de antes.
+func (e *DbapiSQLEngine) indexKeyParts() ([]sixKeyPart, bool) {
+	ordem := e.waOrder
+	if ordem == "" {
+		ordem = "1"
+	}
+	ck := e.alias + "|" + ordem
+	if e.sixExprs == nil {
+		e.sixExprs = map[string][]sixKeyPart{}
+	}
+	if p, ok := e.sixExprs[ck]; ok {
+		return p, p != nil
+	}
+	var expr string
+	for _, dic := range []string{"six", "six990"} {
+		rows, err := e.QueryRows("SELECT CHAVE FROM " + dic +
+			" WHERE INDICE = '" + e.alias + "' AND ORDEM = '" + ordem + "'")
+		if err == nil && len(rows) > 0 {
+			for _, v := range rows[0] {
+				expr = strings.TrimSpace(v)
+			}
+			break
+		}
+	}
+	parts := parseSixExpr(expr, e.waIdx)
+	e.sixExprs[ck] = parts
+	return parts, parts != nil
+}
+
+// parseSixExpr converte "E1_FILIAL+E1_NUM+DTOS(E1_EMISSAO)+..." em
+// termos; devolve nil se a expressão tiver algo que não sabemos
+// avaliar (funções além de DTOS, campos fora da workarea).
+func parseSixExpr(expr string, idx map[string]int) []sixKeyPart {
+	if expr == "" {
+		return nil
+	}
+	var parts []sixKeyPart
+	for _, tok := range strings.Split(expr, "+") {
+		tok = strings.TrimSpace(tok)
+		if tok == "" {
+			continue
+		}
+		p := sixKeyPart{}
+		if strings.HasPrefix(tok, "DTOS(") && strings.HasSuffix(tok, ")") {
+			p.dts = true
+			tok = strings.TrimSpace(tok[5 : len(tok)-1])
+		}
+		f := strings.ToUpper(tok)
+		i, ok := idx[f]
+		if !ok || i <= 0 {
+			return nil
+		}
+		p.field = f
+		p.idx = i
+		parts = append(parts, p)
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	return parts
+}
+
+// buildRecKey monta a chave de índice do registro corrente concatenando
+// os campos da expressão SIX (com padding, como o índice físico) e
+// convertendo DTOS(campo D) de YYYYMMDD para DD/MM/YYYY.
+func (e *DbapiSQLEngine) buildRecKey(parts []sixKeyPart) (string, error) {
+	var b strings.Builder
+	for _, p := range parts {
+		cm := e.waCols[p.idx-1]
+		fs, err := e.client.WaCmd(e.connID, "fieldn",
+			strconv.Itoa(e.waRemote), strconv.Itoa(p.idx))
+		if err != nil {
+			return "", err
+		}
+		if len(fs) == 0 || fs[0].isNull {
+			b.WriteString(strings.Repeat(" ", cm.size))
+			continue
+		}
+		v := dbapiFieldSlice(string(fs[0].data), cm.size)
+		if p.dts && cm.typ == "D" {
+			v = dtsDate(v)
+		}
+		b.WriteString(v)
+	}
+	return b.String(), nil
+}
+
+// dtsDate converte "YYYYMMDD" (8 bytes ASCII, tipo D do dbapi) para o
+// formato "DD/MM/YYYY" que DTOS() produz na expressão de índice.
+// Valor que não bate o formato volta cru.
+func dtsDate(v string) string {
+	if len(v) != 8 {
+		return v
+	}
+	if y, m, d, ok := parseYMD(v); ok {
+		return fmt.Sprintf("%02d/%02d/%04d", d, m, y)
+	}
+	return v
+}
+
+func parseYMD(v string) (y, m, d int, ok bool) {
+	if len(v) != 8 {
+		return 0, 0, 0, false
+	}
+	y, err1 := strconv.Atoi(v[0:4])
+	m, err2 := strconv.Atoi(v[4:6])
+	d, err3 := strconv.Atoi(v[6:8])
+	if err1 != nil || err2 != nil || err3 != nil {
+		return 0, 0, 0, false
+	}
+	return y, m, d, true
+}
+
+// waSeekIndex abre (uma vez por ordem) uma workarea auxiliar com o
+// índice da ordem controladora ativo, executa Seek2 e devolve o recno
+// posicionado. O índice físico é fileName+ordem via SetKeyC
+// (ex.: SE19901); se não existir, cai no SetKey(1) posicional antigo.
 func (e *DbapiSQLEngine) waSeekIndex(key string) (string, bool) {
-	if e.waSeek <= 0 {
+	ordem := e.waOrder
+	if ordem == "" {
+		ordem = "1"
+	}
+	if e.waSeek <= 0 || e.waSeekOrd != ordem {
+		if e.waSeek > 0 {
+			e.client.WaCmd(e.connID, "close", strconv.Itoa(e.waSeek))
+			e.waSeek = 0
+		}
 		fs, err := e.client.WaCmd(e.connID, "open", e.fileName)
 		if err != nil || len(fs) == 0 {
 			return "", false
@@ -1000,8 +1168,14 @@ func (e *DbapiSQLEngine) waSeekIndex(key string) (string, bool) {
 		if err != nil || wa <= 0 {
 			return "", false
 		}
-		e.client.WaCmd(e.connID, "setkey", strconv.Itoa(wa), "1")
+		// SetKeyC pelo nome físico fileName+ordem; rc!=0/erro ->
+		// fallback SetKey(1) (ordem de criação, comportamento antigo).
+		if _, err := e.client.WaCmd(e.connID, "setkeyc",
+			strconv.Itoa(wa), e.fileName+ordem); err != nil {
+			e.client.WaCmd(e.connID, "setkey", strconv.Itoa(wa), "1")
+		}
 		e.waSeek = wa
+		e.waSeekOrd = ordem
 	}
 	fs, err := e.client.WaCmd(e.connID, "seek2",
 		strconv.Itoa(e.waSeek), key)
@@ -1014,9 +1188,19 @@ func (e *DbapiSQLEngine) waSeekIndex(key string) (string, bool) {
 	return waStr(fs, 1), true
 }
 
-// waSeekMatch compara key com todos os campos do registro corrente da
-// workarea remota (mesmo critério "qualquer campo" do Seek em memória).
+// waSeekMatch verifica se o registro corrente casa com a chave de
+// seek. Com índice do SIX disponível, compara a chave de índice
+// reconstruída (expressão SIX, campos concatenados com padding) —
+// prefixo aceita chaves parciais (soft-seek). Sem SIX, mantém o
+// critério antigo: igualdade exata com qualquer campo.
 func (e *DbapiSQLEngine) waSeekMatch(key string) (bool, error) {
+	if parts, ok := e.indexKeyParts(); ok {
+		recKey, err := e.buildRecKey(parts)
+		if err != nil {
+			return false, err
+		}
+		return recKey == key || strings.HasPrefix(recKey, key), nil
+	}
 	for i, cm := range e.waCols {
 		fs, err := e.client.WaCmd(e.connID, "fieldn",
 			strconv.Itoa(e.waRemote), strconv.Itoa(i+1))

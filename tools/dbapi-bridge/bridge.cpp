@@ -742,11 +742,14 @@ static void handleWaCmd(Ctx& c, const std::vector<Field>& in) {
         return;
     }
     if (cmd == "keys") {
+        // GetKeyNames retorna a CONTAGEM de indices (rc>=0) e preenche
+        // buf — nao e codigo de erro. Verificado: SE1990 -> 29 (SIX tem
+        // 29 ordens), SX2990 -> 3.
         if (!g_api.GetKeyNames) { respondErr(c.fd, "wacmd keys: indisponivel"); return; }
-        char buf[4096]; memset(buf, 0, sizeof buf);
+        char buf[8192]; memset(buf, 0, sizeof buf);
         int rc = g_api.GetKeyNames(cli, waOf(), buf);
-        if (rc != 0) { respondErr(c.fd, "wacmd keys: rc=" + std::to_string(rc)); return; }
-        respond(c.fd, 0, okFields({buf}));
+        if (rc < 0) { respondErr(c.fd, "wacmd keys: rc=" + std::to_string(rc)); return; }
+        respond(c.fd, 0, okFields({std::to_string(rc), buf}));
         return;
     }
     if (cmd == "seek2") {

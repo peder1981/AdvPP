@@ -1164,6 +1164,27 @@ func (v *VM) registerNatives() {
 			return advplrt.Nil, nil
 		},
 		"DBSETORDER": func(args []advplrt.Value) (advplrt.Value, error) {
+			// Ordem controladora do SIX: "1".."9" depois "A".."Z".
+			// Aceita número (1-9 -> dígito, >=10 -> letra) ou a ordem
+			// direto ("A"). Engines com índice real (DBACCESS) aplicam
+			// via SetOrder; demais ignoram como antes.
+			ordem := strings.ToUpper(strings.TrimSpace(advplrt.ToString(getArg(args, 0))))
+			if ordem == "" {
+				return advplrt.Nil, nil
+			}
+			if n, err := strconv.Atoi(ordem); err == nil {
+				switch {
+				case n >= 1 && n <= 9:
+					ordem = strconv.Itoa(n)
+				case n >= 10 && n <= 35:
+					ordem = string(rune('A' + n - 10))
+				default:
+					return advplrt.Nil, nil
+				}
+			}
+			if eng, ok := v.dbEngine.(interface{ SetOrder(string) }); ok {
+				eng.SetOrder(ordem)
+			}
 			return advplrt.Nil, nil
 		},
 		"DBSETFILTER": func(args []advplrt.Value) (advplrt.Value, error) {
