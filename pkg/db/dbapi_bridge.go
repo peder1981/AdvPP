@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -96,6 +97,22 @@ func bridgeAddr() string {
 	return "127.0.0.1:17890"
 }
 
+// bridgeBinName/dbapiLibName: nomes por SO. No Windows o bridge é .exe e
+// a biblioteca TOTVS é dbapi.dll (mesma API do dbapi.so).
+func bridgeBinName() string {
+	if runtime.GOOS == "windows" {
+		return "advpp-dbapi-bridge.exe"
+	}
+	return "advpp-dbapi-bridge"
+}
+
+func dbapiLibName() string {
+	if runtime.GOOS == "windows" {
+		return "dbapi.dll"
+	}
+	return "dbapi.so"
+}
+
 // ensureDbapiBridge tenta subir o advpp-dbapi-bridge quando o dial
 // falha. Localiza o binário (env ADVPP_DBAPI_BRIDGE_BIN → mesmo dir do
 // executável → PATH) e o dbapi.so (env ADVPP_DBAPI_SO → mesmo dir do
@@ -110,7 +127,7 @@ func ensureDbapiBridge() {
 	bin := os.Getenv("ADVPP_DBAPI_BRIDGE_BIN")
 	if bin == "" {
 		if exe, err := os.Executable(); err == nil {
-			cand := filepath.Join(filepath.Dir(exe), "advpp-dbapi-bridge")
+			cand := filepath.Join(filepath.Dir(exe), bridgeBinName())
 			if _, err := os.Stat(cand); err == nil {
 				bin = cand
 			}
@@ -127,11 +144,16 @@ func ensureDbapiBridge() {
 	so := os.Getenv("ADVPP_DBAPI_SO")
 	if so == "" {
 		dirs := []string{filepath.Dir(bin), "/usr/lib", "/usr/local/lib", "/opt/dbapi"}
+		if runtime.GOOS == "windows" {
+			// sem dirs fixos: o bridge ainda tenta LoadLibrary("dbapi.dll")
+			// (dir do .exe + PATH) se nada for passado
+			dirs = []string{filepath.Dir(bin)}
+		}
 		if exe, err := os.Executable(); err == nil {
 			dirs = append([]string{filepath.Dir(exe)}, dirs...)
 		}
 		for _, d := range dirs {
-			cand := filepath.Join(d, "dbapi.so")
+			cand := filepath.Join(d, dbapiLibName())
 			if _, err := os.Stat(cand); err == nil {
 				so = cand
 				break

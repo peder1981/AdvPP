@@ -531,7 +531,7 @@ compatibilidade PO-UI" na seção de recursos executados.
   `DbConnection:Connect()` tem sucesso. `TCLINK`/SQLite local
   inalterados. Validado com round-trip real de CRUD contra um
   PostgreSQL real
-- ✅ **Driver `DBACCESS` (desde v4.10.0, Linux)**: `DbConnection("DBACCESS")`
+- ✅ **Driver `DBACCESS` (desde v4.10.0, Linux; Windows desde v4.10.2, ⚠️ não verificado contra `dbapi.dll` real)**: `DbConnection("DBACCESS")`
   conversa com o `dbaccess64` TOTVS real via `advpp-dbapi-bridge` (C++ sobre
   o `dbapi.so` proprietário, não distribuído; auto-spawn em loopback).
   Work-area remota com leitura/escrita, `DbSeek` por índice real (SIX),

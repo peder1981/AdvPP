@@ -9,9 +9,11 @@
 // requisição é envolvida em try/catch(...) e, em último caso, o processo
 // morre sem afetar o advplc.
 //
-// Build: g++ -O2 -o advpp-dbapi-bridge bridge.cpp -ldl -lpthread
-// Uso:   ./advpp-dbapi-bridge [caminho/dbapi.so] [porta_escuta]
-//        env ADVPP_DBAPI_SO   — caminho do dbapi.so
+// Build: ./build.sh [saida]  (Linux: g++; Windows: MinGW g++ — ver build.sh)
+// Uso:   ./advpp-dbapi-bridge [caminho/dbapi.so|dbapi.dll] [porta_escuta]
+//        ./advpp-dbapi-bridge --symbols <dbapi> — lista a resolução dos
+//        símbolos e sai (0 = todos achados)
+//        env ADVPP_DBAPI_SO   — caminho do dbapi.so / dbapi.dll
 //        env ADVPP_DBAPI_PORT — porta de escuta (default 17890)
 //
 // Protocolo (ver pkg/db/dbapi_bridge.go para a outra ponta):
@@ -61,24 +63,36 @@
 // bytes crus — ponytail: rever quando houver base com datas/logicals.
 
 #include <algorithm>
-#include <arpa/inet.h>
 #include <cmath>
-
-#include <arpa/inet.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <strings.h>
-#include <dlfcn.h>
 #include <map>
 #include <mutex>
-#include <netinet/in.h>
-#include <pthread.h>
 #include <string>
-#include <sys/socket.h>
-#include <unistd.h>
+#include <thread>
 #include <vector>
+#ifdef _WIN32
+// Windows: dbapi.dll (mesma API do dbapi.so, build MSVC da TOTVS).
+// ponytail: SOCKET guardado em int — handles Winsock cabem em 32 bits na
+// prática; trocar por SOCKET em tudo se algum dia não couber.
+#  include <winsock2.h>
+#  include <windows.h>
+#  include <dbghelp.h>
+#  include <strings.h>
+#  include <cxxabi.h>
+#  define MSG_NOSIGNAL 0
+#  define closesock closesocket
+#else
+#  include <arpa/inet.h>
+#  include <dlfcn.h>
+#  include <netinet/in.h>
+#  include <strings.h>
+#  include <sys/socket.h>
+#  include <unistd.h>
+#  define closesock close
+#endif
 
 // ---------- tipos de função do dbapi.so ----------
 typedef void* (*GetTopConnFn)(int type, short prefPort);
@@ -177,15 +191,101 @@ static std::map<int, void*> g_conns;   // connId -> tTOPClient*
 static std::map<int, std::vector<int>> g_fdConns; // fd -> connIds (cleanup no disconnect do socket)
 static std::mutex g_connsMu;
 
+static bool g_listSyms = false; // --symbols
+static int  g_missingSyms = 0;
+
+#ifdef _WIN32
+// O dbapi.dll exporta os métodos com mangling MSVC (?Connect@tTOPClient@@...),
+// não Itanium. Em vez de manter uma 2a tabela de nomes, desmangla o nome
+// Itanium usado no Linux e casa com o export MSVC desmanglado (mesma
+// assinatura C++). ponytail: não verificado contra um dbapi.dll real
+// (2026-11-26, sem a DLL); CI só valida contra uma DLL MSVC de teste.
+static bool identCh(char c) { return isalnum((unsigned char)c) || c == '_'; }
+// Normaliza as duas grafias para comparar: Itanium "char const*, long long"
+// e MSVC "char const *,__int64". Espaço só fica entre dois identificadores
+// ("unsigned char", "int __cdecl tTOPClient::") — senão o nome qualificado
+// grudaria no que vem antes.
+static std::string normSig(const std::string& in) {
+    std::string s;
+    for (size_t i = 0; i < in.size(); i++) {
+        if (in[i] == ' ' && !(i > 0 && i + 1 < in.size() && identCh(in[i - 1]) && identCh(in[i + 1]) && !s.empty() && s.back() != ' '))
+            continue;
+        s += in[i];
+    }
+    for (size_t p; (p = s.find("long long")) != std::string::npos;) s.replace(p, 9, "__int64");
+    for (size_t p; (p = s.find(" __ptr64")) != std::string::npos;) s.erase(p, 8);
+    for (size_t p; (p = s.find("(void)")) != std::string::npos;) s.replace(p, 6, "()");
+    return s;
+}
+static std::vector<std::pair<std::string, void*>> g_exports; // assinatura normalizada -> endereço
+
+static void loadExports(HMODULE h) {
+    auto base = (const uint8_t*)h;
+    auto nt = (const IMAGE_NT_HEADERS*)(base + ((const IMAGE_DOS_HEADER*)base)->e_lfanew);
+    auto dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (!dir.VirtualAddress) return;
+    auto ed = (const IMAGE_EXPORT_DIRECTORY*)(base + dir.VirtualAddress);
+    auto names = (const DWORD*)(base + ed->AddressOfNames);
+    for (DWORD i = 0; i < ed->NumberOfNames; i++) {
+        const char* n = (const char*)(base + names[i]);
+        char buf[2048];
+        if (n[0] != '?' || !UnDecorateSymbolName(n, buf, sizeof buf,
+                UNDNAME_NO_MS_KEYWORDS | UNDNAME_NO_ACCESS_SPECIFIERS |
+                UNDNAME_NO_FUNCTION_RETURNS | UNDNAME_NO_ALLOCATION_MODEL |
+                UNDNAME_NO_ALLOCATION_LANGUAGE | UNDNAME_NO_MEMBER_TYPE |
+                UNDNAME_NO_THISTYPE))
+            continue;
+        g_exports.push_back({normSig(buf), (void*)GetProcAddress(h, n)});
+    }
+}
+
+static void* findSym(void* h, const char* n, std::string& how) {
+    if (strncmp(n, "_Z", 2) != 0) { how = n; return (void*)GetProcAddress((HMODULE)h, n); }
+    int st = 0;
+    char* d = abi::__cxa_demangle(n, nullptr, nullptr, &st);
+    if (!d) { how = "demangle falhou"; return nullptr; }
+    std::string want = normSig(d);
+    free(d);
+    std::string qual = want.substr(0, want.find('(')) + "(";
+    void* only = nullptr; int cands = 0;
+    for (auto& e : g_exports) {
+        size_t p = e.first.find(qual);
+        if (p == std::string::npos) continue;
+        char prev = p ? e.first[p - 1] : 0;
+        if (identCh(prev) || prev == ':') continue;
+        std::string got = e.first.substr(p);
+        got = got.substr(0, got.rfind(')') + 1);
+        if (got == want) { how = got; return e.second; }
+        only = e.second; cands++; how = got;
+    }
+    // assinatura diferente mas nome único: usa e avisa (tipo pode ter sido
+    // declarado diferente no build Windows, ex. long vs __int64).
+    if (cands == 1) { how = "AVISO: assinatura difere, usando " + how + " para " + want; return only; }
+    how = want + (cands ? " (ambíguo)" : " (não exportado)");
+    return nullptr;
+}
+static void* openLib(const char* path) { return (void*)LoadLibraryA(path); }
+static std::string libErr() { return "LoadLibrary erro " + std::to_string(GetLastError()); }
+#else
+static void* findSym(void* h, const char* n, std::string& how) { how = n; return dlsym(h, n); }
+static void* openLib(const char* path) { return dlopen(path, RTLD_NOW | RTLD_GLOBAL); }
+static std::string libErr() { const char* e = dlerror(); return e ? e : "?"; }
+#endif
+
 static void* xsym(void* h, const char* n) {
-    void* p = dlsym(h, n);
-    if (!p) fprintf(stderr, "[bridge] FATAL: dlsym(%s): %s\n", n, dlerror());
+    std::string how;
+    void* p = findSym(h, n, how);
+    if (!p) { g_missingSyms++; fprintf(stderr, "[bridge] FATAL: símbolo %s: %s\n", n, how.c_str()); }
+    else if (g_listSyms) fprintf(stderr, "[bridge] ok %s -> %s\n", n, how.c_str());
     return p;
 }
 
 static bool loadDbApi(const char* path) {
-    void* h = dlopen(path, RTLD_NOW | RTLD_GLOBAL);
-    if (!h) { fprintf(stderr, "[bridge] dlopen(%s): %s\n", path, dlerror()); return false; }
+    void* h = openLib(path);
+    if (!h) { fprintf(stderr, "[bridge] abrir %s: %s\n", path, libErr().c_str()); return false; }
+#ifdef _WIN32
+    loadExports((HMODULE)h);
+#endif
     g_api.h = h;
     g_api.GetTopConn   = (GetTopConnFn)xsym(h, "v40TC_GetTopConn");
     g_api.Connect      = (ConnectFn)   xsym(h, "_ZN10tTOPClient7ConnectEPKcPcS2_si");
@@ -282,7 +382,7 @@ struct Reader {
 static bool readFull(int fd, void* buf, size_t len) {
     uint8_t* p = (uint8_t*)buf; size_t got = 0;
     while (got < len) {
-        ssize_t r = recv(fd, p + got, len - got, 0);
+        auto r = recv(fd, (char*)p + got, (int)(len - got), 0);
         if (r <= 0) return false;
         got += (size_t)r;
     }
@@ -291,7 +391,7 @@ static bool readFull(int fd, void* buf, size_t len) {
 static bool writeFull(int fd, const void* buf, size_t len) {
     const uint8_t* p = (const uint8_t*)buf; size_t sent = 0;
     while (sent < len) {
-        ssize_t r = send(fd, p + sent, len - sent, MSG_NOSIGNAL);
+        auto r = send(fd, (const char*)p + sent, (int)(len - sent), MSG_NOSIGNAL);
         if (r <= 0) return false;
         sent += (size_t)r;
     }
@@ -881,25 +981,41 @@ static void* clientThread(void* arg) {
             }
         }
     }
-    close(fd);
+    closesock(fd);
     return nullptr;
 }
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) { fprintf(stderr, "[bridge] WSAStartup falhou\n"); return 2; }
+    const char* cands[] = {"dbapi.dll"}; // LoadLibrary já procura no dir do exe e no PATH
+#else
+    const char* cands[] = {"./dbapi.so", "/usr/lib/dbapi.so", "/usr/local/lib/dbapi.so"};
+#endif
+    if (argc > 2 && strcmp(argv[1], "--symbols") == 0) {
+        g_listSyms = true;
+        bool ok = loadDbApi(argv[2]);
+        fprintf(stderr, "[bridge] %d símbolo(s) ausente(s)\n", g_missingSyms);
+        return ok && g_missingSyms == 0 ? 0 : 1;
+    }
     const char* so = argc > 1 ? argv[1] : getenv("ADVPP_DBAPI_SO");
     if (!so || !*so) {
-        const char* cands[] = {"./dbapi.so", "/usr/lib/dbapi.so", "/usr/local/lib/dbapi.so"};
-        for (auto c : cands) { void* t = dlopen(c, RTLD_NOW | RTLD_GLOBAL); if (t) { dlclose(t); so = c; break; } }
+        so = nullptr;
+        for (auto c : cands) { if (openLib(c)) { so = c; break; } }
     }
-    if (!so) { fprintf(stderr, "[bridge] dbapi.so nao encontrado\nuso: %s [dbapi.so] [porta]\n", argv[0]); return 2; }
+    if (!so) { fprintf(stderr, "[bridge] dbapi nao encontrado\nuso: %s [dbapi.so|dbapi.dll] [porta]\n", argv[0]); return 2; }
     if (!loadDbApi(so)) return 2;
-    fprintf(stderr, "[bridge] dbapi.so carregada de %s\n", so);
+    fprintf(stderr, "[bridge] dbapi carregada de %s\n", so);
 
     int port = argc > 2 ? atoi(argv[2]) : 17890;
     if (const char* e = getenv("ADVPP_DBAPI_PORT")) port = atoi(e);
 
-    int srv = socket(AF_INET, SOCK_STREAM, 0);
+    int srv = (int)socket(AF_INET, SOCK_STREAM, 0);
+#ifndef _WIN32
+    // no Windows SO_REUSEADDR deixaria outro processo roubar a porta
     int one = 1; setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+#endif
     sockaddr_in addr{}; addr.sin_family = AF_INET; addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK); addr.sin_port = htons((uint16_t)port);
     if (bind(srv, (sockaddr*)&addr, sizeof addr) != 0 || listen(srv, 16) != 0) {
         perror("[bridge] bind/listen"); return 2;
@@ -907,13 +1023,13 @@ int main(int argc, char** argv) {
     fprintf(stderr, "[bridge] escutando em 127.0.0.1:%d\n", port);
 
     for (;;) {
-        int cfd = accept(srv, nullptr, nullptr);
+        int cfd = (int)accept(srv, nullptr, nullptr);
         if (cfd < 0) continue;
-        pthread_t th;
-        if (pthread_create(&th, nullptr, clientThread, (void*)(intptr_t)cfd) == 0)
-            pthread_detach(th);
-        else
-            close(cfd);
+        try {
+            std::thread([cfd] { clientThread((void*)(intptr_t)cfd); }).detach();
+        } catch (...) {
+            closesock(cfd);
+        }
     }
     return 0;
 }

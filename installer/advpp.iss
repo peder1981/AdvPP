@@ -84,6 +84,9 @@ Name: "toolchain"; Description: "Baixar o toolchain de compilacao: Go {#GoVersao
 Source: "advplc.exe";     DestDir: "{app}"; Flags: ignoreversion
 Source: "adveditor.exe";  DestDir: "{app}"; Flags: ignoreversion
 Source: "advpp-ide.exe";  DestDir: "{app}"; Flags: ignoreversion
+; Ponte para o dbAccess TOTVS (driver DBACCESS). O dbapi.dll e proprietario
+; e nao vai no instalador: copie-o para {app} ou aponte ADVPP_DBAPI_SO.
+Source: "advpp-dbapi-bridge.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; Fontes do modulo Go: o stub gerado por `advplc build` importa este modulo,
 ; entao ele precisa existir em disco. Sao ~7 MB, entao vao no pacote mesmo
 ; sem a opcao de toolchain -- assim quem ja tem Go proprio nao precisa
