@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.10.1] - 2026-11-25
+
+### Fixed
+- `advpp-dbapi-bridge` do release Linux (tar.gz/.deb) exigia GLIBC 2.38 e
+  não rodava em Debian 12 (glibc 2.36). Agora é compilado em
+  `debian:bookworm`, e o workflow falha se o binário exigir glibc > 2.36.
+
 ## [4.10.0] - 2026-11-25
 
 ### Added

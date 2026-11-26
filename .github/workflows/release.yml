@@ -72,8 +72,16 @@ jobs:
         # é proprietário e NÃO é distribuído — o usuário o obtém da
         # instalação TOTVS e o auto-spawn o encontra via ADVPP_DBAPI_SO
         # ou nos diretórios padrão.
+        # Compilado em debian:bookworm (glibc 2.36): no ubuntu-latest o
+        # binário exigia GLIBC_2.38 e não rodava em Debian 12. glibc é
+        # compatível para frente, então o piso mais baixo serve a todos.
         if: runner.os == 'Linux'
-        run: ./tools/dbapi-bridge/build.sh out/advpp-dbapi-bridge
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w debian:bookworm sh -c \
+            'apt-get update -qq && apt-get install -y -qq g++ >/dev/null && ./tools/dbapi-bridge/build.sh out/advpp-dbapi-bridge'
+          max=$(objdump -T out/advpp-dbapi-bridge | grep -oE 'GLIBC_[0-9.]+' | sed 's/GLIBC_//' | sort -V | tail -1)
+          echo "GLIBC máximo exigido: $max"
+          [ "$(printf '%s\n2.36\n' "$max" | sort -V | tail -1)" = "2.36" ] || { echo "bridge exige glibc > 2.36"; exit 1; }
       - name: Package (tar.gz / zip)
         shell: bash
         run: |
