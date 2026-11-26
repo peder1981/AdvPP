@@ -60,6 +60,7 @@
 // verificados ('D','L','N','M','B'...) sao devolvidos como hex dos
 // bytes crus — ponytail: rever quando houver base com datas/logicals.
 
+#include <algorithm>
 #include <arpa/inet.h>
 #include <cmath>
 
@@ -271,7 +272,7 @@ struct Reader {
         f.data.assign((const char*)p + off, len); off += len; f.isNull = false; return true;
     }
     bool fields(std::vector<Field>& fs, uint32_t count) {
-        fs.clear(); fs.reserve(count);
+        fs.clear(); fs.reserve(std::min<size_t>(count, (n - off) / 4)); // count vem da rede: cada field tem >= 4 bytes
         for (uint32_t i = 0; i < count; i++) { Field f; if (!field(f)) return false; fs.push_back(std::move(f)); }
         return true;
     }

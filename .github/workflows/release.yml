@@ -99,7 +99,7 @@ jobs:
           Priority: optional
           Architecture: amd64
           Maintainer: AdvPP Team <peder1981@gmail.com>
-          Depends: libc6, libgl1, libx11-6
+          Depends: libc6, libstdc++6, libgl1, libx11-6
           Description: AdvPL/TLPP Development Tools
            Compiler (advplc), IDE (advpp-ide), and database/dictionary
            editor (adveditor) for the AdvPL/TLPP language. All tools share
