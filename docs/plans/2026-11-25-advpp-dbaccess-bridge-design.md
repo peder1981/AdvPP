@@ -421,6 +421,16 @@ append+write+delete validados em SX2990 com commit.
   `GetKeyNames` devolve **contagem** de índices + nomes físicos
   (handler `keys` corrigido — rc>=0 não é erro). Validado:
   `DbSeek("01NF 019974   1 NF ")` → recno 521 exato.
+- **CI**: `test.yml` compila `bridge.cpp` nos runners Ubuntu (pega
+  quebra de C++ — antes só o release buildava); `release.yml` builda
+  `advpp-dbapi-bridge` no leg Linux e o empacota no tar.gz e no .deb
+  (ao lado do advplc — o auto-spawn o encontra). `dbapi.so` segue
+  proprietário/não distribuído: o usuário o obtém da instalação TOTVS.
+  Bridge é POSIX-only (dlopen/pthread) — Windows/macOS fora por ora.
+- **MultLock/SoftLock**: mapeados no dbapi (`MultLock(wa,const char*)`,
+  `SoftLock(wa,i64,int)`) mas **não expostos** — não há native AdvPL
+  correspondente; são locks internos do RDD/dbsrv. Documentado, sem
+  consumidor.
 - **Versão TOTVS**: ABI validada no build 24.1.1.3 (mai/2026);
   pinning de dbapi.so por release do bridge.
 
