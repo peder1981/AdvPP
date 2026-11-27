@@ -229,6 +229,17 @@ func (p *Provider) AbrePouiApp(app *PouiApp, ctx *PouiCtx) (string, error) {
 	return url, nil
 }
 
+// OpenTab avisa a SPA para abrir url numa aba nova (FWOPENTAB) — sem
+// canal poui nem bloqueio: a página principal continua viva enquanto a
+// aba existe (diferente do FwCallApp, que prende a sessão no PouiNext).
+func (p *Provider) OpenTab(url string) {
+	if url == "" {
+		return
+	}
+	data, _ := json.Marshal(map[string]string{"url": url})
+	p.s.send(event{Type: "open-tab", Data: data})
+}
+
 // PouiNext bloqueia até chegar um jsToAdvpl, o app fechar ("close" ou aba
 // morta além do timeout) ou a sessão terminar. timeout é o teto de espera:
 // expirado sem evento, devolve ("", "", false) para o chamador reavaliar.
