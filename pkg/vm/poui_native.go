@@ -888,6 +888,17 @@ func (v *VM) callPoCompMethod(c *poComp, method string, args []advplrt.Value) er
 		n := len(items)
 		c.handlers[fmt.Sprintf("action:%d", n)] = getArg(args, 2)
 		a.setProp(c, "items", append(items, map[string]any{"label": advplrt.ToString(getArg(args, 0)), "icon": icone, "index": n}))
+	case "CLEARITEMS":
+		if c.typ != "menu" {
+			return fmt.Errorf("ClearItems: só em PoMenu")
+		}
+		for k := range c.handlers {
+			if strings.HasPrefix(k, "action:") {
+				delete(c.handlers, k)
+			}
+		}
+		c.props["items"] = []map[string]any{}
+		a.setProp(c, "items", []map[string]any{})
 	case "ADDACTION":
 		if c.typ != "page" {
 			return fmt.Errorf("AddAction: só em PoPage")

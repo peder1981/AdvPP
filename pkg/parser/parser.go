@@ -335,6 +335,15 @@ func (p *Parser) isEndIf(tok lexer.Token) bool {
 	return false
 }
 
+// isVarDeclKeyword: LOCAL/PRIVATE/PUBLIC/STATIC abrem declaração de
+// variável, nunca expressão — um `Return` seguido deles (ex.: `Return`
+// nu no fim de função antes de um `Static x := v` top-level) não pode
+// tentar parsear a declaração como valor de retorno.
+func (p *Parser) isVarDeclKeyword(tok lexer.Token) bool {
+	return p.isKeyword(tok, "LOCAL") || p.isKeyword(tok, "PRIVATE") ||
+		p.isKeyword(tok, "PUBLIC") || p.isKeyword(tok, "STATIC")
+}
+
 func (p *Parser) isStatementBoundary(tok lexer.Token) bool {
 	if p.isFunctionBoundary(tok) {
 		return true
@@ -756,7 +765,8 @@ func (p *Parser) parseFunctionBody() ([]ast.Statement, ast.Expression, error) {
 			if p.peek().Type != lexer.TOKEN_EOF &&
 				p.peek().Type != lexer.TOKEN_SEMICOLON &&
 				p.peek().Type != lexer.TOKEN_AT &&
-				!p.isStatementBoundary(p.peek()) {
+				!p.isStatementBoundary(p.peek()) &&
+				!p.isVarDeclKeyword(p.peek()) {
 				// `Return target := value` — see the same fix in
 				// expressions.go's top-level RETURN handling.
 				expr, err := p.parseAssignRHS()

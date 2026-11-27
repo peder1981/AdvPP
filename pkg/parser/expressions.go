@@ -670,7 +670,7 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	if p.isKeyword(tok, "RETURN") {
 		p.advance()
 		var retExpr ast.Expression
-		if p.peek().Type != lexer.TOKEN_EOF && p.peek().Type != lexer.TOKEN_SEMICOLON && !p.isStatementBoundary(p.peek()) {
+		if p.peek().Type != lexer.TOKEN_EOF && p.peek().Type != lexer.TOKEN_SEMICOLON && !p.isStatementBoundary(p.peek()) && !p.isVarDeclKeyword(p.peek()) {
 			// `Return target := value` (assignment used inline as the
 			// return value, e.g. `Return self:oProp := {...}`) — same
 			// idiom as If/While conditions, needs parseAssignRHS instead
