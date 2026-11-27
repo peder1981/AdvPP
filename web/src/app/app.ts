@@ -54,7 +54,7 @@ interface BrowseSpec { title: string; alias: string; columns: BrowseColumn[]; it
 // Espelho de dialogSpec do servidor (pkg/vm/dialog.go — MSDIALOG legado)
 interface DlgControl { kind: string; x: number; y: number; name?: string; text?: string; value?: string; picture?: string; index: number; }
 interface DialogSpec { title: string; rows: DlgControl[][]; buttons: DlgControl[]; }
-interface ServerEvent { type: string; id?: number; kind?: string; title?: string; text?: string; data?: any; }
+interface ServerEvent { type: string; id?: number; kind?: string; title?: string; text?: string; data?: any; resumed?: boolean; }
 // Espelho de menuSpec/inputSpec do servidor (pkg/webui/server.go)
 interface MenuSpec { title: string; items: string[]; }
 interface InputSpec { prompt: string; def: string; pw?: boolean; }
@@ -200,6 +200,7 @@ export class App {
   protected lines = signal<string[]>([]);
   protected status = signal('conectando');
   protected finished = signal(false);
+  private sessaoVista = false;
   protected browse = signal<BrowseSpec | null>(null);
   protected formFields = signal<PoDynamicFormField[]>([]);
   protected formTitle = signal('');
@@ -271,7 +272,13 @@ export class App {
     const app = /^\/app\/([A-Za-z0-9_-]{1,64})\/?$/.exec(location.pathname)?.[1] ?? '';
     const es = new EventSource('/events?s=' + this.sid + (app ? '&app=' + app : ''));
     es.onmessage = (m) => this.onEvent(JSON.parse(m.data) as ServerEvent);
-    es.onerror = () => { if (!this.finished()) this.status.set('desconectado'); es.close(); };
+    // EventSource reconecta sozinho com o mesmo sid — se o servidor
+    // estiver de pé, retoma a mesma sessão sem perder estado. Não fechar:
+    // es.close() aqui deixava a página permanentemente morta após
+    // qualquer queda (restart do serviço, blip de rede). Se a sessão
+    // tiver morrido de verdade, o marcador 'session' na reconexão manda
+    // recarregar para o login (ver onEvent).
+    es.onerror = () => { if (this.finished()) { es.close(); return; } this.status.set('desconectado'); };
 
     // Onda 3c.1/3c.2: mídia (breakpoints do grid PO-UI) e rede.
     window.addEventListener('resize', () => this.avisaMidia());
@@ -341,6 +348,18 @@ export class App {
 
   private onEvent(ev: ServerEvent) {
     switch (ev.type) {
+      case 'session':
+        // Marcador emitido pelo servidor a cada conexão SSE (primeiro
+        // evento do stream). resumed=false com sessão já vista = a sessão
+        // anterior morreu (restart do serviço etc.) e um programa NOVO
+        // reexecuta com o sid antigo — o DOM existente não reflete esse
+        // programa, então recarrega para recomeçar limpo (login). Blip de
+        // rede com servidor vivo reconecta na mesma sessão (resumed=true)
+        // e segue de onde parou.
+        if (!ev.resumed && this.sessaoVista) { location.reload(); break; }
+        this.sessaoVista = true;
+        this.status.set('conectado');
+        break;
       case 'output':
         this.status.set('executando');
         this.lines.update(l => [...l, ev.text ?? '']);

@@ -432,6 +432,18 @@ func (srv *Server) Handler() http.Handler {
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
 
+		// Marcador de sessão — primeiro evento do stream, sempre. O
+		// cliente distingue reconexão na mesma sessão (resumed=true:
+		// continua de onde parou) de sessão nova criada com sid antigo
+		// (resumed=false: a sessão anterior morreu — ex.: restart do
+		// serviço — e o programa reexecuta do zero; lá ele recarrega a
+		// página para recomeçar com DOM limpo em vez de sobrepor o novo
+		// programa ao DOM da sessão morta).
+		fmt.Fprintf(w, "data: ")
+		_ = json.NewEncoder(w).Encode(map[string]any{"type": "session", "resumed": resumed})
+		fmt.Fprintf(w, "\n")
+		flusher.Flush()
+
 		if !resumed {
 			// Executa o programa em goroutine própria; eventos fluem pelo canal
 			go func() {
