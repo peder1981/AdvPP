@@ -178,8 +178,41 @@ jobs:
             dist/*.deb
             dist/*.exe
 
+  # Extensão VS Code gerada no MESMO run e na MESMA tag da release: o
+  # build-vsix.sh falha se o package.json não tiver a versão da tag, e o
+  # advplc embutido tem de ser byte a byte o do pacote CLI publicado. O
+  # .vsix vira asset da release; o Marketplace recebe exatamente esse arquivo.
+  vsix:
+    needs: cli-cross
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Build .vsix
+        run: ./tools/vscode-advpl/build-vsix.sh "${GITHUB_REF_NAME#v}"
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-packages
+          path: cli
+      - name: advplc da extensão == advplc da release
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          B=tools/vscode-advpl/bin
+          same() { a=$(sha256sum < "$2" | cut -d' ' -f1); b=$(eval "$3" | sha256sum | cut -d' ' -f1)
+                   [ "$a" = "$b" ] && echo "ok $1 $a" || { echo "DIFERE $1: vsix=$a release=$b"; exit 1; }; }
+          same linux-amd64  $B/linux-x64/advplc      "tar xzf cli/advpp-cli-$V-linux-amd64.tar.gz -O advplc"
+          same linux-arm64  $B/linux-arm64/advplc    "tar xzf cli/advpp-cli-$V-linux-arm64.tar.gz -O advplc"
+          same darwin-arm64 $B/darwin-arm64/advplc   "tar xzf cli/advpp-cli-$V-darwin-arm64.tar.gz -O advplc"
+          same windows-amd64 $B/win32-x64/advplc.exe "unzip -p cli/advpp-cli-$V-windows-amd64.zip advplc.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: tools/vscode-advpl/advpl-tlpp-advpp-*.vsix
+
   release:
-    needs: [cli-cross, native]
+    needs: [cli-cross, native, vsix]
     runs-on: ubuntu-latest
     steps:
       # Só os pacotes: o artifact bridge-windows já está dentro do zip e do
@@ -193,6 +226,10 @@ jobs:
         with:
           path: artifacts
           name: cli-packages
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          name: vsix
       - name: Integridade dos pacotes
         # Nomes repetidos entre jobs viravam um arquivo só, com os bytes
         # misturados (merge-multiple) — o workflow ficava verde e a release
@@ -204,6 +241,8 @@ jobs:
           for f in artifacts/*.tar.gz; do { gzip -t "$f" && tar tzf "$f" >/dev/null; } || { echo "CORROMPIDO: $f"; exit 1; }; echo "ok $f"; done
           for f in artifacts/*.zip; do unzip -tq "$f" || { echo "CORROMPIDO: $f"; exit 1; }; echo "ok $f"; done
           for f in artifacts/*.deb; do dpkg-deb --info "$f" >/dev/null || { echo "CORROMPIDO: $f"; exit 1; }; echo "ok $f"; done
+          for f in artifacts/*.vsix; do unzip -tq "$f" || { echo "CORROMPIDO: $f"; exit 1; }; echo "ok $f"; done
+          ls artifacts/*.vsix >/dev/null || { echo "release sem .vsix"; exit 1; }
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
