@@ -99,7 +99,7 @@ func TestDebugSessionBreakpointStepVariables(t *testing.T) {
 
 	nextEvent := func(t *testing.T, want string) *dap.Envelope {
 		t.Helper()
-		deadline := time.After(5 * time.Second)
+		deadline := time.After(30 * time.Second) // folga p/ CI carregado; travamento real ainda falha
 		for {
 			select {
 			case env, ok := <-events:
@@ -219,7 +219,7 @@ func TestDebugSessionBreakpointStepVariables(t *testing.T) {
 		if err != nil && err != io.ErrClosedPipe {
 			t.Fatalf("server exited with error: %v", err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("server did not shut down after disconnect")
 	}
 

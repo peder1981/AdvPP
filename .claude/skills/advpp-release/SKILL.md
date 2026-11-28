@@ -80,7 +80,7 @@ git push origin vX.Y.Z
 
 (Não existe alvo `make release`.) Desde a v4.7.0 o `master` é protegido:
 tudo entra por PR com a matriz `Test` verde (4 SOs + `determinism`) —
-inclusive o bump da extensão do passo 9. Dispara
+inclusive o bump da extensão (passo 9), que precisa estar no PR antes da tag. Dispara
 `.github/workflows/release.yml`: cross-compile CLI (3 plataformas) +
 build nativo das GUIs Fyne (runners Linux/Windows/macOS) +
 `gh release create --generate-notes`.
@@ -135,17 +135,23 @@ abrir** pelo menos um pacote (`gh release download vX.Y.Z -p
 `install.sh` com `ADVPP_INSTALL_DIR` apontando pra um diretório temporário
 — até a v4.7.0 a release saiu verde com tar.gz corrompido.
 
-## 9. Extensão VS Code (se o compilador embutido nela mudou)
+## 9. Extensão VS Code (sempre — mesma versão, mesmo run)
+
+Desde a v4.10.3 o `.vsix` é gerado pelo job `vsix` do `release.yml`, na
+mesma tag, e anexado à release. O job falha se o `package.json` não tiver a
+versão da tag ou se o `advplc` embutido não for byte a byte o dos pacotes
+CLI. Por isso o bump de `tools/vscode-advpl/package.json` para `X.Y.Z` vai
+**no PR da release, antes da tag** — nunca existe release sem extensão.
+
+Publicar exatamente o asset da release (nunca um `.vsix` gerado local):
 
 ```bash
-# tools/vscode-advpl/package.json: bump "version" pra X.Y.Z (ou compatível)
-./tools/vscode-advpl/build-vsix.sh X.Y.Z    # cross-compile, embute os 4 binários
-vsce publish --packagePath tools/vscode-advpl/advpl-tlpp-advpp-X.Y.Z.vsix
+gh release download vX.Y.Z -p 'advpl-tlpp-advpp-*.vsix' -D /tmp/vsix
+vsce publish --packagePath /tmp/vsix/advpl-tlpp-advpp-X.Y.Z.vsix
 ```
 
-Commit `release(vscode): extensão AdvPL/TLPP vX.Y.Z` + tag
-`vscode-X.Y.Z` (não colide com o padrão `v[0-9]*.[0-9]*.[0-9]*` do
-workflow do compilador). `.vsix` não é versionado no git (gitignored).
+Não existe mais tag `vscode-X.Y.Z` separada: a tag `vX.Y.Z` cobre os dois.
+O Marketplace leva alguns minutos para mostrar a versão nova (`vsce show`).
 
 ## 10. Deploy nas máquinas reais (só se o usuário pedir)
 
