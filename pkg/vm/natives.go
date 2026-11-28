@@ -1548,6 +1548,9 @@ func (v *VM) registerNatives() {
 		"FWCALLAPP": func(args []advplrt.Value) (advplrt.Value, error) {
 			return v.fwCallApp(args)
 		},
+		"FWOPENTAB": func(args []advplrt.Value) (advplrt.Value, error) {
+			return v.fwOpenTab(args)
+		},
 		"FWLIBVERSION": func(args []advplrt.Value) (advplrt.Value, error) {
 			return advplrt.NewString("1.0.0"), nil
 		},

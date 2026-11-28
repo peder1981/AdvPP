@@ -248,3 +248,18 @@ func (v *VM) fwCallApp(args []advplrt.Value) (advplrt.Value, error) {
 		}
 	}
 }
+
+// fwOpenTab implementa FWOPENTAB(cUrl): abre cUrl numa aba nova do
+// navegador e retorna imediatamente — sem canal poui e sem bloquear a
+// sessão (o FwCallApp prende o programa no laço PouiNext até a aba
+// fechar, o que deixa a página principal morta nesse intervalo). Serve
+// para abrir páginas da mesma origem (o cliente valida: '/' mas não
+// '//'). Fora do modo web (advplc run, testes) ignora.
+func (v *VM) fwOpenTab(args []advplrt.Value) (advplrt.Value, error) {
+	ui, ok := v.uiProvider.(interface{ OpenTab(string) })
+	if !ok {
+		return advplrt.Nil, nil
+	}
+	ui.OpenTab(strings.TrimSpace(advplrt.ToString(getArg(args, 0))))
+	return advplrt.Nil, nil
+}

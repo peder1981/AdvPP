@@ -66,10 +66,11 @@ func TestMenuServeReconnectResumesSession(t *testing.T) {
 	}
 
 	type sseEvent struct {
-		Type string          `json:"type"`
-		ID   int             `json:"id"`
-		Data json.RawMessage `json:"data"`
-		Text string          `json:"text"`
+		Type    string          `json:"type"`
+		ID      int             `json:"id"`
+		Data    json.RawMessage `json:"data"`
+		Text    string          `json:"text"`
+		Resumed bool            `json:"resumed"`
 	}
 	// makeReader devolve um closure de leitura de eventos SSE ligado a um
 	// bufio.Reader específico, com timeout — usado tanto pra ler
@@ -191,6 +192,15 @@ func TestMenuServeReconnectResumesSession(t *testing.T) {
 	respB := connect(ctxB)
 	defer respB.Body.Close()
 	readB := makeReader(bufio.NewReader(respB.Body))
+
+	// O servidor abre o stream com {"type":"session","resumed":...}:
+	// resumed=true marca reconexão na MESMA sessão viva — o marcador que
+	// o cliente usa para distinguir blip de rede de sessão morta.
+	evSessao, ok := readB(2 * time.Second)
+	if !ok || evSessao.Type != "session" || !evSessao.Resumed {
+		t.Fatalf("conexão B: esperado evento session resumed=true, veio type=%q resumed=%v ok=%v",
+			evSessao.Type, evSessao.Resumed, ok)
+	}
 
 	// Prova de que NÃO houve reinício: se o bug estivesse presente, o
 	// servidor recriaria a sessão e a VM reexecutaria do zero, emitindo
