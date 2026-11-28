@@ -2,6 +2,27 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.11.0] - 2026-11-28
+
+### Added
+- **`FWOPENTAB(cUrl)`** (builtin novo): abre `cUrl` — caminho same-origin
+  (`/...`, exceto `//...`) — numa aba nova do navegador e retorna na hora,
+  sem canal PO-UI e sem prender a sessão no laço `PouiNext` como o
+  `FwCallApp`. Pensado para abrir páginas da mesma origem (ex.: PDV,
+  relatórios) sem congelar a página principal. Fora do modo web
+  (`advplc serve`) é no-op.
+
+### Fixed
+- **Sessão SSE não vira mais zumbi**: `/events` emite
+  `{"type":"session","resumed":bool}` como primeiro evento —
+  `resumed=true` na reconexão com sessão viva (blip de rede), `false`
+  quando o sid virou sessão nova (ex.: restart do servidor). O cliente
+  recarrega para o login quando `resumed=false` após já ter visto uma
+  sessão, em vez de ficar com a página renderizada porém permanentemente
+  morta.
+- `open-tab` no cliente aceita qualquer caminho same-origin (antes só
+  `/poui/`), permitindo ao `FWOPENTAB` abrir rotas fora do app PO-UI.
+
 ## [4.10.3] - 2026-11-27
 
 ### Changed

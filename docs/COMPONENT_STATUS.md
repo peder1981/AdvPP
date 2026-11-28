@@ -580,6 +580,14 @@ compatibilidade PO-UI" na seção de recursos executados.
   PO-UI, então navegação é no-op com estado fiel (URL/lang em `Props`).
   `FwCallApp` fora do modo web (`advplc serve`) retorna o erro exato
   `FwCallApp: requer o modo web (advplc serve)`.
+- ✅ **`FWOPENTAB(cUrl)`** (v4.11.0): abre caminho same-origin
+  (`/...`, exceto `//...`) em aba nova via evento `open-tab` e retorna
+  sem bloquear a sessão — alternativa ao `FwCallApp` para páginas que
+  não são apps PO-UI (ex.: PDV web do geban-erp). No-op fora do modo web.
+- ✅ **Sessão SSE resiliente** (v4.11.0): `/events` abre o stream com
+  `{"type":"session","resumed":bool}` — `resumed=true` em reconexão com
+  sessão viva, `false` quando o sid virou sessão nova; o cliente
+  recarrega ao login em vez de ficar zumbi.
 - ✅ **OAuth2 do framework**: `POST/GET /api/oauth2/v1/token` emite
   JWT `header.payload.` sem assinatura, com `userid`/`exp` (formato que
   `getTokenPayload()` do `@totvs/protheus-lib-core` decodifica). O REST
