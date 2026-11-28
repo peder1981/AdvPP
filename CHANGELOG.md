@@ -2,6 +2,20 @@
 
 Todas as mudanças relevantes no projeto AdvPP.
 
+## [4.10.3] - 2026-11-27
+
+### Changed
+- A extensão VS Code passa a ser gerada pelo próprio workflow de release, no
+  mesmo run e na mesma tag do compilador, e vira asset da release
+  (`advpl-tlpp-advpp-X.Y.Z.vsix`). O workflow falha se a versão do
+  `package.json` não for a da tag ou se o `advplc` embutido não for byte a
+  byte o dos pacotes CLI. O Marketplace recebe exatamente esse arquivo: não
+  existe mais release do compilador sem extensão correspondente.
+
+### Fixed
+- Teste `pkg/dap` com timeout de 5 s falhava sob carga (`go test ./...`
+  completo); agora 30 s.
+
 ## [4.10.2] - 2026-11-26
 
 ### Added
