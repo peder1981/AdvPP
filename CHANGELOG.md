@@ -12,7 +12,14 @@ Todas as mudanças relevantes no projeto AdvPP.
   byte o dos pacotes CLI. O Marketplace recebe exatamente esse arquivo: não
   existe mais release do compilador sem extensão correspondente.
 
+### Added
+- `PoMenu:ClearItems()`: esvazia itens e handlers do menu. Antes,
+  `Set("items", {})` seguido de `AddItem` derrubava a VM (pânico de tipo).
+
 ### Fixed
+- `Return` nu no fim de função seguido de `Static`/`Local` de arquivo:
+  a declaração era lida como valor de retorno, a primeira User Function do
+  fonte raiz nunca era chamada e o programa encerrava em silêncio.
 - Teste `pkg/dap` com timeout de 5 s falhava sob carga (`go test ./...`
   completo); agora 30 s.
 
